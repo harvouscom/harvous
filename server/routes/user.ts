@@ -74,7 +74,10 @@ import { calculateSessionXP, type SessionData } from '../utils/session-tracker';
 import { canCreateSharedSpace, getUserLimitsInfo, getSpaceMemberCount } from '../utils/tier-limits';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { connectionFieldsForHmcChurchId } from '../utils/church-connection';
-import { isChurchStaffForOrg } from '../utils/church-staff';
+import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-staff';
+import { orgLeftByChurchChange, releaseChannelFollowsForOrg } from '../utils/ministry-channel-follow';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
+import { addImportedNotesToSpace, decideImportSpaceTarget } from '../utils/import-space-target';
 import { fetchClerkOrgMemberships } from '../utils/clerk-org';
 import {
   capabilitiesForChurchRole,
@@ -801,6 +804,17 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       if (hasChurchData) await awardChurchAddedXP(auth.userId);
     }
 
+    /* Moved or left: the old church's channels stop filling this person's feed.
+       After the write, so a failure here never costs them the new connection. */
+    const leftOrgId = orgLeftByChurchChange(existing?.connectedOrgId, connection.connectedOrgId);
+    if (leftOrgId) {
+      try {
+        await releaseChannelFollowsForOrg(auth.userId, leftOrgId);
+      } catch (error) {
+        console.warn('[update-church] could not release old channel follows', { leftOrgId, error });
+      }
+    }
+
     return c.json({
       success: true,
       message: 'Church information updated',
@@ -1075,8 +1089,14 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     } catch (_) { /* non-fatal */ }
 
     let isHomeChurchStaff = false;
+    /* Connected to a church that has since been switched off (or removed). Its
+       published study stays readable, but the person should hear why nothing new
+       arrives, rather than meet a church that simply went quiet. */
+    let connectedChurchInactive = false;
     if (churchData.connectedOrgId) {
       try {
+        const connected = await getActiveChurchByOrgId(churchData.connectedOrgId);
+        connectedChurchInactive = !connected || !connected.isActive;
         isHomeChurchStaff = await isChurchStaffForOrg(auth.userId, churchData.connectedOrgId);
       } catch (_) { /* non-fatal */ }
     }
@@ -1106,6 +1126,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       connectedOrgId: churchData.connectedOrgId,
       connectedChurchAt: churchData.connectedChurchAt,
       isHomeChurchStaff,
+      connectedChurchInactive,
       defaultTranslation,
       appearanceSettings,
       lastReadPosition,
@@ -2173,11 +2194,31 @@ app.post('/api/user/import/session/:id/commit', requireAuth, async (c) => {
     const session = await getOpenImportSession(c.req.param('id') ?? '', auth.userId);
     if (!session) return c.json({ error: 'Import session not found or already finished' }, 404);
 
-    const body = await c.req.json<{ itemIds?: string[] }>();
+    const body = await c.req.json<{ itemIds?: string[]; targetSpaceId?: string | null }>();
     const requestedIds = (Array.isArray(body.itemIds) ? body.itemIds : [])
       .filter((id): id is string => typeof id === 'string')
       .slice(0, IMPORT_LIMITS.maxCommitBatch);
     if (requestedIds.length === 0) return c.json({ error: 'itemIds is required' }, 400);
+
+    /* Optional: also put these notes in a space the importer can author in (a channel,
+       a group). Checked on every batch — access can change mid-import. */
+    const rawTarget = typeof body.targetSpaceId === 'string' ? body.targetSpaceId.trim() : '';
+    const targetSpaceId = rawTarget ? (rawTarget.startsWith('space_') ? rawTarget : `space_${rawTarget}`) : null;
+    if (targetSpaceId) {
+      let targetAccess: Awaited<ReturnType<typeof requireSpaceAccess>>;
+      try {
+        targetAccess = await requireSpaceAccess(targetSpaceId, auth.userId);
+      } catch (err) {
+        if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+        throw err;
+      }
+      const decision = decideImportSpaceTarget({
+        space: targetAccess.space,
+        role: targetAccess.role,
+        isBackupRestore: Boolean(session.manifestConnections),
+      });
+      if (!decision.ok) return c.json({ error: decision.error, code: decision.code }, decision.status);
+    }
 
     const items = await db
       .select()
@@ -2270,6 +2311,15 @@ app.post('/api/user/import/session/:id/commit', requireAuth, async (c) => {
     }
 
     await bumpImportSessionCounters(session.id, counters);
+
+    if (targetSpaceId) {
+      // Duplicates too: the importer asked for this file to be in the room, and the note
+      // they already had is that file.
+      const landed = results
+        .filter((r) => r.status !== 'failed' && r.noteId)
+        .map((r) => r.noteId!);
+      await addImportedNotesToSpace(targetSpaceId, landed, auth.userId);
+    }
 
     return c.json({
       results,

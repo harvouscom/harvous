@@ -53,7 +53,7 @@ import {
   hmcSearchChurches,
 } from '../utils/hmc-partner';
 import { listHmcChurchInterest } from '../utils/hmc-church-interest';
-import { churchSponsorship } from '../utils/church-entitlement';
+import { CHURCH_PLAN_SLUG, churchSponsorship } from '../utils/church-entitlement';
 
 const app = new Hono();
 
@@ -556,6 +556,62 @@ app.post('/api/admin/churches/:churchId/pilot', async (c) => {
     const standardError = handleAPIError(error, {
       endpoint: '/api/admin/churches/[churchId]/pilot',
       action: 'set_church_pilot',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * Mark a church paid (or not) by hand — a church that pays by invoice.
+ *
+ * `billingPlan` used to have exactly one writer, the Polar webhook, so an
+ * invoice-paying church read "pilot" forever and nothing told a paying
+ * customer from a trial. This is the concierge counterpart: it writes the same
+ * columns with `billingStatus='manual'` and no subscription id.
+ *
+ * Refuses a church Polar is managing (it has a subscription id): the webhook
+ * owns that row, and a hand edit would be undone by the next event or would
+ * undo a real cancellation. End the Polar subscription first.
+ */
+app.post('/api/admin/churches/:churchId/billing', async (c) => {
+  const gate = await requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const churchId = c.req.param('churchId');
+    const body = await c.req.json().catch(() => ({} as any));
+    if (typeof body.paid !== 'boolean') {
+      return c.json({ error: 'paid (boolean) is required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const existing = first(await db.select().from(Churches).where(eq(Churches.id, churchId)).limit(1));
+    if (!existing) return c.json({ error: 'Church not found', code: 'CHURCH_NOT_FOUND' }, 404);
+    if (existing.billingSubscriptionId) {
+      return c.json({
+        error: 'This church is billed through Polar. Change it there, not by hand.',
+        code: 'CHURCH_BILLED_BY_POLAR',
+      }, 409);
+    }
+
+    const now = new Date();
+    const church = first(
+      await db
+        .update(Churches)
+        .set({
+          billingPlan: body.paid ? CHURCH_PLAN_SLUG : null,
+          billingStatus: body.paid ? 'manual' : null,
+          billingPlanUpdatedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(Churches.id, churchId))
+        .returning(),
+    )!;
+
+    return c.json({ success: true, church, sponsorship: churchSponsorship(church) });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/admin/churches/[churchId]/billing',
+      action: 'set_church_billing_manual',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

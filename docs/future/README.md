@@ -264,7 +264,7 @@ shipped in v2.78.0.
 
 ### Church Connection — partially built
 - Live: church identity, staff sync, HMC directory, admin provisioning (`server/routes/churches.ts`, `/admin/churches`), org-owned broadcast spaces.
-- Not yet: self-serve church signup, `ChurchConnectionRequests` (congregant connect flow), `Churches.billingPlan`. See [CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md) and [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) for current state and the recommended first general-purpose build (note templates).
+- Built: congregant connect (self-select via Here's My Church), `Churches.billingPlan` (Polar webhook or admin "mark paid"). Not built: self-serve church signup, `ChurchConnectionRequests`. Current state: [../CHURCH_V1_SCOPE.md](../CHURCH_V1_SCOPE.md). See [CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md) and [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) for current state and the recommended first general-purpose build (note templates).
 
 ## 🗄️ Database Schema
 

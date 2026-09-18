@@ -14,14 +14,21 @@ export function isMinistryBroadcastSpace(options: {
 }
 
 /**
- * Staff pilot: ministry channels are read-only in product UI (browse only).
- * Compose / thread create / invite land with later church education features.
+ * May the viewer start a new note directly in this room?
+ *
+ * A ministry channel is written by its owner and leaders (staff, or a granted
+ * volunteer) and read by everyone who follows it — the server's
+ * `canAuthorInSpace` says exactly that. During the staff pilot this refused the
+ * channel to everyone, so staff wrote elsewhere and moved the note in. An
+ * unknown role still reads as a follower: never offer a door the server shuts.
  */
 export function canComposeInSpace(options: {
   type?: 'personal' | 'shared' | 'public' | string | null;
   orgId?: string | null;
+  role?: SharedSpaceMembershipRole | null;
 }): boolean {
-  return !isMinistryBroadcastSpace(options);
+  if (!isMinistryBroadcastSpace(options)) return true;
+  return options.role === 'owner' || options.role === 'leader';
 }
 
 /**

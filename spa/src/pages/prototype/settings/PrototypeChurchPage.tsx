@@ -305,6 +305,13 @@ export default function PrototypeChurchPage() {
               disabled
             />
           </SettingsGroup>
+          {profile?.connectedChurchInactive ? (
+            /* Otherwise the church just goes quiet and nothing says why. What they
+               already read or copied stays theirs; clearing lets them pick again. */
+            <p className="proto-caption" style={{ margin: '0 0 12px', color: 'var(--pds-text-secondary)' }}>
+              {`${name || 'This church'} is no longer on Harvous, so nothing new will arrive from it. Anything you copied into your own study stays yours. Clear it to choose another church.`}
+            </p>
+          ) : null}
           <button
             type="button"
             className="proto-settings-btn proto-settings-btn--secondary"

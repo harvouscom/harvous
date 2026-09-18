@@ -77,10 +77,14 @@ export interface PrototypeSeriesSheetProps {
   ) => void;
   onDelete: (series: TeachingPlanSeries) => void;
   /**
-   * Publish (or re-publish) this series into the room as a study plan.
-   * Absent on the church-wide plan, which has no single room to publish into.
+   * Publish (or re-publish) this series as a study plan. A room's own plan
+   * publishes into that room and passes no channel. The church-wide plan has no
+   * room, so it also passes `publishChannels` and the pastor picks one on first
+   * publish; after that the series lives in that channel and updates in place.
    */
-  onPublishThread?: (series: TeachingPlanSeries) => void;
+  onPublishThread?: (series: TeachingPlanSeries, channelSpaceId?: string) => void;
+  /** Church-wide plan only: the ministry channels a series can be published into. */
+  publishChannels?: { id: string; title: string }[];
   /**
    * Extend the run: `weeks` more Sundays after its last dated one, each a
    * placeholder carrying the series name and no passage.
@@ -114,6 +118,7 @@ export default function PrototypeSeriesSheet({
   canWrite,
   pending,
   onPublishThread,
+  publishChannels,
   error,
   notice = null,
   onUpdate,
@@ -134,6 +139,8 @@ export default function PrototypeSeriesSheet({
   /** Which existing sermons are checked for moving under this series. */
   const [assigning, setAssigning] = useState(false);
   const [assignIds, setAssignIds] = useState<string[]>([]);
+  /** Church-wide plan: the channel chooser is open for a first publish. */
+  const [choosingChannel, setChoosingChannel] = useState(false);
   /** The re-run form, and what it carries across. */
   const [rerunOpen, setRerunOpen] = useState(false);
   const [rerunDate, setRerunDate] = useState('');
@@ -177,6 +184,15 @@ export default function PrototypeSeriesSheet({
 
   useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation && !pending);
 
+  /* Both confirms live here rather than in the parent: this is where the
+     buttons are, and an anchored confirm needs the rect of the thing that
+     raised it. The parents used to ask with `window.confirm` from inside a
+     callback, which is also why they could not anchor.
+     Above the early return: the sheet mounts with no series, and hooks after
+     it crashed the page ("Rendered more hooks") the moment one was opened. */
+  const [emptyAnchor, setEmptyAnchor] = useState<DOMRect | null>(null);
+  const [deleteAnchor, setDeleteAnchor] = useState<DOMRect | null>(null);
+
   if (!series) return null;
 
   const trimmed = title.trim();
@@ -213,12 +229,6 @@ export default function PrototypeSeriesSheet({
      decision and would quietly shorten somebody else's run. */
   const assignable = planServices.filter((s) => !s.seriesId);
 
-  /* Both confirms live here rather than in the parent: this is where the
-     buttons are, and an anchored confirm needs the rect of the thing that
-     raised it. The parents used to ask with `window.confirm` from inside a
-     callback, which is also why they could not anchor. */
-  const [emptyAnchor, setEmptyAnchor] = useState<DOMRect | null>(null);
-  const [deleteAnchor, setDeleteAnchor] = useState<DOMRect | null>(null);
   const removable = services.filter(
     (s) => !s.reference && s.title.trim() === series.title.trim(),
   );
@@ -632,26 +642,79 @@ export default function PrototypeSeriesSheet({
           weeks added since, so this is the update path too rather than a
           one-way door that would strand week nine.
 
-          Only ever offered on a room's own plan: the church-wide plan has no
-          single room to publish into, and the server refuses it outright.
+          A room's plan publishes into that room. The church-wide plan has no
+          room of its own, so the first publish asks which ministry channel the
+          congregation should walk it in; after that it updates in place.
         */}
         {canWrite && onPublishThread ? (
           <div className="proto-series-sheet__publish">
-            <button
-              type="button"
-              className="proto-sheet-quiet-action"
-              disabled={pending || services.length === 0}
-              onClick={() => onPublishThread(series)}
-            >
-              {pending
-                ? 'Publishing…'
-                : series.publishedThreadId
-                  ? 'Update the study plan'
-                  : 'Publish as a study plan'}
-            </button>
+            {choosingChannel && publishChannels ? (
+              <>
+                <p className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+                  <span>Publish into</span>
+                </p>
+                <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools proto-series-sheet__assign-list">
+                  {publishChannels.map((channel) => (
+                    <button
+                      key={channel.id}
+                      type="button"
+                      className="proto-church-tools__row"
+                      disabled={pending}
+                      onClick={() => {
+                        setChoosingChannel(false);
+                        onPublishThread(series, channel.id);
+                      }}
+                    >
+                      <span className="proto-church-tools__row-icon" aria-hidden>
+                        <Icon name="rss" size={13} />
+                      </span>
+                      <span className="proto-church-tools__row-text">
+                        <span className="pds-list-title proto-church-tools__row-title">
+                          {channel.title}
+                        </span>
+                      </span>
+                      <span className="proto-church-tools__row-chevron" aria-hidden>
+                        <Icon name="caret-right" size={11} />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="proto-sheet-quiet-action"
+                  onClick={() => setChoosingChannel(false)}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="proto-sheet-quiet-action"
+                disabled={
+                  pending ||
+                  services.length === 0 ||
+                  (!series.publishedThreadId && publishChannels?.length === 0)
+                }
+                onClick={() => {
+                  if (!series.publishedThreadId && publishChannels) setChoosingChannel(true);
+                  else onPublishThread(series);
+                }}
+              >
+                {pending
+                  ? 'Publishing…'
+                  : series.publishedThreadId
+                    ? 'Update the study plan'
+                    : 'Publish as a study plan'}
+              </button>
+            )}
             {services.length === 0 ? (
               <p className="proto-caption proto-teaching-plan__empty">
                 Add a week first — a study plan needs something to walk through.
+              </p>
+            ) : !series.publishedThreadId && publishChannels?.length === 0 ? (
+              <p className="proto-caption proto-teaching-plan__empty">
+                Create a ministry channel first — that is where the congregation walks it.
               </p>
             ) : null}
           </div>

@@ -5,6 +5,12 @@ import { useAuthReady } from '../useAuthReady';
 
 export type ChurchFeedItem = {
   noteId: string;
+  /**
+   * Reached the channel since the viewer last opened it, from someone else. Same
+   * watermark as the switcher's count; clears when the channel is visited.
+   * Optional so a payload cached before this shipped still parses.
+   */
+  isNew?: boolean;
   title: string | null;
   excerpt: string;
   noteType: string;

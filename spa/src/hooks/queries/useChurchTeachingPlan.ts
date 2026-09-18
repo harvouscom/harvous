@@ -3,6 +3,8 @@ import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { churchSermonsQueryKey } from './useChurchSermons';
+import { spaceGroupThreadsQueryKey } from './useSpaceGroupThreads';
+import { navigationQueryKeyPrefix } from './useNavigation';
 
 /** One library item a planned entry pulls from. */
 export type AttachedResource = {
@@ -193,7 +195,14 @@ type SeriesAction =
       color?: string | null;
       description?: string | null;
     }
-  | { kind: 'series-delete'; seriesId: string };
+  | { kind: 'series-delete'; seriesId: string }
+  /**
+   * Publish a church-plan series into one of the church's ministry channels as
+   * a study plan. The channel is the caller's choice — a church series has no
+   * room of its own. Omit the channel to update an already-published series in
+   * place — the server reuses the channel it lives in and appends new weeks.
+   */
+  | { kind: 'series-publish-thread'; seriesId: string; channelSpaceId?: string };
 
 type SermonAction =
   | { kind: 'attachments'; serviceId: string; itemIds: string[] }
@@ -244,14 +253,26 @@ export function useChurchSermonActions(orgId: string | null | undefined) {
           return api.post('/api/church/series/update', { orgId: trimmedOrgId, ...rest });
         case 'series-delete':
           return api.post('/api/church/series/delete', { orgId: trimmedOrgId, ...rest });
+        case 'series-publish-thread':
+          return api.post('/api/church/series/publish-thread', { orgId: trimmedOrgId, ...rest });
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _error, action) => {
       void queryClient.invalidateQueries({
         queryKey: churchTeachingPlanQueryKey(userId, trimmedOrgId),
       });
       // The staff edit is what changes what the congregation sees on Home.
       void queryClient.invalidateQueries({ queryKey: churchSermonsQueryKey(userId) });
+      /* Publishing writes a Thread and notes into the channel, so its own surfaces
+         have to hear about it — the same set the space lane refreshes. */
+      if (action?.kind === 'series-publish-thread') {
+        const channel = action.channelSpaceId ?? (_data as { channelSpaceId?: string } | undefined)?.channelSpaceId;
+        if (channel) {
+          void queryClient.invalidateQueries({ queryKey: spaceGroupThreadsQueryKey(channel) });
+          void queryClient.invalidateQueries({ queryKey: ['space', channel, 'bootstrap'] });
+        }
+        void queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
+      }
     },
   });
 }

@@ -25,15 +25,19 @@
  *   POST /api/church/series/rerun
  *   POST /api/church/series/update
  *   POST /api/church/series/delete
+ *   POST /api/church/series/publish-thread — into a ministry channel, as a study plan
  */
 
 import { Hono } from 'hono';
 import {
   db,
   first,
+  ChurchSeries,
   ChurchServices,
   NoteTemplates,
+  SpaceMemberships,
   Spaces,
+  Threads,
   eq,
   ne,
   and,
@@ -45,6 +49,13 @@ import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import { isUniqueViolation } from '../utils/db-unique-violation';
 import { isMinistryBroadcastSpaceRow } from '../utils/channel-publish-cadence';
+import { broadcastInvalidation } from '../utils/realtime';
+import { requireSpaceAccess } from '../utils/space-access';
+import { canManageSpaceThreadStructure } from '../utils/thread-sequence';
+import {
+  decideChurchSeriesPublish,
+  publishSeriesAsStudyPlan,
+} from '../utils/church-series-publish';
 import { canonicalizeServiceReference } from '../utils/church-service-passage';
 import { normalizeServiceTime } from '../utils/church-service-time';
 import {
@@ -1350,6 +1361,123 @@ app.post('/api/church/series/update', requireAuth, rateLimit('write'), async (c)
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/series/update',
       action: 'update_church_series',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * Publish a church-plan series into a ministry channel as a study plan.
+ *
+ * The space lane (`/api/church/spaces/:spaceId/series/publish-thread`) could
+ * only publish a room's own series, and refused a church-wide one — so an
+ * eight-week sermon series had no way to reach the congregation as something
+ * to walk. The pastor names the channel; `publishSeriesAsStudyPlan` does the
+ * rest unchanged. Two gates, like the space lane: planning the church's
+ * teaching (`manage_teaching_plan`), and holding the channel's thread
+ * structure — a pastor who isn't staff on that channel can't publish into it.
+ */
+app.post('/api/church/series/publish-thread', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      seriesId?: string;
+      channelSpaceId?: string;
+    };
+
+    const gate = await assertCanManageTeachingPlan(auth.userId, (body.orgId ?? '').trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const seriesId = (body.seriesId ?? '').trim();
+    if (!seriesId) return c.json({ error: 'seriesId is required', code: 'BAD_REQUEST' }, 400);
+
+    const series = first(
+      await db
+        .select({
+          id: ChurchSeries.id,
+          title: ChurchSeries.title,
+          color: ChurchSeries.color,
+          churchId: ChurchSeries.churchId,
+          spaceId: ChurchSeries.spaceId,
+          publishedThreadId: ChurchSeries.publishedThreadId,
+        })
+        .from(ChurchSeries)
+        .where(eq(ChurchSeries.id, seriesId))
+        .limit(1),
+    );
+    const existingThread = series?.publishedThreadId
+      ? first(
+          await db
+            .select({ id: Threads.id, spaceId: Threads.spaceId })
+            .from(Threads)
+            .where(eq(Threads.id, series.publishedThreadId))
+            .limit(1),
+        ) ?? null
+      : null;
+    /* Updating a published series needs no channel — it already lives in one. */
+    const channelSpaceId = (body.channelSpaceId ?? '').trim() || existingThread?.spaceId || '';
+    if (!channelSpaceId) {
+      return c.json({ error: 'Pick a channel to publish into', code: 'CHANNEL_REQUIRED' }, 400);
+    }
+    const channel = first(
+      await db
+        .select({ type: Spaces.type, orgId: Spaces.orgId, deletedAt: Spaces.deletedAt })
+        .from(Spaces)
+        .where(eq(Spaces.id, channelSpaceId))
+        .limit(1),
+    );
+
+    const decision = decideChurchSeriesPublish({
+      churchId: gate.church.id,
+      orgId: gate.church.orgId,
+      series: series ?? null,
+      channel: channel ?? null,
+      channelSpaceId,
+      existingThread,
+    });
+    if (!decision.ok) return c.json({ error: decision.error, code: decision.code }, decision.status);
+
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
+    try {
+      access = await requireSpaceAccess(channelSpaceId, auth.userId);
+    } catch {
+      return c.json({
+        error: 'You are not staff on this channel',
+        code: 'SPACE_MEMBERSHIP_REQUIRED',
+      }, 403);
+    }
+    if (!canManageSpaceThreadStructure(access.space, access.role, auth.userId)) {
+      return c.json({
+        error: 'Only the channel’s owner or a leader can publish a study plan into it',
+        code: 'SPACE_THREAD_ROLE_REQUIRED',
+      }, 403);
+    }
+
+    const result = await publishSeriesAsStudyPlan({
+      series: {
+        id: series!.id,
+        title: series!.title,
+        color: series!.color,
+        publishedThreadId: decision.publishedThreadId,
+      },
+      spaceId: channelSpaceId,
+      actorId: auth.userId,
+    });
+
+    const recipients = await db
+      .select({ userId: SpaceMemberships.userId })
+      .from(SpaceMemberships)
+      .where(eq(SpaceMemberships.spaceId, channelSpaceId));
+    for (const recipientId of new Set(recipients.map((row) => row.userId))) {
+      broadcastInvalidation(recipientId, { type: 'space:updated', id: channelSpaceId });
+    }
+
+    return c.json({ success: true, channelSpaceId, ...result });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/series/publish-thread',
+      action: 'publish_church_series_thread',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

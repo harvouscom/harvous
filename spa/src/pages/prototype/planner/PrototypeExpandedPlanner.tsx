@@ -94,6 +94,11 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
 
   /* Shared with the compact pane, so expanding keeps the plan you were on. */
   const { planSpaceId, lastChannelId, selectPlanScope } = usePlannerScope(orgId, plannableSpaces);
+  /* Where a church-plan series can be walked: the church's ministry channels. */
+  const publishChannels = useMemo(
+    () => plannableSpaces.filter((space) => space.ministry).map(({ id, title }) => ({ id, title })),
+    [plannableSpaces],
+  );
   const [view, setView] = useState<PlannerView>(readStoredView);
   /*
     Seeded from the hub's handoff so "Add a sermon" in the compact pane lands
@@ -574,16 +579,18 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
             onDelete={(entry) => {
               runSeries({ kind: 'series-delete', seriesId: entry.id }, () => setOpenSeries(null));
             }}
-            /* Only a room's own plan can be published — the church-wide plan
-               has no single room to hand it to, and the server refuses it. */
-            onPublishThread={
-              onSpacePlan
-                ? (entry) =>
-                    runSeries({ kind: 'series-publish-thread', seriesId: entry.id }, () =>
-                      setOpenSeries(null),
-                    )
-                : undefined
+            /* A room's plan publishes into the room. The church-wide plan picks a
+               ministry channel on first publish; the server checks the pastor is
+               staff there. */
+            onPublishThread={(entry, channelSpaceId) =>
+              runSeries(
+                onSpacePlan
+                  ? { kind: 'series-publish-thread', seriesId: entry.id }
+                  : { kind: 'series-publish-thread', seriesId: entry.id, channelSpaceId },
+                () => setOpenSeries(null),
+              )
             }
+            publishChannels={onSpacePlan ? undefined : publishChannels}
             planServices={services}
             onAssign={(entry, serviceIds) => {
             /* N ordinary updates, fired in sequence. The last one closes the

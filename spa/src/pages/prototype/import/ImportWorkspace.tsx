@@ -15,6 +15,9 @@ import ImportFileRow from './ImportFileRow';
 import ImportSummaryCard from './ImportSummaryCard';
 import ProtoProgressBar from './ProtoProgressBar';
 import { useImportEngine } from './useImportEngine';
+import { useNavigation } from '../../../hooks/queries/useNavigation';
+import { useAuth } from '@clerk/clerk-react';
+import { canAuthorNoteInSpace, navNoteCandidateSpaces } from '../../../lib/shared-note-membership';
 
 /** Rotating status lines, so a long run doesn't feel like a frozen one. */
 const RUNNING_LINES = [
@@ -38,6 +41,17 @@ export interface ImportWorkspaceProps {
 export default function ImportWorkspace({ onExit, onBusyChange }: ImportWorkspaceProps) {
   const engine = useImportEngine();
   const { state, phase, counts, readyItemCount } = engine;
+  const { data: nav } = useNavigation();
+  const { userId } = useAuth();
+  /* Spaces this import could also land in — only ones the server will accept a note into
+     from this person (a channel they run, a group they're in). */
+  const importTargets = useMemo(
+    () =>
+      navNoteCandidateSpaces(nav).filter(
+        (space) => space.type && space.type !== 'personal' && canAuthorNoteInSpace(space, userId),
+      ),
+    [nav?.spaces, nav?.memberOfSpaces, userId],
+  );
   const [undoing, setUndoing] = useState(false);
   const [lineIndex, setLineIndex] = useState(0);
   /** Ticks only while a rate-limit pause is counting down. */
@@ -226,6 +240,29 @@ export default function ImportWorkspace({ onExit, onBusyChange }: ImportWorkspac
                   : `${readyItemCount} note${readyItemCount === 1 ? '' : 's'} ready to import`}
               </span>
               <div className="proto-import-footer__actions">
+                {importTargets.length > 0 ? (
+                  <select
+                    className="pds-caption"
+                    aria-label="Import into"
+                    value={engine.targetSpaceId ?? ''}
+                    onChange={(e) => engine.setTargetSpaceId(e.target.value || null)}
+                    style={{
+                      background: 'transparent',
+                      border: '0.5px solid var(--pds-border)',
+                      borderRadius: 'var(--pds-radius-control, 8px)',
+                      color: 'var(--pds-text-primary)',
+                      padding: '4px 8px',
+                      maxWidth: 180,
+                    }}
+                  >
+                    <option value="">Into My Home</option>
+                    {importTargets.map((space) => (
+                      <option key={space.id} value={space.id}>
+                        {`Also into ${space.title}`}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
                 <button
                   type="button"
                   className="proto-settings-btn proto-settings-btn--secondary"

@@ -1,5 +1,11 @@
 # Clerk Organizations for Churches — Implementation Checklist
 
+> **Partly historical (Sept 2026).** Church org shipped in v2.18.0. Two things below no longer
+> hold: delivery is org-owned broadcast spaces plus `SpaceMemberships` rows, not InboxItems (§8),
+> and "one church per user" is today's singular `UserMetadata.connectedOrgId` pointer, not a
+> decision. Multi-church (`ChurchMemberships`) is designed with no writers. Current state:
+> [../CHURCH_V1_SCOPE.md](../CHURCH_V1_SCOPE.md).
+
 This doc captures what to think through when implementing **Clerk Organizations for Churches**: church sign-up, users (new and existing) joining a church, and evolution of **MyChurchPanel**. It complements [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) and [CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md).
 
 ## Decisions (recorded)

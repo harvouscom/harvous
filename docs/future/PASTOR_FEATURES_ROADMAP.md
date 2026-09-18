@@ -4,8 +4,11 @@
 the sermon template as an org-provisioned `NoteTemplates` row) are built, along with
 the role gate they depend on, ministry channel publishing (8), the congregant
 "From your church" feed (13), and — new in v2.19.0 — the **teaching calendar and
-Sunday note starter (7)**. Items 1–4 and 9–12 remain design. Individual items
-are marked below. Companion to
+Sunday note starter (7)**. Individual items
+are marked below. **Sept 2026 (church V1):** passage history (1) shipped, general-first;
+curriculum handoff (11) shipped as study-plan copy; aggregate engagement (12) shipped in
+v2.21.0; teaching-team leadership (10) shipped as granted leadership. Items 2–4 and 9 remain
+design or are covered by general features. Current state: [../CHURCH_V1_SCOPE.md](../CHURCH_V1_SCOPE.md). Companion to
 [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) (org model),
 [BILLING_ARCHITECTURE.md](../BILLING_ARCHITECTURE.md) (billing / Polar),
 and [CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md) (connection flow).
@@ -225,6 +228,6 @@ publishes, a pastor decides what the church teaches and what it writes from.
 Two names rather than a mode flag, so the route contract test can tell a read
 handler from a write one.
 
-Still design-only: curriculum handoff (11) and aggregate engagement analytics (12).
+Both formerly design-only items have shipped: aggregate engagement (12) in v2.21.0 and curriculum handoff (11) in Sept 2026.
 Operational detail:
 [CHURCH_ORG_ONBOARDING_AND_BILLING.md](../CHURCH_ORG_ONBOARDING_AND_BILLING.md).

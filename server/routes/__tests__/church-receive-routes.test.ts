@@ -120,6 +120,20 @@ describe('congregant church route contracts', () => {
     expect(feed).toContain('isNull(SpaceNotes.removedAt)');
   });
 
+  it('marks an item new against the follower’s own watermark, never for their own note', () => {
+    const feed = route().slice(
+      route().indexOf("/api/church/feed'"),
+      route().indexOf("'/api/church/services'"),
+    );
+    // The switcher's watermark (last visit, else join) — so the two counts agree.
+    expect(feed).toContain('space.lastVisitedAt ?? space.joinedAt');
+    // Keyed on reaching the channel, not on the last edit.
+    expect(feed).toContain('row.addedAt ?? row.createdAt');
+    expect(feed).toContain('row.authorUserId !== auth.userId');
+    // Per-viewer read state must not be served from a shared HTTP cache.
+    expect(feed).toContain("'Cache-Control': 'private, max-age=0, no-store'");
+  });
+
   it('builds the feed from followed channels only, not all org channels', () => {
     const feed = route().slice(route().indexOf("/api/church/feed'"));
     expect(feed).toContain("eq(SpaceMemberships.role, 'member')");

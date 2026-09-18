@@ -108,6 +108,7 @@ import {
   FREE_OWNED_SHARED_SPACES_LIMIT,
 } from '../utils/tier-limits';
 import { syncEntitlementsFromProvider } from '../utils/entitlements';
+import { assertCanCreateSpaceInvite } from '../utils/space-invite-gate';
 import {
   assertCanCreateChurchSharedSpace,
   assertCanCreateMinistryChannel,
@@ -3210,15 +3211,12 @@ route.post('/api/spaces/:spaceId/invites', requireAuth, rateLimit('write'), asyn
       return c.json({ error: 'Only shared spaces can have invite links', code: 'NOT_SHARED_SPACE' }, 400);
     }
 
-    // The paid gate: creating invites requires the owner to hold the add-on.
-    // Church-org: org-sponsored spaces (orgId set) will gate on the church's
-    // billing (Churches.billingPlan) instead of the personal add-on.
-    if (!(await hasSharedSpacesAddOn(auth))) {
-      return c.json({
-        error: 'Owning shared spaces requires the Shared Spaces add-on. Joining spaces is always free.',
-        code: 'SHARED_SPACE_LIMIT_EXCEEDED',
-        upgradeUrl: '/upgrade',
-      }, 403);
+    // The paid gate: the owner's add-on, or the church's sponsorship for a
+    // church Shared Space (orgId set).
+    const paid = await assertCanCreateSpaceInvite(auth, access.space);
+    if (!paid.ok) {
+      const { ok: _ok, status, ...body } = paid;
+      return c.json(body, status);
     }
 
     const body = await c.req.json().catch(() => ({})) as { expiresAt?: string | null; maxUses?: number | null };

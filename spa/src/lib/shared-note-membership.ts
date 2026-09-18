@@ -97,10 +97,9 @@ function resolveViewerRole(
 /**
  * Mirror of the server's `canAuthorInSpace` (server/utils/space-access.ts).
  *
- * Deliberately not `canComposeInSpace`, which refuses a ministry channel to *everyone*.
- * That is right for "write a loose note in this room" but wrong here: the server accepts
- * a note into a channel from its owner or a leader, so blocking them client-side told a
- * channel's own leader that only leaders may post.
+ * Works from a candidate space's own role/ownership, where `canComposeInSpace` takes the
+ * viewer's role in the room they are standing in. Both agree: the server accepts a note
+ * into a channel from its owner or a leader, and from no one else.
  */
 export function canAuthorNoteInSpace(
   space: MembershipCandidateSpace,
@@ -116,6 +115,24 @@ export function canAuthorNoteInSpace(
     default:
       return false;
   }
+}
+
+/**
+ * Every space the viewer could put a note in, with the owner's role made explicit.
+ *
+ * `nav.spaces` is the viewer's *owned* spaces (the server selects them by `Spaces.userId`),
+ * but those rows carry neither `role` nor `ownerId` — so `resolveViewerRole` read a
+ * channel's own owner as a follower, and the destination menu told a pastor they could not
+ * post to the channel they run. Stamp it here, once, for every caller.
+ */
+export function navNoteCandidateSpaces<T extends { role?: 'owner' | 'leader' | 'member' | null }>(nav: {
+  spaces?: readonly T[] | null;
+  memberOfSpaces?: readonly T[] | null;
+} | null | undefined): T[] {
+  return [
+    ...(nav?.spaces ?? []).map((space) => ({ ...space, role: space.role ?? ('owner' as const) })),
+    ...(nav?.memberOfSpaces ?? []),
+  ];
 }
 
 function normalizeSpaceId(spaceId: string): string {
