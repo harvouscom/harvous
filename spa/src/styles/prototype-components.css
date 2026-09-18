@@ -4,7 +4,7 @@
  */
 
 /*
- * Keyboard focus ring for every button and orb.
+ * Keyboard focus ring — one accent blue, everywhere.
  *
  * `:focus-visible` never matches a mouse click or a tap, so pointer users see what they always
  * did — hover, active and selection carry that feedback. Keyboard use is what changes: those
@@ -15,10 +15,23 @@
  * box-shadow, a chip fill, the note row's ring on its <li> — overrides this with any selector.
  * The old rule's (0,3,0) was silently beating the rings components wrote for themselves.
  * Text fields keep their own accent rings.
+ *
+ * The route class covers what is portaled outside `.proto-theme` — toasts, side panels, sheets.
+ * Those got the browser's own ring, which takes the OS accent colour: gold, on a Mac set to it.
  */
-:where(.proto-theme) :where(button, [role='button']):focus-visible {
+:where(.proto-theme, html.harvous-prototype-route)
+  :where(button, [role='button'], a[href], [tabindex]:not([tabindex='-1'])):focus-visible {
   outline: var(--focus-ring-width) solid var(--pds-accent-focus-ring);
   outline-offset: var(--focus-ring-offset);
+}
+
+/*
+ * Anything else the browser rings by itself (a field with no focus style of its own, a
+ * programmatically focused container) keeps that ring, in the accent rather than the OS colour.
+ * Colour only: it never adds a ring where a component took one away.
+ */
+:where(.proto-theme, html.harvous-prototype-route) :focus-visible {
+  outline-color: var(--pds-accent-focus-ring);
 }
 
 /* ─── Checkbox ───────────────────────────────────────────────────────────────
