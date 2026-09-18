@@ -2,6 +2,11 @@ import { decodeNoteSlug } from './ids';
 
 export const PROTOTYPE_DRAFT_NOTE_ID = 'note_draft';
 
+/** The placeholder id a compose session's editor carries until the note is created. */
+export function isPrototypeDraftNoteId(noteId: string | null | undefined): boolean {
+  return noteId === PROTOTYPE_DRAFT_NOTE_ID;
+}
+
 const PROTOTYPE_DRAFT_NOTE_SLUG = 'new';
 
 function isPrototypeDraftNoteSlug(slug: string): boolean {

@@ -186,6 +186,8 @@ import {
 import { saveReferenceStudyThread } from '@/utils/save-reference-study-thread';
 import { hasSeenSharedHighlightTip, markSharedHighlightTipSeen } from '@/utils/shared-highlight-tip';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
+import { adoptHighlightEntryId, highlightRangesWithId, newClientStudyThreadEntryId } from '@/utils/pending-highlight';
+import { isPrototypeDraftNoteId } from '@/utils/prototype-draft-compose-session';
 import { backfillOrphanHighlights } from '@/utils/orphan-highlight-backfill';
 import { syncStudyHighlightMarksOverlayCovered } from '@/utils/note-html-highlight-marks';
 import { scriptureReferenceContainsReference } from '@/utils/scripture-verse-keys';
@@ -5752,6 +5754,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   const orphanBackfillNoteRef = useRef<string | null>(null);
 
+  /*
+   * The note id as of now, not as of the render that drew a button. A new note's editor keeps
+   * `note_draft` until the create lands, and a tap in that window used to POST its highlight to
+   * the draft id and get a 404.
+   */
+  const latestSourceNoteIdRef = useRef(sourceNoteId);
+  latestSourceNoteIdRef.current = sourceNoteId;
+
   useEffect(() => {
     orphanBackfillNoteRef.current = null;
   }, [sourceNoteId]);
@@ -9554,85 +9564,64 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       ? snippet.length
                       : Math.max(0, to - from);
 
-                    void (async () => {
-                      let studyId: string | null = null;
-                      if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
+                    const noteIdAtTap = latestSourceNoteIdRef.current;
+                    const canPersist =
+                      editorChromeMode === 'prototypeNative' && !!noteIdAtTap && !isPrototypeDraftNoteId(noteIdAtTap);
+                    const postHighlight = async (proposedId?: string): Promise<string | null> => {
+                      if (!canPersist || !noteIdAtTap) return null;
+                      const body = JSON.stringify(
+                        withStudyThreadContext(
+                          {
+                            ...(proposedId ? { id: proposedId } : {}),
+                            entryKind: 'miniNote',
+                            sourceSnippet: snippet,
+                            highlightAccentRaw: defaultAccent,
+                            anchorTextSnapshot: snippet,
+                            anchorLocation,
+                            anchorLength,
+                          },
+                          contextSpaceId,
+                        ),
+                      );
+                      // One retry for a dropped connection or a 5xx. Safe with a proposed id: the
+                      // route answers a repeat with the row the first attempt made.
+                      for (let attempt = 0; attempt < (proposedId ? 2 : 1); attempt += 1) {
                         try {
-                          const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
+                          const res = await fetch(`/api/notes/${noteIdAtTap}/study-threads`, {
                             method: 'POST',
                             credentials: 'include',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(
-                              withStudyThreadContext(
-                                {
-                                  entryKind: 'miniNote',
-                                  sourceSnippet: snippet,
-                                  highlightAccentRaw: defaultAccent,
-                                  anchorTextSnapshot: snippet,
-                                  anchorLocation,
-                                  anchorLength,
-                                },
-                                contextSpaceId,
-                              ),
-                            ),
+                            body,
                           });
                           if (res.ok) {
                             const data = await res.json();
-                            studyId = data.studyThread?.id ?? null;
-                            if (studyId) syncStudyThreadList(sourceNoteId);
-                          } else if (sharedAnnotationOverlayMode && window.toast) {
-                            window.toast.error('Could not create highlight. Try again.');
+                            return data.studyThread?.id ?? null;
                           }
+                          if (res.status < 500) return null;
                         } catch {
-                          if (sharedAnnotationOverlayMode && window.toast) {
-                            window.toast.error('Could not create highlight. Try again.');
-                          }
+                          /* retry below */
                         }
+                        if (attempt === 0 && proposedId) await new Promise((r) => setTimeout(r, 1500));
                       }
+                      return null;
+                    };
 
-                      if (!editor || !isEditorValid(editor)) return;
-                      if (sharedAnnotationOverlayMode) {
-                        if (!studyId) return;
+                    /*
+                      Someone else's note: the editor is read-only and the overlay paints the
+                      span from the entry rows, so there is nothing to show until the row exists.
+                      This path still waits.
+                    */
+                    if (sharedAnnotationOverlayMode) {
+                      void (async () => {
+                        const studyId = await postHighlight();
+                        if (!studyId) {
+                          window.toast?.error('Could not create highlight. Try again.');
+                          return;
+                        }
+                        syncStudyThreadList(sourceNoteId);
+                        if (!editor || !isEditorValid(editor)) return;
                         clearSelectionActionBar();
                         releaseEditorFocusForStudyDock();
-                        if (editorChromeMode === 'prototypeNative') {
-                          setStudyDockStack((s) =>
-                            openOrFocusHighlight(s, {
-                              studyThreadEntryId: studyId,
-                              accent: defaultAccent,
-                              excerpt: snippet,
-                              range: { from, to },
-                              entryKind: 'miniNote',
-                              focusTitle: deriveHighlightFocusTitle(snippet),
-                              miniNoteBody: '',
-                              isOwnHighlight: true,
-                            }),
-                          );
-                        }
-                        onSharedAnnotationCreated?.();
-                        return;
-                      }
-                      const applied = applyHighlightMark(
-                        { from, to },
-                        {
-                          color: defaultAccent,
-                          ...(studyId ? { studyThreadEntryId: studyId } : {}),
-                        },
-                        { focusEditor: false },
-                      );
-                      if (!applied) {
-                        if (import.meta.env.DEV) {
-                          console.warn('[TiptapEditor] setHighlight failed for range', { from, to });
-                        }
-                        return;
-                      }
-                      if (hiddenInputRef.current) {
-                        hiddenInputRef.current.value = editor.getHTML();
-                      }
-                      onContentChange?.(editor.getHTML());
-                      clearSelectionActionBar();
-                      releaseEditorFocusForStudyDock();
-                      if (editorChromeMode === 'prototypeNative') {
                         setStudyDockStack((s) =>
                           openOrFocusHighlight(s, {
                             studyThreadEntryId: studyId,
@@ -9642,23 +9631,102 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                             entryKind: 'miniNote',
                             focusTitle: deriveHighlightFocusTitle(snippet),
                             miniNoteBody: '',
+                            isOwnHighlight: true,
                           }),
                         );
+                        onSharedAnnotationCreated?.();
+                      })();
+                      return;
+                    }
+
+                    /*
+                      Your own note: paint it and open its card now, and let the id catch up.
+                      This used to wait for the POST before anything moved — no colour, no dock —
+                      which on a slow connection read as the button not working. The dock
+                      already holds anything typed before its id exists and flushes it when the
+                      id lands. See pending-highlight.ts for what happens in between.
+                    */
+                    // The id goes on the mark now, so the mark is final from its first frame —
+                    // see pending-highlight.ts for why an id-less mark could become two rows.
+                    // A draft has no note to attach to yet; its plain mark is picked up by the
+                    // orphan backfill once the note exists, as before.
+                    const clientId = canPersist ? newClientStudyThreadEntryId() : null;
+                    const applied = applyHighlightMark(
+                      { from, to },
+                      { color: defaultAccent, ...(clientId ? { studyThreadEntryId: clientId } : {}) },
+                      { focusEditor: false },
+                    );
+                    if (!applied) {
+                      if (import.meta.env.DEV) {
+                        console.warn('[TiptapEditor] setHighlight failed for range', { from, to });
                       }
-                      if (!studyId && sourceNoteId && spaceId && editor && isEditorValid(editor)) {
-                        void backfillOrphanHighlights({
-                          editor,
-                          sourceNoteId,
-                          spaceId,
-                          applyMark: (r, attrs) => applyHighlightMark(r, attrs, { focusEditor: false }),
-                        }).then((count) => {
-                          if (count <= 0 || !editor || !isEditorValid(editor)) return;
-                          if (hiddenInputRef.current) {
-                            hiddenInputRef.current.value = editor.getHTML();
-                          }
-                          onContentChange?.(editor.getHTML());
-                        });
+                      return;
+                    }
+                    if (hiddenInputRef.current) {
+                      hiddenInputRef.current.value = editor.getHTML();
+                    }
+                    onContentChange?.(editor.getHTML());
+                    clearSelectionActionBar();
+                    releaseEditorFocusForStudyDock();
+                    if (editorChromeMode === 'prototypeNative') {
+                      // Id-less until the row exists, so the card cannot PATCH ahead of it.
+                      setStudyDockStack((s) =>
+                        openOrFocusHighlight(s, {
+                          studyThreadEntryId: null,
+                          accent: defaultAccent,
+                          excerpt: snippet,
+                          range: { from, to },
+                          entryKind: 'miniNote',
+                          focusTitle: deriveHighlightFocusTitle(snippet),
+                          miniNoteBody: '',
+                        }),
+                      );
+                    }
+                    if (!clientId) return;
+
+                    void (async () => {
+                      const studyId = await postHighlight(clientId);
+                      const live = editor && isEditorValid(editor) ? editor : null;
+                      const markType = live?.state.schema.marks.highlight ?? null;
+
+                      /* Re-point (or strip) the mark wherever it is now — found by its id, so
+                         nothing typed in the meantime can misplace it. */
+                      const repointMark = (nextId: string | null) => {
+                        if (!live || !markType) return false;
+                        const ranges = highlightRangesWithId(live.state.doc, clientId);
+                        if (ranges.length === 0) return false;
+                        const tr = live.state.tr;
+                        for (const r of ranges) {
+                          const { studyThreadEntryId: _old, ...rest } = r.attrs;
+                          tr.addMark(r.from, r.to, markType.create(nextId ? { ...rest, studyThreadEntryId: nextId } : rest));
+                        }
+                        tr.setMeta('addToHistory', false);
+                        live.view.dispatch(tr);
+                        if (hiddenInputRef.current) hiddenInputRef.current.value = live.getHTML();
+                        // A real save, not `programmatic` (those skip it): the saved note must
+                        // carry the id the row actually has.
+                        onContentChange?.(live.getHTML());
+                        return true;
+                      };
+
+                      if (!studyId) {
+                        /* Never made (offline, refused). Strip the id so the mark is an orphan
+                           again, and let the backfill make its row when it can — what this path
+                           always did on failure. */
+                        if (repointMark(null) && live && spaceId) {
+                          void backfillOrphanHighlights({
+                            editor: live,
+                            sourceNoteId: noteIdAtTap!,
+                            spaceId,
+                            applyMark: (r, attrs) => applyHighlightMark(r, attrs, { focusEditor: false }),
+                          });
+                        }
+                        return;
                       }
+                      // An API from before proposed ids ignores ours and mints its own (deploy skew).
+                      if (studyId !== clientId) repointMark(studyId);
+                      setStudyDockStack((s) => adoptHighlightEntryId(s, { from, to }, studyId));
+                      syncStudyThreadList(noteIdAtTap);
                     })();
                   }}
                 >
