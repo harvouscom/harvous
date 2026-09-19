@@ -101,11 +101,6 @@
   margin: 0 -2px 0 auto;
 }
 
-/* No hairline dividers at any copy length (compact or stacked). */
-.harvous-delete-confirm__divider {
-  display: none;
-}
-
 /* Stacked: no square hover fills — color shift only. */
 .harvous-delete-confirm--stacked .harvous-delete-confirm__icon-btn {
   width: 36px;
@@ -156,14 +151,6 @@
   line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-.harvous-delete-confirm__divider {
-  flex-shrink: 0;
-  align-self: center;
-  width: 0.5px;
-  height: 22px;
-  background: rgba(0, 0, 0, 0.14);
 }
 
 .harvous-delete-confirm__icon-btn {

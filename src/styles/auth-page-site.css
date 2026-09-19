@@ -201,18 +201,6 @@
   }
 }
 
-/* Outer wrapper — wide enough for the headline to sit on one line on
-   desktop. The form inputs are constrained by the inner form-wrapper. */
-.auth-page.auth-page--site .auth-page__content-wrapper {
-  width: 100%;
-  max-width: 640px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-}
-
 /* Inner wrapper — narrows just the input / button cluster. */
 .auth-page.auth-page--site .auth-page__form-wrapper {
   width: 100%;

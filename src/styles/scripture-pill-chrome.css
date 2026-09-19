@@ -68,14 +68,6 @@ button .scripture-pill-chrome__trans-chip {
   text-overflow: unset;
 }
 
-.scripture-pill-chrome__section-label {
-  margin: 0;
-  font-family: var(--pds-font-body, inherit);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--pds-text-tertiary, rgba(29, 29, 31, 0.4));
-}
-
 /* ─── Reference picker bar (track + capsule pills) ─────────────────────────── */
 
 .scripture-pill-chrome__reference-bar {
@@ -537,38 +529,6 @@ button .scripture-pill-chrome__trans-chip {
   flex-direction: column;
   gap: 6px;
   margin-top: 2px;
-}
-
-.scripture-pill-chrome__study-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.scripture-pill-chrome__study-item {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.scripture-pill-chrome__study-excerpt {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  font-family: var(--pds-font-body, inherit);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.45;
-  color: var(--pds-text-primary, #1d1d1f);
-}
-
-.scripture-pill-chrome__study-item .study-dock-card__header-btn {
-  flex-shrink: 0;
-  margin-top: -2px;
 }
 
 /* ─── Passage text selection → floating action bar ──────────────────────── */

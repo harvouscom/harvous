@@ -22,10 +22,6 @@
   transition: margin-right var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease);
 }
 
-.proto-note-pane-row--thread-expanded .proto-editor-surface {
-  margin-right: clamp(368px, min(728px, calc(60vw + 8px)), 728px);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .proto-note-pane-row .proto-editor-surface {
     transition: none;
@@ -185,7 +181,6 @@
     font-size: 15px;
   }
 
-  .proto-editor-surface .card-full-editable__title,
   .proto-editor-surface [data-proto-note-title] {
     font-size: 1.25rem !important;
   }
@@ -206,31 +201,6 @@
 }
 
 /* ─── Loading skeleton ───────────────────────────────────────────────────── */
-.proto-editor-loading {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  container-type: inline-size;
-  container-name: proto-editor-scroll;
-}
-
-.proto-editor-loading-inner {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-sizing: border-box;
-  padding: var(--pds-editor-paper-padding-top)
-    var(--pds-editor-paper-padding-x)
-    var(--pds-editor-paper-padding-bottom);
-}
-
-@container proto-editor-scroll (max-width: 640px) {
-}
-
-@container proto-editor-scroll (max-width: 480px) {
-}
 
 @keyframes proto-shimmer {
   0%, 100% { opacity: 1; }
@@ -288,24 +258,6 @@
 .proto-editor-surface .scripture-pill-draft * {
   -webkit-user-select: text !important;
   user-select: text !important;
-}
-
-/* Beat global.css `button *`, .proto-shell button path, and prototype-route-overrides fill rules. */
-html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confirm > svg,
-html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confirm svg path {
-  color: var(--pds-on-accent) !important;
-  stroke: var(--pds-on-accent) !important;
-  fill: none !important;
-}
-.proto-editor-surface .scripture-pill-draft__confirm:active {
-  filter: brightness(0.95);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme='light']) .proto-editor-surface .scripture-pill-draft__confirm {
-    background: var(--pds-selection-bg);
-    box-shadow: none;
-  }
 }
 
 /* Translation suffix (e.g. NET) — smaller, shares baseline with reference */
@@ -371,8 +323,6 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 }
 
 /* Note title should use rounded terminals (native compose title field). */
-.proto-editor-surface .card-full-editable__title,
-.proto-editor-surface .card-full-editable__title-input,
 .proto-editor-surface [data-proto-note-title] {
   font-family: var(--pds-font-display) !important;
   font-variation-settings: var(--pds-font-display-variation) !important;
@@ -650,7 +600,6 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 }
 
 /* ─── Card title field (native composeTitleField — 22pt/600/rounded) ──────── */
-.proto-editor-surface .card-full-editable__title,
 .proto-editor-surface [data-proto-note-title] {
   font-family: var(--pds-font-display) !important;
   font-size: 1.375rem !important;
@@ -720,20 +669,6 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   width: 100%;
   min-width: 0;
   align-items: center;
-}
-
-.proto-editor-bottom-bar__scripture {
-  width: 100%;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-/* Dock roots in the shell bottom bar — transparent; floating docks live in `.proto-shell__study-dock-layer`. */
-.proto-editor-bottom-bar__scripture .scripture-pill-chrome,
-.proto-editor-bottom-bar__highlight .highlight-dock-web,
-.proto-editor-bottom-bar__reference .reference-dock-web {
-  border-top: none;
-  background: transparent;
 }
 
 /* Scripture reference strip — prototype PDS only (not classic SPA translation-dropdown chrome). */
@@ -809,10 +744,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
 .proto-editor-surface .scripture-ref-cluster .harvous-menu-pill__trigger:hover,
 .proto-editor-surface .scripture-ref-cluster .harvous-menu-pill__trigger[aria-expanded='true'] {
   background: var(--pds-bg-chip);
-}
-
-.proto-editor-bottom-bar__note-actions-stack > .proto-note-action-bar {
-  border-top: 0.5px solid var(--pds-border);
 }
 
 /* Portal-rendered prototype toolbar — full-bleed, no border/radius/shadow. */
@@ -967,113 +898,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
 .proto-editor-surface .tiptap-toolbar--prototype-native button[data-active='true'] {
   color: var(--pds-text-primary);
   background: var(--pds-bg-chip);
-}
-
-.proto-note-action-bar {
-  width: 100%;
-  font-family: var(--pds-font-body);
-}
-
-.proto-note-action-bar__scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  width: 100%;
-}
-
-.proto-note-action-bar__scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.proto-note-action-bar__strip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 20px;
-  width: max-content;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.proto-note-action-bar__strip--solo {
-  justify-content: flex-start;
-  width: 100%;
-}
-
-.proto-note-action-bar__cluster {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.proto-note-action-bar__sep {
-  flex-shrink: 0;
-  opacity: 0.38;
-  color: var(--pds-text-tertiary);
-}
-
-.proto-note-action-bar__current {
-  flex-shrink: 0;
-  max-width: 200px;
-  padding: 6px 10px;
-  border-radius: var(--pds-radius-pill);
-  background: var(--pds-bg-control-hover);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--pds-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.proto-note-action-bar__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  padding: 7px 12px;
-  border-radius: var(--pds-radius-pill);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.2;
-  text-decoration: none;
-  border: none;
-  cursor: pointer;
-  font-family: var(--pds-font-body) !important;
-  color: var(--pds-text-secondary);
-  background: var(--pds-bg-control);
-  transition: background 0.1s, color 0.1s;
-}
-
-.proto-note-action-bar__pill:hover:not(.proto-note-action-bar__pill--share-active) {
-  background: var(--pds-bg-control-strong);
-  color: var(--pds-text-primary);
-}
-
-.proto-note-action-bar__pill--link {
-  color: var(--pds-text-secondary);
-}
-
-.proto-note-action-bar__pill--connect {
-  color: var(--pds-text-secondary);
-}
-
-/* Share pill — when sharing is enabled, paint it blue so the user can tell at
-   a glance that the current note is public. The neutral pill is identical to
-   `--connect` so the action bar stays visually consistent. */
-.proto-note-action-bar__pill--share-active {
-  color: var(--pds-on-accent);
-  background: var(--pds-bg-accent-button);
-  box-shadow: var(--pds-shadow-accent-button);
-  transition: filter 0.1s;
-}
-.proto-note-action-bar__pill--share-active:hover {
-  background: var(--pds-bg-accent-button);
-  filter: brightness(1.06);
-  color: var(--pds-on-accent);
 }
 
 /* ─── Find in note highlights (CSS Custom Highlight API) ───────────────────
@@ -1284,24 +1108,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   padding: 6px 10px;
   border-radius: 8px;
   line-height: 1.4;
-}
-
-.proto-note-action-bar__pill-git {
-  flex-shrink: 0;
-  opacity: 0.85;
-}
-
-.proto-note-action-bar__pill-text {
-  min-width: 0;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.proto-note-action-bar__pill svg {
-  flex-shrink: 0;
-  display: block;
 }
 
 /*

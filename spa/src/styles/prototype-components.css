@@ -1357,7 +1357,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   line-height: 0;
 }
 .proto-toolbar-icon-btn:not(:has(.proto-profile-orb__photo)) > span,
-.proto-daily-passage-pill__orb > span,
 .proto-appearance-preview__check-orb > span {
   display: flex;
   align-items: center;
@@ -2043,16 +2042,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 }
 
 /* ─── Sidebar list view (above search) ───────────────────────────────────── */
-.proto-sidebar-list-view {
-  flex-shrink: 0;
-  padding: 10px 12px 0;
-  position: relative;
-}
-
-/* Popover drops over .proto-sidebar-scroll; lift above sibling rows (same pattern as note-row menus). */
-.proto-sidebar-list-view:has(.proto-menu__popover) {
-  z-index: 100;
-}
 
 .proto-sidebar-list-view__menu {
   display: block;
@@ -2327,21 +2316,6 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 
 .proto-sidebar-search-scope .proto-chip-bar {
   margin-top: 4px;
-}
-
-.proto-sidebar-search-section {
-  padding-bottom: 8px;
-}
-
-/* The header owns the section's leading rhythm — drop the list's own block padding
-   so stacked sections don't double up (mirrors `.mention-picker__section-label`). */
-.proto-sidebar-search-section > .proto-note-list {
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.proto-sidebar-search-section:first-child .proto-sidebar-search-section__header {
-  padding-top: 4px;
 }
 
 .proto-sidebar-search-section__header {
@@ -4799,16 +4773,6 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   margin: 0 0 8px;
 }
 
-/* Portal'd toolbar cards — CSS-only frosted treatment. */
-.proto-folder-popover {
-  background: var(--pds-bg-popover-solid);
-  border-radius: 14px;
-  border: 0.5px solid var(--pds-border-control-strong);
-  box-shadow: var(--pds-shadow-popover);
-  padding: 16px;
-  font-family: var(--pds-font-body);
-}
-
 .proto-inspector-muted {
   font-size: 11px;
   color: var(--pds-text-tertiary);
@@ -5691,16 +5655,6 @@ html.harvous-prototype-route
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-}
-
-.proto-settings__admin-shortcut-sub {
-  font-family: var(--pds-font-body);
-  font-size: 0.75rem;
-  line-height: 1.3;
-  color: var(--pds-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .proto-settings__admin-card {
@@ -6600,19 +6554,6 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
   color: inherit;
 }
 
-.proto-editor-empty-state__line--shortcut {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  margin-top: 4px;
-}
-
-.proto-editor-empty-state__line--shortcut .proto-kbd-chord {
-  margin: 0 2px;
-}
-
 .proto-editor-empty-state .proto-kbd {
   border-color: var(--pds-border-control);
   background: var(--pds-bg-control);
@@ -6724,31 +6665,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   margin-top: 14px;
 }
 
-.proto-list-empty-state__owner-attribution {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  line-height: 1.35;
-  text-wrap: balance;
-}
-
-.proto-list-empty-state__owner-attribution-lead {
-  display: block;
-}
-
-.proto-list-empty-state__owner-attribution-row {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.proto-list-empty-state__owner-attribution-row .proto-shared-author-chip {
-  margin-right: 0;
-}
-
 .proto-pin-entry__footer--inline {
   display: flex;
   justify-content: flex-start;
@@ -6784,10 +6700,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 
 .proto-pin-entry--settings .proto-pin-entry__error {
   text-align: left;
-}
-
-.proto-lock-pin-settings__body {
-  padding: 16px;
 }
 
 .proto-lock-pin-settings__lead {
@@ -7081,30 +6993,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 
 .proto-daily-passage-pill__reference {
   margin: 0;
-}
-
-.proto-daily-passage-pill__orb {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--pds-bg-control-strong);
-  color: var(--pds-text-secondary);
-  cursor: pointer;
-}
-
-.proto-daily-passage-pill__orb:hover:not(:disabled) {
-  color: var(--pds-text-primary);
-  background: var(--pds-bg-control-strong-hover);
-}
-
-.proto-daily-passage-pill__orb:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 /* ─── Home space view (sidebar 'space' layer) ────────────────────────────── */
@@ -8572,20 +8460,6 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
   font-weight: inherit;
 }
 
-/* Classic → 2.0 migration detail sheet */
-.proto-migration-sheet__text {
-  user-select: text;
-  -webkit-user-select: text;
-}
-
-.proto-migration-sheet__text {
-  margin: 0;
-  font-family: var(--pds-font-body);
-  font-size: 15px;
-  line-height: 1.5;
-  color: var(--pds-text-primary);
-}
-
 .proto-detail-card__icon svg,
 .proto-detail-card__icon svg * {
   color: inherit !important;
@@ -8616,10 +8490,6 @@ html.harvous-prototype-route .harvous-delete-confirm__description {
   font-family: var(--pds-font-body);
   font-variation-settings: var(--pds-font-body-variation);
   color: var(--pds-text-secondary);
-}
-
-html.harvous-prototype-route .harvous-delete-confirm__divider {
-  background: var(--pds-border-control-medium);
 }
 
 html.harvous-prototype-route .harvous-delete-confirm__icon-btn {
@@ -9202,38 +9072,6 @@ button.proto-appearance-hero__card {
   color: var(--pds-on-accent, #fff);
 }
 
-.proto-side-panel__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-/* Panel sections + note list */
-.proto-side-panel__section {
-  padding: 4px 0 8px;
-}
-
-.proto-side-panel__section + .proto-side-panel__section {
-  border-top: 0.5px solid var(--pds-border-control);
-  padding-top: 12px;
-  margin-top: 4px;
-}
-
-.proto-side-panel__section-label {
-  font-family: var(--pds-font-body);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--pds-text-tertiary);
-  padding: 0 14px 8px;
-  margin: 0;
-}
-
 .proto-side-panel__current-badge {
   flex-shrink: 0;
   font-family: var(--pds-font-body);
@@ -9252,17 +9090,6 @@ button.proto-appearance-hero__card {
   display: flex;
   flex-direction: column;
   gap: 1px;
-}
-
-.proto-side-panel__section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.proto-side-panel__section-header > .proto-inspector-section-title {
-  margin-bottom: 0;
 }
 
 .proto-side-panel__empty {
@@ -9649,10 +9476,6 @@ button.proto-appearance-hero__card {
     > li {
     padding: 11px 13px;
   }
-}
-
-.proto-thread-trail__also .proto-thread-trail__orb {
-  display: none;
 }
 
 .proto-sidebar-thread-trail {
@@ -10166,20 +9989,6 @@ button.proto-appearance-hero__card {
 .proto-thread-review__dismiss:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-/* Destructive outline variant (e.g. "Stop sharing") — red text + red-tinted
-   border/hover, keeping the same subtle pill shape rather than a heavy solid
-   fill. Text color is forced in prototype-route-overrides.css to beat the
-   blanket `button` primary-color reset. */
-.proto-thread-review__dismiss--danger {
-  border-color: color-mix(in oklab, var(--pds-destructive) 40%, var(--pds-border-control));
-  color: var(--pds-destructive);
-}
-
-.proto-thread-review__dismiss--danger:not(:disabled):hover {
-  background: var(--pds-bg-sidebar-input-hover);
-  border-color: color-mix(in oklab, var(--pds-destructive) 55%, var(--pds-border-control));
 }
 
 /* ─── Founder letter — paper stack + dialog ─────────────────────────────── */
@@ -11295,156 +11104,10 @@ html.harvous-prototype-route
    Tappability is fixed by having no small targets at all: collapsed, the whole
    deck is one button; fanned, every card is a full-size one. */
 
-.proto-card-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* The collapsed deck. Bottom padding leaves room for the peek layers, which are
-   absolutely positioned below the top card. */
-.proto-card-stack__collapsed {
-  position: relative;
-  display: block;
-  width: 100%;
-  appearance: none;
-  border: 0;
-  background: none;
-  /* Reserve the *hovered* spread, not the resting one. The peeks grow on hover;
-     if the padding grew with them the whole page would nudge every time the
-     cursor crossed the deck. Costs a few px of quiet space at rest. */
-  padding: 0 0 calc(var(--stack-peek-step-max, 10px) * 2);
-  margin: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  --stack-peek-step: 5px;
-  --stack-peek-inset: 6px;
-}
-
 /* Hover spreads the deck: layers slide down and widen toward the top card's
    edges, showing more of what's underneath without committing to the fan.
    Hover-only by construction — there is no hovering on touch, where the tap
    fans it anyway. */
-@media (hover: hover) {
-  .proto-card-stack__collapsed:hover,
-  .proto-card-stack__collapsed:focus-visible {
-    --stack-peek-step: 10px;
-    --stack-peek-inset: 3px;
-  }
-}
-
-/* Edges of the cards underneath: inset at the sides and pushed down, so the
-   deck reads as depth without drawing any real content. */
-.proto-card-stack__peek {
-  position: absolute;
-  left: calc(var(--peek-depth) * var(--stack-peek-inset, 6px));
-  right: calc(var(--peek-depth) * var(--stack-peek-inset, 6px));
-  /* Measured from the reserved band below the top card: a deeper layer sits
-     lower, and a larger step pushes every layer further down. Written against
-     the reserved max so growing the step spreads the deck downward instead of
-     dragging the shallow layers up — which is what `(2 - depth) * step` did. */
-  bottom: calc(
-    var(--stack-peek-step-max, 10px) * 2 - var(--peek-depth) * var(--stack-peek-step, 5px)
-  );
-  /*
-   * Each layer shows only its own exposed band — it does not run on under the card.
-   *
-   * This used to add 10px so the layer tucked behind the card, the way it would with opaque
-   * paper. These are glass: the card in front is 22% white over a blur, so anything beneath
-   * it is not hidden, it is *added*. Three translucent whites piled up in that 10px band and
-   * the deck grew a pale slab exactly where its front edge should read — brightest at the one
-   * place the eye goes looking for an edge.
-   *
-   * 1px is a seam-cover for subpixel rounding, not an overlap.
-   */
-  height: calc(var(--peek-depth) * var(--stack-peek-step, 5px) + 1px);
-  border-radius: 0 0 14px 14px;
-  /*
-   * The same material as the card in front, composited flat.
-   *
-   * These were `--pds-paper-sheet` (78% pure white) while the cards above them are
-   * warm glass, so the deck's back edges rendered brighter and cooler than its front
-   * card — depth read inside out, and against the canvas the overlap looked like a
-   * pale slab wedged under the stack rather than the edge of another card.
-   *
-   * (The original note here argued the blur "buys nothing the composite does
-   * not already give". It does: the composite is a fixed colour and the card
-   * is a sampler, so they agree only where the canvas happens to match.)
-   */
-  /*
-    The card's own material, sampled — not a flat stand-in for it.
-
-    Compositing `--pds-glass-shell` + frost was an approximation of glass, and
-    an approximation cannot track what real glass is sampling: the card in
-    front blurs whatever canvas is behind it, while these layers stayed one
-    fixed colour. Over a warm gradient the deck's back edges stopped matching
-    its front card and read as a solid slab wedged under the stack.
-
-    The blur the original note worried about is two elements deep and only
-    animates on hover, which is well inside what a compositor handles — and
-    "cheap but wrong" was costing more than the filter ever did.
-  */
-  background-color: var(--pds-glass-shell);
-  background-image: linear-gradient(var(--pds-glass-panel-frost), var(--pds-glass-panel-frost));
-  -webkit-backdrop-filter: var(--pds-glass-blur);
-  backdrop-filter: var(--pds-glass-blur);
-  /* Inset top: the card in front casts onto the one behind. That cast is what
-     separates the layers now that they share a colour — the old outer paper shadow
-     lit the seam instead, which is what made the band read as its own surface. */
-  box-shadow:
-    inset 0 2px 3px -2px rgba(0, 0, 0, 0.16),
-    0 1px 2px rgba(0, 0, 0, 0.05);
-  opacity: calc(1 - var(--peek-depth) * 0.22);
-  pointer-events: none;
-  z-index: 0;
-  /* Deeper layers trail the ones above them, so the spread cascades rather
-     than moving as one block. */
-  transition:
-    left 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    right 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    bottom 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    height 180ms cubic-bezier(0.22, 1, 0.36, 1);
-  transition-delay: calc((var(--peek-depth) - 1) * 26ms);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .proto-card-stack__peek {
-    transition: none;
-  }
-}
-
-.proto-card-stack__top {
-  position: relative;
-  display: block;
-  z-index: 1;
-}
-
-@media (hover: hover) {
-  .proto-card-stack__collapsed:hover .proto-card-stack__top {
-    transform: translateY(-1px);
-  }
-}
-
-.proto-card-stack__top {
-  transition: transform 140ms ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .proto-card-stack__top {
-    transition: none;
-  }
-}
-
-.proto-card-stack__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 
 /* The fan. Each card begins where the collapsed deck sat — pulled up under the
    one above and slightly narrowed, as if it had been underneath — then settles
@@ -11459,53 +11122,6 @@ html.harvous-prototype-route
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
-  }
-}
-
-.proto-card-stack__list-item {
-  animation: proto-card-stack-fan 260ms cubic-bezier(0.22, 1.24, 0.36, 1) backwards;
-  animation-delay: calc(var(--fan-index, 0) * 34ms);
-}
-
-/* The first card is already where it was — no reason to make it move. */
-.proto-card-stack__list-item:first-child {
-  animation-delay: 0ms;
-  animation-duration: 200ms;
-}
-
-.proto-card-stack__toggle {
-  animation: proto-card-stack-fan 240ms ease backwards;
-  /* Lands after the cards it belongs to, so it doesn't arrive over them. */
-  animation-delay: 140ms;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .proto-card-stack__list-item,
-  .proto-card-stack__toggle {
-    animation: none;
-  }
-}
-
-/* Aligned with the deck rather than centred: it belongs to the list above it. */
-.proto-card-stack__toggle {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  appearance: none;
-  border: 0;
-  background: none;
-  padding: 6px 2px;
-  margin: 0;
-  font: inherit;
-  font-size: 12px;
-  color: var(--pds-text-secondary);
-  cursor: pointer;
-}
-
-@media (pointer: coarse) {
-  .proto-card-stack__toggle {
-    min-height: 44px;
   }
 }
 
@@ -13008,29 +12624,6 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   display: block;
 }
 
-/* Primary emphasis — the blue gradient, for the one obvious action in a modal.
-   Use sparingly: on a surface of glass cards (Home) the glass variant is right;
-   inside a sheet where this is *the* thing to do, the gradient earns itself. */
-.proto-glass-action--primary {
-  border-color: transparent;
-  background: var(--pds-bg-accent-button);
-  box-shadow: var(--pds-shadow-accent-button);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-/* White-on-accent text is handled by the shared on-accent list in
-   prototype-route-overrides.css, alongside every other primary button —
-   the one place allowed to out-`!important` the blanket button-colour rule. */
-
-.proto-glass-action--primary:hover:not(:disabled) {
-  filter: brightness(1.06);
-}
-
-.proto-glass-action--primary:active:not(:disabled) {
-  filter: brightness(0.95);
-}
-
 /* Narrow sidebars: the label would crowd the title, so drop to the icon. The
    button carries an aria-label, so hiding the span outright costs nothing —
    and needs no positioned ancestor, which is what keeps the rule above honest. */
@@ -13059,14 +12652,6 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 /* ─── My Church › Teaching plan (staff, role-gated on sermon_tools) ───────── */
-
-.proto-teaching-plan {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-  align-items: flex-start;
-}
 
 .proto-teaching-plan__empty,
 .proto-teaching-plan__divider {
@@ -14034,40 +13619,6 @@ p.proto-teaching-plan__divider {
   overflow: visible;
 }
 
-/* Edit affordance — same white chip language as cover thumb check. */
-.proto-create-shared-space__edit-badge {
-  position: absolute;
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  color: var(--pds-text-primary);
-  /* Solid chip (not the svg) so the glyph never clips against padding. */
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pds-bg-page) 94%, transparent);
-  box-shadow: 0 1px 2px oklch(0% 0 0 / 0.12);
-  border: 1.5px solid var(--pds-bg-popover-solid);
-}
-
-/* Top-left on hero — clear of close (top-right) and letter overlap (bottom). */
-.proto-create-shared-space__hero-hit .proto-create-shared-space__edit-badge {
-  top: 10px;
-  left: 10px;
-  width: 24px;
-  height: 24px;
-}
-
-/* Inset on the color tile so scroll containers can't clip it. */
-.proto-create-shared-space__icon-hit .proto-create-shared-space__edit-badge {
-  right: 1px;
-  bottom: 1px;
-  width: 18px;
-  height: 18px;
-}
-
 .proto-create-shared-space__title-input {
   appearance: none;
   width: 100%;
@@ -14982,12 +14533,6 @@ html.harvous-prototype-route
   border-color: var(--pds-accent);
 }
 
-.proto-shared-space-settings__colors {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
 .proto-shared-space-settings__color {
   width: 22px;
   height: 22px;
@@ -15088,10 +14633,6 @@ html.harvous-prototype-route
 
 .proto-space-switcher__row--dragging .proto-space-switcher__row-item {
   border: 1px dashed var(--pds-border);
-  background: transparent;
-}
-
-.proto-space-switcher__drag-preview .proto-space-switcher__row-item {
   background: transparent;
 }
 
@@ -15227,21 +14768,6 @@ html.harvous-prototype-route
   color: var(--pds-text-primary);
 }
 
-/* Live preview row — mirrors the list item (icon tile + title). */
-.proto-space-switcher__preview {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 2px 8px;
-}
-
-.proto-space-switcher__create-colors {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-
 .proto-space-switcher__create-actions {
   display: flex;
   gap: 8px;
@@ -15288,13 +14814,6 @@ html.harvous-prototype-route
   cursor: pointer;
   text-decoration: underline;
   white-space: nowrap;
-}
-
-.proto-space-switcher__empty-hint {
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--pds-text-secondary);
-  text-align: center;
 }
 
 .proto-copy-space-group-label {
@@ -21621,25 +21140,6 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 /*
- * The break between the tour and "Make it yours".
- *
- * Spacing only, no rule: a line across the panel would make two lists out of one card, and
- * the whole point is that these rows belong to the same ambient group. The label is
- * `aria-hidden` because the rows beneath it already say what they are — a screen reader
- * meeting "Make it yours" as a heading would expect a landmark that is not there.
- */
-.proto-onboarding-dock__section {
-  margin: 10px 0 2px;
-  padding: 0 4px;
-  opacity: 0.62;
-}
-
-/* Nothing above it to separate from when the tour is already finished. */
-.proto-onboarding-dock__section:first-child {
-  margin-top: 0;
-}
-
-/*
  * Collapse without measuring.
  *
  * `grid-template-rows: 1fr → 0fr` animates a row's height without JS ever reading one,
@@ -21710,8 +21210,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 
 /* Two docks now say "that is done": the onboarding checklist and Review's result line. Same
    mark, same pop, one rule — they are the same gesture and should not drift apart. */
-.proto-onboarding-dock__check,
-.proto-dock-check {
+.proto-onboarding-dock__check {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -21722,12 +21221,6 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   background: var(--pds-accent);
   color: #fff;
   animation: proto-onboarding-check-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-/* Review's sits on a line of text rather than in a row, so it does not need the row's margin. */
-.proto-dock-check {
-  flex: none;
-  margin: 1px 0 0;
 }
 
 /* A completed row is a receipt, not a destination — it stops looking tappable while it
@@ -21780,7 +21273,6 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   }
 
   .proto-onboarding-dock__check,
-  .proto-dock-check,
   .proto-review-dock__result,
   .proto-spotlight-glow {
     animation: none;
@@ -23461,8 +22953,7 @@ button.proto-feed-sheet__stat:hover {
 
   .proto-review-dock__subject,
   .proto-challenge__cloze,
-  .proto-review-dock__verse,
-  .proto-review-dock__altered {
+  .proto-review-dock__verse {
     animation-delay: 60ms;
   }
 
@@ -23907,34 +23398,6 @@ button.proto-feed-sheet__stat:hover {
 
 .proto-review-dock__blank:disabled {
   opacity: 0.6;
-}
-
-/*
- * The altered verse, which must not look like a verse.
- *
- * Everything the scripture panel does, this deliberately does not: no reading face, no quiet
- * grey ground, no pill chrome. It takes a warning tint and a marked edge instead, so a line
- * that misquotes Scripture cannot be mistaken for it at a glance or in a screenshot. The
- * caption above the words says the same thing in words.
- */
-.proto-review-dock__altered {
-  margin: 0;
-  padding: 8px 12px 10px;
-  border-radius: var(--pds-radius-row);
-  border: 0.5px dashed var(--pds-border-control-medium);
-  background: color-mix(in srgb, var(--pds-highlight-warm-amber) 8%, transparent);
-}
-
-.proto-review-dock__altered-caption {
-  margin: 0 0 6px;
-  color: var(--pds-text-secondary);
-}
-
-.proto-review-dock__altered-text {
-  margin: 0;
-  font-family: var(--pds-font-body);
-  font-size: 14px;
-  line-height: 1.7;
 }
 
 /* Each word is its own target, so answering is a tap on the word rather than a menu about it. */
@@ -24456,15 +23919,6 @@ button.proto-feed-sheet__stat:hover {
   margin: 0;
 }
 
-
-/* A leech's way down: the line, then the two offers, set off from the verdict above. */
-/* A leech's way down, indented to the verdict's text rather than its icon. */
-.proto-review-dock__slipping {
-  display: grid;
-  gap: 8px;
-  padding-left: calc(22px + 6px + var(--pds-space-2));
-}
-
 /*
  * A circle, like every other small round marker in the app.
  *
@@ -24562,7 +24016,6 @@ button.proto-feed-sheet__stat:hover {
   padding: var(--pds-space-2) 0;
 }
 
-.proto-review-dock__empty,
 .proto-review-dock__handoff {
   margin: 0;
   font-family: var(--pds-font-body);

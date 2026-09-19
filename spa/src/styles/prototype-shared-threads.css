@@ -346,13 +346,6 @@
   }
 }
 
-/* Never the browser's default link underline — this is a card title, not a
-   link. The card tints under the cursor instead, so the whole row reads as the
-   target rather than just the glyphs of the word. */
-.proto-shared-thread-card__open {
-  text-decoration: none;
-}
-
 /* The shared chip bar carries sidebar-list margins; under the section eyebrow
    it only needs a little air above the cards. */
 .proto-shared-thread-tabs {
