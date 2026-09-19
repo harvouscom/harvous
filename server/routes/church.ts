@@ -78,6 +78,7 @@ import {
   type ChurchRow,
 } from '../utils/church-entitlement';
 import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-staff';
+import { churchBillingRule, resolveChurchOrgAccess } from '../utils/church-org-access';
 import {
   listServicesForChurch,
   listServicesForViewerSources,
@@ -362,6 +363,10 @@ app.get('/api/church/feed', requireAuth, rateLimit('read'), async (c) => {
         id: Spaces.id,
         title: Spaces.title,
         color: Spaces.color,
+        /* The follower's own "seen up to" mark — the same watermark the switcher's
+           new-note count uses (`shared-space-visit.ts`), so the two never disagree. */
+        lastVisitedAt: SpaceMemberships.lastVisitedAt,
+        joinedAt: SpaceMemberships.joinedAt,
       })
       .from(SpaceMemberships)
       .innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id))
@@ -418,8 +423,22 @@ app.get('/api/church/feed', requireAuth, rateLimit('read'), async (c) => {
     const items = rows.map((row) => {
       const space = spaceById.get(row.spaceId!)!;
       const author = authors[row.authorUserId];
+      const watermark = space.lastVisitedAt ?? space.joinedAt ?? null;
+      const publishedAt = row.addedAt ?? row.createdAt ?? null;
       return {
         noteId: row.noteId,
+        /*
+          Published into the channel since this follower last opened it, by someone
+          else. Keyed on when it reached the channel, not when it was last edited — a
+          typo fix is not news. Clears by visiting the channel, which opening the item
+          does, exactly like every other "new" in the app.
+        */
+        isNew: Boolean(
+          watermark &&
+            publishedAt &&
+            new Date(publishedAt).getTime() > new Date(watermark).getTime() &&
+            row.authorUserId !== auth.userId,
+        ),
         title: row.title,
         excerpt: stripHtmlForCard(row.content ?? '').slice(0, FEED_EXCERPT_LENGTH),
         noteType: row.noteType ?? 'default',
@@ -434,11 +453,16 @@ app.get('/api/church/feed', requireAuth, rateLimit('read'), async (c) => {
       };
     });
 
-    return c.json({
-      connected: true,
-      church: { id: church.id, name: church.name },
-      items,
-    });
+    // Carries per-viewer read state now; a cached copy would resurrect a cleared marker.
+    return c.json(
+      {
+        connected: true,
+        church: { id: church.id, name: church.name },
+        items,
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/feed',
@@ -657,9 +681,9 @@ app.get('/api/church/services', requireAuth, async (c) => {
 
 // ─── GET /api/church/billing ────────────────────────────────────────────────
 /**
- * Staff-only view of where the church stands: pilot countdown, paid state, and
- * the plans they can buy. Congregants get a 403 — how the church pays is not
- * their business, and the hub never renders billing chrome for them.
+ * Where the church stands: pilot countdown, paid state, and the plans it can
+ * buy. Congregants and non-admin staff get a 403 — the hub never renders
+ * billing chrome for them.
  */
 app.get('/api/church/billing', requireAuth, async (c) => {
   try {
@@ -669,9 +693,10 @@ app.get('/api/church/billing', requireAuth, async (c) => {
     const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(auth.userId);
     if (!church) return c.json({ error: 'Church not found', code: 'CHURCH_NOT_FOUND' }, 404);
 
-    if (!(await isChurchStaffForOrg(auth.userId, church.orgId))) {
-      return c.json({ error: 'Only church staff can view billing', code: 'CHURCH_STAFF_REQUIRED' }, 403);
-    }
+    const access = await resolveChurchOrgAccess(auth.userId, church.orgId, churchBillingRule(
+      'Only church staff can view billing',
+    ));
+    if (!access.ok) return c.json({ error: access.error, code: access.code }, access.status);
 
     return c.json({
       church: { id: church.id, name: church.name, orgId: church.orgId },
@@ -721,9 +746,10 @@ app.post('/api/church/checkout', requireAuth, rateLimit('write'), async (c) => {
     const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(auth.userId);
     if (!church) return c.json({ error: 'Church not found', code: 'CHURCH_NOT_FOUND' }, 404);
 
-    if (!(await isChurchStaffForOrg(auth.userId, church.orgId))) {
-      return c.json({ error: 'Only church staff can subscribe', code: 'CHURCH_STAFF_REQUIRED' }, 403);
-    }
+    const access = await resolveChurchOrgAccess(auth.userId, church.orgId, churchBillingRule(
+      'Only church staff can subscribe',
+    ));
+    if (!access.ok) return c.json({ error: access.error, code: access.code }, access.status);
     if (church.billingPlan) {
       return c.json({ error: 'This church already has a plan', code: 'CHURCH_ALREADY_PAID' }, 409);
     }

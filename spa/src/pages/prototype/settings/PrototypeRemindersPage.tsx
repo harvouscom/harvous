@@ -248,11 +248,15 @@ export default function PrototypeRemindersPage() {
       saveTimer.current = window.setTimeout(() => {
         void api
           .post('/api/user/update-reminders', {
+            /* Every field, every time: the route overwrites rather than merges. `cadence` was
+               missing here, so choosing "Every day" was saved as twice-weekly. */
             reminderSettings: {
+              cadence: cleared.cadence,
               sunday: cleared.sunday,
               midweek: cleared.midweek,
               midweekDay: cleared.midweekDay,
               hour: cleared.hour,
+              churchUpdates: Boolean(cleared.churchUpdates),
             },
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           })
@@ -487,6 +491,20 @@ export default function PrototypeRemindersPage() {
           />
         </SettingsGroup>
       )}
+
+      {/* Only for someone connected to a church — anyone else would be offered news from
+          nowhere. Off by default; at most once a day, in daytime, never while in the app. */}
+      {profile?.connectedOrgId ? (
+        <SettingsGroup>
+          <ToggleRow
+            label="New from your church"
+            sublabel="When channels you follow share something. At most once a day."
+            checked={Boolean(settings.churchUpdates)}
+            disabled={scheduleDisabled}
+            onChange={(churchUpdates) => save({ ...settings, churchUpdates })}
+          />
+        </SettingsGroup>
+      ) : null}
 
       <SettingsGroup>
         <div className="proto-note-row proto-note-row--static">

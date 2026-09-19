@@ -15,7 +15,8 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, SpaceNotes, NoteThreads, Threads, VerseTextCache, BibleVerses, eq, and, count, isNotNull, isNull } from '../db';
+import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, SpaceNotes, NoteThreads, Threads, VerseTextCache, BibleVerses, eq, and, count, gte, isNotNull, isNull, lte, sql } from '../db';
+import { passageSpanFromParsed, selectPassageNotes } from '../utils/passage-notes';
 import { bibleVersesBookName } from '@/utils/bible-verses-book-name';
 import { bookChapterCount } from '@/utils/bible-book-chapters';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
@@ -768,6 +769,69 @@ app.get('/api/scripture/passage-context', requireAuth, async (c) => {
     return c.json({ success: true, ...context });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/scripture/passage-context', action: 'passage_context' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/scripture/passage-notes?reference=&noteId=&limit= ───────────────
+/**
+ * Every note of yours that cites a verse in this passage, newest first — passage history.
+ *
+ * Same ownership join and removed-space rule as chapter-notes below (see the comment there
+ * for why SpaceNotes is left-joined). Narrowed in SQL to the book and the chapters the
+ * passage could touch; the exact verse overlap is `selectPassageNotes`, which is pure and
+ * tested. Read-only, so looking never bumps a note's `updatedAt`.
+ */
+app.get('/api/scripture/passage-notes', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const reference = c.req.query('reference')?.trim();
+    const excludeNoteId = c.req.query('noteId')?.trim() || null;
+    const limitRaw = Number(c.req.query('limit') ?? 50);
+    const limit = Number.isFinite(limitRaw) ? Math.min(200, Math.max(1, Math.trunc(limitRaw))) : 50;
+    if (!reference) return c.json({ error: 'Reference is required', code: 'REFERENCE_REQUIRED' }, 400);
+
+    const parsed = parseScriptureReference(reference.replace(/,\s+/g, ','));
+    if (!parsed) return c.json({ error: 'Invalid scripture reference format', code: 'BAD_REFERENCE' }, 400);
+    const span = passageSpanFromParsed(parsed);
+
+    const rows = await db
+      .select({
+        noteId: ScriptureMetadata.noteId,
+        reference: ScriptureMetadata.reference,
+        book: ScriptureMetadata.book,
+        chapter: ScriptureMetadata.chapter,
+        verse: ScriptureMetadata.verse,
+        verseEnd: ScriptureMetadata.verseEnd,
+        chapterEnd: ScriptureMetadata.chapterEnd,
+        title: Notes.title,
+        createdAt: Notes.createdAt,
+      })
+      .from(ScriptureMetadata)
+      .innerJoin(Notes, eq(Notes.id, ScriptureMetadata.noteId))
+      .leftJoin(SpaceNotes, eq(SpaceNotes.noteId, ScriptureMetadata.noteId))
+      .where(
+        and(
+          eq(ScriptureMetadata.book, span.book),
+          lte(ScriptureMetadata.chapter, span.endChapter),
+          gte(sql`coalesce(${ScriptureMetadata.chapterEnd}, ${ScriptureMetadata.chapter})`, span.startChapter),
+          eq(Notes.userId, auth.userId),
+          eq(Notes.contentEncrypted, false),
+          isNull(SpaceNotes.removedAt),
+        ),
+      );
+
+    const notes = selectPassageNotes(span, rows, excludeNoteId);
+    return c.json(
+      { success: true, total: notes.length, notes: notes.slice(0, limit) },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/scripture/passage-notes',
+      action: 'passage_notes',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

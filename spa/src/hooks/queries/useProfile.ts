@@ -217,6 +217,8 @@ export interface UserProfile {
   connectedChurchAt?: string | null;
   /** True when the viewer is staff for their connected home church org. */
   isHomeChurchStaff?: boolean;
+  /** Connected to a church that is no longer active on Harvous. */
+  connectedChurchInactive?: boolean;
   /** Whether an account lock PIN is set (the hash itself is never sent to clients). */
   hasLockPinSet?: boolean;
   /** Preferred Bible translation (e.g. ESV, NET); from UserMetadata via get-profile */
@@ -291,6 +293,7 @@ function fetchProfile(userId: string): Promise<UserProfile> {
         connectedOrgId?: string | null;
         connectedChurchAt?: string | null;
         isHomeChurchStaff?: boolean;
+        connectedChurchInactive?: boolean;
         hasLockPinSet?: boolean;
         defaultTranslation?: string;
         sharedSpaceSwitcherOrder?: string[] | null;
@@ -325,6 +328,7 @@ function fetchProfile(userId: string): Promise<UserProfile> {
         connectedOrgId: data.connectedOrgId ?? null,
         connectedChurchAt: data.connectedChurchAt ?? null,
         isHomeChurchStaff: Boolean(data.isHomeChurchStaff),
+        connectedChurchInactive: Boolean(data.connectedChurchInactive),
         sharedSpaceSwitcherOrder: Array.isArray(data.sharedSpaceSwitcherOrder)
           ? data.sharedSpaceSwitcherOrder
           : null,

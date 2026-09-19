@@ -4,6 +4,9 @@
 gated at every entry point. Self-serve checkout is deliberately **not** wired — see
 [Why billing isn't self-serve yet](#why-billing-isnt-self-serve-yet).
 
+**V1 status (Sept 18, 2026):** see [CHURCH_V1_SCOPE.md](CHURCH_V1_SCOPE.md) for what V1 added
+and left out. The invoice gap below is closed, and billing now requires `manage_billing`.
+
 Companion docs: [BILLING_ARCHITECTURE.md](BILLING_ARCHITECTURE.md) (Polar, entitlements),
 [CLERK_ARCHITECTURE.md](CLERK_ARCHITECTURE.md) (auth, organizations),
 [future/PASTOR_FEATURES_ROADMAP.md](future/PASTOR_FEATURES_ROADMAP.md) (feature ladder).
@@ -22,7 +25,7 @@ Companion docs: [BILLING_ARCHITECTURE.md](BILLING_ARCHITECTURE.md) (Polar, entit
 | Org templates | `NoteTemplates.orgId` — church-provisioned starters (the sermon template rides these rails) |
 | Teaching plan | `ChurchServices` — staff plan services (date, title, passage, series); congregants see the next one as "This Sunday" on Home and start a note from it. Seeing the plan needs `sermon_tools` (v2.19.0); changing it needs `manage_teaching_plan` (v2.21.0), so a teacher teaches from the plan without reshaping it. The staff read is never sponsorship-gated |
 | Sponsorship | `churchIsSponsored()` — paid **or** inside a pilot window. Gates **writes only** |
-| Billing | Product registry + checkout route + webhook branch exist; **Polar products are not created**, so checkout cannot complete |
+| Billing | Product registry + checkout route + webhook branch exist; **Polar products are not created**, so checkout cannot complete. Billing status and checkout require `manage_billing` (admins), not just staff (Sept 2026) |
 
 **Everything is gated.** A `Churches` row must be admin-registered; congregant surfaces
 need `UserMetadata.connectedOrgId`; staff surfaces need Clerk org membership. A user with
@@ -101,22 +104,15 @@ rows with `listed: false`, so they never appear on the personal `/upgrade` page.
 
 ---
 
-## Known gap: a church that pays by invoice
+## A church that pays by invoice
 
-`Churches.billingPlan` is written by **exactly one code path** — the Polar webhook
-(`applyChurchSubscription` in
-[server/utils/church-entitlement.ts](../server/utils/church-entitlement.ts)). There is no
-admin action to mark a church as paid.
+At `/admin/churches`, **Mark paid (invoice)** sets `billingPlan` with `billingStatus='manual'`
+(`POST /api/admin/churches/:churchId/billing`). The record then reads as paid, not as a pilot.
+**Clear manual plan** undoes it. The route refuses a church that has a Polar subscription id,
+because the webhook owns that row. Change a Polar-billed church in Polar.
 
-**Today, if a church pays you outside Polar, the only way to keep it sponsored is to keep
-extending its pilot window** from `/admin/churches`. That works — `churchIsSponsored()` treats
-a live pilot and a paid plan identically — but the record will read "pilot" forever, and
-nothing distinguishes a paying customer from a trial.
-
-If invoice-paying churches become normal before Polar checkout is wired, add a small
-admin-only endpoint that sets `billingPlan` directly (mirroring the `/pilot` endpoint), so the
-church's state reflects reality. Until then, extending the pilot is the documented workaround,
-not an oversight.
+Before this existed (until Sept 2026) the only workaround was extending the pilot window, which
+left a paying church reading "pilot" forever.
 
 ---
 
@@ -136,9 +132,11 @@ church that cancels keeps whatever remains of its window.
 
 ---
 
-## Docs that now contradict shipped behaviour
+## Docs that contradicted shipped behaviour
 
-Still stale, and will mislead anyone reading them cold:
+**All handled as of Sept 18, 2026.** Each now carries a banner pointing at the current state
+([CHURCH_V1_SCOPE.md](CHURCH_V1_SCOPE.md)), `future/README.md` was corrected, and the
+marketing-agent skill already describes church org as live. Kept as the record of what was wrong:
 
 - **[future/CHURCH_ORG_AND_CURRICULUM.md](future/CHURCH_ORG_AND_CURRICULUM.md)** — describes
   delivery via `InboxItems` with `sharingType='organization'` and the frozen `Members` table.

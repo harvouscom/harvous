@@ -45,6 +45,11 @@ import PrototypeChurchStaffSection from './PrototypeChurchStaffSection';
 import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSection';
 import PrototypeChurchEngagementSection from './PrototypeChurchEngagementSection';
 import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
+import PrototypeChurchSetupCard from './PrototypeChurchSetupCard';
+import { churchSetupSteps, type ChurchSetupStepId } from '../../lib/church-setup-steps';
+import { useChurchSettings } from '../../hooks/queries/useChurchSettings';
+import { useNoteTemplates } from '../../hooks/queries/useNoteTemplates';
+import { useChurchTeachingPlan } from '../../hooks/queries/useChurchTeachingPlan';
 import PrototypeChurchSettingsSection from './PrototypeChurchSettingsSection';
 import { useProtoHomeViewClassName, useProtoSpaceLoaderState } from './useProtoHomeViewEnter';
 import PrototypeChannelPairingSection from './PrototypeChannelPairingSection';
@@ -245,7 +250,9 @@ export default function PrototypeChurchHub() {
   // Channels the church publishes that the viewer hasn't followed yet. Staff
   // reach their own channels through the lanes above, so they're filtered out.
   const channelsQuery = useChurchChannels();
-  const billingEnabled = canCreateChurchContent;
+  /* The church's money is `manage_billing` (admins) — the server 403s every
+     other staff role, so asking for it would only fetch a refusal. */
+  const billingEnabled = canCreateChurchContent && canChurch('manage_billing');
   const billingQuery = useChurchBilling(orgId, { enabled: billingEnabled });
   const channelsData = channelsQuery.data;
   /**
@@ -371,6 +378,52 @@ export default function PrototypeChurchHub() {
     canManageChurchSettings,
     openExpandedSidebar,
   ]);
+
+  /*
+    The setup card's facts, each fetched only for someone who could act on it —
+    and with the hub, not when the card is tapped. Templates are app-wide and
+    usually already cached; the plan is the one the Planner row opens.
+  */
+  const settingsQuery = useChurchSettings(orgId, { enabled: canManageChurchSettings });
+  const templatesQuery = useNoteTemplates();
+  const setupPlanQuery = useChurchTeachingPlan(orgId, { enabled: plannerAccess.canWrite });
+  const setupSteps = useMemo(
+    () =>
+      churchSetupSteps({
+        can: {
+          manageSettings: canManageChurchSettings && !churchPlanLapsed,
+          createChannel: canCreateChurchContent && !churchPlanLapsed,
+          manageTemplates: canManageChurchTemplates && !churchPlanLapsed,
+          managePlan: plannerAccess.canWrite,
+        },
+        has: {
+          serviceTimes: (settingsQuery.data?.serviceTimes?.length ?? 0) > 0,
+          channel: ministryChannels.length > 0,
+          starter: (templatesQuery.data?.org?.length ?? 0) > 0,
+          plannedService: (setupPlanQuery.data?.services?.length ?? 0) > 0,
+          published: ministryChannels.some((channel) => Boolean(channel.lastCurriculumAt)),
+        },
+      }),
+    [
+      canManageChurchSettings,
+      canCreateChurchContent,
+      canManageChurchTemplates,
+      churchPlanLapsed,
+      plannerAccess.canWrite,
+      settingsQuery.data?.serviceTimes?.length,
+      ministryChannels,
+      templatesQuery.data?.org?.length,
+      setupPlanQuery.data?.services?.length,
+    ],
+  );
+  const openSetupStep = (id: ChurchSetupStepId) => {
+    if (id === 'times') setToolsView('settings');
+    else if (id === 'channel') openCreateSheet('ministry');
+    else if (id === 'starter') setToolsView('starters');
+    else if (id === 'plan') setToolsView('teaching-plan');
+    else if (ministryChannels[0]) openSpace(ministryChannels[0].id);
+    else openCreateSheet('ministry');
+  };
 
   // Staff reach their own channels through the lanes above, so they never
   // appear here — you don't "follow" a channel you author.
@@ -564,6 +617,7 @@ export default function PrototypeChurchHub() {
             />
           ) : (
           <>
+            <PrototypeChurchSetupCard steps={setupSteps} onSelect={openSetupStep} />
             {isEmpty ? (
               <div className="proto-home-section">
                 <PrototypeListEmptyState
@@ -731,7 +785,7 @@ export default function PrototypeChurchHub() {
                 <p className="proto-caption proto-home-section__eyebrow">Tools</p>
                 <ProtoToolsRowList rows={churchToolRows} cascade>
                   {/* Silent while the church is paid and healthy. */}
-                  <PrototypeChurchPlanRow orgId={orgId} isStaff={canCreateChurchContent} />
+                  <PrototypeChurchPlanRow orgId={orgId} canManageBilling={billingEnabled} />
                 </ProtoToolsRowList>
               </div>
             ) : null}

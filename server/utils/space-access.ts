@@ -5,8 +5,10 @@
  * table). Roles come from SpaceMemberships; the owner has a membership row too,
  * while Spaces.userId remains the creator/billing anchor.
  *
- * Role order: owner > leader > member. 'leader' is schema-ready but dormant in
- * the foundation UI (activates with Group Leader / church org).
+ * Role order: owner > leader > member. 'leader' is live: church staff sync
+ * projects it onto org spaces, and a church can grant it to one volunteer for
+ * one room (`SpaceMemberships.grantSource='grant'`). Invite links still only
+ * ever mint 'member'.
  *
  * Church-org: a space with orgId set is owned/sponsored by that church
  * (Churches.orgId). Spaces.userId stays the creating staff member. Staff

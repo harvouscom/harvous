@@ -320,3 +320,64 @@ export async function publishSeriesAsStudyPlan(input: {
 
   return { threadId, created, skipped: alreadyPublished.size, pinned };
 }
+
+/**
+ * Where a *church-plan* series (`spaceId IS NULL`) may be published, or why not.
+ *
+ * The space lane publishes a series into the room whose plan it is. A church
+ * series has no room, so the caller names a ministry channel — the room the
+ * congregation walks it in. Pure so the refusals are testable without a DB.
+ *
+ * `publishedThreadId` stays the one pointer: a series lives in one channel.
+ * Re-publishing to the same channel adds new weeks; a different channel is
+ * refused rather than growing a second pointer (how `channelSpaceId` happened).
+ * A pointer whose Thread is gone is treated as never published.
+ */
+export type ChurchSeriesPublishDecision =
+  | { ok: true; publishedThreadId: string | null }
+  | { ok: false; status: 404 | 409; code: string; error: string };
+
+export function decideChurchSeriesPublish(input: {
+  churchId: string;
+  orgId: string;
+  series: { churchId: string | null; spaceId: string | null } | null;
+  channel: { type: string | null; orgId: string | null; deletedAt: unknown } | null;
+  channelSpaceId: string;
+  /** The Thread the series already points at, if it still exists. */
+  existingThread: { id: string; spaceId: string | null } | null;
+}): ChurchSeriesPublishDecision {
+  const { series, channel } = input;
+  if (!series || series.churchId !== input.churchId) {
+    return { ok: false, status: 404, code: 'SERIES_NOT_FOUND', error: 'Series not found' };
+  }
+  if (series.spaceId !== null) {
+    return {
+      ok: false,
+      status: 409,
+      code: 'SPACE_PLAN_SERIES',
+      error: "This series belongs to a room's plan — publish it from that room",
+    };
+  }
+  if (
+    !channel ||
+    channel.deletedAt ||
+    channel.type !== 'public' ||
+    channel.orgId !== input.orgId
+  ) {
+    return {
+      ok: false,
+      status: 404,
+      code: 'CHANNEL_NOT_FOUND',
+      error: 'Pick one of your church’s ministry channels',
+    };
+  }
+  if (input.existingThread && input.existingThread.spaceId !== input.channelSpaceId) {
+    return {
+      ok: false,
+      status: 409,
+      code: 'SERIES_PUBLISHED_ELSEWHERE',
+      error: 'This series is already a study plan in another channel',
+    };
+  }
+  return { ok: true, publishedThreadId: input.existingThread?.id ?? null };
+}

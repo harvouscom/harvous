@@ -212,6 +212,24 @@
   width: 100%;
 }
 
+/* A follower's one action takes the whole row the compose pair would — a
+   half-width button beside nothing read as a layout that lost its partner. */
+.proto-shared-thread-drilldown__actions--single {
+  grid-template-columns: 1fr;
+}
+
+/* "I finished this study" under the last step: quiet, centred, and clear of the
+   card above so it reads as the end of the plan rather than another row. */
+.proto-shared-thread-drilldown__finish {
+  display: grid;
+  justify-items: center;
+  margin-top: 12px;
+}
+
+.proto-shared-thread-drilldown__finish .proto-sheet-quiet-action {
+  width: auto;
+}
+
 .proto-shared-thread-drilldown__scroll {
   min-height: 0;
 }

@@ -198,6 +198,22 @@ export function useSetChurchPilot(churchId: string) {
   });
 }
 
+/**
+ * Mark a church paid by hand (invoice) or clear that. Refused server-side for a church
+ * Polar is billing — see POST /api/admin/churches/:churchId/billing.
+ */
+export function useSetChurchManualBilling(churchId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (paid: boolean) =>
+      adminApiPost<{ success: boolean; church: AdminChurch }>(
+        `/api/admin/churches/${churchId}/billing`,
+        { paid },
+      ),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin', 'churches'] }),
+  });
+}
+
 /** Edit registered church name / location / HMC link (hub subtitle reads city + state). */
 export function useUpdateAdminChurch(churchId: string) {
   const queryClient = useQueryClient();
