@@ -362,9 +362,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
 .proto-shell--no-sidebar {
   grid-template-columns: minmax(0, 1fr);
 }
-.proto-shell--no-sidebar.proto-shell--inspector-open {
-  grid-template-columns: minmax(0, 1fr) var(--pds-inspector-w);
-}
 
 /* Desktop sidebar collapsed (⌘\ equivalent) */
 .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
@@ -385,9 +382,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
 }
 .proto-shell--sidebar-collapsed:not(.proto-shell--no-sidebar) {
   grid-template-columns: 0 minmax(0, 1fr);
-}
-.proto-shell--sidebar-collapsed.proto-shell--inspector-open:not(.proto-shell--no-sidebar) {
-  grid-template-columns: 0 minmax(0, 1fr) var(--pds-inspector-w);
 }
 
 /* ─── Grid cells ─────────────────────────────────────────────────────────── */
@@ -546,10 +540,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   .proto-shell--no-sidebar .proto-shell__right-panel-host {
-    grid-column: 1;
-  }
-
-  .proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__right-panel-host {
     grid-column: 1;
   }
 }
@@ -826,7 +816,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   /* List type menu — opaque popover above the scrolling note list (same fix as desktop sidebar). */
-  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-list-view:has(.proto-menu__popover),
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-toolbar:has(.proto-menu__popover) {
     z-index: 100;
   }
@@ -1099,9 +1088,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
 
   .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar[data-mode='format'],
   .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
   .proto-shell--sidebar-resizing .proto-shell__study-dock-layer__slot:not(:empty),
   .proto-shell--sidebar-resizing
     .proto-shell__study-dock-layer
@@ -1185,9 +1171,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
   .proto-shell__study-dock-layer__slot:not(:empty),
   .proto-shell__study-dock-layer .study-dock-carousel__track > .study-dock-carousel__item:only-child,
   .proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__study-dock-layer__slot:not(:empty) {
@@ -1212,15 +1195,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
     .proto-shell__editor-chrome-row
     .proto-editor-bottom-bar__format,
-  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
-    .proto-shell__editor-chrome-row
-    .proto-editor-bottom-bar__scripture,
-  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
-    .proto-shell__editor-chrome-row
-    .proto-editor-bottom-bar__highlight,
-  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
-    .proto-shell__editor-chrome-row
-    .proto-editor-bottom-bar__reference,
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__study-dock-layer__slot:not(:empty),
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
     .proto-shell__study-dock-layer
@@ -1443,7 +1417,6 @@ html.harvous-prototype-route .proto-menu__popover,
 html.harvous-prototype-route .proto-menu__popover--sidebar-list-view,
 html.harvous-prototype-route .proto-share-popover,
 html.harvous-prototype-route .proto-find-popover,
-html.harvous-prototype-route .proto-folder-popover,
 html.harvous-prototype-route .proto-connect-note-popover,
 html.harvous-prototype-route .proto-shared-space-about,
 html.harvous-prototype-route .harvous-delete-confirm,
@@ -1490,9 +1463,7 @@ html.harvous-proto-wallpaper-color .proto-menu-item--destructive .proto-menu-ite
 
 /* Match share/folder popover text readability to menu treatment. */
 html.harvous-proto-wallpaper-image .proto-share-popover,
-html.harvous-proto-wallpaper-image .proto-folder-popover,
-html.harvous-proto-wallpaper-color .proto-share-popover,
-html.harvous-proto-wallpaper-color .proto-folder-popover {
+html.harvous-proto-wallpaper-color .proto-share-popover {
   color: var(--pds-text-on-chrome);
 }
 

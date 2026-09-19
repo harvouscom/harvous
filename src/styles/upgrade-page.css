@@ -375,17 +375,6 @@
   margin-top: auto;
 }
 
-.public-addon-letter__active {
-  margin: 0;
-  text-align: center;
-  font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #2a5a25;
-}
-
 /* ─── Plan selector + primary CTA ─────────────────────────────────────────
    Short chip toggle + one detail line under it (scarcity / savings). CTA
    matches auth primary (pill + cyan-blue gradient). */
@@ -410,18 +399,6 @@
   font-weight: 500;
   color: var(--color-error, #c0392b);
   text-align: center;
-}
-
-.upgrade-checkout__note {
-  margin: 0;
-  font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--site-ink-faint);
-  text-align: center;
-  line-height: 1.4;
 }
 
 /*
