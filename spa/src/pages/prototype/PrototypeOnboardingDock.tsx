@@ -43,7 +43,9 @@ export interface OnboardingStepCopy {
 
 export const ONBOARDING_STEP_COPY: readonly OnboardingStepCopy[] = [
   { id: 'read', icon: 'book-open', title: 'Open the Bible', meta: 'Start with a passage.' },
-  { id: 'note', icon: 'note-sticky', title: 'Write a note', meta: 'A thought, a question, anything.' },
+  /* The hint names the way back in, so finishing the checklist does not also take away the
+     only place that said where writing starts. */
+  { id: 'note', icon: 'note-sticky', title: 'Write a note', meta: 'Anytime from the top of Today, or the pencil.' },
   { id: 'pill', icon: 'scroll', title: 'Mention a verse', meta: 'Type a reference — it becomes a live link.' },
   { id: 'highlight', icon: 'highlighter', title: 'Highlight a verse', meta: 'Select while reading to keep it.' },
   { id: 'thread', icon: 'arrow-right-arrow-left', title: 'Connect two notes', meta: 'A study is notes that talk to each other.' },

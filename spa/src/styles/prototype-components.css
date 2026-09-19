@@ -24345,6 +24345,46 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
+ * "What are you studying today?" — a button shaped like a field, under the greeting.
+ * The input fill and control border so it reads as the place you type, not as a row.
+ */
+.proto-feed-compose {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  width: 100%;
+  margin: var(--pds-space-3) 0 0;
+  padding: 11px 14px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-row);
+  background: var(--pds-bg-input);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: text;
+  transition: background var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-feed-compose:hover {
+    background: var(--pds-bg-input-hover);
+  }
+}
+
+.proto-feed-compose:active {
+  background: var(--pds-bg-row-selected);
+}
+
+.proto-feed-compose__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
  * Today's passage as a card at the top of Activity — the sample's recipe below, so a verse on
  * Home reads the same wherever it appears: caption line, the text in the reading face
  * (`.proto-review-dock__verse--scripture`), two buttons (`.proto-review-dock__actions`).

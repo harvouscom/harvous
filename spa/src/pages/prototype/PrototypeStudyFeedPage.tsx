@@ -64,6 +64,7 @@ import PrototypeStudyFeedToday from './PrototypeStudyFeedToday';
 import PrototypeOnboardingDock from './PrototypeOnboardingDock';
 import { takeOnboardingStep } from './onboarding-step-handoff';
 import PrototypeThreadProposalReview from './PrototypeThreadProposalReview';
+import PrototypeFeedComposePrompt from './PrototypeFeedComposePrompt';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { markOnboardingLedToday, onboardingHasLedToday } from './onboarding-day-marker';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -877,6 +878,10 @@ export default function PrototypeStudyFeedPage() {
                  alone — the same sentence, just carrying the paragraph by itself. */
               summarySentence ? <p className="proto-feed-sheet__summary">{summarySentence}</p> : null
             )}
+
+            {/* Today, unfiltered: the way to start writing, in words, on every visit. A day
+                you flipped back to or a single room's trail is not where a new note goes. */}
+            {safeIndex === 0 && !scopedSpace ? <PrototypeFeedComposePrompt /> : null}
 
             {/* Above everything when it is up: it is a question waiting on an answer, and
                 the day's record can wait behind it. */}
