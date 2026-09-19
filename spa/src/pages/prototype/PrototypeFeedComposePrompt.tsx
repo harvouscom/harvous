@@ -13,10 +13,12 @@
  *
  * One bounded bit of motion: the line rotates through a few prompts, so it reads as an
  * invitation rather than a label you stop seeing, and a blue gradient runs around the border
- * as each new line arrives — the two are one gesture. One pass per visit, then it rests on the
- * first line with no sweep; paused while hovered, focused or in a background tab.
+ * as each new line arrives — the two are one gesture. One pass per visit, then it settles on a
+ * plain, generic line with no sweep — never back on the most specific one, which was only right
+ * for the moment it arrived ("Still in Romans 8?" resting there for the rest of the visit reads
+ * like the app forgot the time passed); paused while hovered, focused or in a background tab.
  * Moving text on a reading page is only welcome if it stops. Under reduced motion none of it
- * plays: the first line stays.
+ * plays: the resting line shows from the start.
  */
 import { useEffect, useState } from 'react';
 import Icon from '@/components/react/Icon';
@@ -25,6 +27,11 @@ import { FEED_COMPOSE_FILLERS } from './feed-compose-prompts';
 /** Long enough to read twice, short enough that it feels alive. */
 const ROTATE_MS = 4500;
 
+/** Where a pass comes to rest — plain and always true, so it never overstays a line that was
+    only right for the moment it appeared. `FEED_COMPOSE_FILLERS` is documented as having this
+    line first for exactly this reason. */
+const ANCHOR_LINE = FEED_COMPOSE_FILLERS[0];
+
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
 }
@@ -32,7 +39,9 @@ function prefersReducedMotion(): boolean {
 export default function PrototypeFeedComposePrompt({
   prompts,
 }: {
-  /** Most specific first — see `buildFeedComposePrompts`. The first is where it comes to rest. */
+  /** Most specific first — see `buildFeedComposePrompts`. Where the pass ends is `ANCHOR_LINE`,
+      not the end of this list, so a rotation of one still shows and a rotation of five doesn't
+      leave the reader looking at whichever specific line happened to be first. */
   prompts: readonly string[];
 }) {
   const [step, setStep] = useState(0);
@@ -70,8 +79,10 @@ export default function PrototypeFeedComposePrompt({
     return () => window.clearTimeout(timer);
   }, [paused, pageVisible, passDone, reducedMotion, list.length, step]);
 
-  // After a full pass it comes back to the first — the most specific line — and rests there.
-  const index = passDone ? 0 : step % list.length;
+  // A full pass ends on the anchor line, not back on the most specific one: "Still in Romans 8?"
+  // was right for the moment it arrived, not for the rest of the visit.
+  const activeIndex = step % list.length;
+  const label = passDone ? ANCHOR_LINE : list[activeIndex];
 
   return (
     <button
@@ -88,12 +99,13 @@ export default function PrototypeFeedComposePrompt({
       {/* The sweep that goes with each line: keyed to it, so every new line replays it, and
           absent once the pass is done — resting means still. */}
       {!passDone && !reducedMotion && list.length > 1 ? (
-        <span key={`ring-${index}`} className="proto-feed-compose__ring" aria-hidden />
+        <span key={`ring-${activeIndex}`} className="proto-feed-compose__ring" aria-hidden />
       ) : null}
       <Icon name="pen-to-square" size={14} aria-hidden />
-      {/* Keyed so each new line mounts and plays its fade-in. */}
-      <span key={index} className="proto-feed-compose__label">
-        {list[index]}
+      {/* Keyed so each new line mounts and plays its fade-in — including the settle onto the
+          anchor line, a distinct key from every rotation index so it always plays. */}
+      <span key={passDone ? 'rest' : activeIndex} className="proto-feed-compose__label">
+        {label}
       </span>
     </button>
   );
