@@ -16,7 +16,6 @@
 .proto-editor-surface .ProseMirror .mention-pill,
 #shared-note-content .card-full-editable__content-html .mention-pill,
 #shared-thread-content .card-full-editable__content-html .mention-pill,
-.shared-page__card-container .card-full-editable__content-html .mention-pill,
 .public-note-card .card-full-editable__content-html .mention-pill {
   position: relative !important;
   display: inline-flex !important;

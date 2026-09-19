@@ -34,13 +34,6 @@
     overflow: hidden;
   }
 
-  #shared-note-content .shared-page__content-section,
-  #shared-thread-content .shared-page__content-section,
-  #shared-space-content .shared-page__content-section,
-  #invitation-content .shared-page__content-section {
-    padding-top: 12px !important;
-  }
-
   #shared-note-content .auth-page__video-overlay,
   #shared-thread-content .auth-page__video-overlay,
   #shared-space-content .auth-page__video-overlay,
@@ -68,17 +61,6 @@
     max-height: 100vh;
     min-height: 0;
   }
-
-  #shared-note-content .auth-page__form-section.shared-page__content-section,
-  #shared-thread-content .auth-page__form-section.shared-page__content-section,
-  #shared-space-content .auth-page__form-section.shared-page__content-section,
-  #invitation-content .auth-page__form-section.shared-page__content-section {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    height: 100%;
-    max-height: 100vh;
-    overflow: hidden;
-  }
 }
 
 /* Hero-pane icon shadow (shared pages use base .auth-page, not --site). */
@@ -93,231 +75,15 @@
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.25));
 }
 
-/* Shared page content section */
-.shared-page__content-section {
-  background-color: var(--color-light-paper) !important;
-  padding: 0 !important;
-  align-items: stretch !important;
-  justify-content: flex-start !important;
-}
-
-/* Content container */
-.shared-page__content {
-  width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 0;
-  min-height: 100%;
-}
-
 /* Mobile: constrain content to viewport height */
-@media (max-width: 1159px) {
-  .shared-page__content {
-    height: 100%;
-    max-height: 100vh;
-    overflow: hidden;
-    justify-content: flex-start;
-  }
-}
 
 /* Desktop: constrain content to viewport height */
-@media (min-width: 1160px) {
-  .shared-page__content {
-    height: 100%;
-    max-height: 100vh;
-    overflow: hidden;
-    justify-content: flex-start;
-    padding-top: 0;
-  }
-}
-
-/* Creator / inviter info above card */
-.shared-page__creator {
-  padding: 12px 0;
-  text-align: center;
-  width: 100%;
-  flex-shrink: 0;
-}
-
-.shared-page__creator p {
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--color-stone-grey);
-  margin: 0;
-  line-height: 1.5;
-}
-
-/* Card/CardStack container */
-.shared-page__card-container {
-  width: 100%;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 300px;
-}
 
 /* Mobile: constrain card container to fit within viewport */
-@media (max-width: 1159px) {
-  .shared-page__card-container {
-    min-height: 0;
-  }
-}
 
 /* Desktop: allow card to shrink to fit available space */
-@media (min-width: 1160px) {
-  .shared-page__card-container {
-    min-height: 0;
-  }
-}
-
-/* Make CardFullEditable fill container */
-.shared-page__card-container .card-full-editable {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  max-height: 100vh;
-}
-
-@media (min-width: 1160px) {
-  .shared-page__card-container .card-full-editable {
-    max-height: calc(100vh - 200px);
-  }
-}
-
-/* Scrollable content area */
-.shared-page__card-container .card-full-editable .overflow-auto {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-  -webkit-overflow-scrolling: touch;
-}
 
 /* Mobile: add padding-bottom to account for fixed button */
-@media (max-width: 1159px) {
-  .shared-page__card-container .card-full-editable .overflow-auto {
-    padding-bottom: 72px !important;
-  }
-}
-
-@media (min-width: 1160px) {
-  .shared-page__card-container .card-full-editable .overflow-auto {
-    max-height: none;
-  }
-}
-
-/* Make CardStack fill container */
-.shared-page__card-container .card-stack {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.shared-page__card-container .card-stack__container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.shared-page__card-container .card-stack__content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.shared-page__card-container .card-stack__inner {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.shared-page__card-container .card-stack__inner-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-/* card-stack__inner-content is the scroll container for shared thread/space pages.
-   The base CSS already has overflow-y: auto and padding: 12px on it.
-   We just need to ensure it participates in the flex height chain. */
-
-/* Notes inside CardStack */
-.shared-page__notes {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.shared-page__notes-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  color: var(--color-stone-grey);
-  text-align: center;
-}
-
-.shared-page__notes-empty p {
-  margin: 0;
-  font-size: 14px;
-}
-
-/* People count inside content area (join space page) */
-.shared-page__people-count {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 4px 12px;
-  text-align: center;
-}
-
-.shared-page__people-count span {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-pebble-grey);
-}
-
-/* Expiry notice and member status (invitation page) */
-.shared-page__expiry-notice {
-  text-align: center;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  color: var(--color-pebble-grey);
-  padding: 4px 24px 12px;
-}
-
-.shared-page__member-status {
-  text-align: center;
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-stone-grey);
-  padding: 8px 24px;
-}
-
-/* Note/thread items */
-.shared-page__note-item {
-  cursor: default;
-}
-
-.shared-page__note-item * {
-  cursor: default !important;
-}
-
-.shared-page__thread-item {
-  cursor: default;
-}
 
 /* Toast notification - absolutely positioned 12px above button */
 .shared-page__toast {
@@ -345,21 +111,6 @@
   z-index: 10;
 }
 
-.shared-page__toast--visible {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-  visibility: visible;
-}
-
-.shared-page__toast--success {
-  color: var(--color-deep-grey);
-}
-
-.shared-page__toast--error {
-  color: var(--color-red);
-}
-
 /* CTA Button wrapper — sticky at bottom of its scroll container */
 .shared-page__cta-wrapper {
   position: sticky;
@@ -374,90 +125,6 @@
   margin-top: 0;
   flex-shrink: 0;
   width: 100%;
-}
-
-/* Footer */
-.shared-page__footer {
-  padding: 12px 0;
-  text-align: center;
-  width: 100%;
-  flex-shrink: 0;
-}
-
-.shared-page__footer p {
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--color-stone-grey);
-  margin: 0 0 4px 0;
-  line-height: 1.5;
-}
-
-.shared-page__footer a {
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--color-stone-grey);
-  text-decoration: underline;
-  text-decoration-skip-ink: none;
-}
-
-.shared-page__footer a:hover {
-  color: var(--color-deep-grey);
-}
-
-/* Error state */
-.shared-page__error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 48px 24px;
-  flex: 1;
-}
-
-.shared-page__error-icon {
-  color: var(--color-pebble-grey);
-  margin-bottom: 24px;
-  font-size: 48px;
-}
-
-.shared-page__error-title {
-  font-family: var(--font-roundo);
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--color-deep-grey);
-  margin: 0 0 12px 0;
-}
-
-.shared-page__error-message {
-  font-size: 16px;
-  color: var(--color-stone-grey);
-  margin: 0 0 32px 0;
-  max-width: 400px;
-  line-height: 1.5;
-}
-
-.shared-page__error-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px 32px;
-  background: var(--color-bold-blue);
-  color: white;
-  text-decoration: none;
-  border-radius: 24px;
-  font-weight: 600;
-  font-size: 16px;
-  transition: background-color 0.15s ease;
-  box-shadow: inset 0px -4px 0px 0px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  border: none;
-}
-
-.shared-page__error-link:hover {
-  background: var(--color-navy);
 }
 
 /* ==========================================================================
@@ -480,14 +147,6 @@
   }
 }
 
-.shared-page__fade-in {
-  animation: sharedPageFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.shared-page__slide-up {
-  animation: sharedPageSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 /* Disable scripture pill interactions on shared note page */
 #shared-note-content .scripture-pill,
 #shared-note-content .scripture-pill-clickable {
@@ -501,8 +160,7 @@
 
 /* Scripture pills — accent surface in scripture-pill-accent.css; layout overrides below. */
 #shared-note-content .card-full-editable__content-html .scripture-pill,
-#shared-thread-content .card-full-editable__content-html .scripture-pill,
-.shared-page__card-container .card-full-editable__content-html .scripture-pill {
+#shared-thread-content .card-full-editable__content-html .scripture-pill {
   color: var(--color-deep-grey) !important;
   border-radius: var(--pds-radius-scripture, 14px) !important;
   font-weight: 500 !important;
@@ -510,8 +168,7 @@
 
 /* URL link pills — neutral section chip (not accent-tinted). */
 #shared-note-content .card-full-editable__content-html .url-link-pill,
-#shared-thread-content .card-full-editable__content-html .url-link-pill,
-.shared-page__card-container .card-full-editable__content-html .url-link-pill {
+#shared-thread-content .card-full-editable__content-html .url-link-pill {
   border: none !important;
   box-shadow: var(--scripture-pill-inner-shadow, inset 0 0 3px rgba(0, 0, 0, 0.042)) !important;
   background: var(--pds-bg-section, var(--color-paper)) !important;
@@ -524,10 +181,8 @@
 /* Translation suffix (e.g. NLT) — muted, matches prototype editor */
 #shared-note-content .card-full-editable__content-html .scripture-pill[data-scripture-translation-label]::after,
 #shared-thread-content .card-full-editable__content-html .scripture-pill[data-scripture-translation-label]::after,
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-scripture-translation-label]::after,
 #shared-note-content .card-full-editable__content-html .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after,
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after,
-.shared-page__card-container .card-full-editable__content-html .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
+#shared-thread-content .card-full-editable__content-html .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
   color: var(--color-pebble-grey) !important;
   font-size: 0.68em !important;
   font-weight: 500 !important;
@@ -538,8 +193,7 @@
 
 /* Study highlights — app/prototype colored underline (matches prototype-editor.css). */
 #shared-note-content .card-full-editable__content-html mark,
-#shared-thread-content .card-full-editable__content-html mark,
-.shared-page__card-container .card-full-editable__content-html mark {
+#shared-thread-content .card-full-editable__content-html mark {
   background: none !important;
   background-color: transparent !important;
   background-image: none !important;
@@ -556,33 +210,27 @@
   box-shadow: none !important;
 }
 #shared-note-content .card-full-editable__content-html mark[data-color="neutral"],
-#shared-thread-content .card-full-editable__content-html mark[data-color="neutral"],
-.shared-page__card-container .card-full-editable__content-html mark[data-color="neutral"] {
+#shared-thread-content .card-full-editable__content-html mark[data-color="neutral"] {
   text-decoration-color: var(--pds-highlight-neutral, var(--study-dock-accent-neutral));
 }
 #shared-note-content .card-full-editable__content-html mark[data-color="warmAmber"],
-#shared-thread-content .card-full-editable__content-html mark[data-color="warmAmber"],
-.shared-page__card-container .card-full-editable__content-html mark[data-color="warmAmber"] {
+#shared-thread-content .card-full-editable__content-html mark[data-color="warmAmber"] {
   text-decoration-color: var(--pds-highlight-warm-amber, var(--study-dock-accent-warmAmber));
 }
 #shared-note-content .card-full-editable__content-html mark[data-color="skyBlue"],
-#shared-thread-content .card-full-editable__content-html mark[data-color="skyBlue"],
-.shared-page__card-container .card-full-editable__content-html mark[data-color="skyBlue"] {
+#shared-thread-content .card-full-editable__content-html mark[data-color="skyBlue"] {
   text-decoration-color: var(--pds-highlight-sky-blue, var(--study-dock-accent-skyBlue));
 }
 #shared-note-content .card-full-editable__content-html mark[data-color="violet"],
-#shared-thread-content .card-full-editable__content-html mark[data-color="violet"],
-.shared-page__card-container .card-full-editable__content-html mark[data-color="violet"] {
+#shared-thread-content .card-full-editable__content-html mark[data-color="violet"] {
   text-decoration-color: var(--pds-highlight-violet, var(--study-dock-accent-violet));
 }
 #shared-note-content .card-full-editable__content-html mark[data-color="mintGreen"],
-#shared-thread-content .card-full-editable__content-html mark[data-color="mintGreen"],
-.shared-page__card-container .card-full-editable__content-html mark[data-color="mintGreen"] {
+#shared-thread-content .card-full-editable__content-html mark[data-color="mintGreen"] {
   text-decoration-color: var(--pds-highlight-mint-green, var(--study-dock-accent-mintGreen));
 }
 #shared-note-content .card-full-editable__content-html mark[data-color="coralRose"],
-#shared-thread-content .card-full-editable__content-html mark[data-color="coralRose"],
-.shared-page__card-container .card-full-editable__content-html mark[data-color="coralRose"] {
+#shared-thread-content .card-full-editable__content-html mark[data-color="coralRose"] {
   text-decoration-color: var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose));
 }
 
@@ -599,46 +247,6 @@
   overflow: hidden;
 }
 
-.condensed-thread-item__accent {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 2.75rem;
-  border-top-left-radius: 0.75rem;
-  border-bottom-left-radius: 0.75rem;
-}
-
-.condensed-thread-item__content {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding-left: 0.75rem;
-  padding-right: 1rem;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* Icon color: `.thread-accent-icon` in cards.css + `--thread-accent-icon-color` from getThreadIconOnAccentCSS */
-.condensed-thread-item__icon {
-  position: relative;
-  flex-shrink: 0;
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.condensed-thread-item__title {
-  font-family: var(--font-sans);
-  font-weight: 700;
-  color: var(--color-deep-grey);
-  font-size: 16px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 0;
-}
-
 /* Inherits pill sizing from navigation.css `.badge-count`; opacity only here */
 .condensed-thread-item .badge-count {
   opacity: 1 !important;
@@ -646,16 +254,4 @@
 
 .condensed-thread-item .badge-number {
   opacity: 1 !important;
-}
-
-.shared-page__thread-item .condensed-thread-item {
-  transition: transform 200ms ease;
-}
-
-.shared-page__thread-item:hover .condensed-thread-item {
-  transform: scale(1.002);
-}
-
-.shared-page__thread-item:active .condensed-thread-item {
-  transform: scale(0.99);
 }
