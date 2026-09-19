@@ -48,6 +48,9 @@ export const ONBOARDING_STEP_COPY: readonly OnboardingStepCopy[] = [
   { id: 'note', icon: 'note-sticky', title: 'Write a note', meta: 'Anytime from the top of Today, or the pencil.' },
   { id: 'pill', icon: 'scroll', title: 'Mention a verse', meta: 'Type a reference — it becomes a live link.' },
   { id: 'highlight', icon: 'highlighter', title: 'Highlight a verse', meta: 'Select while reading to keep it.' },
+  /* Opens the Library with its kind filter already open, so the answer to "where did that go"
+     is on screen: notes, highlights, Threads, each a list of its own. */
+  { id: 'library', icon: 'magnifying-glass', title: 'Find what you\u2019ve saved', meta: 'Notes, highlights and more, sorted by kind.' },
   { id: 'thread', icon: 'arrow-right-arrow-left', title: 'Connect two notes', meta: 'A study is notes that talk to each other.' },
   { id: 'recall', icon: 'arrow-rotate-left', title: 'Revisit something', meta: 'Harvous brings back what you studied.' },
 ];

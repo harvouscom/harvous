@@ -269,6 +269,7 @@ export default function PrototypeLibraryPanelHost({
         <>
           <PrototypeLibraryTabs
             tab={view.tab}
+            openOnArrival={view.showKindMenu === true}
             /* Switching tab clears the drill: the row you tapped names a kind, not a place
                inside the one you were already in. */
             onSelect={(tab) => setLibraryPanelView({ tab, drill: null })}

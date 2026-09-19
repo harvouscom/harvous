@@ -1805,6 +1805,10 @@ export function useHomeSurfaceData({
         case 'highlight':
           openFirstRunPassage('reader-verses');
           return;
+        case 'library':
+          // Everything, with the kind picker open: the step is learning that the filter is there.
+          openLibraryPanel({ tab: 'all', drill: null, showKindMenu: true });
+          return;
         case 'thread':
           openThread();
           return;
@@ -1814,7 +1818,7 @@ export function useHomeSurfaceData({
           return;
       }
     },
-    [onCreateFirstNote, openFirstRunPassage, openThread],
+    [onCreateFirstNote, openFirstRunPassage, openThread, openLibraryPanel],
   );
 
   return {

@@ -28,6 +28,7 @@ export type OnboardingStepId =
   | 'note'
   | 'pill'
   | 'highlight'
+  | 'library'
   | 'thread'
   | 'recall'
   | OnboardingCustomizeId;
@@ -58,9 +59,43 @@ export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
   'note',
   'pill',
   'highlight',
+  // Right after making things: where everything you just made is kept.
+  'library',
   'thread',
   'recall',
 ];
+
+/**
+ * The tour as it stood before 'library' joined it (Sept 2026).
+ *
+ * `shouldShowOnboarding` shows the dock until every tour step is settled, and it does not look at
+ * `completedAt` — so adding a row would bring the dock back for everyone who had finished or
+ * dismissed their way through the original six, asking them to find a panel they have long
+ * since used. `settleStepsAddedAfterFinishing` closes that: an account whose original six were
+ * all settled before the new row existed gets the new row settled too. Dismissed rather than
+ * done, because they did not do it; the difference only shows if Support restores the dock.
+ *
+ * Adding another row later: append its id to the tour and leave this list alone, or the rows
+ * added in between would stop being settled for the accounts they were settled for.
+ */
+const TOUR_BEFORE_LIBRARY: readonly OnboardingStepId[] = [
+  'read',
+  'note',
+  'pill',
+  'highlight',
+  'thread',
+  'recall',
+];
+
+function settleStepsAddedAfterFinishing(
+  steps: Record<OnboardingStepId, OnboardingStepState>,
+): Record<OnboardingStepId, OnboardingStepState> {
+  const library = steps.library;
+  if (library.done || library.dismissed) return steps;
+  const finishedBefore = TOUR_BEFORE_LIBRARY.every((id) => steps[id].done || steps[id].dismissed);
+  if (!finishedBefore) return steps;
+  return { ...steps, library: { ...library, dismissed: true } };
+}
 
 /** Display order of the "Make it yours" section, beneath the tour. */
 export const CUSTOMIZE_STEP_IDS: readonly OnboardingCustomizeId[] = [
@@ -177,7 +212,13 @@ export function parseOnboardingState(raw: string | null | undefined): Onboarding
     }
   }
 
-  return { version, dismissedVersion, restoredVersion, completedAt, steps };
+  return {
+    version,
+    dismissedVersion,
+    restoredVersion,
+    completedAt,
+    steps: settleStepsAddedAfterFinishing(steps),
+  };
 }
 
 export function serializeOnboardingState(state: OnboardingState): string {

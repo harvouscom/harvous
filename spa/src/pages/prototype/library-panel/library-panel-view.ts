@@ -65,6 +65,14 @@ export type LibraryPanelView = {
    * they pressed already implied.
    */
   selectOnOpen?: boolean;
+  /**
+   * Open with the kind picker ("Everything ▾") already showing its list.
+   *
+   * For the getting-started step whose whole lesson is that the picker exists — the list of
+   * kinds is the answer to "where do my notes and highlights go". An opening condition like
+   * `autoFocusSearch`, so `isSameLibraryPanelView` ignores it.
+   */
+  showKindMenu?: boolean;
 };
 
 /**

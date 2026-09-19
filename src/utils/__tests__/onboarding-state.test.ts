@@ -299,3 +299,48 @@ describe('customization steps', () => {
     expect(serializeOnboardingState(state).length).toBeLessThan(2048);
   });
 });
+
+describe("the 'library' step, added after the tour shipped", () => {
+  const ORIGINAL_SIX = ['read', 'note', 'pill', 'highlight', 'thread', 'recall'] as const;
+
+  function storedWith(steps: Record<string, { done?: boolean; dismissed?: boolean }>, completedAt: string | null = null) {
+    return JSON.stringify({ version: 1, dismissedVersion: 0, restoredVersion: 0, completedAt, steps });
+  }
+
+  it('sits in the tour after the steps that make things', () => {
+    expect(ONBOARDING_STEP_IDS.indexOf('library')).toBe(ONBOARDING_STEP_IDS.indexOf('highlight') + 1);
+  });
+
+  it('does not bring the dock back for an account that finished the original six', () => {
+    const raw = storedWith(
+      Object.fromEntries(ORIGINAL_SIX.map((id) => [id, { done: true }])),
+      '2026-08-30T12:00:00.000Z',
+    );
+    const state = parseOnboardingState(raw)!;
+    expect(state.steps.library).toMatchObject({ done: false, dismissed: true });
+    expect(shouldShowOnboarding(state)).toBe(false);
+  });
+
+  it('settles it too when the six were settled by a mix of doing and dismissing', () => {
+    const raw = storedWith({
+      read: { done: true }, note: { done: true }, pill: { dismissed: true },
+      highlight: { done: true }, thread: { dismissed: true }, recall: { done: true },
+    });
+    expect(shouldShowOnboarding(parseOnboardingState(raw)!)).toBe(false);
+  });
+
+  it('offers it to anyone still working through the tour', () => {
+    const raw = storedWith({ read: { done: true }, note: { done: true } });
+    const state = parseOnboardingState(raw)!;
+    expect(state.steps.library).toMatchObject({ done: false, dismissed: false });
+    expect(shouldShowOnboarding(state)).toBe(true);
+  });
+
+  it('leaves a library step that was really done alone', () => {
+    const raw = storedWith({
+      ...Object.fromEntries(ORIGINAL_SIX.map((id) => [id, { done: true }])),
+      library: { done: true },
+    });
+    expect(parseOnboardingState(raw)!.steps.library).toMatchObject({ done: true, dismissed: false });
+  });
+});

@@ -127,6 +127,17 @@ type ProtoSelectMenuCommonProps<T extends string | number> = {
    * and a menu of twenty spaces is unusable without one.
    */
   filterPlaceholder?: string;
+  /**
+   * Open by itself this long after mounting.
+   *
+   * After a delay rather than on the first frame: the one caller mounts inside a panel that is
+   * still animating in, and the menu positions itself from the trigger's box — measured mid-
+   * morph, it would land where the trigger was on the way, and nothing re-measures once the
+   * animation ends. Waiting it out places the menu on the trigger's resting box.
+   */
+  autoOpenAfterMs?: number;
+  /** Told each time the menu opens or closes, whoever opened it. */
+  onOpenChange?: (open: boolean) => void;
 };
 
 export default function ProtoSelectMenu<T extends string | number>(
@@ -142,8 +153,28 @@ export default function ProtoSelectMenu<T extends string | number>(
     footer,
     groupsAsTabs = false,
     filterPlaceholder,
+    autoOpenAfterMs,
+    onOpenChange,
   } = props;
   const [open, setOpen] = useState(false);
+
+  // Mount-time only: this is an opening condition, not a way to hold the menu open.
+  useEffect(() => {
+    if (autoOpenAfterMs == null) return undefined;
+    const timer = window.setTimeout(() => setOpen(true), autoOpenAfterMs);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  const openedOnceRef = useRef(false);
+  useEffect(() => {
+    // Skip the initial closed state, so a caller hears about real changes only.
+    if (!open && !openedOnceRef.current) return;
+    openedOnceRef.current = true;
+    onOpenChangeRef.current?.(open);
+  }, [open]);
   const [filter, setFilter] = useState('');
   const filterInputRef = useRef<HTMLInputElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
