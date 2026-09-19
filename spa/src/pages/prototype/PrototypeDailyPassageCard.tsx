@@ -70,10 +70,12 @@ export default function PrototypeDailyPassageCard({
           className="proto-review-dock__verse proto-review-dock__verse--scripture"
           dangerouslySetInnerHTML={markup}
         />
+        {/* Both secondary: the accent fill made the reader button the loudest thing on
+            Activity, louder than the passage it serves. The words carry the card. */}
         <div className="proto-review-dock__actions">
           <button
             type="button"
-            className="proto-settings-btn proto-settings-btn--compact"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
             onClick={openInReader}
           >
             Open in Bible reader
@@ -83,7 +85,7 @@ export default function PrototypeDailyPassageCard({
             className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
             onClick={takeNote}
           >
-            {todaysNote ? 'Open your note' : 'Take note'}
+            {todaysNote ? 'Open your note' : 'Create note from passage'}
           </button>
         </div>
       </div>

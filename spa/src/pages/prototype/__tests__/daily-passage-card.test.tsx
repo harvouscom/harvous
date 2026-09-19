@@ -94,7 +94,7 @@ describe('the card', () => {
 
   it('taking a note composes on the passage, folds it, and records the note', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    fireEvent.click(screen.getByText('Take note'));
+    fireEvent.click(screen.getByText('Create note from passage'));
     expect(beginPrototypeComposeSession).toHaveBeenCalled();
     expect(actedAfterUpdate()).toBe(true);
     expect(lastEngagement()).toBe('add_note');

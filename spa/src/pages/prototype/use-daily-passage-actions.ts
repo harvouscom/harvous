@@ -56,7 +56,7 @@ export function useDailyPassageActions({
     () => false,
   );
 
-  /** A note on this passage started today, if there is one — "Take note" opens it instead. */
+  /** A note on this passage started today, if there is one — "Create note from passage" opens it instead. */
   const todaysNote = findPersistedDailyPassageNote(notes, votd.reference);
 
   const afterNav = useCallback(() => {
