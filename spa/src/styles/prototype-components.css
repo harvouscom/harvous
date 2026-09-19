@@ -24382,142 +24382,31 @@ button.proto-feed-sheet__stat:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* Each rotated line mounts fresh (keyed), so this plays per line. */
-  animation: proto-feed-compose-line-in 280ms var(--pds-ease-standard) both;
-}
-
-@keyframes proto-feed-compose-line-in {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 /*
- * A blue gradient runs around the border as each rotated line arrives, then fades — the line
- * and the sweep are one gesture (the ring is keyed to the line in the component). A ring
- * masked to its own border, so the field's layout and fill never move. The comet is a conic
- * gradient whose angle animates through a registered property; where `@property` is
- * unsupported the ring fades in and out without travelling, which is still a highlight.
- * Linear, and the fade-out only after it is back where it started: an eased sweep covered most
- * of its travel in the first few hundred ms while still fading in, then faded out before
- * closing, so it never read as a full loop. 2400ms inside a 4500ms line.
+ * Each rotated line types itself out behind a caret, like someone starting to write there — which
+ * is the invitation. The caret is the text's own colour, not a blue: it is a cursor, not a
+ * highlight. Solid while typing, blinking once the line is written, the way a real one behaves;
+ * gone once the pass settles, because a caret blinking for the rest of a visit is motion that
+ * never stops on a reading page. The component skips all of it under reduced motion.
  */
-@property --proto-feed-compose-sweep {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
+.proto-feed-compose__caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: -0.15em;
+  background: currentColor;
 }
 
-.proto-feed-compose {
-  position: relative;
+.proto-feed-compose__caret[data-blink] {
+  animation: proto-feed-compose-blink 1s steps(1, end) infinite;
 }
 
-.proto-feed-compose__ring {
-  position: absolute;
-  inset: -1px;
-  padding: 1.5px;
-  border-radius: calc(var(--pds-radius-row) + 1px);
-  background: conic-gradient(
-    from var(--proto-feed-compose-sweep),
-    transparent 0deg,
-    var(--pds-accent-gradient-start) 70deg,
-    var(--pds-accent-gradient-end) 140deg,
-    transparent 210deg,
-    transparent 360deg
-  );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  /* Starts with the line's own fade-in, so they arrive together. */
-  animation: proto-feed-compose-sweep 2400ms linear 60ms both;
-}
-
-/*
- * Where motion paths take a shape, the light travels the border itself. The conic sweep above
- * turns by angle from the centre, and on a pill this wide (600×45) nearly all of the angle is
- * spent on the two long edges at once: a 70° band lit most of one half, then the other, so it
- * read as "left side, then right side", never a loop. A comet on `offset-path` moves at an even
- * speed along the perimeter, the same length of border lit wherever it is. The ring's mask
- * still clips it to the stroke; the ring's own animation still carries the fade.
- */
-@supports (offset-path: inset(0 round 1px)) {
-  .proto-feed-compose__ring {
-    background: none;
-  }
-
-  .proto-feed-compose__ring::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    /* Length along the path (`offset-rotate: auto` lines the width up with travel). */
-    width: 300px;
-    height: 48px;
-    /*
-     * The primary button's gradient (`--pds-bg-accent-button`), laid along the direction of
-     * travel: its light stop at the tail, its bright stop at the head, at the button's own 7% and
-     * 93%. The token itself cannot be used — at 171deg it runs across a 1.5px stroke, which only
-     * ever shows its middle — and the radial glow this replaces was a third blue, dark in the
-     * middle and faded at both ends. The tail still fades in, so the light has a direction.
-     */
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--pds-accent-gradient-start) 7%,
-      var(--pds-accent-gradient-end) 93%,
-      transparent
-    );
-    offset-path: inset(0 round calc(var(--pds-radius-row) + 1px));
-    offset-rotate: auto;
-    animation: proto-feed-compose-travel 2400ms linear 60ms both;
-  }
-}
-
-@keyframes proto-feed-compose-travel {
-  0% {
-    offset-distance: 0%;
-  }
-  85%,
-  100% {
-    offset-distance: 100%;
-  }
-}
-
-@keyframes proto-feed-compose-sweep {
-  0% {
-    --proto-feed-compose-sweep: 0deg;
+@keyframes proto-feed-compose-blink {
+  50% {
     opacity: 0;
-  }
-  5% {
-    opacity: 1;
-  }
-  /* The full turn, visible the whole way round… */
-  85% {
-    --proto-feed-compose-sweep: 360deg;
-    opacity: 1;
-  }
-  /* …then it fades where it began. */
-  100% {
-    --proto-feed-compose-sweep: 360deg;
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .proto-feed-compose__ring {
-    display: none;
-  }
-
-  .proto-feed-compose__label {
-    animation: none;
   }
 }
 
