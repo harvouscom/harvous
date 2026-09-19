@@ -67,7 +67,7 @@ import {
   decoratePassageHtmlWithSavedHighlights,
   type PassageHighlightPaint,
   type ReferenceProvider,
-} from '@/components/react/TiptapReferenceSuggestion';
+} from '@/utils/reference-suggestion-text';
 import { useEastonsSlugIndex } from '../../hooks/useEastonsSlugIndex';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import {

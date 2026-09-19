@@ -49,7 +49,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 60_000,           // 1 minute
-      gcTime: 5 * 60_000,          // 5 minutes
+      // 30 minutes. Leaving the PWA for longer than gcTime used to drop every inactive query,
+      // so coming back painted loaders instead of last-known data revalidating underneath.
+      // Costs memory only; staleTime (not this) decides when anything refetches.
+      gcTime: 30 * 60_000,
       retry: (failureCount, error) => {
         // Don't retry on 401 (session expired) — redirect to sign-in instead
         if (error instanceof APIError && error.status === 401) return false;

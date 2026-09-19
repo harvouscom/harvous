@@ -1,7 +1,13 @@
 import type { PulseHistoryMonth } from '@/hooks/queries/useAdminPulse';
 import { axisTicks, buildLinePath, niceMax } from '@/utils/admin-usage-trends-chart';
 
-const BOOK_COLORS = ['var(--pds-accent-blue)', 'var(--pds-accent-green)', 'var(--pds-accent-orange)'];
+// Theme-aware series hues. These were `--pds-accent-{blue,green,orange}`, which were never
+// defined: every line and legend swatch rendered with no colour at all.
+const BOOK_COLORS = [
+  'var(--study-dock-accent-skyBlue)',
+  'var(--study-dock-accent-mintGreen)',
+  'var(--study-dock-accent-warmAmber)',
+];
 
 function formatMonthLabel(month: string): string {
   const [year, m] = month.split('-');

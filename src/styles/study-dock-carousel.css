@@ -282,7 +282,7 @@
 }
 
 .study-dock-carousel__item--dragging .study-dock-carousel__item-inner {
-  border: 1px dashed var(--pds-border-strong, var(--pds-border));
+  border: 1px dashed var(--pds-border);
   border-radius: 12px;
   background: transparent;
 }

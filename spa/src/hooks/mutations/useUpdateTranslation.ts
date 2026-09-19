@@ -66,8 +66,11 @@ export function useUpdateTranslation() {
       );
 
       if (previousVotd != null) {
+        // The text is in the old translation; drop it rather than label it with the new one.
+        // The card falls back to its row until the refetch in onSuccess brings the new words.
+        const { textHtml: _staleText, ...rest } = previousVotd;
         queryClient.setQueryData<VotdToday | null>(votdTodayQueryKey, {
-          ...previousVotd,
+          ...rest,
           translation: defaultTranslation,
         });
       }

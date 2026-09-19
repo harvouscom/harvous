@@ -135,7 +135,7 @@ export default function SharedSpaceDashboardFixtureView({
             margin: '8px 12px 0',
             padding: '8px 10px',
             borderRadius: 10,
-            background: 'var(--pds-fill-secondary)',
+            background: 'var(--pds-bg-control)',
             color: 'var(--pds-text-secondary)',
           }}
           role="note"
@@ -150,7 +150,7 @@ export default function SharedSpaceDashboardFixtureView({
             margin: '8px 12px 0',
             padding: '6px 10px',
             borderRadius: 10,
-            background: 'var(--pds-fill-secondary)',
+            background: 'var(--pds-bg-control)',
             color: 'var(--pds-text-secondary)',
           }}
           role="note"

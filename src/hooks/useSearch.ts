@@ -70,12 +70,37 @@ export async function fetchSearchResults(
   return res.json() as Promise<{ results: SearchResult[] }>;
 }
 
-export function useSearch(query: string, scope?: SearchScope, resultType: SearchResultType = 'all') {
+export interface UseSearchOptions {
+  /**
+   * Keep showing the last query's results while the next one loads, instead of dropping to
+   * a loading state on every debounced keystroke. Only across the same scope and result
+   * type — another space's matches are never a stand-in — and never once the query is too
+   * short to run. Consumers that report a result count must gate on `isPlaceholderData`,
+   * which is why this is opt-in rather than the default.
+   */
+  holdPreviousResults?: boolean;
+}
+
+export function useSearch(
+  query: string,
+  scope?: SearchScope,
+  resultType: SearchResultType = 'all',
+  options: UseSearchOptions = {},
+) {
   const trimmed = query.trim();
+  const queryKey = searchQueryKey(trimmed, scope, resultType);
+  const enabled = trimmed.length >= MIN_SEARCH_QUERY_LENGTH;
   return useQuery({
-    queryKey: searchQueryKey(trimmed, scope, resultType),
+    queryKey,
     queryFn: () => fetchSearchResults(trimmed, scope, resultType),
-    enabled: trimmed.length >= MIN_SEARCH_QUERY_LENGTH,
+    enabled,
     staleTime: 30_000,
+    placeholderData: options.holdPreviousResults
+      ? (previous, previousQuery) => {
+          if (!enabled || !previousQuery) return undefined;
+          const sameScope = queryKey.slice(2).every((part, i) => part === previousQuery.queryKey[i + 2]);
+          return sameScope ? previous : undefined;
+        }
+      : undefined,
   });
 }

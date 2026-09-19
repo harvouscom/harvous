@@ -69,13 +69,13 @@ type KindTab = 'all' | 'template' | 'resource' | 'note' | 'pack';
 const KIND_TABS: ProtoChipOption<KindTab>[] = [
   { id: 'all', label: 'Everything' },
   { id: 'template', label: 'Templates' },
+  /* "Resources", the word the library list and its tab already use — not
+     "Links", which names the storage rather than the thing. Without this a
+     shared resource could only ever be found by scrolling Everything.
+     Once only: two merges each added it, and the bar showed it twice. */
   { id: 'resource', label: 'Resources' },
   { id: 'note', label: 'Notes' },
   { id: 'pack', label: 'Threads' },
-  /* "Resources", the word the library list and its tab already use — not
-     "Links", which names the storage rather than the thing. Without this a
-     shared resource could only ever be found by scrolling Everything. */
-  { id: 'resource', label: 'Resources' },
 ];
 
 /** What taking a copy of each kind actually produces, said before they tap. */
@@ -320,9 +320,7 @@ export default function PrototypeExpandedDiscover({
       }
       exiting={exiting}
       origin={origin}
-      // Reached from the centered library panel, not from inside the sidebar itself — landing
-      // left-anchored after that read as a jump sideways. See ProtoSidebarExpandedPanel's own
-      // `centered` doc.
+      // See ProtoSidebarExpandedPanel's `centered` doc — every expanded tool uses this now.
       centered
       onClose={onClose}
     >

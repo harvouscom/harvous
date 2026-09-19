@@ -275,10 +275,13 @@ export default function PrototypeLibrarySearchResults({
   /* Mirrors the sidebar: below the FTS minimum the query key stays empty rather than
      churning one cache entry per character on the way to a real search. */
   const ftsQuery = trimmed.length >= MIN_SEARCH_QUERY_LENGTH ? trimmed : '';
+  /* Held across keystrokes: without it every debounced query dropped the full-text matches
+     and brought them back a round trip later, so the list flickered as you typed. */
   const ftsSearch = useSearch(
     ftsQuery,
     { spaceId: data.spaceId ?? '', excludeLegacyScriptureNotes: true },
     'notes',
+    { holdPreviousResults: true },
   );
 
   /*
@@ -288,7 +291,9 @@ export default function PrototypeLibrarySearchResults({
    * empty: `isScopedSharedSpace` is false there, and the search above already is Home.
    */
   const homeFtsQuery = data.isScopedSharedSpace && data.homeSpaceId ? ftsQuery : '';
-  const homeFtsSearch = useSearch(homeFtsQuery, { excludeLegacyScriptureNotes: true }, 'notes');
+  const homeFtsSearch = useSearch(homeFtsQuery, { excludeLegacyScriptureNotes: true }, 'notes', {
+    holdPreviousResults: true,
+  });
 
   const searchData: UniversalSearchData = useMemo(
     () => ({
@@ -451,8 +456,11 @@ export default function PrototypeLibrarySearchResults({
     return map;
   }, [homeFtsSearch.data?.results]);
 
+  /* Held results are the previous query's, so they count as still loading: the count below
+     must not report them against this term. */
   const ftsLoading =
-    (ftsSearch.isLoading && Boolean(ftsQuery)) || (homeFtsSearch.isLoading && Boolean(homeFtsQuery));
+    ((ftsSearch.isLoading || ftsSearch.isPlaceholderData) && Boolean(ftsQuery)) ||
+    ((homeFtsSearch.isLoading || homeFtsSearch.isPlaceholderData) && Boolean(homeFtsQuery));
 
   /*
    * Report what this query found, once it has actually finished finding it.

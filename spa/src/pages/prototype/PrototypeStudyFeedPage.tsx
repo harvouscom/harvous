@@ -22,6 +22,7 @@ import PrototypeStudyFeedDateJump from './PrototypeStudyFeedDateJump';
 import { studyFeedJumpStep } from '@/utils/study-feed-date-jump';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import { prototypeNoteRouteTo, prototypeReadRouteTo, prototypeReadTodayRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
@@ -34,6 +35,7 @@ import {
   type StudyFeedScope,
 } from '@/utils/study-feed-items';
 import { useStudyFeed } from '../../hooks/queries/useStudyFeed';
+import { getNoteQueryOptions } from '../../hooks/queries/useNote';
 import { useNavigation } from '../../hooks/queries/useNavigation';
 import ProtoSelectMenu, { type ProtoSelectOption } from './ProtoSelectMenu';
 import ProtoHouseIcon from './ProtoHouseIcon';
@@ -62,6 +64,8 @@ import PrototypeStudyFeedToday from './PrototypeStudyFeedToday';
 import PrototypeOnboardingDock from './PrototypeOnboardingDock';
 import { takeOnboardingStep } from './onboarding-step-handoff';
 import PrototypeThreadProposalReview from './PrototypeThreadProposalReview';
+import PrototypeFeedComposePrompt from './PrototypeFeedComposePrompt';
+import { buildFeedComposePrompts } from './feed-compose-prompts';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { markOnboardingLedToday, onboardingHasLedToday } from './onboarding-day-marker';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -112,6 +116,18 @@ function ProtoLayersMark() {
  */
 const JUMP_FLOOR_KEY = '2020-01-01';
 
+/**
+ * The note a feed item opens, or null when it opens the reader instead (or nothing).
+ * `openMoment` routes by this, and row intent prefetches by it, so the two cannot disagree.
+ */
+function studyFeedItemNoteId(item: StudyFeedItem): string | null {
+  if (item.kind === 'passage-read') return null;
+  if (item.kind === 'highlight-scripture' && item.reference && /^(.+?)\s+(\d+)/.test(item.reference)) {
+    return null;
+  }
+  return 'noteId' in item && item.noteId ? item.noteId : null;
+}
+
 export default function PrototypeStudyFeedPage() {
   const navigate = useNavigate();
   const openTodaysPassage = useCallback(
@@ -130,6 +146,7 @@ export default function PrototypeStudyFeedPage() {
   } = useStudyFeed(scope);
 
   const libraryNav = useLibraryPanelNav();
+  const queryClient = useQueryClient();
   const { openLibraryPanel, setSidebarThreadProposal } = useProtoShell();
   const organize = useOrganizeApi();
   const greeting = useHomeNotes();
@@ -148,6 +165,28 @@ export default function PrototypeStudyFeedPage() {
     },
     [navigate],
   );
+
+  /*
+   * Warm the note a row opens on hover, focus or press, the way the Library panel's rows
+   * already do — so opening from Activity is not the one path that waits on the detail
+   * fetch. The note page keys on `['note', id]` here because feed rows navigate with no
+   * `space` search param. prefetchQuery honours the note's staleTime, so repeat hovers
+   * are free.
+   */
+  const prefetchNoteById = useCallback(
+    (noteId: string) => {
+      void queryClient.prefetchQuery(getNoteQueryOptions(noteId)).catch(() => {});
+    },
+    [queryClient],
+  );
+  const prefetchMoment = useCallback(
+    (item: StudyFeedItem) => {
+      const noteId = studyFeedItemNoteId(item);
+      if (noteId) prefetchNoteById(noteId);
+    },
+    [prefetchNoteById],
+  );
+  const prefetchNoteRow = useCallback((row: SpaceNoteRow) => prefetchNoteById(row.id), [prefetchNoteById]);
 
   const openHighlightRow = useCallback(
     (row: PrototypeHighlightStudyThreadRow) => {
@@ -427,7 +466,7 @@ export default function PrototypeStudyFeedPage() {
         }
       }
 
-      const noteId = 'noteId' in item && item.noteId ? item.noteId : null;
+      const noteId = studyFeedItemNoteId(item);
       if (!noteId) return;
 
       navigate({
@@ -495,6 +534,38 @@ export default function PrototypeStudyFeedPage() {
    * The feed snapshot keeps its value: the feed fetch no longer sits anywhere on this
    * gate's critical path, so the wait is only ever the aux queries, bounded by the deadline.
    */
+  /*
+   * The compose prompt's lines, from what this page already loaded — the day, the chapter
+   * you are in, what you keep returning to, today's passage. See `buildFeedComposePrompts`.
+   * Above the early returns below: a hook after them runs on some renders and not others.
+   */
+  const composeLead = home.lead;
+  const composePrompts = useMemo(
+    () =>
+      buildFeedComposePrompts({
+        now: new Date(),
+        noteCount: home.countForLogic,
+        continueReading: home.continueReadingSuggestion
+          ? {
+              book: home.continueReadingSuggestion.book,
+              chapter: home.continueReadingSuggestion.chapter,
+            }
+          : null,
+        passage: home.votd
+          ? { reference: home.votd.reference, acted: home.votd.actedToday === true }
+          : null,
+        trendLabel: home.recallTrendGreeting?.parts.labels[0] ?? null,
+        leadThreadTitle: composeLead?.kind === 'thread' ? composeLead.thread.title : null,
+      }),
+    [
+      home.countForLogic,
+      home.continueReadingSuggestion,
+      home.votd,
+      home.recallTrendGreeting,
+      composeLead,
+    ],
+  );
+
   if (isPending || !home.contentReady) {
     return <ProtoSpaceLoading label="Loading your study" />;
   }
@@ -841,6 +912,10 @@ export default function PrototypeStudyFeedPage() {
               summarySentence ? <p className="proto-feed-sheet__summary">{summarySentence}</p> : null
             )}
 
+            {/* Today, unfiltered: the way to start writing, in words, on every visit. A day
+                you flipped back to or a single room's trail is not where a new note goes. */}
+            {safeIndex === 0 && !scopedSpace ? <PrototypeFeedComposePrompt prompts={composePrompts} /> : null}
+
             {/* Above everything when it is up: it is a question waiting on an answer, and
                 the day's record can wait behind it. */}
             <PrototypeThreadProposalReview
@@ -848,7 +923,7 @@ export default function PrototypeStudyFeedPage() {
               homeSpaceId={homeSpaceId}
               canCreate
               resolveNoteRow={resolveProposalRow}
-              prefetchNote={() => {}}
+              prefetchNote={prefetchNoteRow}
               onOpenNote={openNoteRow}
               onDismiss={() => setSidebarThreadProposal(undefined)}
               onCreated={(repNoteId) => {
@@ -893,7 +968,12 @@ export default function PrototypeStudyFeedPage() {
               </p>
             ) : (
               day.parts.map((group) => (
-                <PrototypeStudyFeedPart key={group.part} group={group} onOpen={openMoment} />
+                <PrototypeStudyFeedPart
+                  key={group.part}
+                  group={group}
+                  onOpen={openMoment}
+                  onIntent={prefetchMoment}
+                />
               ))
             )}
           </div>

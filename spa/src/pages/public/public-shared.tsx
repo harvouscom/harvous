@@ -5,13 +5,13 @@ import { writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 /** Shared icons for public pages. */
 
 /**
- * Harvous app-icon mark — same PNG as site-inspired sign-in/up (`/images/harvous-2-icon.png`).
+ * Harvous app-icon mark — same PNG as site-inspired sign-in/up (`/images/icons/icon-192.png`, a derivative of the 1000px `/images/harvous-2-icon.png`).
  * Styling (size, iOS-like corner radius) lives in `.harvous-app-icon` CSS.
  */
 export function HarvousLogoMark({ size = 36 }: { size?: number }) {
   return (
     <img
-      src="/images/harvous-2-icon.png"
+      src="/images/icons/icon-192.png"
       alt="Harvous"
       className="harvous-app-icon"
       width={size}

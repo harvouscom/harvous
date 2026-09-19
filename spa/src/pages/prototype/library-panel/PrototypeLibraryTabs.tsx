@@ -16,14 +16,19 @@ import Icon from '@/components/react/Icon';
 import { LIBRARY_TAB_OPTIONS, type LibraryTab } from '../sidebar-search-types';
 import { commandNoun } from '../../../lib/prototype-commands';
 import type { LibrarySelection } from './use-library-selection';
+import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
+import { PROTO_LIBRARY_PANEL_MS } from '../../../layouts/proto-motion';
 
 export default function PrototypeLibraryTabs({
   tab,
   onSelect,
   selection,
+  openOnArrival = false,
 }: {
   tab: LibraryTab;
   onSelect: (tab: LibraryTab) => void;
+  /** Show the kind list as the panel arrives — the getting-started "Find what you've saved". */
+  openOnArrival?: boolean;
   /** Absent on tabs that cannot be selected in — the footer then does not render. */
   selection?: LibrarySelection;
 }) {
@@ -75,7 +80,15 @@ export default function PrototypeLibraryTabs({
   return (
     <ProtoSelectMenu<LibraryTab>
       value={tab}
-      onChange={onSelect}
+      onChange={(next) => {
+        markOnboardingStep('library');
+        onSelect(next);
+      }}
+      /* Seeing the list of kinds is the lesson, so opening it counts, however it was opened. */
+      onOpenChange={(open) => {
+        if (open) markOnboardingStep('library');
+      }}
+      autoOpenAfterMs={openOnArrival ? PROTO_LIBRARY_PANEL_MS + 60 : undefined}
       label="Which kind of thing to show"
       className="proto-library-kind"
       options={LIBRARY_TAB_OPTIONS.map((option) => ({

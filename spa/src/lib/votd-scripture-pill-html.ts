@@ -1,5 +1,5 @@
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
-import { scriptureQuoteAccentKey, scriptureQuoteReferenceValue } from '@/utils/insert-scripture-quote';
+import { scriptureQuoteAccentKey, scriptureQuoteReferenceValue } from '@/utils/scripture-quote-values';
 
 function escapeHtmlAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');

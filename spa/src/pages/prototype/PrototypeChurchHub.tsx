@@ -569,7 +569,7 @@ export default function PrototypeChurchHub() {
         <div className={homeViewClassName}>
           {/* Fading out over the hub arriving underneath, so the two states overlap rather
               than swapping between frames. Out of flow; costs the layout nothing. */}
-          {showLoader ? <ProtoSpaceLoading label="Loading church" leaving={loaderLeaving} /> : null}
+          {showLoader ? <ProtoSpaceLoading label="Loading church" leaving={loaderLeaving} grace={false} /> : null}
           {toolsView === 'teaching-plan' ? (
             /*
               Both lanes are plannable: a church Shared Space gathers as surely

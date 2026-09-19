@@ -659,10 +659,18 @@ button:active[class*="bg-[var(--color-stone-grey)]"] {
   note what that heuristic actually does, because it is not "keyboard only":
   text inputs, textareas and `select` match on a plain mouse click too (verified
   in Chromium), since a clicked field is about to receive typing. Checkboxes,
-  radios and buttons match only on keyboard focus. So a clicked text field does
-  show this ring — the same as it would in any browser default, and the reason
-  not to chase a click-free variant is that hiding it costs the indicator for
-  anyone who clicks in and then keeps navigating by keyboard.
+  radios and buttons match only on keyboard focus.
+
+  So this rule alone would show a ring on a clicked field, same as any browser
+  default — and until Sept 2026 that was left as-is, on the reasoning that
+  hiding it would cost the indicator for someone who clicks in and then keeps
+  navigating by keyboard. It turned out not to cost that: `field-focus-modality.js`
+  (loaded in index.html) tracks keydown vs. pointerdown and stamps an inline
+  `outline: none` onto a field only when *this* focus was pointer-triggered — a
+  later Tab into the next field is its own, separately-judged focus event, so
+  keyboard navigation still rings normally. The suppression is inline precisely
+  so it beats this rule (and the ~20 component-specific ring rules below it)
+  without needing to out-specificity any of them.
 */
 input:focus-visible,
 textarea:focus-visible,

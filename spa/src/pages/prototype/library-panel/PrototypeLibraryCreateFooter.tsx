@@ -41,6 +41,19 @@ export default function PrototypeLibraryCreateFooter({
   if (searching || !organize) return null;
 
   /*
+   * Declared before any branch returns. It used to sit below the Notes branch, whose
+   * secondary Discover closes over it: that branch returned first, so the const was never
+   * initialised and every click threw "Cannot access before initialization" — the button
+   * did nothing. The Threads secondary only worked because its branch came later.
+   */
+  const openDiscover = (kind?: PendingDiscoverKind) => {
+    if (kind) markPendingDiscoverKind(kind);
+    closeLibraryPanel();
+    ensureSidebarExpanded();
+    openExpandedSidebar('discover');
+  };
+
+  /*
    * Notes go through the shell event rather than composing here, so one owner decides which
    * space a new note lands in — the same reason the sidebar's own footer dispatches it. The
    * panel closes behind it because the note opens in the main pane the panel is covering.
@@ -82,13 +95,6 @@ export default function PrototypeLibraryCreateFooter({
    * Above the `canCreateCollections` gate, because that gate is about making
    * things in a room that may refuse them, and this makes nothing.
    */
-  const openDiscover = (kind?: PendingDiscoverKind) => {
-    if (kind) markPendingDiscoverKind(kind);
-    closeLibraryPanel();
-    ensureSidebarExpanded();
-    openExpandedSidebar('discover');
-  };
-
   if (tab === 'all') {
     return <Footer label="Discover" onClick={() => openDiscover()} />;
   }

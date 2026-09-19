@@ -51,6 +51,20 @@ html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .prot
   color: #fff !important;
 }
 
+/* A chip's unread count sits on the accent, so it reads in the on-accent colour. The blanket
+   `button[class*='proto-'] span` rule forced it to the text colour: dark numerals on blue. */
+html.harvous-prototype-route button[class*='proto-'] .proto-chip__badge {
+  color: var(--pds-on-accent) !important;
+}
+
+/* The compose prompt reads as a placeholder, a step under a label; the blanket button rule
+   would ink it like one. Secondary, not tertiary: it exists to be noticed, and at tertiary
+   (32% ink) it was easy to skim past — the very problem it was added for. */
+html.harvous-prototype-route button[class*='proto-'].proto-feed-compose,
+html.harvous-prototype-route button[class*='proto-'].proto-feed-compose * {
+  color: var(--pds-text-secondary) !important;
+}
+
 /* On-accent controls — must beat blanket `[class*='proto-'] button` rule above */
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary),
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary) *,

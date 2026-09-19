@@ -2621,7 +2621,7 @@ export default function PrototypeNotePage() {
         {studyThreadPopoverLayer}
         <PrototypeMainPaneShell>
           <div className="proto-editor-surface">
-            <ProtoSpaceLoading label="Loading note" />
+            <ProtoSpaceLoading label="Loading note" grace={false} />
           </div>
         </PrototypeMainPaneShell>
       </>

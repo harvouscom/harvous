@@ -29,6 +29,10 @@ function expectGuardBefore(source: string, start: string, guard: string, request
 }
 
 const STUDY_THREAD_POST = 'fetch(`/api/notes/${sourceNoteId}/study-threads`';
+/* The selection bar's Highlight reads the note id at tap time (`latestSourceNoteIdRef`), not
+   `sourceNoteId` directly — see optimistic_highlight_client_ids — so its request and guard are
+   spelled differently from every other call site here. */
+const STUDY_THREAD_POST_AT_TAP = 'fetch(`/api/notes/${noteIdAtTap}/study-threads`';
 
 describe("a guest's note never posts a study-thread row", () => {
   const editor = read('src/components/react/TiptapEditor.tsx');
@@ -46,8 +50,8 @@ describe("a guest's note never posts a study-thread row", () => {
     expectGuardBefore(
       editor,
       'title="Highlight selected text"',
-      '!isGuestLocalNote(sourceNoteId)',
-      STUDY_THREAD_POST,
+      '!isGuestLocalNote(noteIdAtTap)',
+      STUDY_THREAD_POST_AT_TAP,
     );
   });
 
