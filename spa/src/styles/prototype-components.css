@@ -24382,6 +24382,87 @@ button.proto-feed-sheet__stat:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Each rotated line mounts fresh (keyed), so this plays per line. */
+  animation: proto-feed-compose-line-in 280ms var(--pds-ease-standard) both;
+}
+
+@keyframes proto-feed-compose-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * A blue gradient runs around the border as each rotated line arrives, then fades — the line
+ * and the sweep are one gesture (the ring is keyed to the line in the component). A ring
+ * masked to its own border, so the field's layout and fill never move. The comet is a conic
+ * gradient whose angle animates through a registered property; where `@property` is
+ * unsupported the ring fades in and out without travelling, which is still a highlight.
+ * 1600ms inside a 4500ms line, so each sweep has finished well before the next begins.
+ */
+@property --proto-feed-compose-sweep {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.proto-feed-compose {
+  position: relative;
+}
+
+.proto-feed-compose__ring {
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: calc(var(--pds-radius-row) + 1px);
+  background: conic-gradient(
+    from var(--proto-feed-compose-sweep),
+    transparent 0deg,
+    var(--pds-accent-gradient-start) 70deg,
+    var(--pds-accent-gradient-end) 140deg,
+    transparent 210deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  /* Starts with the line's own fade-in, so they arrive together. */
+  animation: proto-feed-compose-sweep 1600ms var(--pds-ease-standard) 60ms both;
+}
+
+@keyframes proto-feed-compose-sweep {
+  0% {
+    --proto-feed-compose-sweep: 0deg;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    --proto-feed-compose-sweep: 360deg;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-feed-compose__ring {
+    display: none;
+  }
+
+  .proto-feed-compose__label {
+    animation: none;
+  }
 }
 
 /*
