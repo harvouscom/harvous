@@ -161,15 +161,12 @@ export function LibraryHighlightList({
   const onConfirmDelete = () => {
     if (!data.spaceId || !deleteTarget) return;
     const { row } = deleteTarget;
+    // Closed on confirm: the row leaves the list optimistically (useDeleteHighlight), so
+    // holding the dialog open over it would be waiting on nothing the reader can see.
+    setDeleteTarget(null);
     deleteHighlight.mutate(
       { id: row.id, spaceId: data.spaceId, parentNoteId: row.parentNoteId },
-      {
-        onSuccess: () => setDeleteTarget(null),
-        onError: (err) => {
-          setDeleteTarget(null);
-          toastError(err, 'Could not delete highlight');
-        },
-      },
+      { onError: (err) => toastError(err, 'Could not delete highlight') },
     );
   };
 

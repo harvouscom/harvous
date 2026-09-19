@@ -249,7 +249,7 @@ export default function ImportWorkspace({ onExit, onBusyChange }: ImportWorkspac
                     style={{
                       background: 'transparent',
                       border: '0.5px solid var(--pds-border)',
-                      borderRadius: 'var(--pds-radius-control, 8px)',
+                      borderRadius: 'var(--pds-radius-format)',
                       color: 'var(--pds-text-primary)',
                       padding: '4px 8px',
                       maxWidth: 180,

@@ -1350,7 +1350,7 @@ function NoteAudienceBarScene() {
       <div
         className="proto-editor-paper"
         style={{
-          background: 'var(--pds-paper)',
+          background: 'var(--pds-paper-sheet)',
           border: '0.5px solid var(--pds-border)',
           borderRadius: 14,
           padding: '14px 16px 28px',
@@ -1387,7 +1387,7 @@ function NoteAudienceBarScene() {
         className="proto-editor-paper"
         style={{
           marginTop: 10,
-          background: 'var(--pds-paper)',
+          background: 'var(--pds-paper-sheet)',
           border: '0.5px solid var(--pds-border)',
           borderRadius: 14,
           padding: '14px 16px',

@@ -13,6 +13,8 @@ import { VotdPublishHistory } from '../db/schema';
 import { getAuth } from '../middleware/auth';
 import { getLocalCalendarDateString, isValidIanaTimeZone } from './votd-local-date';
 import { getUserDefaultTranslation } from './votd-user-translation';
+import { fetchVerseText } from './fetch-verse-text';
+import { votdActedOnToday } from './votd-record-engagement';
 
 export interface ResolvedVotd {
   reference: string;
@@ -96,7 +98,30 @@ export async function votdTodayPublicHandler(c: Context) {
       c.res.headers.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300');
     }
 
-    return c.json(row ? { reference: row.reference, translation } : { reference: null });
+    if (!row) return c.json({ reference: null });
+    if (!auth.userId) return c.json({ reference: row.reference, translation });
+
+    /*
+     * A member's Activity shows the passage itself, not just its name, so the words come with
+     * the reference — one request, no loading state on the card. And whether they already acted
+     * on it today (opened it, wrote about it — on any device), which is what folds the card down
+     * to its row. Both additive: native reads only `reference` and `translation`.
+     *
+     * Either can fail without costing the other or the reference: no text means the app shows
+     * the row, as it did before there was a card.
+     */
+    const [textHtml, actedToday] = await Promise.all([
+      fetchVerseText(row.reference, translation).catch(() => ''),
+      row.featuredItemId
+        ? votdActedOnToday(auth.userId, row.featuredItemId).catch(() => false)
+        : Promise.resolve(false),
+    ]);
+    return c.json({
+      reference: row.reference,
+      translation,
+      ...(textHtml.trim() ? { textHtml } : {}),
+      actedToday,
+    });
   } catch {
     /*
      * Never cache the failure, and never cache it publicly.

@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
-    <meta name="theme-color" content="#F3F2EC" />
+    <!-- The canvas defaults from shared/appearance-presets.json. A scheme forced in Appearance
+         overrides the OS here — see syncThemeColorMeta (prototype-background.ts) and its boot twin
+         in prototype-route-boot.js. -->
+    <meta name="theme-color" content="#fcfbf7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#050509" media="(prefers-color-scheme: dark)" />
     <!-- Both, deliberately: the Apple-prefixed one is what iOS still reads, and Chrome
          deprecated it in favour of the standard name. Dropping either loses standalone
          mode on one platform. -->
@@ -11,10 +15,19 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Harvous" />
-    <link rel="apple-touch-icon" href="/images/harvous-2-icon.png" />
-    <link rel="icon" type="image/png" href="/images/harvous-2-icon.png" />
+    <!-- Sized derivatives of /images/harvous-2-icon.png (1000px, 795 KB), which is kept as the
+         master and for install surfaces that want resolution. -->
+    <link rel="apple-touch-icon" href="/images/icons/apple-touch-icon-180.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/images/icons/favicon-64.png" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="preload" href="/fonts/google-sans-flex/GoogleSansFlex-Variable.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Cold auth is serial through Clerk: entry JS, then clerk.browser.js, then the handshake.
+         Opening the connection now takes DNS + TLS off that chain. Two, because browsers pool
+         by credentials mode: the script loads crossorigin="anonymous", the API calls send
+         cookies. -->
+    <link rel="preconnect" href="https://clerk.harvous.com" crossorigin />
+    <link rel="preconnect" href="https://clerk.harvous.com" />
+    <link rel="preload" href="/fonts/google-sans-flex/GoogleSansFlex-opsz-wght-ROND.woff2" as="font" type="font/woff2" crossorigin />
     <title>Harvous</title>
     <style>
       /* SPA: lock the viewport — all scrolling happens inside .card-stack__inner */
@@ -65,6 +78,7 @@
     <script defer src="/scripts/session-tracker.js"></script>
     <script src="/scripts/haptics-handler.js"></script>
     <script defer src="/scripts/tab-interaction-handler.js"></script>
+    <script defer src="/scripts/field-focus-modality.js"></script>
     <script src="/scripts/service-worker-manager.js"></script>
     <script defer src="/scripts/navigation/history-tracker.js"></script>
     <!-- Profile/avatar: shared components (ProfilePage, EditNameColorPanel) call window.updateAllAvatars -->

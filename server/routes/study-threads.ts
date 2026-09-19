@@ -393,6 +393,17 @@ function handleStudyThreadAccessError(c: any, err: unknown) {
   throw err;
 }
 
+/**
+ * An id the client proposed for an entry it is about to create.
+ *
+ * The editor paints a highlight the moment it is tapped and writes this id onto the mark in the
+ * same step, so the mark is final from its first frame: a remount, a lost response or a retry
+ * cannot strand it without an id. The shape is `generateStudyThreadEntryId`'s plus up to six
+ * random digits, so nothing that reads these ids sees a new format. Insert-only — a proposal
+ * never overwrites a row (see the replay check in the create route).
+ */
+const CLIENT_STUDY_THREAD_ID = /^study_\d{13,19}$/;
+
 // ─── GET /api/notes/:parentNoteId/study-threads ───────────────────────────────
 route.get('/api/notes/:parentNoteId/study-threads', requireAuth, async (c) => {
   try {
@@ -546,7 +557,9 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
     const miniNoteBody =
       typeof body.miniNoteBody === 'string' ? canonicalizeNoteHtmlLineBreaks(body.miniNoteBody) : '';
 
-    const id = generateStudyThreadEntryId();
+    const proposedId =
+      typeof body.id === 'string' && CLIENT_STUDY_THREAD_ID.test(body.id) ? body.id : null;
+    const id = proposedId ?? generateStudyThreadEntryId();
     const now = nowISO();
     const contextSpaceId = normalizeContextSpaceId(
       body.contextSpaceId ?? body.spaceId ?? c.req.query('contextSpaceId') ?? c.req.query('spaceId'),
@@ -554,14 +567,31 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
     const resolvedLinkedNoteId = typeof body.linkedNoteId === 'string' ? body.linkedNoteId : null;
     let parentCtx: StudyEntryParentContext;
     let row: typeof StudyThreadEntries.$inferSelect | null = null;
+    let replayed = false;
     try {
-      ({ parentCtx, row } = await db.transaction(async (tx) => {
+      ({ parentCtx, row, replayed } = await db.transaction(async (tx) => {
         const lockedContext = await resolveStudyEntryParentContext(tx, {
           parentNoteId,
           actorId: auth.userId,
           contextSpaceId,
           lock: true,
         });
+        /*
+         * A retry of the same create — the first response was lost, not the insert. Answer with
+         * the row it made, so the client's retry is safe. The same id from anyone else, or
+         * against another note, is refused rather than touched.
+         */
+        if (proposedId) {
+          const existing = first(
+            await tx.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.id, proposedId)).limit(1),
+          );
+          if (existing) {
+            if (existing.userId !== auth.userId || existing.parentNoteId !== parentNoteId) {
+              throw new SharedStudyThreadAccessError(403, 'That id is already in use', 'ID_CONFLICT');
+            }
+            return { parentCtx: lockedContext, row: existing, replayed: true };
+          }
+        }
         const currentVersion = await ensureAnchorableCurrentNoteVersion(tx, {
           // This route is addressed by parent note, so there is always one.
           note: requireParentNote(lockedContext),
@@ -651,10 +681,15 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
             })
             .onConflictDoNothing();
         }
-        return { parentCtx: lockedContext, row: inserted ?? null };
+        return { parentCtx: lockedContext, row: inserted ?? null, replayed: false };
       }));
     } catch (err) {
       return handleStudyThreadAccessError(c, err);
+    }
+
+    // Already made and already announced: none of the side effects below should run twice.
+    if (replayed) {
+      return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
     }
 
     await touchParentNoteEditedAt(parentNoteId, requireParentNote(parentCtx).userId, auth.userId);

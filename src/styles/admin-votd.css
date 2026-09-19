@@ -47,14 +47,14 @@
   height: 36px;
   padding: 0;
   border: 0.5px solid var(--pds-border, var(--color-fog-white));
-  border-radius: var(--pds-radius-md, 10px);
-  background: var(--pds-bg-secondary, #fff);
+  border-radius: 10px;
+  background: #fff;
   color: var(--pds-text-secondary, var(--color-stone-grey));
   cursor: pointer;
 }
 
 .admin-votd-cal__nav-btn:hover {
-  background: var(--pds-fill-tertiary, var(--color-fog-white));
+  background: var(--color-fog-white);
   color: var(--pds-text-primary, var(--color-deep-grey));
 }
 
@@ -87,8 +87,8 @@
   min-height: 72px;
   padding: 6px 5px 5px;
   border: 0.5px solid var(--pds-border, var(--color-fog-white));
-  border-radius: var(--pds-radius-sm, 8px);
-  background: var(--pds-bg-secondary, #fff);
+  border-radius: 8px;
+  background: #fff;
   text-align: left;
   cursor: default;
   box-sizing: border-box;
@@ -107,7 +107,7 @@
 }
 
 .admin-votd-cal__cell--has-data:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 4%, var(--pds-bg-secondary, #fff));
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 4%, #fff);
 }
 
 .admin-votd-cal__cell--today {
@@ -117,7 +117,7 @@
 .admin-votd-cal__cell--selected {
   box-shadow:
     inset 0 0 0 2px var(--pds-accent, var(--color-deep-grey)),
-    var(--pds-shadow-subtle, 0 2px 8px rgba(0, 0, 0, 0.06));
+    0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .admin-votd-cal__cell--past {
@@ -129,19 +129,19 @@
 }
 
 .admin-votd-cal__cell--source-calendar {
-  background: color-mix(in srgb, var(--pds-accent, #8b7355) 6%, var(--pds-bg-secondary, #fff));
+  background: color-mix(in srgb, var(--pds-accent, #8b7355) 6%, #fff);
 }
 
 .admin-votd-cal__cell--source-pool {
-  background: var(--pds-bg-secondary, #fff);
+  background: #fff;
 }
 
 .admin-votd-cal__cell--source-override {
-  background: color-mix(in srgb, #3b82f6 6%, var(--pds-bg-secondary, #fff));
+  background: color-mix(in srgb, #3b82f6 6%, #fff);
 }
 
 .admin-votd-cal__cell--source-published {
-  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 4%, var(--pds-bg-secondary, #fff));
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 4%, #fff);
 }
 
 .admin-votd-cal__cell-date {
@@ -262,7 +262,7 @@
 .admin-votd-day {
   border: 0.5px solid var(--pds-border, var(--color-fog-white));
   border-radius: var(--pds-radius-menu, 12px);
-  background: var(--pds-bg-secondary, #fff);
+  background: #fff;
   overflow: hidden;
 }
 
@@ -273,7 +273,7 @@
 .admin-votd-day--today {
   box-shadow:
     0 0 0 2px var(--pds-accent, var(--color-deep-grey)),
-    var(--pds-shadow-subtle, 0 2px 8px rgba(0, 0, 0, 0.06));
+    0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .admin-votd-day--past {
@@ -330,9 +330,9 @@
   margin: 0 16px 12px;
   padding: 14px 16px;
   border: 0.5px solid var(--pds-border, var(--color-fog-white));
-  border-radius: var(--pds-radius-md, 10px);
-  background: var(--pds-bg-primary, #fff);
-  box-shadow: var(--pds-shadow-subtle, inset 0 0.5px 0 rgba(255, 255, 255, 0.6));
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
 }
 
 .admin-votd-day__verse-row {
@@ -349,7 +349,7 @@
   width: 28px;
   height: 28px;
   margin-top: 1px;
-  border-radius: var(--pds-radius-sm, 8px);
+  border-radius: 8px;
   background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 5%, transparent);
   color: var(--pds-text-secondary, var(--color-stone-grey));
 }
@@ -386,8 +386,8 @@
   box-sizing: border-box;
   padding: 10px 12px;
   border: 0.5px solid var(--pds-border, var(--color-fog-white));
-  border-radius: var(--pds-radius-md, 10px);
-  background: var(--pds-bg-primary, #fff);
+  border-radius: 10px;
+  background: #fff;
   color: var(--pds-text-primary, var(--color-deep-grey));
   font: var(--pds-font-body, inherit);
   font-size: 15px;
@@ -428,7 +428,7 @@
 }
 
 .admin-votd-day__action:hover:not(:disabled) {
-  background: var(--pds-fill-tertiary, var(--color-fog-white));
+  background: var(--color-fog-white);
   color: var(--pds-text-primary, var(--color-deep-grey));
 }
 

@@ -50,10 +50,12 @@ type ProtoSidebarExpandedPanelProps = {
   /**
    * Centered on the main pane instead of anchored to the sidebar's left edge.
    *
-   * The default reads as "the sidebar took the room it needed", which is right for a tool
-   * reached from inside the sidebar itself. Discover is reached from the centered library
-   * panel, so landing left-anchored after that read as a sideways jump rather than a
-   * continuation — this opts a tool out of the sidebar's identity when it isn't one.
+   * The left-anchored default reads as "the sidebar took the room it needed" — true the
+   * first time a tool grew out of the sidebar itself, but on a wide pane it leaves a dead
+   * zone the width of the sidebar's absence on the right, and every current caller (Discover,
+   * the Planner, the resource library manager) opts into `centered` for exactly that reason.
+   * Left-anchored is not dead code — a tool that should still read as "the sidebar grew"
+   * can omit this — but as of Sept 2026 nothing does.
    */
   centered?: boolean;
   onClose: () => void;

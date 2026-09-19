@@ -25,6 +25,11 @@
     var colorSchemePref = localStorage.getItem(PROTO_COLOR_SCHEME_KEY);
     if (colorSchemePref === 'light' || colorSchemePref === 'dark') {
       root.setAttribute('data-color-scheme', colorSchemePref);
+      /* A forced scheme beats the OS-keyed theme-color pair in index.html. Hexes are the
+         canvas defaults in shared/appearance-presets.json — syncThemeColorMeta's boot twin. */
+      var themeHex = colorSchemePref === 'dark' ? '#050509' : '#fcfbf7';
+      var themeMetas = document.querySelectorAll('meta[name="theme-color"][media]');
+      for (var t = 0; t < themeMetas.length; t++) themeMetas[t].setAttribute('content', themeHex);
     }
   } catch (e) { /* ignore — localStorage may be unavailable */ }
 

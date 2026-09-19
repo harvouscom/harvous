@@ -32,7 +32,7 @@ import { createPortal } from 'react-dom';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import { useShellPaneIsWide } from '../../layouts/use-shell-pane-wide';
 import { spanKeyForSelection } from '@/utils/scripture-span-key';
-import type { PassageHighlightPaint } from '@/components/react/TiptapReferenceSuggestion';
+import type { PassageHighlightPaint } from '@/utils/reference-suggestion-text';
 import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 import PrototypeReaderInspectorPane from './PrototypeReaderInspectorPane';
 import { usePrototypeBibleChapter } from '../../hooks/queries/usePrototypeBibleChapter';

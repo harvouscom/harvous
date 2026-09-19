@@ -3,13 +3,19 @@
  * Resolves featuredItemId from VotdPublishHistory for the user's local calendar day.
  */
 
-import { db, desc, eq, first, gte, lte } from '../db';
+import { and, db, desc, eq, first, gte, lte } from '../db';
 import { now } from '../db/dates';
 import { FeaturedItems, UserFeaturedItems, VotdPublishHistory } from '../db/schema';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { awardVotdEngagementXP } from './xp-system';
 
-export type VotdEngagementAction = 'dismiss' | 'add_note';
+/**
+ * `dismiss` — "Not today". `add_note` — wrote about it. `open_reader` — opened it in the reader.
+ * The last two are "acted on", which is what folds the Activity card down to its row on every
+ * device (see `votdActedOnToday`); a dismissal only hides it, and only on the device it
+ * happened on.
+ */
+export type VotdEngagementAction = 'dismiss' | 'add_note' | 'open_reader';
 
 export async function resolveVotdFeaturedItemIdForLocalDate(localCalendarDate: string): Promise<string | null> {
   const exact = first(
@@ -32,8 +38,18 @@ export async function resolveVotdFeaturedItemIdForLocalDate(localCalendarDate: s
   return fallback?.featuredItemId ?? null;
 }
 
-async function markVotdFeaturedItemCompleted(userId: string, featuredItemId: string): Promise<void> {
+/**
+ * VOTD rows are always `completed` (they never enter My Inbox — see featured.ts). What the reader
+ * did lives in the timestamps: `dismissedAt` for "Not today", `completedAt` for acting on it.
+ * Dismissals used to write `completedAt` as well, which left no way to tell the two apart.
+ */
+async function markVotdFeaturedItem(
+  userId: string,
+  featuredItemId: string,
+  kind: 'dismissed' | 'acted',
+): Promise<void> {
   const timestamp = now();
+  const stamp = kind === 'dismissed' ? { dismissedAt: timestamp } : { completedAt: timestamp };
   await db
     .insert(UserFeaturedItems)
     .values({
@@ -42,16 +58,26 @@ async function markVotdFeaturedItemCompleted(userId: string, featuredItemId: str
       featuredItemId,
       status: 'completed',
       dismissedAt: null,
-      completedAt: timestamp,
+      completedAt: null,
       createdAt: timestamp,
+      ...stamp,
     })
     .onConflictDoUpdate({
       target: [UserFeaturedItems.userId, UserFeaturedItems.featuredItemId],
-      set: {
-        status: 'completed',
-        completedAt: timestamp,
-      },
+      set: { status: 'completed', ...stamp },
     });
+}
+
+/** Whether this reader acted on the passage for `featuredItemId` (opened it or wrote about it). */
+export async function votdActedOnToday(userId: string, featuredItemId: string): Promise<boolean> {
+  const row = first(
+    await db
+      .select({ completedAt: UserFeaturedItems.completedAt })
+      .from(UserFeaturedItems)
+      .where(and(eq(UserFeaturedItems.userId, userId), eq(UserFeaturedItems.featuredItemId, featuredItemId)))
+      .limit(1),
+  );
+  return Boolean(row?.completedAt);
 }
 
 export type RecordVotdEngagementResult =
@@ -80,12 +106,13 @@ export async function recordVotdEngagement(
   }
 
   if (action === 'dismiss') {
-    await markVotdFeaturedItemCompleted(userId, featuredItemId);
+    await markVotdFeaturedItem(userId, featuredItemId, 'dismissed');
     return { ok: true, featuredItemId };
   }
 
-  await awardVotdEngagementXP(userId, featuredItemId, 'create_note');
-  await markVotdFeaturedItemCompleted(userId, featuredItemId);
+  // Opening it is acting on it, but writing is what earns XP.
+  if (action === 'add_note') await awardVotdEngagementXP(userId, featuredItemId, 'create_note');
+  await markVotdFeaturedItem(userId, featuredItemId, 'acted');
   return { ok: true, featuredItemId };
 }
 

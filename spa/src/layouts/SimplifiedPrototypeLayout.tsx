@@ -60,7 +60,15 @@ import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
 import { useReviewOutcome } from '../hooks/mutations/useReviewMutations';
 import type { ReviewOutcome } from '@/utils/review-item-kinds';
-import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
+/*
+ * Lazy because it is what pulls TipTap and the editor into the bundle: imported statically
+ * here, 118 KB gzipped of TipTap alone was modulepreloaded before sign-in could paint. The
+ * one-instance contract below survives — `lazy` resolves the module once, and after that the
+ * component identity never changes. Warmed on idle and on row intent; see the helper.
+ */
+const PrototypeNotePage = lazy(loadNotePageChunk);
+import { loadNotePageChunk, prefetchNotePageChunk } from '../pages/prototype/prefetch-note-page-chunk';
+import PrototypeMainPaneShell from '../pages/prototype/PrototypeMainPaneShell';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
 import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
 import type { ComposePurpose } from '../lib/compose-purpose';
@@ -242,8 +250,10 @@ export default function SimplifiedPrototypeLayout() {
     if (saved) updateCachedProfileData({ defaultTranslation: saved });
   }, [identity.isGuest]);
 
-  // Warm the Library panel's chunk on idle, so its first open is not its slowest.
+  // Warm the Library panel's and the note page's chunks on idle, so neither first open is
+  // the slowest one.
   useEffect(() => {
+    prefetchNotePageChunk({ idle: true });
     prefetchLibraryPanelChunk();
   }, []);
   const { user } = useUser();
@@ -540,6 +550,14 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
    */
   const hostNoteInLayout =
     isNoteRoute || Boolean(paperStack && !paperStack.open && paperStack.noteId);
+
+  /* The fallback is the note page's own pre-grace frame (an empty pane), so a cold chunk
+     reads exactly like a note still inside its loading grace — no second waiting state. */
+  const notePage = (
+    <Suspense fallback={<PrototypeMainPaneShell>{null}</PrototypeMainPaneShell>}>
+      <PrototypeNotePage />
+    </Suspense>
+  );
 
   /**
    * Does the stack still describe where we are?
@@ -1349,10 +1367,10 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
                   paperStack && !paperStack.open && paperStack.noteId ? <Outlet /> : undefined
                 }
               >
-                {hostNoteInLayout ? <PrototypeNotePage /> : <Outlet />}
+                {hostNoteInLayout ? notePage : <Outlet />}
               </PrototypePaperStack>
             ) : hostNoteInLayout ? (
-              <PrototypeNotePage />
+              notePage
             ) : (
               <Outlet />
             )}

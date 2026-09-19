@@ -778,8 +778,8 @@ app.post('/api/votd/record-engagement', requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = (await c.req.json().catch(() => ({}))) as { action?: string; tz?: string };
   const action = body.action?.trim() as VotdEngagementAction | undefined;
-  if (action !== 'dismiss' && action !== 'add_note') {
-    return c.json({ error: 'action must be dismiss or add_note' }, 400);
+  if (action !== 'dismiss' && action !== 'add_note' && action !== 'open_reader') {
+    return c.json({ error: 'action must be dismiss, add_note or open_reader' }, 400);
   }
 
   const tzHeader = (body.tz ?? c.req.query('tz') ?? c.req.header('X-Votd-Timezone') ?? '').trim();

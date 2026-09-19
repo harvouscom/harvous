@@ -683,15 +683,26 @@ export default function SpaceSwitcherMenu({
     />
   );
 
+  const showChurchCreate = inMyChurchMode && Boolean(activeChurchOrgId) && canCreateChurchContent;
+  const showPersonalCreate = !inMyChurchMode;
+  const showOwnedLimit = !inMyChurchMode && hasSharedSpaces && atOwnedLimit;
+
   const popover = open && typeof document !== 'undefined'
     ? createPortal(
         <ProtoPopoverShell
           ref={popoverRef}
-          className="proto-menu__popover proto-menu__popover--sidebar-toolbar proto-menu__popover--sidebar-toolbar-portal"
+          className="proto-menu__popover proto-menu__popover--sidebar-toolbar proto-menu__popover--sidebar-toolbar-portal proto-space-switcher__popover"
           role="menu"
           aria-label="Spaces"
           style={{ top: anchorPos?.top ?? -9999, left: anchorPos?.left ?? 0 }}
         >
+          {/*
+            Two regions: the places scroll, the create actions stay put. With one
+            scroller a church with a few rooms pushed "New shared space" and "New
+            channel" below the fold, so making something meant scrolling past
+            everything you already had to find the button for the next one.
+          */}
+          <div className="proto-space-switcher__scroll">
           {/* Places: each parent is a selectable row that also heads its own
               spaces. One flat list, so anything is one click from anywhere. */}
           <div className="proto-menu-section" role="group" aria-label="Places">
@@ -797,7 +808,11 @@ export default function SpaceSwitcherMenu({
             </div>
           ) : null}
 
-          {inMyChurchMode && activeChurchOrgId && canCreateChurchContent ? (
+          </div>
+
+          {showChurchCreate || showPersonalCreate || showOwnedLimit ? (
+          <div className="proto-space-switcher__actions">
+          {showChurchCreate ? (
             <div className="proto-menu-section" role="group" aria-label="Create church content">
               <button
                 type="button"
@@ -824,7 +839,7 @@ export default function SpaceSwitcherMenu({
             </div>
           ) : null}
 
-          {!inMyChurchMode ? (
+          {showPersonalCreate ? (
             <div className="proto-menu-section" role="group">
               <button
                 type="button"
@@ -845,10 +860,12 @@ export default function SpaceSwitcherMenu({
             </div>
           ) : null}
 
-          {!inMyChurchMode && hasSharedSpaces && atOwnedLimit ? (
+          {showOwnedLimit ? (
             <div className="proto-space-switcher__footer proto-space-switcher__footer--limit" role="status">
               {`You've used all ${ownedLimit} shared spaces you can own.`}
             </div>
+          ) : null}
+          </div>
           ) : null}
         </ProtoPopoverShell>,
         document.body,

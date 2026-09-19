@@ -151,6 +151,8 @@ export async function batchAuthorAttribution(
 
 /** Public/shared spaces list notes and threads oldest-first (curated series). */
 async function spaceUsesChronologicalOrdering(spaceId: string): Promise<boolean> {
+  // Keep in step with `isChronological` below, which answers the same question from a row
+  // the caller already holds.
   const row = first(
     await db.select({ isPublic: Spaces.isPublic }).from(Spaces).where(eq(Spaces.id, spaceId)).limit(1),
   );
@@ -1806,12 +1808,35 @@ export async function getThreadsForSpaceBySpaceId(spaceId: string) {
   }
 }
 
+type NoteListSpaceRow = Pick<typeof Spaces.$inferSelect, 'isPublic' | 'title' | 'type' | 'userId'>;
+
 export type GetNotesForSpaceOptions = {
   /** Omit classic `noteType: scripture` rows (2.0 shell uses pills + scripture index, not legacy scripture notes). */
   excludeLegacyScriptureNotes?: boolean;
   /** Prototype: sort by last edit (`updatedAt`), not visit time (`lastVisited`). */
   sortByLastUpdated?: boolean;
+  /**
+   * The space's own row, when the caller already read it (the notes route has it from
+   * `requireSpaceAccess`). Without it the helper reads it itself — once; it used to read the
+   * same row twice, serially, before the note query could start.
+   */
+  space?: NoteListSpaceRow;
 };
+
+/** Public/shared spaces list oldest-first (curated series) — `spaceUsesChronologicalOrdering`, from a row in hand. */
+function isChronological(space: Pick<NoteListSpaceRow, 'isPublic'> | undefined): boolean {
+  return space?.isPublic === true;
+}
+
+async function readNoteListSpaceRow(spaceId: string): Promise<NoteListSpaceRow | undefined> {
+  return first(
+    await db
+      .select({ isPublic: Spaces.isPublic, title: Spaces.title, type: Spaces.type, userId: Spaces.userId })
+      .from(Spaces)
+      .where(eq(Spaces.id, spaceId))
+      .limit(1),
+  );
+}
 
 export async function getNotesForSpace(
   spaceId: string,
@@ -1822,14 +1847,8 @@ export async function getNotesForSpace(
 ) {
   try {
     const fetchLimit = limit + offset + 1;
-    const chronological = await spaceUsesChronologicalOrdering(spaceId);
-    const contextSpace = first(
-      await db
-        .select({ title: Spaces.title, type: Spaces.type, userId: Spaces.userId })
-        .from(Spaces)
-        .where(eq(Spaces.id, spaceId))
-        .limit(1),
-    );
+    const contextSpace = options?.space ?? (await readNoteListSpaceRow(spaceId));
+    const chronological = isChronological(contextSpace);
     const isMyHomeAggregate =
       contextSpace?.type === 'personal' &&
       contextSpace.userId === userId &&
@@ -1842,21 +1861,21 @@ export async function getNotesForSpace(
       ...(options?.excludeLegacyScriptureNotes ? [ne(Notes.noteType, 'scripture')] : []),
     );
     const sortByLastUpdated = options?.sortByLastUpdated === true;
-    const allNotes = chronological
-      ? await db
+    const listQuery = chronological
+      ? db
           .select(NOTE_LIST_SELECT)
           .from(Notes)
           .where(spaceWhere)
           .orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id))
           .limit(fetchLimit)
       : sortByLastUpdated
-        ? await db
+        ? db
             .select(NOTE_LIST_SELECT)
             .from(Notes)
             .where(spaceWhere)
             .orderBy(desc(Notes.isPinned), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id))
             .limit(fetchLimit)
-        : await db
+        : db
             .select(NOTE_LIST_SELECT)
             .from(Notes)
             .where(spaceWhere)
@@ -1866,6 +1885,11 @@ export async function getNotesForSpace(
               desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
             )
             .limit(fetchLimit);
+    // The count shares the filter and nothing else, so it runs beside the page, not after it.
+    const [allNotes, totalRows] = await Promise.all([
+      listQuery,
+      db.select({ value: count() }).from(Notes).where(spaceWhere),
+    ]);
 
     const mapped = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
     const sortedAllNotes = chronological
@@ -1877,8 +1901,7 @@ export async function getNotesForSpace(
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
     // True space total (the fetch above is capped at limit+offset+1, so it can't come from `allNotes`).
-    const totalRow = first(await db.select({ value: count() }).from(Notes).where(spaceWhere));
-    const total = totalRow?.value ?? sortedAllNotes.length;
+    const total = first(totalRows)?.value ?? sortedAllNotes.length;
 
     const resourceNoteIds = sortedNotes.filter(n => n.noteType === 'resource').map(n => n.id);
     const scriptureNoteIds = sortedNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
@@ -1970,7 +1993,9 @@ export async function getNotesForSharedSpace(
 ) {
   try {
     const fetchLimit = limit + offset + 1;
-    const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const chronological = options?.space
+      ? isChronological(options.space)
+      : await spaceUsesChronologicalOrdering(spaceId);
     const spaceWhere = and(
       eq(SpaceNotes.spaceId, spaceId),
       isNull(SpaceNotes.removedAt),
@@ -1989,8 +2014,8 @@ export async function getNotesForSharedSpace(
       associationCollectionPinned: SpaceNotes.collectionPinned,
       associationOrder: SpaceNotes.order,
     } as const;
-    const allNotes = chronological
-      ? await db
+    const listQuery = chronological
+      ? db
           .select(select)
           .from(SpaceNotes)
           .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
@@ -1998,14 +2023,14 @@ export async function getNotesForSharedSpace(
           .orderBy(desc(SpaceNotes.isPinned), asc(Notes.createdAt), asc(Notes.id))
           .limit(fetchLimit)
       : sortByLastUpdated
-        ? await db
+        ? db
             .select(select)
             .from(SpaceNotes)
             .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
             .where(spaceWhere)
             .orderBy(desc(SpaceNotes.isPinned), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id))
             .limit(fetchLimit)
-        : await db
+        : db
             .select(select)
             .from(SpaceNotes)
             .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
@@ -2015,6 +2040,15 @@ export async function getNotesForSharedSpace(
               desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
             )
             .limit(fetchLimit);
+    // The count shares the filter and nothing else, so it runs beside the page, not after it.
+    const [allNotes, totalRows] = await Promise.all([
+      listQuery,
+      db
+        .select({ value: count() })
+        .from(SpaceNotes)
+        .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+        .where(spaceWhere),
+    ]);
 
     const mapped = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
     const sortedAllNotes = chronological
@@ -2023,14 +2057,7 @@ export async function getNotesForSharedSpace(
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
-    const totalRow = first(
-      await db
-        .select({ value: count() })
-        .from(SpaceNotes)
-        .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
-        .where(spaceWhere),
-    );
-    const total = totalRow?.value ?? sortedAllNotes.length;
+    const total = first(totalRows)?.value ?? sortedAllNotes.length;
 
     const resourceNoteIds = sortedNotes.filter(n => n.noteType === 'resource').map(n => n.id);
     const scriptureNoteIds = sortedNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];

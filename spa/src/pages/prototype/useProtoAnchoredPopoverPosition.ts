@@ -79,7 +79,12 @@ export function useProtoAnchoredPopoverPosition(
             resolveAnchorRect(anchorElRef.current, anchorRectRef.current),
             { maxHeightPx, vhFraction, alignEnd },
           );
-    setPosition(next);
+    // Keep the same object when nothing moved. The scroll listener below is capture-phase, so
+    // it fires for every scroller on the page — including the popover's own list — and a fresh
+    // object each time re-rendered the popover on every frame of a scroll that moved nothing.
+    setPosition((prev) =>
+      prev && next && prev.top === next.top && prev.left === next.left ? prev : next,
+    );
     if (stablePosition) lockedWhileOpenRef.current = true;
   }, [
     cardRef,

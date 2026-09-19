@@ -1145,7 +1145,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
 }
 
 .proto-find-popover__btn:hover {
-  background: var(--pds-bg-hover);
+  background: var(--pds-bg-control-hover);
   color: var(--pds-text-primary);
 }
 
@@ -1433,7 +1433,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   min-width: 44px; /* iOS minimum touch target */
   min-height: 44px;
   padding: 0 12px;
-  border-radius: var(--pds-radius-control, 8px);
+  border-radius: 8px;
 }
 
 /* The capsule's hairline rules read as clutter once the buttons carry labels. */

@@ -7,6 +7,10 @@ export { VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY };
 export type VotdToday = {
   reference: string;
   translation: string;
+  /** The passage as HTML (`sup.verse-num` per verse), members only. Absent → show the row. */
+  textHtml?: string;
+  /** Opened or written about today, on any device — folds the card down to its row. */
+  actedToday?: boolean;
 };
 
 export function browserIanaTimeZone(): string {
@@ -165,14 +169,24 @@ export async function fetchVotdToday(): Promise<VotdToday | null> {
     headers: { 'X-Votd-Timezone': tz },
   });
   if (!res.ok) throw new Error(`votd/today ${res.status}`);
-  const data = (await res.json()) as { reference?: string | null; translation?: string | null };
+  const data = (await res.json()) as {
+    reference?: string | null;
+    translation?: string | null;
+    textHtml?: string | null;
+    actedToday?: boolean;
+  };
   const reference = (data.reference ?? '').trim();
   if (!reference) return null;
   const translation = (data.translation ?? 'NET').trim() || 'NET';
-  return { reference, translation };
+  return {
+    reference,
+    translation,
+    ...(data.textHtml?.trim() ? { textHtml: data.textHtml } : {}),
+    actedToday: data.actedToday === true,
+  };
 }
 
-export type VotdEngagementAction = 'dismiss' | 'add_note';
+export type VotdEngagementAction = 'dismiss' | 'add_note' | 'open_reader';
 
 /** Fire-and-forget server tracking for prototype Today's Passage dismiss / add-note. */
 export function recordVotdEngagement(action: VotdEngagementAction): void {

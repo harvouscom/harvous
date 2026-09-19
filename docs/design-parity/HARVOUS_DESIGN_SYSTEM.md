@@ -118,6 +118,11 @@ Harvous should feel **quiet, warm, and content-first** — a study desk, not a d
 - Menus use `role="menu"` / `menuitem*` (or native equivalents) with checked/expanded state.
 - Status banners and empty states expose `role="status"` or `role="alert"` as appropriate. Floating toasts do the same.
 - Focus rings use accent tokens; never remove focus outlines without a visible replacement.
+  Every button and orb in `.proto-theme` gets a keyboard-only ring from one zero-specificity
+  rule at the top of `prototype-components.css`. Until Sept 2026 that rule was `outline: none`,
+  so tabbing through the app showed nothing. A component with its own indicator (inset
+  box-shadow, chip fill) overrides it with any selector; one without an indicator should
+  simply say nothing about `outline`.
 - **A field's focus ring is inset; a row's or card's is outward.** `outline` is painted outside
   the border box, so any ancestor with `overflow: hidden` or `auto` crops whatever falls outside
   its padding box. A field is the one focusable thing that is routinely `width: 100%` inside a
@@ -129,6 +134,12 @@ Harvous should feel **quiet, warm, and content-first** — a study desk, not a d
   underneath it: setting `overflow-y: auto` forces `overflow-x` to compute to `auto` as well, so
   a column that only meant to scroll down clips sideways too. The Inputs gallery scene
   (`ds-11-inputs`) reproduces the condition rather than describing it.
+- **A text field's ring is keyboard-only**, unlike the browser default. `:focus-visible` shows a
+  ring on a plain click for `input`/`textarea`/`select` (Chromium's own heuristic — a clicked
+  field is about to receive typing), which reads as unwanted chrome on a tap. Since Sept 2026,
+  `public/scripts/field-focus-modality.js` tracks keyboard vs. pointer and suppresses the ring
+  (inline `outline: none`) only when the field's *own* focus was pointer-triggered; Tab into the
+  next field still rings. See the fuller comment in `src/styles/global.css`.
 - Support `prefers-reduced-motion` and `prefers-reduced-transparency`.
 - Do not put `user-select: none` on editable note content or scripture pill text.
 

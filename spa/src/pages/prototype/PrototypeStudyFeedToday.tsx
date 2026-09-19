@@ -24,6 +24,7 @@ import PrototypeHomeChurchFeed from './PrototypeHomeChurchFeed';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import PrototypeWhatsNewPill from './PrototypeWhatsNewPill';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
+import PrototypeDailyPassageCard, { dailyPassageShowsCard } from './PrototypeDailyPassageCard';
 import PrototypeRecallCarousel from './PrototypeRecallCarousel';
 import PrototypeReviewSection from './PrototypeReviewSection';
 import PrototypeStrengthenThreadRow from './PrototypeStrengthenThreadRow';
@@ -119,8 +120,22 @@ export default function PrototypeStudyFeedToday({
     continueRow || revisitRow || continueReadingSuggestion || spotlightThread,
   );
 
+  /* One passage, one place: the card up top until it is acted on, then the row in Suggested. */
+  const passageCard = dailyPassageShowsCard(votd);
+
   return (
     <div className="proto-feed-today">
+      {/*
+        * Above Continue, until you act on it.
+        *
+        * It is the day's one offer that is new every day, and it was the last thing on the
+        * sheet. Once opened or written about it folds to its row in Suggested, so it holds the
+        * top only while it still has something to ask.
+        */}
+      {votd && passageCard ? (
+        <PrototypeDailyPassageCard homeSpaceId={homeSpaceId ?? ''} notes={notes} votd={votd} />
+      ) : null}
+
       {hasContinue ? (
         <PrototypeHomeSection title="Continue">
           {continueRow ? (
@@ -209,7 +224,7 @@ export default function PrototypeStudyFeedToday({
           what they offer; Suggested is four independent sources stacked, so a busy account
           meets nine rows and the sheet below them is pushed off the screen. */}
       <PrototypeHomeSection title="Suggested" foldAfter={5}>
-          {votd ? (
+          {votd && !passageCard ? (
             <PrototypeDailyPassagePill
               homeSpaceId={homeSpaceId ?? ''}
               notes={notes}

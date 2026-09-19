@@ -99,6 +99,29 @@ function readInitialPayload() {
 }
 
 /**
+ * Chunk names declared by `manualChunks`, in either of its shapes:
+ *   object form   — `manualChunks: { 'react-vendor': [...] }` (the keys)
+ *   function form — `manualChunks(id) { ... return 'react-vendor'; }` (the returned literals)
+ */
+function manualChunkNames(config) {
+  const objectForm = config.match(/manualChunks\s*:\s*\{([\s\S]*?)\n\s*\}/);
+  if (objectForm) return [...objectForm[1].matchAll(/^\s*'([^']+)'\s*:/gm)].map((m) => m[1]);
+
+  const start = config.search(/manualChunks\s*(?::\s*(?:function\s*)?)?\([^)]*\)\s*(?:=>\s*)?\{/);
+  if (start === -1) return [];
+  // Walk to the matching brace, so returns in code after the function are not counted.
+  const open = config.indexOf('{', start);
+  let depth = 0;
+  let end = open;
+  for (; end < config.length; end++) {
+    if (config[end] === '{') depth++;
+    else if (config[end] === '}' && --depth === 0) break;
+  }
+  const body = config.slice(open, end);
+  return [...new Set([...body.matchAll(/return\s+['"]([^'"]+)['"]/g)].map((m) => m[1]))];
+}
+
+/**
  * A `manualChunks` entry that produces an empty file means the split silently didn't
  * happen and its modules went into the main bundle instead — the react-vendor bug. Rollup
  * still emits a placeholder, so the build looks fine.
@@ -106,10 +129,17 @@ function readInitialPayload() {
 function checkNamedChunks(problems) {
   if (!existsSync(VITE_CONFIG)) return;
   const config = readFileSync(VITE_CONFIG, 'utf8');
-  const block = config.match(/manualChunks\s*:\s*\{([\s\S]*?)\n\s*\}/);
-  if (!block) return;
-
-  const names = [...block[1].matchAll(/^\s*'([^']+)'\s*:/gm)].map((m) => m[1]);
+  const names = manualChunkNames(config);
+  // Finding no names is itself the failure. This check once matched only the object form of
+  // `manualChunks`; the config moved to the function form, the match came back null, and the
+  // guard written for exactly this bug returned early on every build without saying so.
+  if (names.length === 0) {
+    problems.push(
+      `could not read any chunk names from manualChunks in ${VITE_CONFIG} — ` +
+        `update manualChunkNames() in this script to match the config's shape`,
+    );
+    return;
+  }
   const assets = readdirSync(join(DIST, 'assets'));
 
   for (const name of names) {

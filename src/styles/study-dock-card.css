@@ -404,7 +404,7 @@
   padding: 6px 8px;
   border-radius: 14px;
   border: 0.5px solid var(--pds-border-control, rgba(0, 0, 0, 0.12));
-  background: var(--pds-bg-elevated, rgba(255, 255, 255, 0.97));
+  background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow:
