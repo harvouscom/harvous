@@ -224,6 +224,16 @@
       "autoPort": false
     },
     {
+      "name": "review-exercises-visual-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous/.claude/worktrees/review-exercises-visual-3b6d6b && API_PORT=3030 DB_POOL_MAX=4 VITE_API_PROXY_TARGET=http://localhost:3030 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4380 --strictPort'"
+      ],
+      "port": 4380,
+      "autoPort": false
+    },
+    {
       "name": "church-v1-worktree",
       "runtimeExecutable": "sh",
       "runtimeArgs": [
