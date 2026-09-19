@@ -12,20 +12,24 @@
  * so the two land a new note in the same space and there is one compose path, not two.
  *
  * One bounded bit of motion: the line rotates through a few prompts, so it reads as an
- * invitation rather than a label you stop seeing, and a blue gradient runs around the border
- * as each new line arrives — the two are one gesture. One pass per visit, then it settles on a
- * plain, generic line with no sweep — never back on the most specific one, which was only right
- * for the moment it arrived ("Still in Romans 8?" resting there for the rest of the visit reads
- * like the app forgot the time passed); paused while hovered, focused or in a background tab.
- * Moving text on a reading page is only welcome if it stops. Under reduced motion none of it
- * plays: the resting line shows from the start.
+ * invitation rather than a label you stop seeing, and each new line types itself out behind a
+ * caret, as if someone had started writing there. (A blue light running round the border did this
+ * job first; it read as decoration, where a caret reads as "type here".) One pass per visit, then
+ * it settles on a plain, generic line and the caret goes — never back on the most specific one,
+ * which was only right for the moment it arrived ("Still in Romans 8?" resting there for the rest
+ * of the visit reads like the app forgot the time passed); paused while hovered, focused or in a
+ * background tab. Moving text on a reading page is only welcome if it stops. Under reduced motion
+ * none of it plays: the resting line shows from the start, with no caret.
  */
 import { useEffect, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { FEED_COMPOSE_FILLERS } from './feed-compose-prompts';
 
-/** Long enough to read twice, short enough that it feels alive. */
+/** Long enough to read twice, short enough that it feels alive. Includes the typing. */
 const ROTATE_MS = 4500;
+
+/** Per character. A 45-character line is written in about two seconds, then held. */
+const TYPE_MS = 42;
 
 /** Where a pass comes to rest — plain and always true, so it never overstays a line that was
     only right for the moment it appeared. `FEED_COMPOSE_FILLERS` is documented as having this
@@ -34,6 +38,51 @@ const ANCHOR_LINE = FEED_COMPOSE_FILLERS[0];
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+}
+
+/**
+ * One line, written out a character at a time behind a caret.
+ *
+ * Mounted fresh for each line (the parent keys it), so every line starts from nothing. The caret
+ * is solid while it types and blinks once the line is written, as a real one does. `caret` false
+ * takes it away once the line is written — the settled line keeps no cursor, because a caret
+ * blinking for the rest of a visit is motion that never stops.
+ */
+function TypedLine({
+  text,
+  animate,
+  caret,
+}: {
+  text: string;
+  animate: boolean;
+  caret: boolean;
+}) {
+  const [typed, setTyped] = useState(animate ? 0 : text.length);
+  useEffect(() => {
+    if (!animate) {
+      setTyped(text.length);
+      return undefined;
+    }
+    // The opening line can sharpen while the page's data lands; start that one over.
+    setTyped(0);
+    let count = 0;
+    const timer = window.setInterval(() => {
+      count += 1;
+      setTyped(count);
+      if (count >= text.length) window.clearInterval(timer);
+    }, TYPE_MS);
+    return () => window.clearInterval(timer);
+  }, [text, animate]);
+
+  const done = typed >= text.length;
+  return (
+    <>
+      {text.slice(0, typed)}
+      {animate && (caret || !done) ? (
+        <span className="proto-feed-compose__caret" data-blink={done ? '' : undefined} aria-hidden />
+      ) : null}
+    </>
+  );
 }
 
 export default function PrototypeFeedComposePrompt({
@@ -96,16 +145,16 @@ export default function PrototypeFeedComposePrompt({
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      {/* The sweep that goes with each line: keyed to it, so every new line replays it, and
-          absent once the pass is done — resting means still. */}
-      {!passDone && !reducedMotion && list.length > 1 ? (
-        <span key={`ring-${activeIndex}`} className="proto-feed-compose__ring" aria-hidden />
-      ) : null}
       <Icon name="pen-to-square" size={14} aria-hidden />
-      {/* Keyed so each new line mounts and plays its fade-in — including the settle onto the
-          anchor line, a distinct key from every rotation index so it always plays. */}
+      {/* Keyed so each new line mounts and types from nothing — including the settle onto the
+          anchor line, a distinct key from every rotation index so it always plays. A single line
+          never rotates, so it is simply shown. */}
       <span key={passDone ? 'rest' : activeIndex} className="proto-feed-compose__label">
-        {label}
+        <TypedLine
+          text={label}
+          animate={!reducedMotion && list.length > 1}
+          caret={!passDone}
+        />
       </span>
     </button>
   );
