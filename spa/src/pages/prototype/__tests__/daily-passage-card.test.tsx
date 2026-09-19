@@ -86,7 +86,7 @@ describe('the card', () => {
 
   it('opening it in the reader folds it and tells the server', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    fireEvent.click(screen.getByText('Open in Bible reader'));
+    fireEvent.click(screen.getByText('Open in Bible'));
     expect(actedAfterUpdate()).toBe(true);
     expect(lastEngagement()).toBe('open_reader');
     expect(navigate).toHaveBeenCalled();
@@ -94,7 +94,7 @@ describe('the card', () => {
 
   it('taking a note composes on the passage, folds it, and records the note', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    fireEvent.click(screen.getByText('Create note from passage'));
+    fireEvent.click(screen.getByText('Create note'));
     expect(beginPrototypeComposeSession).toHaveBeenCalled();
     expect(actedAfterUpdate()).toBe(true);
     expect(lastEngagement()).toBe('add_note');
@@ -110,7 +110,7 @@ describe('the card', () => {
   it('"Not today" hides it without counting as acting on it', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
     fireEvent.click(screen.getByLabelText("Dismiss today's passage"));
-    expect(screen.queryByText('Open in Bible reader')).toBeNull();
+    expect(screen.queryByText('Open in Bible')).toBeNull();
     expect(setQueryData).not.toHaveBeenCalled();
     expect(lastEngagement()).toBe('dismiss');
   });

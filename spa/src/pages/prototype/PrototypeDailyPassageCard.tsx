@@ -78,14 +78,14 @@ export default function PrototypeDailyPassageCard({
             className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
             onClick={openInReader}
           >
-            Open in Bible reader
+            Open in Bible
           </button>
           <button
             type="button"
             className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
             onClick={takeNote}
           >
-            {todaysNote ? 'Open your note' : 'Create note from passage'}
+            {todaysNote ? 'Open your note' : 'Create note'}
           </button>
         </div>
       </div>

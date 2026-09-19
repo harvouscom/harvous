@@ -24476,23 +24476,9 @@ button.proto-feed-sheet__stat:hover {
  * (`.proto-review-dock__verse--scripture`), two buttons (`.proto-review-dock__actions`).
  */
 .proto-daily-passage {
-  container: proto-daily-passage / inline-size;
   display: grid;
   gap: 8px;
   padding: var(--pds-space-3) var(--pds-space-3) var(--pds-space-2);
-}
-
-/*
- * "Open in Bible reader" and "Create note from passage" need ~362px side by side; on a phone
- * the card is ~282. Left to wrap, they sat as two ragged pills on two lines. Past the point
- * they cannot share a line, each takes a line of its own at full width, like a sheet's actions.
- * A container query, not a media query: it is the card's width that decides, and the card
- * narrows with the pane as well as the screen.
- */
-@container proto-daily-passage (max-width: 380px) {
-  .proto-daily-passage .proto-review-dock__actions > button {
-    flex: 1 1 100%;
-  }
 }
 
 .proto-daily-passage__head {
