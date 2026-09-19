@@ -24461,10 +24461,18 @@ button.proto-feed-sheet__stat:hover {
     /* Length along the path (`offset-rotate: auto` lines the width up with travel). */
     width: 300px;
     height: 48px;
-    background: radial-gradient(
-      closest-side,
-      var(--pds-accent-gradient-end),
-      var(--pds-accent-gradient-start) 55%,
+    /*
+     * The primary button's gradient (`--pds-bg-accent-button`), laid along the direction of
+     * travel: its light stop at the tail, its bright stop at the head, at the button's own 7% and
+     * 93%. The token itself cannot be used — at 171deg it runs across a 1.5px stroke, which only
+     * ever shows its middle — and the radial glow this replaces was a third blue, dark in the
+     * middle and faded at both ends. The tail still fades in, so the light has a direction.
+     */
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--pds-accent-gradient-start) 7%,
+      var(--pds-accent-gradient-end) 93%,
       transparent
     );
     offset-path: inset(0 round calc(var(--pds-radius-row) + 1px));
