@@ -24405,7 +24405,7 @@ button.proto-feed-sheet__stat:hover {
  * unsupported the ring fades in and out without travelling, which is still a highlight.
  * Linear, and the fade-out only after it is back where it started: an eased sweep covered most
  * of its travel in the first few hundred ms while still fading in, then faded out before
- * closing, so it never read as a full loop. 2000ms inside a 4500ms line.
+ * closing, so it never read as a full loop. 2400ms inside a 4500ms line.
  */
 @property --proto-feed-compose-sweep {
   syntax: '<angle>';
@@ -24437,7 +24437,49 @@ button.proto-feed-sheet__stat:hover {
   mask-composite: exclude;
   pointer-events: none;
   /* Starts with the line's own fade-in, so they arrive together. */
-  animation: proto-feed-compose-sweep 2000ms linear 60ms both;
+  animation: proto-feed-compose-sweep 2400ms linear 60ms both;
+}
+
+/*
+ * Where motion paths take a shape, the light travels the border itself. The conic sweep above
+ * turns by angle from the centre, and on a pill this wide (600×45) nearly all of the angle is
+ * spent on the two long edges at once: a 70° band lit most of one half, then the other, so it
+ * read as "left side, then right side", never a loop. A comet on `offset-path` moves at an even
+ * speed along the perimeter, the same length of border lit wherever it is. The ring's mask
+ * still clips it to the stroke; the ring's own animation still carries the fade.
+ */
+@supports (offset-path: inset(0 round 1px)) {
+  .proto-feed-compose__ring {
+    background: none;
+  }
+
+  .proto-feed-compose__ring::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 160px;
+    height: 40px;
+    background: radial-gradient(
+      closest-side,
+      var(--pds-accent-gradient-end),
+      var(--pds-accent-gradient-start) 55%,
+      transparent
+    );
+    offset-path: inset(0 round calc(var(--pds-radius-row) + 1px));
+    offset-rotate: auto;
+    animation: proto-feed-compose-travel 2400ms linear 60ms both;
+  }
+}
+
+@keyframes proto-feed-compose-travel {
+  0% {
+    offset-distance: 0%;
+  }
+  85%,
+  100% {
+    offset-distance: 100%;
+  }
 }
 
 @keyframes proto-feed-compose-sweep {
