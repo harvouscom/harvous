@@ -628,31 +628,6 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   }
 }
 
-/*
- * The deck: one card's edge behind this one while a question is up, so the card reads as the top
- * of a stack rather than a panel. Static — the deal is the motion — and gone on the empty card,
- * where the deck has run out.
- */
-.proto-review-dock:has(.study-dock-card__body-wrap[data-expanded='true'] .rx-stage) .study-dock-card__outer {
-  position: relative;
-}
-
-.proto-review-dock:has(.study-dock-card__body-wrap[data-expanded='true'] .rx-stage)
-  .study-dock-card__outer::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  top: -5px;
-  left: 36px;
-  right: 36px;
-  height: 24px;
-  border: 1px solid var(--pds-border-control-strong);
-  border-bottom: 0;
-  border-radius: 14px 14px 0 0;
-  /* A shade off the card, so the edge reads against a page as pale as the card itself. */
-  background: color-mix(in srgb, var(--pds-text-primary) 7%, var(--pds-bg-glass-strong));
-}
-
 /* ── Short and narrow windows ─────────────────────────────────────────── */
 
 @media (max-height: 640px) {
