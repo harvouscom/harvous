@@ -24458,8 +24458,9 @@ button.proto-feed-sheet__stat:hover {
     position: absolute;
     top: 0;
     left: 0;
-    width: 160px;
-    height: 40px;
+    /* Length along the path (`offset-rotate: auto` lines the width up with travel). */
+    width: 300px;
+    height: 48px;
     background: radial-gradient(
       closest-side,
       var(--pds-accent-gradient-end),
