@@ -525,6 +525,20 @@ export default function PrototypeReadPage() {
   const saveReferenceLabel = stackedNoteId ? 'Save to your note' : 'Save this reference';
   const handleSaveReference = useCallback(
     async ({ word, reference }: { word: string; reference: string; verse?: number }): Promise<boolean> => {
+      /*
+       * A guest has no space and never will, so the "still getting ready" copy below was a
+       * wait that could not end — and the dock stays open on `false`, so it was offered again
+       * on every retry. A reference row is server data; this is the honest answer.
+       *
+       * Ahead of the note branch, not after it. A guest who expands a pill from their own note
+       * lands here with that note stacked, and the note branch posted against its `guest_note_`
+       * id, got 401, and said "try again" — to a save that could never go through.
+       */
+      if (isGuest) {
+        offerGuestAccount('Saving references');
+        return false;
+      }
+
       if (stackedNoteId) {
         const id = await saveReferenceStudyThread({
           noteId: stackedNoteId,
@@ -543,16 +557,6 @@ export default function PrototypeReadPage() {
         // rows through its own query, not the note's.
         void queryClient.invalidateQueries({ queryKey: chapterReferencesKey(book, chapter, translation) });
         return true;
-      }
-
-      /*
-       * A guest has no space and never will, so the "still getting ready" copy below was a
-       * wait that could not end — and the dock stays open on `false`, so it was offered again
-       * on every retry. A reference row is server data; this is the honest answer.
-       */
-      if (isGuest) {
-        offerGuestAccount('Saving references');
-        return false;
       }
 
       // `homeSpaceId` can still be resolving right after a cold load of a reader URL — silently

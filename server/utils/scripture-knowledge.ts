@@ -581,7 +581,8 @@ export function mergeCrossReferences(rows: CrossReference[], limit: number): Cro
  * threshold-filtered with MIN_THEME_CORROBORATION_RELEVANCE so weak OpenBible edges never surface.
  */
 export async function getPassageContext(
-  userId: string,
+  /** Null for a visitor with no account: they get the knowledge layer and no related notes. */
+  userId: string | null,
   passages: VerseKey[],
   opts: PassageContextOptions = {},
 ): Promise<PassageContext> {
@@ -623,7 +624,9 @@ export async function getPassageContext(
   const crossReferences = mergeCrossReferences(crossRows, crossRefLimit);
 
   // The user's other notes connected to this passage, hydrated with titles + a reason.
-  const related = await getRelatedNotesForPassages(userId, ps, { excludeNoteId, limit: relatedLimit });
+  const related = userId
+    ? await getRelatedNotesForPassages(userId, ps, { excludeNoteId, limit: relatedLimit })
+    : [];
   let relatedNotes: PassageRelatedNote[] = [];
   if (related.length) {
     const titleRows = await db

@@ -108,6 +108,8 @@ import { rangeContainsScripturePillMark, scripturePillSkipLeftTarget } from '@/u
 import { hasBlockGapAfter, hasLostBlockGaps } from '@/utils/scripture-pill-block-gaps';
 import { onProtoViewportSettle } from '@/utils/proto-viewport-settle';
 import { useCoarsePointer } from '../../../spa/src/lib/use-coarse-pointer';
+import { isGuestLocalNote } from '../../../spa/src/lib/guest-store';
+import { offerGuestAccount } from '../../../spa/src/lib/guest-gate';
 import {
   ensureScripturePillSpacing,
   rangeCrossesHardBreak,
@@ -4940,8 +4942,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }
 
             // If editing an existing note, immediately process scripture references
-            // This creates scripture notes instantly without requiring a save
-            if (sourceNoteId && (referencesNeedingPills.length > 0 || references.length > 0)) {
+            // This creates scripture notes instantly without requiring a save.
+            // Not for a guest's note, saved or still a draft: it has no server row, so this
+            // could only 401.
+            if (
+              sourceNoteId &&
+              !isGuestLocalNote(sourceNoteId) &&
+              (referencesNeedingPills.length > 0 || references.length > 0)
+            ) {
               try {
                 const currentHtml = editor.getHTML();
                 const currentThreadId = parentThreadId || 'thread_unorganized';
@@ -5831,8 +5839,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         });
       }
 
+      /*
+       * A guest's reference is the mark above and nothing else. That is enough to keep: the mark
+       * lives in the note body, which is the guest's storage, and once adoption has made the
+       * note real, the first open's orphan backfill files an entry for any highlight with no id
+       * — reference marks included. The POST could only 401.
+       */
       let studyId: string | null = null;
-      if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
+      if (editorChromeMode === 'prototypeNative' && sourceNoteId && !isGuestLocalNote(sourceNoteId)) {
         try {
           const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
             method: 'POST',
@@ -5892,6 +5906,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       passage: { reference: string; translation: string; sourceNoteId: string },
     ): Promise<string | null> => {
       if (editorChromeMode !== 'prototypeNative') return null;
+      /*
+       * Unlike a word saved in the note's own text, this one leaves no mark in the body to
+       * keep it — a passage reference is the row and nothing else, so a guest has nowhere on
+       * the device to put it. The reader gives the same answer for the same reason.
+       */
+      if (isGuestLocalNote(passage.sourceNoteId)) {
+        offerGuestAccount('Saving references');
+        return null;
+      }
       // The POST itself lives in `saveReferenceStudyThread`, shared with the Bible reader
       // so both surfaces save the same thing. What stays here is the editor's own part:
       // refreshing this note's thread list once the entry exists.
@@ -6847,6 +6870,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const openStudyDockForHighlightMark = useCallback(
     (markInPm: HTMLElement) => {
       if (!editor || !isEditorValid(editor)) return;
+      /*
+       * Never a row, in a guest's note. Everything a guest highlights is marked without one,
+       * but pasted HTML can still bring an id along (the mark parses `data-study-thread-id`),
+       * and a dock opened on it would PATCH and DELETE a row that is not theirs, get 401, and —
+       * for remove — refuse to take the mark off. Without the id the dock works on the mark.
+       */
+      const markStudyId = isGuestLocalNote(sourceNoteId)
+        ? null
+        : markInPm.getAttribute('data-study-thread-id');
       const markColor = markInPm.getAttribute('data-color');
       const markReference = markInPm.getAttribute('data-reference');
       // Reference highlights (looked-up words) open the reference dock with highlight controls.
@@ -6855,7 +6887,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       const isReference = !!markReference || markColor === 'referenceHighlight';
       if (isReference) {
         const word = markReference || markInPm.textContent?.trim() || '';
-        const markStudyId = markInPm.getAttribute('data-study-thread-id');
         const noteRange = (() => {
           try {
             const pos = editor.view.posAtDOM(markInPm, 0);
@@ -6919,7 +6950,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       const highlightExcerpt = markInPm.textContent || '';
       const highlightSession: HighlightDockSession = {
-        studyThreadEntryId: markInPm.getAttribute('data-study-thread-id'),
+        studyThreadEntryId: markStudyId,
         accent: markColor || 'warmAmber',
         excerpt: highlightExcerpt,
         entryKind: 'miniNote',
@@ -6944,7 +6975,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       setStudyDockStack((s) => openOrFocusHighlight(s, highlightSession));
       setTranslationPicker(null);
     },
-    [editor, openReferenceDock],
+    [editor, openReferenceDock, sourceNoteId],
   );
 
   /** Deep-link open: when arriving with a highlight-dock request (e.g. tapping a highlight in the Home
@@ -7917,15 +7948,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             try {
               // Normalize the reference before checking to ensure consistent format matching
               const normalizedReference = normalizeScriptureReference(detection.primaryReference);
-              
-              const checkExistingResponse = await fetch('/api/scripture/check-existing', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reference: normalizedReference }),
-                credentials: 'include'
-              });
 
-              if (checkExistingResponse.ok) {
+              // A guest has no notes on the server to find, and this route needs a session.
+              const checkExistingResponse = isGuestLocalNote(sourceNoteId)
+                ? null
+                : await fetch('/api/scripture/check-existing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reference: normalizedReference }),
+                    credentials: 'include'
+                  });
+
+              if (!checkExistingResponse) {
+                // Straight on to making a new note, below.
+              } else if (checkExistingResponse.ok) {
                 const existingCheck = await checkExistingResponse.json();
                 
                 if (existingCheck.exists && existingCheck.noteId) {
@@ -9565,8 +9601,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       : Math.max(0, to - from);
 
                     const noteIdAtTap = latestSourceNoteIdRef.current;
+                    /* Never through the server for a guest — whether still the draft
+                       placeholder or already adopted to a `guest_note_…` id.
+                       `isPrototypeDraftNoteId` alone only catches the first of those (any
+                       signed-in compose passes through it too); a guest's highlight is the
+                       mark alone for the lifetime of the note, adopted or not. If it is ever
+                       adopted, the orphan backfill is what gives it a row, same as any other
+                       id-less mark. */
                     const canPersist =
-                      editorChromeMode === 'prototypeNative' && !!noteIdAtTap && !isPrototypeDraftNoteId(noteIdAtTap);
+                      editorChromeMode === 'prototypeNative' &&
+                      !!noteIdAtTap &&
+                      !isPrototypeDraftNoteId(noteIdAtTap) &&
+                      !isGuestLocalNote(noteIdAtTap);
                     const postHighlight = async (proposedId?: string): Promise<string | null> => {
                       if (!canPersist || !noteIdAtTap) return null;
                       const body = JSON.stringify(
@@ -9803,13 +9849,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         const { from, to } = range;
                         const markType = editor.state.schema.marks.highlight;
                         let studyId: string | null = null;
-                        editor.state.doc.nodesBetween(from, to, (node: any) => {
-                          if (!node.isText || studyId) return;
-                          const m = node.marks.find((x: any) => x.type.name === 'highlight');
-                          if (m?.attrs?.studyThreadEntryId) {
-                            studyId = m.attrs.studyThreadEntryId;
-                          }
-                        });
+                        // Left null in a guest's note — see `openStudyDockForHighlightMark`.
+                        if (!isGuestLocalNote(sourceNoteId)) {
+                          editor.state.doc.nodesBetween(from, to, (node: any) => {
+                            if (!node.isText || studyId) return;
+                            const m = node.marks.find((x: any) => x.type.name === 'highlight');
+                            if (m?.attrs?.studyThreadEntryId) {
+                              studyId = m.attrs.studyThreadEntryId;
+                            }
+                          });
+                        }
                         void (async () => {
                           if (studyId) {
                             try {
@@ -10502,6 +10551,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       authorDisplayName={entry.session.authorDisplayName}
                       isOwnHighlight={entry.session.isOwnHighlight}
                       readOnly={isHighlightDockReadOnly(entry.session)}
+                      annotationNeedsAccount={isGuestLocalNote(sourceNoteId)}
                       contextSpaceId={contextSpaceId}
                       sourceNoteId={sourceNoteId ?? null}
                       interactionActive={isActive}

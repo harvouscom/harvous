@@ -14,7 +14,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
+import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, SpaceNotes, NoteThreads, Threads, VerseTextCache, BibleVerses, eq, and, count, gte, isNotNull, isNull, lte, sql } from '../db';
 import { passageSpanFromParsed, selectPassageNotes } from '../utils/passage-notes';
 import { bibleVersesBookName } from '@/utils/bible-verses-book-name';
@@ -746,9 +746,14 @@ app.get('/api/scripture/passage-knowledge', requireAuth, async (c) => {
 
 // Full passage context for the scripture dock strip — themes, cross-refs, people/places, and the
 // user's other notes that connect to the displayed passage (which may span a verse range).
-app.get('/api/scripture/passage-context', requireAuth, async (c) => {
+//
+// Open to visitors with no account. Everything but the related notes is the public knowledge
+// layer — the same cross-references a reader sees printed in any study Bible — and behind
+// requireAuth a guest's "Show cross-references" toggle answered 401 and showed nothing. With no
+// session there are no notes of theirs to relate, so that half comes back empty.
+app.get('/api/scripture/passage-context', async (c) => {
   try {
-    const auth = getAuthenticatedAuth(c);
+    const userId = getAuth(c).userId ?? null;
     const reference = c.req.query('reference')?.trim();
     const noteId = c.req.query('noteId')?.trim() || undefined;
     if (!reference) return c.json({ error: 'Reference is required' }, 400);
@@ -765,7 +770,7 @@ app.get('/api/scripture/passage-context', requireAuth, async (c) => {
     }
 
     const { getPassageContext } = await import('../utils/scripture-knowledge');
-    const context = await getPassageContext(auth.userId, passages, { excludeNoteId: noteId });
+    const context = await getPassageContext(userId, passages, { excludeNoteId: noteId });
     return c.json({ success: true, ...context });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/scripture/passage-context', action: 'passage_context' });

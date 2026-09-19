@@ -36,6 +36,7 @@ import {
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 import { bookSlug } from '@/utils/bible-book-chapters';
+import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { takeOnboardingStep } from './onboarding-step-handoff';
 
@@ -200,8 +201,10 @@ export default function PrototypeGuestHome() {
                       icon="note-sticky"
                       title={item.note.title || 'Untitled note'}
                       /* The words, not the markup — the row is how they recognise which note
-                         this is, and tags read as gibberish at this size. */
-                      meta={[item.note.contentHtml.replace(/<[^>]+>/g, ' ').trim()]}
+                         this is, and tags read as gibberish at this size. The list stripper
+                         rather than a tag regex, which left entities behind: a note started
+                         from a verse read "Psalms 18:1 &nbsp; …". */
+                      meta={[stripHtmlForListPreview(item.note.contentHtml, 160)]}
                       onClick={() =>
                         navigate({
                           to: prototypeNoteRouteTo(),

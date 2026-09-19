@@ -38,6 +38,8 @@ import {
 import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import { deriveReferenceFromPassageSelection } from '@/utils/derive-passage-selection-reference';
 import { useCoarsePointer } from '../../../spa/src/lib/use-coarse-pointer';
+import { isGuestLocalNote } from '../../../spa/src/lib/guest-store';
+import { offerGuestAccount } from '../../../spa/src/lib/guest-gate';
 import '@/styles/harvous-menu-pill.css';
 import '@/styles/study-dock-card.css';
 import '@/styles/scripture-pill-chrome.css';
@@ -524,6 +526,8 @@ export default function ScripturePillChromeWeb({
     if (!interactionActive || !isExpanded || !sourceNoteId || readOnly) {
       return;
     }
+    // A guest's note has no entries to paint — nothing can make one (see the highlight below).
+    if (isGuestLocalNote(sourceNoteId)) return;
     let cancelled = false;
     const norm = normalizeScriptureReference(displayRefString.trim()) ?? displayRefString;
     void (async () => {
@@ -641,6 +645,15 @@ export default function ScripturePillChromeWeb({
 
   const handleCreatePassageHighlight = useCallback(async () => {
     if (!passageSelection || !sourceNoteId || creatingHighlight) return;
+    /*
+     * A passage highlight in a note is a study-thread row and nothing else — no mark in the note
+     * body to fall back on — so a guest has nowhere to keep one. The button used to post, 401,
+     * clear the selection and paint nothing. The reader is where a guest highlights a verse.
+     */
+    if (isGuestLocalNote(sourceNoteId)) {
+      offerGuestAccount('Highlighting a passage in a note');
+      return;
+    }
     setCreatingHighlight(true);
     // Native parity (`beginPassageHighlightDraft`): seed from the pill accent when set and
     // non-neutral, else warm amber.

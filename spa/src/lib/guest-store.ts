@@ -20,6 +20,7 @@
  * item is not kept", not a thrown quota error in the middle of typing.
  */
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
+import { isGuestModeActive } from './guest-session';
 
 const STORE_KEY = 'harvous-proto-guest-store';
 const STORE_VERSION = 1;
@@ -91,6 +92,22 @@ const EMPTY: GuestStore = { version: STORE_VERSION, highlights: [], notes: [], p
 let cache: GuestStore | null = null;
 const listeners = new Set<() => void>();
 
+/*
+ * Another tab wrote the store, so the copy held above is out of date.
+ *
+ * Every write here is read-modify-write against that copy, so without this a second tab put its
+ * stale copy back on its next write — one autosave in tab B deleted the note tab A had just
+ * written. The `storage` event fires only in the *other* tabs, which is exactly who needs it.
+ * `null` is `localStorage.clear()`.
+ */
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== STORE_KEY && event.key !== null) return;
+    cache = null;
+    for (const listener of listeners) listener();
+  });
+}
+
 function read(): GuestStore {
   if (cache) return cache;
   try {
@@ -153,6 +170,19 @@ export function guestNoteById(id: string): GuestNote | undefined {
 /** True for an id this store owns — the one check anything server-bound should make first. */
 export function isGuestNoteId(id: string | null | undefined): boolean {
   return typeof id === 'string' && id.startsWith('guest_note_');
+}
+
+/**
+ * True when the note an editor has open is a guest's, so anything it would send about that
+ * note — a study-thread row, a lookup of the note's entries — has no row to attach to.
+ *
+ * The id alone is not enough. A guest's compose never moves to a real id (see the note page's
+ * `guestDraftIdRef`), so the note they are writing is `note_draft` for as long as it is open,
+ * and `isGuestNoteId` says no to it. Every call guarded by that check alone still went out,
+ * and 401'd, from the one note a guest was most likely to be in.
+ */
+export function isGuestLocalNote(noteId: string | null | undefined): boolean {
+  return isGuestNoteId(noteId) || isGuestModeActive();
 }
 
 /** Local ids are prefixed so adoption, and anything reading a URL, can tell them apart. */
