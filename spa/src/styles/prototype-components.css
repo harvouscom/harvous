@@ -24403,7 +24403,9 @@ button.proto-feed-sheet__stat:hover {
  * masked to its own border, so the field's layout and fill never move. The comet is a conic
  * gradient whose angle animates through a registered property; where `@property` is
  * unsupported the ring fades in and out without travelling, which is still a highlight.
- * 1600ms inside a 4500ms line, so each sweep has finished well before the next begins.
+ * Linear, and the fade-out only after it is back where it started: an eased sweep covered most
+ * of its travel in the first few hundred ms while still fading in, then faded out before
+ * closing, so it never read as a full loop. 2000ms inside a 4500ms line.
  */
 @property --proto-feed-compose-sweep {
   syntax: '<angle>';
@@ -24435,7 +24437,7 @@ button.proto-feed-sheet__stat:hover {
   mask-composite: exclude;
   pointer-events: none;
   /* Starts with the line's own fade-in, so they arrive together. */
-  animation: proto-feed-compose-sweep 1600ms var(--pds-ease-standard) 60ms both;
+  animation: proto-feed-compose-sweep 2000ms linear 60ms both;
 }
 
 @keyframes proto-feed-compose-sweep {
@@ -24443,12 +24445,15 @@ button.proto-feed-sheet__stat:hover {
     --proto-feed-compose-sweep: 0deg;
     opacity: 0;
   }
-  12% {
+  5% {
     opacity: 1;
   }
-  78% {
+  /* The full turn, visible the whole way round… */
+  85% {
+    --proto-feed-compose-sweep: 360deg;
     opacity: 1;
   }
+  /* …then it fades where it began. */
   100% {
     --proto-feed-compose-sweep: 360deg;
     opacity: 0;

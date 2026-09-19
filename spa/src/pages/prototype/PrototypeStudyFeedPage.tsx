@@ -65,6 +65,7 @@ import PrototypeOnboardingDock from './PrototypeOnboardingDock';
 import { takeOnboardingStep } from './onboarding-step-handoff';
 import PrototypeThreadProposalReview from './PrototypeThreadProposalReview';
 import PrototypeFeedComposePrompt from './PrototypeFeedComposePrompt';
+import { buildFeedComposePrompts } from './feed-compose-prompts';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { markOnboardingLedToday, onboardingHasLedToday } from './onboarding-day-marker';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -533,6 +534,38 @@ export default function PrototypeStudyFeedPage() {
    * The feed snapshot keeps its value: the feed fetch no longer sits anywhere on this
    * gate's critical path, so the wait is only ever the aux queries, bounded by the deadline.
    */
+  /*
+   * The compose prompt's lines, from what this page already loaded — the day, the chapter
+   * you are in, what you keep returning to, today's passage. See `buildFeedComposePrompts`.
+   * Above the early returns below: a hook after them runs on some renders and not others.
+   */
+  const composeLead = home.lead;
+  const composePrompts = useMemo(
+    () =>
+      buildFeedComposePrompts({
+        now: new Date(),
+        noteCount: home.countForLogic,
+        continueReading: home.continueReadingSuggestion
+          ? {
+              book: home.continueReadingSuggestion.book,
+              chapter: home.continueReadingSuggestion.chapter,
+            }
+          : null,
+        passage: home.votd
+          ? { reference: home.votd.reference, acted: home.votd.actedToday === true }
+          : null,
+        trendLabel: home.recallTrendGreeting?.parts.labels[0] ?? null,
+        leadThreadTitle: composeLead?.kind === 'thread' ? composeLead.thread.title : null,
+      }),
+    [
+      home.countForLogic,
+      home.continueReadingSuggestion,
+      home.votd,
+      home.recallTrendGreeting,
+      composeLead,
+    ],
+  );
+
   if (isPending || !home.contentReady) {
     return <ProtoSpaceLoading label="Loading your study" />;
   }
@@ -881,7 +914,7 @@ export default function PrototypeStudyFeedPage() {
 
             {/* Today, unfiltered: the way to start writing, in words, on every visit. A day
                 you flipped back to or a single room's trail is not where a new note goes. */}
-            {safeIndex === 0 && !scopedSpace ? <PrototypeFeedComposePrompt /> : null}
+            {safeIndex === 0 && !scopedSpace ? <PrototypeFeedComposePrompt prompts={composePrompts} /> : null}
 
             {/* Above everything when it is up: it is a question waiting on an answer, and
                 the day's record can wait behind it. */}
