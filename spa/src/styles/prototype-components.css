@@ -20040,72 +20040,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   color: var(--pds-accent);
 }
 
-/*
- * The verdict edge — a review question at the top of the note it is about.
- *
- * The label here is a `<span>`, not a button, and the CSS follows: there is no paper behind
- * this edge to flip to. Its base is the review card, which is a picture of the question rather
- * than a place, so a hover state and a pointer would both promise a destination that does not
- * exist. The card that asked is still on screen in the dock band below.
- */
-.pds-paper-stack__edge--static {
-  pointer-events: none;
-  cursor: default;
-}
-
-/*
- * The two answers, held clear of the × the way the ignore button is.
- *
- * Same right-hand budget as `.pds-paper-stack__edge-ignore`: one action's width plus a gap,
- * so the dismiss stays where a dismiss always is on this edge and the verdicts queue up
- * beside it rather than under it.
- */
-.pds-paper-stack__edge-verdicts {
-  position: absolute;
-  right: calc(var(--pds-space-5) + 22px + var(--pds-space-2));
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  gap: var(--pds-space-2);
-  z-index: var(--pds-z-sticky);
-}
-
-/* The question can be long; it yields to the answers rather than pushing them off the edge. */
-.pds-paper-stack__edge-row--review .pds-paper-stack__edge--static {
-  max-width: 45%;
-  overflow: hidden;
-}
-
-.pds-paper-stack__edge-row--review .pds-paper-stack__edge--static .pds-caption {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-@media (max-width: 620px) {
-  /*
-   * Narrow: three verdicts need the whole row. The "Review" label goes — the dock under the note
-   * already says what this is — and the answers take the width from the left gutter to the ×,
-   * kept on one line and a little tighter, so they never wrap into each other.
-   */
-  .pds-paper-stack__edge-row--review .pds-paper-stack__edge--static {
-    visibility: hidden;
-  }
-
-  .pds-paper-stack__edge-row--review .pds-paper-stack__edge-verdicts {
-    left: var(--pds-space-3);
-    justify-content: flex-end;
-    gap: 6px;
-  }
-
-  .pds-paper-stack__edge-verdicts .proto-settings-btn--compact {
-    padding: 0 8px;
-    font-size: 12px;
-    white-space: nowrap;
-  }
-}
-
 .pds-paper-stack__sheet {
   position: absolute;
   inset: 0;
@@ -23842,14 +23776,6 @@ button.proto-feed-sheet__stat:hover {
   display: flex;
   justify-content: center;
   padding: var(--pds-space-2) 0;
-}
-
-.proto-review-dock__handoff {
-  margin: 0;
-  font-family: var(--pds-font-body);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--pds-text-secondary);
 }
 
 /*

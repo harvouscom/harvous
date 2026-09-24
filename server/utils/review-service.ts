@@ -22,7 +22,6 @@ import {
   type SampleMaterial,
   type SampleSource,
 } from '@/utils/review-sample';
-import type { VerseClozeSegments } from '@/utils/verse-cloze';
 import { DEFAULT_REVIEW_TRANSLATION, askedTranslation } from '@/utils/review-translation';
 import {
   db,
@@ -38,7 +37,6 @@ import {
   or,
   Notes,
   NoteConnections,
-  NoteFingerprints,
   NoteScriptureReferences,
   ScriptureMetadata,
   ReadingEvents,
@@ -82,7 +80,6 @@ import {
   type ChapterMaterial,
   chapterRungFor,
   fillReviewPrompt,
-  nextLadderStep,
   reviewPromptFor,
   reviewSeed,
   reviewTaskFor,
@@ -129,20 +126,15 @@ import {
   buildVerseSequence,
   contentWords,
   gradeVerseBefore,
-  gradeVerseInitials,
-  gradeVerseKeywords,
   gradeVerseLocate,
   gradeVerseMarked,
   gradeVerseNext,
-  gradeVerseRecall,
-  gradeVerseSequence,
   markVerseKeywords,
   markVerseRecall,
   markVerseSequence,
   readerSpanFragment,
   verseLocateStem,
   type VerseNextExercise,
-  verseRecallCoverage,
 } from '@/utils/verse-ladder-exercises';
 import {
   buildVerseAltered,
@@ -153,12 +145,9 @@ import {
   buildClozeBank,
   buildVerseCloze,
   clozeSegments,
-  gradeVerseRebuild,
   hashSeed,
   markVerseRebuild,
   seededIndex,
-  type VerseCloze,
-  verseClozeRatio,
   verseCue,
 } from '@/utils/verse-cloze';
 import {
@@ -169,7 +158,6 @@ import {
 } from '@/utils/review-difficulty';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
-import { pickRepNoteIdForCluster } from './study-thread-cluster-count';
 import { formatVerseAddress, lastVerseOf, neighbourVerseAddresses, nextVerseAddress } from '@/utils/verse-adjacency';
 import { partitionByBook } from '@/utils/scripture-book';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
@@ -1304,6 +1292,9 @@ export async function buildReviewItemViews(
   return views;
 }
 
+/** What a reader with no stored preferences, or an unreadable one, resolves with. */
+const NO_RUNG_PREFERENCES: RungPreferences = { skip: new Set(), prefer: new Set() };
+
 /**
  * The reader's exercise preferences, memoised with the material.
  *
@@ -1314,9 +1305,6 @@ export async function buildReviewItemViews(
  * three seconds, so nothing new can go stale, and Settings calls `forgetReviewMaterial` so a saved
  * preference is honoured on the very next read.
  */
-/** What a reader with no stored preferences, or an unreadable one, resolves with. */
-const NO_RUNG_PREFERENCES: RungPreferences = { skip: new Set(), prefer: new Set() };
-
 async function loadPreferredEmphasis(userId: string): Promise<RungPreferences> {
   return memoisedMaterial(`${userId}:emphasis`, async () => {
     try {
@@ -1886,15 +1874,6 @@ export interface ReviewOutcomeResult {
 }
 
 /**
- * Answer an item: reschedule it, log the answer, and feed the passive layer.
- *
- * The `recordNoteRecallEngaged` call is the one place these two systems touch. Review's own
- * schedule lives on this row; that call lengthens the *resurfacing* stability on
- * NoteFingerprints, so a note the reader is actively reviewing stops being offered as a
- * "worth another look" card on Home. Without it the two surfaces would compete over the same
- * note — one because it is due, the other because it looks neglected.
- */
-/**
  * Has this item ever been recalled cleanly, once?
  *
  * Decides whether it is still on the learning steps. Two of the three answers are free: a live
@@ -1931,6 +1910,15 @@ async function itemHasCleanRecall(userId: string, item: ReviewItemRow): Promise<
   }
 }
 
+/**
+ * Answer an item: reschedule it, log the answer, and feed the passive layer.
+ *
+ * The `recordNoteRecallEngaged` call is the one place these two systems touch. Review's own
+ * schedule lives on this row; that call lengthens the *resurfacing* stability on
+ * NoteFingerprints, so a note the reader is actively reviewing stops being offered as a
+ * "worth another look" card on Home. Without it the two surfaces would compete over the same
+ * note — one because it is due, the other because it looks neglected.
+ */
 export async function applyReviewOutcome(
   userId: string,
   item: ReviewItemRow,
@@ -2126,48 +2114,11 @@ async function recordReviewOutcomeNodes(
     }
   }
 
-  if ((item.kind === 'note' || item.kind === 'highlight') && item.noteId) {
+  if (item.kind === 'note' && item.noteId) {
     touches.push({
       ...noteTouch({ noteId: item.noteId, signal: 'review', at: now, sourceLabel: REVIEWED_SOURCE }),
       reviewMirror: mirror,
     });
-  }
-
-  if (item.kind === 'connection' && item.noteId && item.secondaryNoteId) {
-    const [a, b] = [item.noteId, item.secondaryNoteId].sort();
-    touches.push({
-      key: nodeKey.connection(item.noteId, item.secondaryNoteId),
-      kind: 'connection',
-      signal: 'review',
-      at: now,
-      noteId: a,
-      secondaryNoteId: b,
-      sourceLabel: REVIEWED_SOURCE,
-      reviewMirror: mirror,
-    });
-  }
-
-  if (item.kind === 'thread' && item.noteId) {
-    touches.push({
-      key: nodeKey.thread(item.noteId),
-      kind: 'thread',
-      signal: 'review',
-      at: now,
-      noteId: item.noteId,
-      sourceLabel: REVIEWED_SOURCE,
-      reviewMirror: mirror,
-    });
-    // Answering "what is this cluster forming?" in your own words is synthesis — the only
-    // one the app can observe deterministically outside of naming a Thread.
-    if (attempt?.trim() && outcome !== 'revealed') {
-      touches.push({
-        key: nodeKey.thread(item.noteId),
-        kind: 'thread',
-        signal: 'synthesis',
-        at: now,
-        noteId: item.noteId,
-      });
-    }
   }
 
   await touchNodes(userId, touches);
@@ -2328,14 +2279,6 @@ export async function listUserVerseReferences(userId: string, exclude: string): 
   }
 }
 
-/**
- * Rebuild a graded rung's answer key from the item, and mark the reader's answer against it.
- *
- * Recomputed rather than stored: the puzzle is a pure function of `${item.id}:${ladderStep}`
- * and the verse text, so there is nothing to keep and nothing to go stale. It also means the
- * key never travels to the client, which is the point — a `verse.locate` whose answer sits in
- * the page's memory is a multiple choice with the answer written on the back.
- */
 /**
  * What a verse can be asked, with the material behind each answer.
  *
@@ -2610,7 +2553,7 @@ async function buildVerseContextFor(
   rungKey: ReviewPromptKey,
   material: VerseKnowledgeMaterial,
   seed: string,
-): Promise<{ exercise: ChoiceExercise; acceptable: string[]; opening: boolean } | null> {
+): Promise<{ exercise: ChoiceExercise; acceptable: string[] } | null> {
   if (!item.scriptureReference) return null;
 
   if (rungKey === 'verse.connect') {
@@ -2619,7 +2562,7 @@ async function buildVerseContextFor(
       (label) => !material.citingNoteLabels.includes(label),
     );
     const exercise = buildNoteChoice({ acceptable: material.citingNoteLabels, poolLabels: pool, seed });
-    return exercise ? { exercise, acceptable: material.citingNoteLabels, opening: false } : null;
+    return exercise ? { exercise, acceptable: material.citingNoteLabels } : null;
   }
 
   // The reader's other passages, sampled, for distractors that are things they have met.
@@ -2655,7 +2598,7 @@ async function buildVerseContextFor(
       fallbackPool: fallback,
       seed,
     });
-    return exercise ? { exercise, acceptable: material.themes, opening: false } : null;
+    return exercise ? { exercise, acceptable: material.themes } : null;
   }
 
   if (rungKey === 'verse.person') {
@@ -2669,7 +2612,7 @@ async function buildVerseContextFor(
       fallbackPool: fallback,
       seed,
     });
-    return exercise ? { exercise, acceptable: material.people, opening: false } : null;
+    return exercise ? { exercise, acceptable: material.people } : null;
   }
 
   if (rungKey === 'verse.place') {
@@ -2688,7 +2631,7 @@ async function buildVerseContextFor(
       fallbackPool: fallback,
       seed,
     });
-    return exercise ? { exercise, acceptable: answers, opening: false } : null;
+    return exercise ? { exercise, acceptable: answers } : null;
   }
 
   if (rungKey === 'verse.crossref') {
@@ -2710,7 +2653,7 @@ async function buildVerseContextFor(
       fallbackPool: rest,
       seed,
     });
-    return exercise ? { exercise, acceptable: answers, opening: false } : null;
+    return exercise ? { exercise, acceptable: answers } : null;
   }
 
   return null;
@@ -2759,21 +2702,6 @@ const VERSE_CONTEXT_KEYS = new Set<ReviewPromptKey>([
 ]);
 
 /**
- * The "what comes after this?" rung, built once for both the question and the marking.
- *
- * Over-fetches neighbours: a verse whose text is missing from the cache contributes no option,
- * and three distractors is the difference between a question and a coin toss.
- */
-/**
- * The verse itself, for after an answer on a rung that withheld it.
- *
- * `verse.sequence` and `verse.locate` both hide the text — one because the words are the
- * puzzle, the other because they name the reference. That is right while the question stands,
- * and wrong the moment it is answered: the reader is left holding four shuffled phrases and no
- * verse, which is the one thing they came to review. Returns null for rungs that showed it all
- * along, so the client has nothing extra to render.
- */
-/**
  * The "one word has been changed" rung, built once for both the question and the marking.
  *
  * Neighbours supply the substitute, so an altered verse reads like the passage around it rather
@@ -2804,6 +2732,15 @@ async function buildVerseAlteredFor(
 /** A wide net, because most candidate words are barred by one list or another. */
 const VERSE_ALTERED_NEIGHBOURS = 8;
 
+/**
+ * The verse itself, for after an answer on a rung that withheld it.
+ *
+ * `verse.sequence` and `verse.locate` both hide the text — one because the words are the
+ * puzzle, the other because they name the reference. That is right while the question stands,
+ * and wrong the moment it is answered: the reader is left holding four shuffled phrases and no
+ * verse, which is the one thing they came to review. Returns null for rungs that showed it all
+ * along, so the client has nothing extra to render.
+ */
 export async function verseTruthFor(item: ReviewItemRow, userId: string): Promise<string | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
   /*
@@ -2834,6 +2771,12 @@ export async function verseTruthFor(item: ReviewItemRow, userId: string): Promis
   return html || null;
 }
 
+/**
+ * The "what comes after this?" rung, built once for both the question and the marking.
+ *
+ * Over-fetches neighbours: a verse whose text is missing from the cache contributes no option,
+ * and three distractors is the difference between a question and a coin toss.
+ */
 async function buildVerseNextFor(
   item: ReviewItemRow,
   translation: string,
@@ -3410,6 +3353,14 @@ const VERSE_NEXT_NEIGHBOURS = 5;
 /** Verses either side the word bank draws its wrong words from. Two is plenty for three words. */
 const CLOZE_BANK_NEIGHBOURS = 2;
 
+/**
+ * Rebuild a graded rung's answer key from the item, and mark the reader's answer against it.
+ *
+ * Recomputed rather than stored: the puzzle is a pure function of `${item.id}:${ladderStep}`
+ * and the verse text, so there is nothing to keep and nothing to go stale. It also means the
+ * key never travels to the client, which is the point — a `verse.locate` whose answer sits in
+ * the page's memory is a multiple choice with the answer written on the back.
+ */
 export async function gradeVerseAnswer(
   userId: string,
   item: ReviewItemRow,
@@ -3425,9 +3376,7 @@ export async function gradeVerseAnswer(
     const built = await buildVerseContextFor(userId, item, translation, rung.key, material, seedForRung);
     if (!built) return null;
     return {
-      correct: built.opening
-        ? gradeVerseNext(built.exercise as VerseNextExercise, answer.option)
-        : gradeChoiceExercise(built.exercise, answer.option, built.acceptable),
+      correct: gradeChoiceExercise(built.exercise, answer.option, built.acceptable),
       correctAnswer: built.exercise.options[built.exercise.answerIndex] ?? null,
     };
   }
@@ -3712,13 +3661,6 @@ async function buildNoteExercise(
 }
 
 /**
- * Mark a note rung, rebuilt from the same inputs the question was built from.
- *
- * Returns null when the effective rung has moved since the question was shown — the reader
- * deleted the link they were about to be asked about, say. `graded ?? outcome` in the route
- * then falls back to their own verdict, which is the safe failure.
- */
-/**
  * Whether an answer was right, and what the right answer was.
  *
  * The second half is only filled in for the rungs where the answer is one of the options on
@@ -3823,10 +3765,17 @@ function keywordHint(
   const used = new Set(words.map((word) => word.trim().toLowerCase()).filter(Boolean));
   const options = contentWords(text).filter((word) => !used.has(word.toLowerCase()));
   if (!options.length) return undefined;
-  const letter = options[hashSeed(`${seed}:hint`) % options.length].charAt(0);
+  const letter = options[seededIndex(`${seed}:hint`, options.length)].charAt(0);
   return letter ? { kind: 'letter', letter } : undefined;
 }
 
+/**
+ * Mark a note rung, rebuilt from the same inputs the question was built from.
+ *
+ * Returns null when the effective rung has moved since the question was shown — the reader
+ * deleted the link they were about to be asked about, say. `graded ?? outcome` in the route
+ * then falls back to their own verdict, which is the safe failure.
+ */
 export async function gradeNoteAnswer(
   userId: string,
   item: ReviewItemRow,
@@ -3843,13 +3792,6 @@ export async function gradeNoteAnswer(
   };
 }
 
-/**
- * One door for marking, whatever the kind.
- *
- * The route used to choose between two graders with a ternary, which made a third kind fall
- * into whichever branch was the `else` — a chapter would have been marked as a verse and
- * returned null, and null on a graded rung means the client's own verdict is recorded as truth.
- */
 /**
  * Which rung this item is being asked on, and nothing else.
  *
@@ -3884,6 +3826,13 @@ export async function askedRungFor(
   return verseRungFor(item.ladderStep, reviewSeed(item), material).key;
 }
 
+/**
+ * One door for marking, whatever the kind.
+ *
+ * The route used to choose between two graders with a ternary, which made a third kind fall
+ * into whichever branch was the `else` — a chapter would have been marked as a verse and
+ * returned null, and null on a graded rung means the client's own verdict is recorded as truth.
+ */
 export async function gradeAnswerFor(
   userId: string,
   item: ReviewItemRow,
@@ -3911,7 +3860,7 @@ export async function buildReviewReveal(
   const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   const payload: ReviewRevealPayload = {};
 
-  if (item.kind === 'verse' || item.kind === 'highlight') {
+  if (item.kind === 'verse') {
     if (item.scriptureReference) {
       const html = await fetchVerseText(item.scriptureReference, translation);
       payload.verseText = html || null;
@@ -3928,7 +3877,7 @@ export async function buildReviewReveal(
         if (VERSE_CONTEXT_KEYS.has(rung.key)) {
           const built = await buildVerseContextFor(userId, item, translation, rung.key, material, seed);
           // Options only. The verse stays on screen: it is the question, not the answer.
-          payload.choice = built ? { options: built.exercise.options, opening: built.opening } : null;
+          payload.choice = built ? { options: built.exercise.options, opening: false } : null;
         }
         if (rung.key === 'verse.recognize') {
           const exercise = await buildVerseRecognizeFor(userId, item, text, translation);

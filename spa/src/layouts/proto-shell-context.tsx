@@ -350,7 +350,7 @@ export type PaperStackMorphFrom = {
 };
 
 export type PaperStackOrigin = {
-  kind: 'reader' | 'homeCard' | 'noteDock' | 'reviewCard';
+  kind: 'reader' | 'homeCard' | 'noteDock';
   /** See `PaperStackMorphFrom`. Absent means "no morph" — the sheet just arrives. */
   morphFrom?: PaperStackMorphFrom;
   /** Sub-kind for `homeCard` (a RecallOpportunityKind or 'revisit'). Telemetry only. */
@@ -364,32 +364,6 @@ export type PaperStackOrigin = {
    * nothing proposed them — so their edge stays a plain way back.
    */
   suggestion?: { id: string; kind: string };
-  /**
-   * The review item this sheet is the answer to.
-   *
-   * A `reviewCard` origin means the note on screen was opened to answer a question about it, so
-   * the edge stops being a way back and becomes the verdict: "I almost had it" / "I recalled it".
-   * `attempted` decides which verdicts are offered — someone who wrote something, or said they
-   * had it in mind, is judging a real retrieval; someone who revealed cold is not, and gets the
-   * single honest answer instead. Snapshotted here rather than read from the dock because the
-   * edge renders in the layout, and a keystroke in the dock must not re-render the shell.
-   */
-  review?: {
-    itemId: string;
-    attempted: boolean;
-    attempt?: string;
-    /** Where recall stood before this answer, so the result can say when it crossed into holding. */
-    recallState?: string;
-    /**
-     * The question and what it was about, carried so the result card can recap them.
-     *
-     * Read from here rather than from `base.title` below: that is a display slot on a union,
-     * and a result that depended on how a card happens to be laid out would break the first
-     * time the layout changed.
-     */
-    prompt?: string;
-    subject?: string | null;
-  };
   label: string;
   icon: string;
   returnTo: PaperStackReturnTo;
@@ -490,17 +464,6 @@ export type ReviewDockResult = {
    * note and said how it went, have no answer for the card to echo.
    */
   echo?: ReviewAnswerEcho | null;
-  /**
-   * The one moment Review says a thing is not working rather than asking again, so the result
-   * carries the item to act on. Two ways to get here: missed four times after being held, or
-   * never once recalled at all.
-   */
-  leech?: boolean;
-  /**
-   * It is the second of those. The offer is identical; the sentence above it is not, because
-   * "keeps slipping away" is untrue of something the reader never had.
-   */
-  stalled?: boolean;
   itemId?: string;
   /**
    * The option that was right, after the last go was spent on a wrong one.

@@ -450,6 +450,15 @@ describe('easing after a run of near-misses', () => {
 
   it('wants the same family twice, not two unrelated misses', () => {
     expect(shouldEaseRung({ ...base, previousRungKey: 'chapter.order' })).toBe(false);
+    expect(shouldEaseRung({ ...base, previousRungKey: 'verse.next' })).toBe(false);
+  });
+
+  it('counts two members of one family as a run', () => {
+    // Blanks and first letters are the same step, drawn by seed: two near-misses there are a run.
+    expect(shouldEaseRung({ ...base, previousRungKey: 'verse.initials' })).toBe(true);
+    expect(
+      shouldEaseRung({ ...base, rungKey: 'verse.locate', previousRungKey: 'verse.book' }),
+    ).toBe(true);
   });
 
   it('starts counting again after it has eased', () => {

@@ -14,7 +14,6 @@
 
 import type { ReviewEchoManner } from '@/utils/review-answer-echo';
 
-export const REVIEW_START_COPY = 'Start';
 export const REVIEW_DEFER_COPY = 'Not now';
 export const REVIEW_PAUSE_COPY = 'Pause this';
 export const REVIEW_RESUME_COPY = 'Start again';
@@ -66,7 +65,6 @@ export const REVIEW_DEFER_FAILED_TOAST = "Couldn't put that off — try again";
  * rather than advancing to a result that was never recorded.
  */
 export const REVIEW_OUTCOME_FAILED_TOAST = "Couldn't save that answer — try once more";
-export const REVIEW_STEP_BACK_FAILED_TOAST = "Couldn't change how this is asked — try again";
 
 /** The reveal is the question on a graded rung, so failing to load it is a question with no body. */
 export const REVIEW_REVEAL_FAILED_COPY = "This one didn't load.";
@@ -112,7 +110,6 @@ export const REVIEW_SECTION_TITLE = 'Review exercises';
  */
 /** Announced to a screen reader while the dots show; never printed. */
 export const REVIEW_LOADING_LABEL = 'Finding your next review';
-export const REVIEW_EMPTY_COPY = 'Nothing waiting. Keep studying.';
 
 /**
  * The empty card, in two states, because "nothing due" and "nothing yet" are different facts
@@ -150,7 +147,6 @@ export const REVIEW_PRACTICE_LABEL = 'One more look';
 export const REVIEW_SITTING_PROGRESS_LABEL = 'Progress through this sitting';
 export const REVIEW_EMPTY_NOTHING_YET_TITLE = 'Nothing to review yet';
 export const REVIEW_EMPTY_NOTHING_YET_BODY = 'Reviews come from your own study.';
-export const REVIEW_EMPTY_SETTLED_BODY = 'Nothing waiting right now.';
 export const reviewNextDueCopy = (when: string) => `The next one comes back ${when}.`;
 
 /**
@@ -246,22 +242,6 @@ export const REVIEW_SEE_LESS_COPY = 'Show fewer';
 export const REVIEW_ADD_COPY = 'Add to Review';
 export const REVIEW_ADDED_COPY = 'In Review';
 
-/** The three answers. Descriptions of a memory, never ratings of the app. */
-export const REVIEW_RECALLED_COPY = 'I recalled it';
-export const REVIEW_ALMOST_COPY = 'I almost had it';
-/*
- * Revealing opens the real thing — the note, the passage, the Thread — so the button names
- * where you are about to go. "Show my note" described a panel that no longer exists; these
- * describe a destination, and they are the reader's own things, not the app's.
- */
-export const REVIEW_REVEAL_COPY = 'Check my note';
-export const REVIEW_REVEAL_VERSE_COPY = 'Check the verse';
-export const REVIEW_REVEAL_CHAPTER_COPY = 'Check the chapter';
-export const REVIEW_REVEAL_THREAD_COPY = 'Open the Thread';
-export const REVIEW_REVEAL_CONNECTION_COPY = 'Check my notes';
-/** After revealing cold: the honest answer is that it needed looking at. */
-export const REVIEW_REVEALED_ACK_COPY = 'Got it now';
-
 /**
  * What the dock says back after an answer, before the next return.
  *
@@ -295,15 +275,8 @@ export const REVIEW_OUTCOME_ACK_COPY: Record<'recalled' | 'almost' | 'revealed',
  * "Not helpful" is the reader's own phrase for this, and it deliberately avoids "Show fewer",
  * which is already the Activity fold's toggle a few lines above.
  */
-/* Names the subject, so two blocks under a verdict line cannot be read as being about the
-   memory that was just described. Four words, in the caption size. */
-export const REVIEW_FEEDBACK_PROMPT_COPY = 'This kind of question';
 export const REVIEW_FEEDBACK_UP_COPY = 'Good question';
 export const REVIEW_FEEDBACK_DOWN_COPY = 'Not helpful';
-
-/** The full sentence for the accessible name; the family is what is actually being rated. */
-export const reviewFeedbackUpAria = (family: string) => `Good question — more ${family}`;
-export const reviewFeedbackDownAria = (family: string) => `Not helpful — fewer ${family}`;
 
 /**
  * Said back, and nothing more.
@@ -376,22 +349,6 @@ export const REVIEW_ANSWER_LABEL = 'The answer';
  */
 export const REVIEW_INDEX_ANSWER_LABEL = 'The reference works say';
 
-/** Said once, on the answer that moves something into durable recall. Never a score. */
-/**
- * A leech. Said once, plainly, with a way down: the ladder has been asking this one the same
- * way four times since it was last held, and a fifth is not going to work.
- */
-export const REVIEW_SLIPPING_COPY = 'This one keeps slipping away. An easier ask next time?';
-/*
- * The same offer, for an item that was never held rather than lost.
- *
- * "Keeps slipping away" describes a loss, and saying that to someone about a verse they have
- * never once got right is describing something that did not happen to them. This says what is
- * actually true and offers the same way out.
- */
-export const REVIEW_STALLED_COPY = 'This way of asking is not landing. Try a different one?';
-export const REVIEW_STEP_BACK_COPY = 'Make it easier';
-export const REVIEW_STEPPED_BACK_COPY = 'Done. It comes back easier next time.';
 /**
  * The way on from a result, and the way out.
  *
@@ -402,6 +359,7 @@ export const REVIEW_STEPPED_BACK_COPY = 'Done. It comes back easier next time.';
 export const REVIEW_NEXT_COPY = 'Next one';
 export const REVIEW_ENOUGH_COPY = 'Enough for now';
 
+/** Said once, on the answer that moves something into durable recall. Never a score. */
 export const REVIEW_CROSSED_TO_HOLDING_COPY = 'You have this one now.';
 /** The first-letters rung asks for the whole verse, not a note about it. */
 export const REVIEW_INITIALS_PLACEHOLDER = 'Write the verse out';
@@ -429,10 +387,8 @@ export const REVIEW_ECHO_LABEL: Record<ReviewEchoManner, string> = {
 
 export const CHALLENGE_STEP_DONE_COPY = 'Done';
 export const CHALLENGE_STEP_SKIP_COPY = 'Skip this';
-export const CHALLENGE_CONTINUE_COPY = 'Continue';
 export const CHALLENGE_PAUSE_COPY = 'Pause';
 export const CHALLENGE_ARCHIVE_COPY = 'Put this down';
-export const CHALLENGE_START_COPY = 'Start';
 
 /** Written by the note cascade, so the page can say why rather than implying the reader stopped. */
 export const CHALLENGE_RETIRED_COPY = 'The note this path was built on is gone.';
@@ -446,7 +402,6 @@ export const CHALLENGE_RETIRED_COPY = 'The note this path was built on is gone.'
  */
 export const REVIEW_SAMPLE_EYEBROW_YOURS = 'From your own study';
 export const REVIEW_SAMPLE_EYEBROW_WELL_KNOWN = 'A verse to try it on';
-export const REVIEW_SAMPLE_PROMPT = 'Fill in the blanks.';
 
 /**
  * The instruction for each way the sample can ask.

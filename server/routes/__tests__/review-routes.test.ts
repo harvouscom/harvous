@@ -818,12 +818,11 @@ describe('a scheduler that remembers', () => {
     expect(outcome()).toMatch(/\.\.\.\(leech \? \{ leech: true, stalled \} : \{\}\)/);
   });
 
-  it('refuses a step back on anything that is not slipping', () => {
-    const from = route().indexOf("'/api/review/items/:id/step-back'");
-    const stepBack = route().slice(from, route().indexOf('route.', from + 1));
-    expect(stepBack).toContain('REVIEW_NOT_SLIPPING');
-    // No body is read: the only thing the reader can say here is "yes".
-    expect(stepBack).not.toContain('req.json');
+  it('has no step-back route: difficulty steps down on its own', () => {
+    // The route backed a "Make it easier" button that no longer exists; the outcome route
+    // steps a slipping item back silently (see `stepBackReviewItem` there).
+    expect(route()).not.toContain("'/api/review/items/:id/step-back'");
+    expect(outcome()).toContain('stepBackReviewItem(');
   });
 
   it('orders the sitting rather than serving it by the clock', () => {

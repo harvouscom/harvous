@@ -13,13 +13,15 @@
 >
 > | Piece | Where |
 > |---|---|
-> | Review items (note / highlight / connection / Thread / verse) | `ReviewItems`, `server/utils/review-service.ts` |
-> | Authored prompts, verse ladder, cloze | `src/utils/review-prompts.ts`, `src/utils/verse-cloze.ts` |
-> | Transparent scheduling (1 / 4 / 14, ×1.8 from the third recall, 180 cap) | `src/utils/review-scheduling.ts` |
-> | `I recalled it` / `I almost had it` / reveal | `PrototypeReviewDock.tsx`, and the paper stack's edge |
-> | Review section, max three rows, no counts | `PrototypeReviewSection.tsx` on Activity |
+> | Review items (note / verse / chapter; the older highlight / connection / Thread rows are never asked) | `ReviewItems`, `server/utils/review-service.ts` |
+> | Authored prompts, verse and chapter ladders of rung families, note questions | `src/utils/review-prompts.ts`, `src/utils/*-ladder-exercises.ts` |
+> | Every rung marked by the server; a sitting is built, exercise and all, before it is sent | `server/utils/review-sitting.ts`, `src/utils/review-reveal-exercise.ts` |
+> | Note questions ask about context: which passage, which linked note, which folder (Sept 2026) | `src/utils/note-ladder-exercises.ts` |
+> | Transparent scheduling (1 / 4 / 14, ×1.8 from the third recall, 180 cap), learning steps, silent easing | `src/utils/review-scheduling.ts` |
+> | The dock card, deck-style exercises, no self-rated path left | `PrototypeReviewDock.tsx`, `review-exercises/` |
+> | Review section, a day's budget of eight, progress counted as done, never as owed | `PrototypeReviewSection.tsx` on Activity |
 > | Personal Study Bible layer (`UserNodeState` below) | `UserNodeStates`, `server/utils/study-bible-layer.ts`, `src/utils/study-bible-nodes.ts` |
-> | The engine that fills the queue from it, ≤3 a rolling day | `server/utils/review-opportunities.ts`, `src/utils/review-opportunity-scoring.ts` |
+> | The engine that fills the queue from it, ≤5 a rolling day, ≤32 outstanding | `server/utils/review-opportunities.ts`, `src/utils/review-opportunity-scoring.ts` |
 > | Personal challenges (4 templates) | `src/utils/challenge-templates.ts`, `server/utils/challenge-service.ts` |
 > | Plus gating on `review` / `challenges` | `server/middleware/require-feature.ts`, `useHasFeature` |
 > | The switch that withholds `challenges` from everyone | `WITHHELD_FEATURES` in `src/lib/billing-plans.ts` |

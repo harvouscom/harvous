@@ -35,7 +35,7 @@ import {
 } from '@/utils/review-answer-echo';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { prototypeHref } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
 import ProtoLoadingDots from './ProtoLoadingDots';
@@ -51,7 +51,6 @@ import { reviewRowSubtitle } from '@/utils/review-row-subtitle';
 import { noteParamSlug } from './proto-route-slugs';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
-import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { reviewRungIsGraded } from '@/utils/review-prompts';
 import { toast } from '@/utils/toast';
@@ -93,8 +92,6 @@ import {
   useSetReviewStatus,
   type ReviewOutcomeResponse,
 } from '../../hooks/mutations/useReviewMutations';
-import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
-import { buildReviewCardStackOrigin } from './paper-stack-origins';
 import {
   REVIEW_ECHO_LABEL,
   REVIEW_EMPTY_NOTHING_YET_BODY,
@@ -104,13 +101,10 @@ import {
   REVIEW_PRACTICE_LABEL,
   REVIEW_SITTING_PROGRESS_LABEL,
   reviewNextDueCopy,
-  REVIEW_ALMOST_COPY,
   REVIEW_ATTEMPT_PLACEHOLDER,
   REVIEW_LOADING_LABEL,
   REVIEW_REVEAL_FAILED_COPY,
   REVIEW_REVEAL_RETRY_COPY,
-  REVIEW_RECALLED_COPY,
-  REVIEW_REVEALED_ACK_COPY,
   REVIEW_CHECK_COPY,
   REVIEW_CROSSED_TO_HOLDING_COPY,
   REVIEW_DEFER_COPY,
@@ -121,14 +115,8 @@ import {
   REVIEW_FEEDBACK_UP_COPY,
   reviewFeedbackOfferCopy,
   REVIEW_OUTCOME_ACK_COPY,
-  REVIEW_REVEAL_CONNECTION_COPY,
-  REVIEW_REVEAL_COPY,
-  REVIEW_REVEAL_THREAD_COPY,
-  REVIEW_REVEAL_VERSE_COPY,
-  REVIEW_REVEAL_CHAPTER_COPY,
   REVIEW_ALTERED_CAPTION,
   REVIEW_TRUTH_LABEL,
-  REVIEW_YOUR_WORDS_LABEL,
   REVIEW_ENOUGH_COPY,
   REVIEW_NEXT_COPY,
   REVIEW_TRY_AGAIN_COPY,
@@ -148,12 +136,6 @@ import {
   reviewHintWordCopy,
 } from './proto-review-copy';
 
-/** Kinds whose answer is another surface: the note itself, or the Thread beside you. */
-function revealsElsewhere(kind: string, noteId: string | null): boolean {
-  if (kind === 'thread') return true;
-  return (kind === 'note' || kind === 'connection' || kind === 'highlight') && Boolean(noteId);
-}
-
 /**
  * The one line at the end of a sitting.
  *
@@ -165,27 +147,6 @@ function sittingCloseLine(sitting: { answered: number; holding: number }): strin
   if (sitting.holding === 0) return `You returned to ${things}.`;
   const holding = sitting.holding === 1 ? 'One is holding' : `${sitting.holding} are holding`;
   return `You returned to ${things}. ${holding}.`;
-}
-
-/**
- * What the reveal button says, which is where it takes you.
- *
- * A verse opens the passage, a Thread opens the Thread, a connection opens both notes. Naming
- * the destination is also the honest thing: this button no longer shows a panel, it navigates.
- */
-function revealLabelFor(kind: ReviewItemView['kind']): string {
-  switch (kind) {
-    case 'verse':
-      return REVIEW_REVEAL_VERSE_COPY;
-    case 'chapter':
-      return REVIEW_REVEAL_CHAPTER_COPY;
-    case 'thread':
-      return REVIEW_REVEAL_THREAD_COPY;
-    case 'connection':
-      return REVIEW_REVEAL_CONNECTION_COPY;
-    default:
-      return REVIEW_REVEAL_COPY;
-  }
 }
 
 /** The rungs whose answer key is the curated index rather than the text or the reader. */
@@ -240,15 +201,10 @@ export default function PrototypeReviewDock() {
     setReviewDockExpanded,
     setReviewDockItem,
     setReviewDockResult,
-    stackNote,
-    paperStack,
   } = useProtoShell();
   const { isGuest } = useHarvousIdentity();
   const review = useHasFeature('review');
   const navigate = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const search = useRouterState({ select: (s) => s.location.search as Record<string, unknown> });
-  const libraryNav = useLibraryPanelNav();
 
   const open = Boolean(reviewDock);
   const sessionQuery = useReviewSession({ enabled: open });
@@ -288,7 +244,6 @@ export default function PrototypeReviewDock() {
   const item = heldItem ?? queued;
 
   const [attempt, setAttempt] = useState('');
-  const [revealed, setRevealed] = useState(false);
   /** One string per gap on the cloze rung. Keyed to the item so a new question starts empty. */
   const [blanks, setBlanks] = useState<string[]>([]);
   /*
@@ -343,7 +298,7 @@ export default function PrototypeReviewDock() {
    * served a cached reveal in the old words.
    */
   const reveal = useReviewReveal(item?.id ?? null, {
-    enabled: revealed || isGradedRung,
+    enabled: Boolean(item),
     translation: item?.translation,
   });
   // Every marked question in the sitting, warmed once the session lands — see the hook.
@@ -639,7 +594,6 @@ export default function PrototypeReviewDock() {
   // A new question is a clean slate; the previous attempt must not sit under it.
   useEffect(() => {
     setAttempt('');
-    setRevealed(false);
     setPlaced([]);
     setBlanks([]);
     setAttemptNumber(1);
@@ -896,8 +850,6 @@ export default function PrototypeReviewDock() {
                 }),
                 reached: data.reached ?? null,
                 fromIndex: INDEX_KEYED_RUNGS.has(item.promptKey),
-                leech: data.leech === true,
-                stalled: data.stalled === true,
                 itemId: item.id,
                 at: Date.now(),
               });
@@ -956,35 +908,6 @@ export default function PrototypeReviewDock() {
     [attempt, item, outcome, setReviewDockItem, setReviewDockResult],
   );
 
-  /**
-   * Reveal by opening the thing the question is about.
-   *
-   * The note is stacked rather than navigated to plainly, so the card that asked stays on screen
-   * as the stack's edge and carries the verdicts. Collapsing the dock at the same time is
-   * deliberate: with the note up, the question has moved to the top of the screen, and leaving
-   * an expanded card at the bottom would ask it twice.
-   */
-  const revealElsewhere = useCallback(() => {
-    if (!item) return;
-    const snapshot = { attempted: attempt.trim().length > 0, attempt: attempt.trim() || undefined };
-    if (item.kind === 'thread' && item.noteId) {
-      libraryNav.openThread(threadClusterDrillSlug(item.noteId));
-      setRevealed(true);
-      return;
-    }
-    if (!item.noteId) return;
-    stackNote(
-      buildReviewCardStackOrigin(item, snapshot, { to: pathname }),
-      item.noteId,
-    );
-    setReviewDockExpanded(false);
-    void navigate({
-      to: prototypeNoteRouteTo(),
-      params: { noteId: noteParamSlug(item.noteId) },
-      search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
-    });
-  }, [attempt, item, libraryNav, navigate, pathname, setReviewDockExpanded, stackNote]);
-
   const verseMarkup = useMemo(
     () => (reveal.data?.verseText ? { __html: reveal.data.verseText } : null),
     [reveal.data?.verseText],
@@ -1020,50 +943,9 @@ export default function PrototypeReviewDock() {
 
   if (!reviewDock || isGuest || !review.has) return null;
 
-  const answeringOnNote = paperStack?.origin.review?.itemId === item?.id && Boolean(item);
-  const isVerse = item?.kind === 'verse';
   // `reviewRowSubtitle` suppresses itself on a graded rung — see its docblock.
   // What this is to the reader, else which thing is being asked about.
   const subtitle = item ? (item.framing ? fillFraming(item.framing) : reviewRowSubtitle(item)) : null;
-
-  /*
-   * The self-rated verdicts, after looking, in the footer where every other card's action is.
-   *
-   * All three, whether or not anything was written. These cards used to ask the reader to write
-   * what they remembered first, and only a written attempt earned "I recalled it" — reveal cold
-   * and the one answer was the short interval. Derek's call (Sept 2026): writing from memory is an
-   * exercise for Scripture, not for someone's own notes, so the box went, and with it the gate.
-   * Rating happens after the note is in front of the reader, never before — it is still not a
-   * survey of a mental state they have not yet checked. "I recalled it" is the one accent.
-   */
-  const verdictButtons = (
-    <>
-      <button
-        type="button"
-        className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary"
-        disabled={outcome.isPending}
-        onClick={() => answer('revealed')}
-      >
-        {REVIEW_REVEALED_ACK_COPY}
-      </button>
-      <button
-        type="button"
-        className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary"
-        disabled={outcome.isPending}
-        onClick={() => answer('almost')}
-      >
-        {REVIEW_ALMOST_COPY}
-      </button>
-      <button
-        type="button"
-        className="proto-settings-btn proto-settings-btn--compact rx-primary"
-        disabled={outcome.isPending}
-        onClick={() => answer('recalled')}
-      >
-        {REVIEW_RECALLED_COPY}
-      </button>
-    </>
-  );
 
   /* What the card says about the last go, for the stage's footer band. Hint first, then the
      retry line, so it reads as "here is something" then "have another go". */
@@ -1535,10 +1417,6 @@ export default function PrototypeReviewDock() {
               }
             />
           )
-        ) : answeringOnNote ? (
-          /* The question has moved to the stack's edge, at the top of the note. Saying so beats
-             repeating the prompt down here, where it would read as a second, separate ask. */
-          <p className="proto-review-dock__handoff">Answer at the top of your note.</p>
         ) : noteChoice ? (
           /*
            * A note rung asks what goes with the note: the passage it studies, the note it links
@@ -1901,7 +1779,7 @@ export default function PrototypeReviewDock() {
                 slotLabel={VERSE_RAIL_SLOT[item.promptKey]!}
                 fill={railFill}
                 join="link"
-                /* Cross-references arrive as verse openings: they trail off, in the reading face. */
+                /* Openings trail off, in the reading face; references (cross-refs, since #191) do not. */
                 trailing={contextChoice.opening}
                 slotScripture={contextChoice.opening}
               />
@@ -2213,62 +2091,21 @@ export default function PrototypeReviewDock() {
               </div>
             }
           />
-        ) : isGradedRung && reveal.isSuccess ? (
+        ) : (
           /*
-           * A marked question whose exercise did not come back.
+           * A question whose exercise did not come back.
            *
            * Every branch above is keyed on a field of the reveal, so a reveal that arrived without
-           * one fell all the way through to the self-rated card below: the prompt, an empty card
-           * and "Check my note". The server now builds the sitting's exercises before it hands the
-           * sitting over and drops any it cannot build, so this should not be reached — but when
-           * it is, the question is set aside for this sitting rather than shown with nothing to
-           * answer. No request: the server sets it aside for good the next time it composes one.
+           * one used to fall through to a self-rated card: the prompt, an empty card and "Check my
+           * note". That card is gone — every rung is marked now — and the server builds a sitting's
+           * exercises before handing it over, leaving out any it cannot build. So this should not
+           * be reached; when it is, the question is set aside for this sitting rather than shown
+           * with nothing to answer, and the server rests it the next time it composes one.
            */
           <UnbuildableQuestion
             key={questionKey}
             label={REVIEW_LOADING_LABEL}
             onSkip={() => skipUnbuildable(item.id)}
-          />
-        ) : !revealed ? (
-          /*
-           * The self-rated kinds (highlights, connections, Threads): think of it, then go and look.
-           *
-           * No writing box. Writing from memory is an exercise for Scripture — the verse rungs keep
-           * theirs — and on someone's own note it was a chore in front of the note. The question and
-           * the way to the note are the card; the rating comes after looking (`verdictButtons`).
-           */
-          <ExerciseStage
-            task={item.prompt}
-            /* Which note is being asked about, when the question does not already say. */
-            subject={subtitle}
-            say={say}
-            missed={missedNow}
-            primary={{
-              label: revealLabelFor(item.kind),
-              onClick: () => {
-                if (revealsElsewhere(item.kind, item.noteId)) revealElsewhere();
-                else setRevealed(true);
-              },
-            }}
-          />
-        ) : (
-          <ExerciseStage
-            task={item.prompt}
-            scene={
-              item.kind === 'thread' ? (
-                <p className="proto-caption">Your Thread is open beside you.</p>
-              ) : reveal.isPending ? (
-                <p className="proto-caption">Fetching…</p>
-              ) : verseMarkup ? (
-                <div
-                  className="rx-hero"
-                  data-scripture=""
-                  data-size={heroSize(reveal.data?.verseText)}
-                  dangerouslySetInnerHTML={verseMarkup}
-                />
-              ) : null
-            }
-            actions={verdictButtons}
           />
         )}
       </div>

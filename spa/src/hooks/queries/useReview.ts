@@ -377,12 +377,10 @@ export function useReviewReveal(itemId: string | null, options?: { enabled?: boo
   return useQuery({
     queryKey: reviewRevealQueryKey(itemId, translation),
     enabled: featureEnabled && Boolean(itemId) && options?.enabled === true,
+    /* The translation keys the cache only. The server asks in the item's own translation and
+       never read a query parameter for it, so none is sent. */
     queryFn: () =>
-      api.get<ReviewRevealResponse>(
-        `/api/review/items/${encodeURIComponent(itemId!)}/reveal${
-          translation ? `?translation=${encodeURIComponent(translation)}` : ''
-        }`,
-      ),
+      api.get<ReviewRevealResponse>(`/api/review/items/${encodeURIComponent(itemId!)}/reveal`),
     /*
      * Part of the sitting, and frozen with it. An exercise is built from the same seed the
      * question was, and refetching one mid-sitting — on focus, or after five minutes — only ever

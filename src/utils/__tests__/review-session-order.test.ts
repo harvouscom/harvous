@@ -111,3 +111,34 @@ describe('a sitting that can actually finish', () => {
     expect(result.goal).toBe(CAP);
   });
 });
+
+describe('composeSitting and the same question asked again', () => {
+  const now = new Date('2026-09-24T12:00:00Z');
+  const day = 24 * 60 * 60 * 1000;
+  const row = (id: string, kind: string, ladderStep: number, overdueDays: number, groupKey = id) => ({
+    id,
+    kind,
+    groupKey,
+    ladderStep,
+    reviewCount: 0,
+    dueAt: new Date(now.getTime() - overdueDays * day),
+  });
+
+  it('puts a third chapter on the same step behind anything else due', () => {
+    // The account that prompted it: five overdue chapters, all "pick the verse that is in it".
+    const due = [
+      ...['c1', 'c2', 'c3', 'c4', 'c5'].map((id) => row(id, 'chapter', 0, 17)),
+      row('v1', 'verse', 3, 2),
+      row('v2', 'verse', 1, 2),
+      row('n1', 'note', 0, 14),
+    ];
+    const sitting = composeSitting(due, [], 5, now);
+    expect(sitting.filter((r) => r.kind === 'chapter')).toHaveLength(2);
+    expect(sitting.map((r) => r.id)).toEqual(expect.arrayContaining(['v1', 'v2', 'n1']));
+  });
+
+  it('still fills the sitting from them when nothing else is waiting', () => {
+    const due = ['c1', 'c2', 'c3', 'c4', 'c5'].map((id) => row(id, 'chapter', 0, 17));
+    expect(composeSitting(due, [], 5, now)).toHaveLength(5);
+  });
+});

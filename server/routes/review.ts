@@ -734,28 +734,6 @@ route.post('/api/review/items/:id/status', requireAuth, rateLimit('write'), requ
 });
 
 /**
- * The one offer Review makes when its own asking has stopped working. A leech steps back a rung;
- * an item never once recalled moves sideways, since there is no rung below the one it is on.
- * Refused on anything that is not slipping — this is not a way to pick the rung.
- */
-route.post('/api/review/items/:id/step-back', requireAuth, rateLimit('write'), requireFeature('review'), async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '');
-    if (!item) return c.json({ error: 'Review item not found', code: 'REVIEW_ITEM_NOT_FOUND' }, 404);
-    const updated = await stepBackReviewItem(auth.userId, item);
-    if (!updated) return c.json({ error: 'This item is not slipping', code: 'REVIEW_NOT_SLIPPING' }, 400);
-    return c.json({
-      success: true,
-      item: (await buildReviewItemViews(auth.userId, [updated]))[0],
-    });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/step-back', action: 'review_step_back' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-
-/**
  * The sample, for an account without Review. Authenticated, rate-limited, and deliberately
  * not behind `requireFeature`: the point is to show the thing to someone who has not paid for
  * it. It reads and marks; it never writes — no item, no event, no schedule.

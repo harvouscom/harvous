@@ -101,22 +101,6 @@ function named(ctx: ReviewPromptContext, inside: (s: string) => string, bare: st
 }
 
 /**
- * The same, for the prompts that name a Thread.
- *
- * `subjectName` prefers `reference`, which is right for a verse rung and wrong here: a thread
- * item carries whatever reference its representative note cites, and reading it through the
- * general resolver produced "your Romans 8:15 Thread".
- */
-function namedThread(
-  ctx: ReviewPromptContext,
-  inside: (s: string) => string,
-  bare: string,
-): string {
-  const name = ctx.threadTitle?.trim() || ctx.noteTitle?.trim() || null;
-  return name ? inside(name) : bare;
-}
-
-/**
  * Prompt text by key. "Thread" is capitalized throughout — it is the product's name for a
  * cluster of connected notes, and `npm run check:thread-terminology` enforces it.
  */

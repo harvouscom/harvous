@@ -27,7 +27,6 @@ import ProtoLoadingDots from '../../prototype/ProtoLoadingDots';
 import PrototypeReviewSample from '../../prototype/PrototypeReviewSample';
 import type { ReviewSampleView, SampleExerciseKind } from '../../../hooks/queries/useReview';
 import {
-  REVIEW_ALMOST_COPY,
   REVIEW_ALTERED_CAPTION,
   REVIEW_ATTEMPT_PLACEHOLDER,
   REVIEW_CHECK_COPY,
@@ -37,9 +36,6 @@ import {
   REVIEW_LOADING_LABEL,
   REVIEW_NEXT_COPY,
   REVIEW_OUTCOME_ACK_COPY,
-  REVIEW_RECALLED_COPY,
-  REVIEW_REVEALED_ACK_COPY,
-  REVIEW_REVEAL_COPY,
   REVIEW_REVEAL_FAILED_COPY,
   REVIEW_REVEAL_RETRY_COPY,
   REVIEW_TRUTH_LABEL,
@@ -615,42 +611,6 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
         >
           <ChoiceOptions options={['Shepherd psalms', 'Exile timeline', 'Sermon on contentment', 'Advent, week one']} disabled={false} onPick={none} />
         </ExerciseStage>
-      </Card>
-    ),
-  },
-  {
-    id: 'self-rated',
-    title: 'Self-rated · before the reveal',
-    note: 'highlight, connection and Thread items: no answer key and no writing box (writing from memory is for Scripture). Think of it, then open the note.',
-    card: (
-      <Card label="Your note">
-        <ExerciseStage task="What did you write about Romans 8:28?" primary={{ label: REVIEW_REVEAL_COPY, onClick: none }} />
-      </Card>
-    ),
-  },
-  {
-    id: 'self-rated-verdict',
-    title: 'Self-rated · judging it',
-    note: 'After looking: all three answers, "I recalled it" the one accent. The paper-stack edge (ds-15, Review card origin) carries the same three.',
-    card: (
-      <Card label="Your note">
-        <ExerciseStage
-          task="What did you write about Romans 8:28?"
-          scene={hero('And we know that for those who love God all things work together for good.')}
-          actions={
-            <>
-              <button type="button" className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary">
-                {REVIEW_REVEALED_ACK_COPY}
-              </button>
-              <button type="button" className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary">
-                {REVIEW_ALMOST_COPY}
-              </button>
-              <button type="button" className="proto-settings-btn proto-settings-btn--compact rx-primary">
-                {REVIEW_RECALLED_COPY}
-              </button>
-            </>
-          }
-        />
       </Card>
     ),
   },

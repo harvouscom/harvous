@@ -82,21 +82,11 @@ describe('a lost answer is never silent', () => {
     expect(outcome.slice(0, 1600)).toContain('setQueryData(reviewSessionQueryKey, context.previous)');
   });
 
-  it('does not lose the item when the stack edge answer fails', () => {
-    /*
-     * `clearPaperStack()` runs unconditionally — it is what advances the queue — so without an
-     * `onError` a failed answer left no stack, no result and no question.
-     */
-    const verdict = layout().slice(layout().indexOf('const handleReviewVerdict'));
-    expect(verdict.slice(0, 2500)).toContain('onError: () => setReviewDockItem(review.itemId)');
-  });
-
-  it('carries the slipping offer through the stack edge', () => {
-    // Notes are what the stack edge answers, so the rung that most needed "Make it easier" was
-    // the one rung that could never receive it.
-    const verdict = layout().slice(layout().indexOf('const handleReviewVerdict'));
-    expect(verdict.slice(0, 2500)).toMatch(/leech: data\.leech === true/);
-    expect(verdict.slice(0, 2500)).toMatch(/stalled: data\.stalled === true/);
+  it('has no self-rated stack edge left to answer from', () => {
+    // Every rung is marked in the dock now; the edge that recorded a self-rating over the note,
+    // and the handler behind it, went with the self-rated card.
+    expect(layout()).not.toContain('handleReviewVerdict');
+    expect(dock()).not.toContain('revealElsewhere');
   });
 
   it('shows a failed reveal as a failed reveal', () => {

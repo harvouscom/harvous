@@ -21,6 +21,7 @@ import {
   hashSeed,
   markVerseRebuild,
   mulberry32,
+  seededIndex,
   verseCue,
   type VerseClozeBlank,
   type VerseClozeSegments,
@@ -857,7 +858,9 @@ export function buildVerseBefore(input: {
   const b = verseCue(input.other.text, VERSE_NEXT_CUE_WORDS);
   if (!a || !b || a === b) return null;
   const earlier = input.verse.number < input.other.number ? a : b;
-  const swap = hashSeed(input.seed) % 2 === 1;
+  // `seededIndex`, not `hashSeed % 2`: the hash's low bit is a parity of the seed's characters,
+  // so an item's step digits decided the order for good. See `seededIndex`.
+  const swap = seededIndex(input.seed, 2) === 1;
   const options = swap ? [b, a] : [a, b];
   return { options, answerIndex: options.indexOf(earlier) };
 }
