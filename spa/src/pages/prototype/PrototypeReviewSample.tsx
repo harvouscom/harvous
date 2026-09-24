@@ -1,9 +1,10 @@
 /**
  * The sample: one real, marked question for an account without Review.
  *
- * Same shape as the dock's rungs — inputs in the blanks, chips to order, the same goes — built
- * from the same pure code, so what a free account tries is the thing a paid one gets and not a
- * mock-up of it. It lives in the Review section rather than the dock because the dock is the
+ * The same card as the dock's rungs — the same stage, the same pieces (tiles into the gaps,
+ * places to put a verse back in order, first letters that take the words as they are written, the
+ * verse on a rail above what follows), built from the same pure code — so what a free account
+ * tries is the thing a paid one gets and not a mock-up of it. It lives in the Review section rather than the dock because the dock is the
  * feature's and is gated with it; this is the one card that is deliberately not.
  *
  * **The reader picks how to be asked.** It was fill-in-the-blanks and only that, which is the
@@ -21,14 +22,23 @@
  * so a reload mid-answer shows the same question, and there is no queue to confuse a later
  * subscription with.
  */
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { useAnswerReviewSample } from '../../hooks/mutations/useReviewMutations';
 import type { ReviewSampleView, SampleExerciseKind } from '../../hooks/queries/useReview';
 import { readReviewSampleResult, writeReviewSampleResult } from './use-dismissible-review-sample';
 import Icon from '@/components/react/Icon';
+import '../../styles/review-exercises.css';
+import { ExerciseStage, heroSize } from './review-exercises/ExerciseStage';
+import { ChoiceOptions } from './review-exercises/ChoiceOptions';
+import { GapLine } from './review-exercises/GapLine';
+import { nextOpenGap, WordBankLine, WordTray } from './review-exercises/WordBank';
+import { OrderSlots, OrderTray } from './review-exercises/OrderPieces';
+import { InitialsTiles } from './review-exercises/VerseSurface';
+import { Rail, slotFill } from './review-exercises/RailSlot';
 import {
   REVIEW_CHECK_COPY,
+  REVIEW_INITIALS_PLACEHOLDER,
   REVIEW_OUTCOME_ACK_COPY,
   REVIEW_SAMPLE_AFTER,
   REVIEW_SAMPLE_CHOOSE,
@@ -41,6 +51,10 @@ import {
   REVIEW_TRUTH_LABEL,
   REVIEW_TRY_AGAIN_COPY,
 } from './proto-review-copy';
+
+/** Nothing is handed over after a miss on the sample; the gaps stay the reader's. */
+const NOTHING_GIVEN: ReadonlyMap<number, string> = new Map();
+const noMark = () => undefined;
 
 /** The order the chips are offered in, gentlest first. */
 const EXERCISE_ORDER: SampleExerciseKind[] = ['blanks', 'letters', 'order', 'next'];
@@ -72,6 +86,8 @@ export default function PrototypeReviewSample({
   const [placed, setPlaced] = useState<number[]>([]);
   const [attemptNumber, setAttemptNumber] = useState(1);
   const [missed, setMissed] = useState(false);
+  /* The openings already tried on "what follows", spent like the paid rung's. */
+  const [wrongOptions, setWrongOptions] = useState<string[]>([]);
   const [result, setResult] = useState<{ correct: boolean; verseText: string } | null>(() => {
     const stored = readReviewSampleResult(day);
     return stored ? { correct: stored.correct, verseText: stored.verseText } : null;
@@ -113,6 +129,7 @@ export default function PrototypeReviewSample({
         if (data.finalized === false) {
           setMissed(true);
           setAttemptNumber((n) => Math.min(maxAttempts, n + 1));
+          if (payload.option) setWrongOptions((current) => [...current, payload.option!]);
           return;
         }
         const next = { correct: data.correct, verseText: data.verseText ?? '' };
@@ -141,6 +158,7 @@ export default function PrototypeReviewSample({
     setWritten('');
     setPlaced([]);
     setMissed(false);
+    setWrongOptions([]);
     setAttemptNumber(1);
     onExerciseChange?.(kind);
   };
@@ -235,118 +253,120 @@ export default function PrototypeReviewSample({
             </div>
           ) : null}
 
-          <p className="proto-review-dock__prompt">{REVIEW_SAMPLE_PROMPTS[exercise.kind]}</p>
-
-          {exercise.kind === 'blanks' && cloze && blankLengths ? (
-            <p className="proto-challenge__cloze">
-              {(cloze.segments ?? []).map((segment, index) => (
-                <Fragment key={index}>
-                  {segment}
-                  {index < blankLengths.length ? (
-                    <input
-                      type="text"
-                      className="proto-review-dock__blank"
-                      style={{ width: `${Math.max(4, blankLengths[index]) + 1}ch` }}
-                      value={blanks[index] ?? ''}
-                      onChange={(event) => {
-                        const next = [...blanks];
-                        next[index] = event.target.value;
-                        setBlanks(next);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && filled && !answer.isPending) submit();
-                      }}
-                      aria-label={`Blank ${index + 1}`}
-                      autoComplete="off"
-                      spellCheck={false}
-                      disabled={answer.isPending}
-                    />
-                  ) : null}
-                </Fragment>
-              ))}
-            </p>
-          ) : null}
-
-          {exercise.kind === 'letters' ? (
-            <>
-              <p className="proto-review-dock__verse proto-review-dock__initials">
-                {exercise.initials}
-              </p>
+          <ExerciseStage
+            task={REVIEW_SAMPLE_PROMPTS[exercise.kind]}
+            scene={
+              exercise.kind === 'blanks' && cloze && blankLengths ? (
+                cloze.bank?.length ? (
+                  /* The gentlest form, as a first meeting in the dock asks it: tiles to place. */
+                  <WordBankLine
+                    hero={heroSize(cloze.segments.join(' '))}
+                    segments={cloze.segments}
+                    blankLengths={blankLengths}
+                    values={blanks}
+                    given={NOTHING_GIVEN}
+                    partState={noMark}
+                    disabled={answer.isPending}
+                    onClear={(index) => setBlanks((current) => current.map((word, i) => (i === index ? '' : word)))}
+                  />
+                ) : (
+                  /* A payload from a server that sends no bank: the gaps are typed. */
+                  <GapLine
+                    hero={heroSize(cloze.segments.join(' '))}
+                    segments={cloze.segments}
+                    blankLengths={blankLengths}
+                    values={blanks}
+                    given={NOTHING_GIVEN}
+                    partState={noMark}
+                    disabled={answer.isPending}
+                    onChange={(index, value) => {
+                      const next = [...blanks];
+                      next[index] = value;
+                      setBlanks(next);
+                    }}
+                    onSubmit={() => {
+                      if (filled && !answer.isPending) submit();
+                    }}
+                  />
+                )
+              ) : exercise.kind === 'letters' ? (
+                <InitialsTiles initials={exercise.initials} typed={written} />
+              ) : exercise.kind === 'order' ? (
+                <OrderSlots
+                  phrases={exercise.phrases}
+                  placed={placed}
+                  partState={noMark}
+                  disabled={answer.isPending}
+                  onRemove={(position) => setPlaced((current) => current.filter((_, i) => i !== position))}
+                />
+              ) : exercise.kind === 'next' && exercise.verse ? (
+                <Rail
+                  fromLabel={sample.reference}
+                  from={<p>{exercise.verse}</p>}
+                  scripture
+                  slotLabel="Next verse"
+                  fill={slotFill({
+                    pending: answer.isPending ? (answer.variables?.option ?? null) : null,
+                    wrong: wrongOptions.at(-1) ?? null,
+                  })}
+                  trailing
+                  slotScripture
+                />
+              ) : null
+            }
+            say={missed ? <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p> : null}
+            missed={missed}
+            /* A tap answers "what follows", so it has nothing to check afterwards. */
+            primary={
+              exercise.kind === 'next'
+                ? null
+                : { label: REVIEW_CHECK_COPY, disabled: !filled || answer.isPending, onClick: submit }
+            }
+          >
+            {exercise.kind === 'blanks' && cloze?.bank?.length && blankLengths ? (
+              <WordTray
+                bank={cloze.bank}
+                values={blanks}
+                disabled={answer.isPending}
+                onPlace={(word) => {
+                  const at = nextOpenGap(blankLengths.length, blanks, NOTHING_GIVEN);
+                  if (at === null) return;
+                  const next = [...blanks];
+                  next[at] = word;
+                  setBlanks(next);
+                }}
+              />
+            ) : null}
+            {exercise.kind === 'letters' ? (
               <textarea
-                className="proto-review-dock__input"
+                className="proto-review-dock__attempt"
+                placeholder={REVIEW_INITIALS_PLACEHOLDER}
                 value={written}
                 onChange={(event) => setWritten(event.target.value)}
                 aria-label="The verse"
                 disabled={answer.isPending}
                 rows={3}
               />
-            </>
-          ) : null}
-
-          {exercise.kind === 'order' ? (
-            <>
-              <ol className="proto-review-dock__chips proto-review-dock__chips--placed">
-                {placed.map((index, position) => (
-                  <li key={`${index}-${position}`}>
-                    <button
-                      type="button"
-                      className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
-                      disabled={answer.isPending}
-                      onClick={() => setPlaced((current) => current.filter((_, i) => i !== position))}
-                    >
-                      {exercise.phrases[index]}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-              <div className="proto-review-dock__chips">
-                {exercise.phrases.map((phrase, index) =>
-                  placed.includes(index) ? null : (
-                    <button
-                      key={index}
-                      type="button"
-                      className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                      disabled={answer.isPending}
-                      onClick={() => setPlaced((current) => [...current, index])}
-                    >
-                      {phrase}
-                    </button>
-                  ),
-                )}
-              </div>
-            </>
-          ) : null}
-
-          {exercise.kind === 'next' ? (
-            /* A tap, so it submits on the tap: there is nothing to check afterwards. */
-            <div className="proto-review-dock__chips">
-              {exercise.options.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
-                  disabled={answer.isPending}
-                  onClick={() => send({ ...base, option })}
-                >
-                  {option}…
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {missed ? <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p> : null}
-          {exercise.kind === 'next' ? null : (
-            <div className="proto-review-dock__actions">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--compact"
-                disabled={!filled || answer.isPending}
-                onClick={submit}
-              >
-                {REVIEW_CHECK_COPY}
-              </button>
-            </div>
-          )}
+            ) : null}
+            {exercise.kind === 'order' && placed.length < exercise.phrases.length ? (
+              <OrderTray
+                phrases={exercise.phrases}
+                placed={placed}
+                disabled={answer.isPending}
+                onPlace={(index) => setPlaced((current) => [...current, index])}
+              />
+            ) : null}
+            {exercise.kind === 'next' ? (
+              <ChoiceOptions
+                options={exercise.options}
+                opening
+                disabled={answer.isPending}
+                missed={wrongOptions}
+                pending={answer.isPending ? (answer.variables?.option ?? null) : null}
+                onPick={(option) => send({ ...base, option })}
+              />
+            ) : null}
+          </ExerciseStage>
         </>
       )}
     </div>

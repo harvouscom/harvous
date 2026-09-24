@@ -217,7 +217,9 @@ describe('choosing how to be asked', () => {
         onNotNow={notNow}
       />,
     );
-    expect(screen.getByText('I a t v; y a t b.')).toBeTruthy();
+    // The skeleton as tiles, one per word, named as a whole for a screen reader.
+    expect(screen.getByLabelText('First letters: I a t v; y a t b.')).toBeTruthy();
+    expect(document.querySelectorAll('.rx-initial')).toHaveLength(8);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'I am the vine' } });
     fireEvent.click(screen.getByRole('button', { name: /check/i }));
     expect(mutate.mock.calls[0][0]).toMatchObject({ exercise: 'letters', text: 'I am the vine' });
@@ -257,5 +259,50 @@ describe('choosing how to be asked', () => {
     expect(screen.queryByRole('button', { name: /check/i })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Remain in me/ }));
     expect(mutate.mock.calls[0][0]).toMatchObject({ exercise: 'next', option: 'Remain in me' });
+  });
+});
+
+describe('the sample card, on the new stage', () => {
+  it('offers the missing words as tiles when the server sends a bank, and sends them in gap order', () => {
+    const withBank = {
+      ...sample,
+      exercise: {
+        ...sample.exercise,
+        cloze: { ...sample.exercise.cloze, bank: ['spoken', 'remains', 'branches', 'unless'] },
+      },
+    };
+    render(<PrototypeReviewSample sample={withBank} day="2026-09-03" maxAttempts={2} onSeePlus={seePlus} onNotNow={notNow} />);
+    // Tiles, not typing.
+    expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+    const check = screen.getByRole('button', { name: /check/i }) as HTMLButtonElement;
+    fireEvent.click(screen.getByRole('button', { name: 'branches' }));
+    expect(check.disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'remains' }));
+    expect(check.disabled).toBe(false);
+    fireEvent.click(check);
+    expect(mutate.mock.calls[0][0]).toMatchObject({ exercise: 'blanks', words: ['branches', 'remains'] });
+  });
+
+  it('puts the verse on the rail above the place "what follows" goes, and spends a wrong opening', () => {
+    render(
+      <PrototypeReviewSample
+        sample={{
+          ...sample,
+          exercise: { kind: 'next', options: ['Remain in me', 'I am the door'], verse: 'I am the vine; you are the branches.' },
+          available: ['next'],
+        }}
+        day="2026-09-03"
+        maxAttempts={2}
+        onSeePlus={seePlus}
+        onNotNow={notNow}
+      />,
+    );
+    expect(document.querySelector('.rx-rail')!.textContent).toContain('I am the vine; you are the branches.');
+    fireEvent.click(screen.getByRole('button', { name: /I am the door/ }));
+    act(() => mutate.mock.calls[0][1].onSuccess({ correct: false, finalized: false, attemptsLeft: 1 }));
+    const spent = screen.getByRole('button', { name: /I am the door/ }) as HTMLButtonElement;
+    expect(spent.getAttribute('data-state')).toBe('wrong');
+    expect(spent.disabled).toBe(true);
+    expect(document.querySelector('.rx-rail__slot')!.getAttribute('data-state')).toBe('wrong');
   });
 });

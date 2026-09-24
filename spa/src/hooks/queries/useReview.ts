@@ -389,10 +389,11 @@ export function useReviewReveal(itemId: string | null, options?: { enabled?: boo
 export type SampleExerciseKind = 'blanks' | 'letters' | 'order' | 'next';
 
 export type ReviewSampleExerciseView =
-  | { kind: 'blanks'; cloze: { segments: string[]; blankLengths: number[] }; blankCount: number }
+  | { kind: 'blanks'; cloze: { segments: string[]; blankLengths: number[]; bank?: string[] }; blankCount: number }
   | { kind: 'letters'; initials: string; wordCount: number }
   | { kind: 'order'; phrases: string[] }
-  | { kind: 'next'; options: string[] };
+  /* `verse` is optional here: a payload from an older server has none, and the card copes. */
+  | { kind: 'next'; options: string[]; verse?: string };
 
 export interface ReviewSampleView {
   reference: string;

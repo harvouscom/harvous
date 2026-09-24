@@ -31,7 +31,7 @@ export function GapLine({
   blankLengths: number[];
   letters?: string[];
   values: string[];
-  given: Map<number, string>;
+  given: ReadonlyMap<number, string>;
   partState: (index: number) => 'right' | 'wrong' | undefined;
   disabled: boolean;
   onChange: (index: number, value: string) => void;

@@ -11,7 +11,7 @@
  * As each family moves into `review-exercises/`, its card here should switch to the component so
  * the two cannot drift.
  */
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import { REVIEW_EXERCISE_FAMILIES } from '@/utils/review-exercise-families';
@@ -24,6 +24,8 @@ import { OpeningLine, PairRail, Rail } from '../../prototype/review-exercises/Ra
 import { InitialsTiles, MarkedExercise, WordTicks } from '../../prototype/review-exercises/VerseSurface';
 import { BookShelf, NoteStrip, SpeakerScene, TagSlotScene } from '../../prototype/review-exercises/IllustratedScenes';
 import ProtoLoadingDots from '../../prototype/ProtoLoadingDots';
+import PrototypeReviewSample from '../../prototype/PrototypeReviewSample';
+import type { ReviewSampleView, SampleExerciseKind } from '../../../hooks/queries/useReview';
 import {
   REVIEW_ALMOST_COPY,
   REVIEW_ALTERED_CAPTION,
@@ -758,7 +760,60 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
       </Card>
     ),
   },
+  {
+    id: 'sample',
+    title: 'The free sample (Home)',
+    note: 'PrototypeReviewSample, the one Review question a free account is offered, on Home. The same stage and pieces as the dock; the chooser swaps between the four ways of asking.',
+    card: <SampleShowcase />,
+  },
 ];
+
+/*
+ * The free sample, the real component, on fixture data: the one Review card a free account sees,
+ * on Home rather than in the dock. The chooser works here by swapping fixtures, where on Home it
+ * asks the server for the other question.
+ */
+const SAMPLE_FIXTURES: Record<SampleExerciseKind, ReviewSampleView['exercise']> = {
+  blanks: {
+    kind: 'blanks',
+    cloze: {
+      segments: ['“I am the vine; you are the ', '. The one who ', ' in me bears much fruit.'],
+      blankLengths: [8, 7],
+      bank: ['spoken', 'remains', 'branches', 'unless'],
+    },
+    blankCount: 2,
+  },
+  letters: { kind: 'letters', initials: 'I a t v; y a t b.', wordCount: 8 },
+  order: { kind: 'order', phrases: ['you are the branches.', '“I am the vine;', 'The one who remains in me'] },
+  next: {
+    kind: 'next',
+    options: ['You are already clean', 'If anyone does not remain in me', 'Remain in me, and I will remain in you'],
+    verse: '“I am the vine; you are the branches. The one who remains in me — and I in him — bears much fruit.',
+  },
+};
+
+function SampleShowcase() {
+  const [kind, setKind] = useState<SampleExerciseKind>('blanks');
+  return (
+    <div className="proto-review-section" style={{ borderRadius: 16, border: '1px solid var(--pds-border-control)' }}>
+      <PrototypeReviewSample
+        key={kind}
+        sample={{
+          reference: 'John 15:5',
+          source: 'yours',
+          translation: 'NET',
+          exercise: SAMPLE_FIXTURES[kind],
+          available: ['blanks', 'letters', 'order', 'next'],
+        }}
+        day="gallery"
+        maxAttempts={2}
+        onSeePlus={none}
+        onNotNow={none}
+        onExerciseChange={setKind}
+      />
+    </div>
+  );
+}
 
 export default function ReviewCardsScene() {
   return (

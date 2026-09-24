@@ -77,13 +77,43 @@ describe('the sample exercise', () => {
   };
   const SEED = sampleSeed('u', '2026-09-03');
 
-  it('ships the pieces around the gaps and the gap sizes, never the words', () => {
+  it('ships the pieces around the gaps and the gap sizes, never which word goes where', () => {
     const exercise = buildSampleExercise(MATERIAL, SEED, 'blanks');
     expect(exercise?.kind).toBe('blanks');
     if (exercise?.kind !== 'blanks') throw new Error('expected blanks');
     expect(exercise.blankCount).toBeGreaterThan(0);
     expect(exercise.cloze.segments).toHaveLength(exercise.blankCount + 1);
     expect(JSON.stringify(exercise)).not.toMatch(/"word"/);
+  });
+
+  it('offers the missing words as tiles among wrong ones, as the dock does on a first meeting', () => {
+    const exercise = buildSampleExercise(MATERIAL, SEED, 'blanks')!;
+    if (exercise.kind !== 'blanks') throw new Error('expected blanks');
+    const bank = exercise.cloze.bank!;
+    expect(bank.length).toBeGreaterThan(exercise.blankCount);
+    // Placing the right tiles, in the right gaps, is marked right: the grader is the same one.
+    const answers: string[] = [];
+    let rest = VERSE;
+    for (let i = 0; i < exercise.cloze.segments.length - 1; i += 1) {
+      const before = exercise.cloze.segments[i];
+      const after = exercise.cloze.segments[i + 1];
+      rest = rest.slice(rest.indexOf(before) + before.length);
+      const end = after ? rest.indexOf(after) : rest.length;
+      answers.push(rest.slice(0, end).trim());
+      rest = rest.slice(end);
+    }
+    for (const answer of answers) expect(bank).toContain(answer);
+    expect(gradeSampleAnswer(MATERIAL, SEED, 'blanks', { words: answers })).toBe(true);
+    // The wrong words come from the verses either side, not from the verse on screen.
+    const wrong = bank.filter((word) => !answers.includes(word));
+    for (const word of wrong) expect(MATERIAL.neighbourTexts.join(' ')).toContain(word);
+  });
+
+  it('puts the verse asked about on "what follows", never the verse that follows', () => {
+    const exercise = buildSampleExercise(MATERIAL, SEED, 'next')!;
+    if (exercise.kind !== 'next') throw new Error('expected next');
+    expect(exercise.verse).toBe(VERSE);
+    expect(JSON.stringify(exercise)).not.toContain(MATERIAL.nextText);
   });
 
   it('refuses a verse too short to hide anything in', () => {
