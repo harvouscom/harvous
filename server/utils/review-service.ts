@@ -2270,7 +2270,8 @@ export interface ReviewRevealPayload {
     segments?: { segments: string[]; blankLengths: number[]; letters: string[] } | null;
   } | null;
   /** How much of the verse is given before the reader writes the rest. `null` shown = nothing. */
-  recall?: { shown: string | null; mode: string } | null;
+  /** `words`: how many are left to write, below the top tier only — never which ones. */
+  recall?: { shown: string | null; mode: string; words?: number } | null;
   /**
    * Where in the reader's Harvous this question came from — the line the row shows about its
    * provenance, and the highlight or thought it was built out of. For the result card, which
@@ -4238,7 +4239,17 @@ export async function buildReviewReveal(
            * back as truth once the answer is in.
            */
           const built = buildVerseRecall(text, verseRecallMode(rung.pass, item.recallState as RecallState));
-          payload.recall = { shown: built.shown, mode: built.mode };
+          /*
+           * `words` is how many words are left to write, for the ticks the card fills as the
+           * reader writes — a sense of how far there is to go, never which words. Withheld at the
+           * top tier, like the gap widths: the last helpers go when the verse is meant to be
+           * produced from memory.
+           */
+          payload.recall = {
+            shown: built.shown,
+            mode: built.mode,
+            ...(built.mode !== 'reference' && built.hiddenWords > 0 ? { words: built.hiddenWords } : {}),
+          };
           payload.verseText = null;
         }
         if (rung.key === 'verse.initials') {

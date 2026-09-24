@@ -40,7 +40,6 @@ import Icon from '@/components/react/Icon';
 import ProtoLoadingDots from './ProtoLoadingDots';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import {
-  canJudgeRecall,
   resolveReviewDockItem,
   reviewQuestionKey,
   shouldReleaseHeldItem,
@@ -70,6 +69,7 @@ import { GapLine } from './review-exercises/GapLine';
 import { nextOpenGap, WordBankLine, WordTray } from './review-exercises/WordBank';
 import { OrderSlots, OrderTray } from './review-exercises/OrderPieces';
 import { OpeningLine, PairRail, Rail, slotFill } from './review-exercises/RailSlot';
+import { InitialsTiles, MarkedExercise, plainVerse, WordTicks } from './review-exercises/VerseSurface';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { isSubmitKey, isTypingTarget } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -986,15 +986,27 @@ export default function PrototypeReviewDock() {
   // `reviewRowSubtitle` suppresses itself on a graded rung — see its docblock.
   // What this is to the reader, else which thing is being asked about.
   const subtitle = item ? (item.framing ? fillFraming(item.framing) : reviewRowSubtitle(item)) : null;
-  const canJudge = canJudgeRecall({ attempt });
 
   /*
-   * The self-rated verdicts, in the footer where every other card's action is. Only the one
-   * accent button: "I recalled it" where there was an attempt to judge, "I've seen it" where
-   * there was not.
+   * The self-rated verdicts, after looking, in the footer where every other card's action is.
+   *
+   * All three, whether or not anything was written. These cards used to ask the reader to write
+   * what they remembered first, and only a written attempt earned "I recalled it" — reveal cold
+   * and the one answer was the short interval. Derek's call (Sept 2026): writing from memory is an
+   * exercise for Scripture, not for someone's own notes, so the box went, and with it the gate.
+   * Rating happens after the note is in front of the reader, never before — it is still not a
+   * survey of a mental state they have not yet checked. "I recalled it" is the one accent.
    */
-  const verdictButtons = canJudge ? (
+  const verdictButtons = (
     <>
+      <button
+        type="button"
+        className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary"
+        disabled={outcome.isPending}
+        onClick={() => answer('revealed')}
+      >
+        {REVIEW_REVEALED_ACK_COPY}
+      </button>
       <button
         type="button"
         className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary"
@@ -1012,15 +1024,6 @@ export default function PrototypeReviewDock() {
         {REVIEW_RECALLED_COPY}
       </button>
     </>
-  ) : (
-    <button
-      type="button"
-      className="proto-settings-btn proto-settings-btn--compact rx-primary"
-      disabled={outcome.isPending}
-      onClick={() => answer('revealed')}
-    >
-      {REVIEW_REVEALED_ACK_COPY}
-    </button>
   );
 
   /* What the card says about the last go, for the stage's footer band. Hint first, then the
@@ -1036,6 +1039,8 @@ export default function PrototypeReviewDock() {
   const correctOption = verdict?.state === 'right' ? verdict.option : null;
   /* The option on its way to the server, so a tap is seen to land before the reply does. */
   const pendingOption = outcome.isPending ? (outcome.variables?.answer?.option ?? null) : null;
+  /* The word on its way to being marked on the altered rung, which answers with an index. */
+  const pendingWord = outcome.isPending ? outcome.variables?.answer?.wordIndex : undefined;
   /* What the rail's empty place holds — see `slotFill`. */
   const railFill = slotFill({
     pending: pendingOption,
@@ -1753,9 +1758,11 @@ export default function PrototypeReviewDock() {
                         data-answer={
                           spentWords.includes(index)
                             ? 'wrong'
-                            : verdict?.option === String(index)
-                              ? verdict.state
-                              : undefined
+                            : pendingWord === index
+                              ? 'picked'
+                              : verdict?.option === String(index)
+                                ? verdict.state
+                                : undefined
                         }
                         disabled={outcome.isPending || spentWords.includes(index)}
                         onClick={() =>
@@ -1830,15 +1837,8 @@ export default function PrototypeReviewDock() {
           <ExerciseStage
             task={item.prompt}
             subject={subtitle}
-            scene={
-              <p
-                className="rx-hero proto-review-dock__initials"
-                data-scripture=""
-                data-size={heroSize(initialsExercise.initials)}
-              >
-                {initialsExercise.initials}
-              </p>
-            }
+            /* The skeleton as tiles that take the reader's words as they write them. */
+            scene={<InitialsTiles initials={initialsExercise.initials} typed={attempt} />}
             say={say}
             missed={missedNow}
             primary={{
@@ -1986,6 +1986,21 @@ export default function PrototypeReviewDock() {
               }
             />
           </ExerciseStage>
+        ) : contextChoice && item.promptKey === 'verse.marked' && reveal.data?.verseText ? (
+          /* What you marked: pointing at an option paints its words in the verse. */
+          <MarkedExercise
+            task={item.prompt}
+            verse={plainVerse(reveal.data.verseText)}
+            options={contextChoice.options}
+            disabled={outcome.isPending}
+            missed={missed}
+            correct={correctOption}
+            pending={pendingOption}
+            wrong={verdict?.state === 'wrong' ? verdict.option : null}
+            say={say}
+            missedNow={missedNow}
+            onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+          />
         ) : contextChoice ? (
           /*
            * The context step: which note cites this, which theme it carries, who it is about,
@@ -2100,6 +2115,9 @@ export default function PrototypeReviewDock() {
                 <p className="rx-hero" data-scripture="" data-size={heroSize(recallExercise.shown)}>
                   {recallExercise.shown} …
                 </p>
+              ) : item.scriptureReference ? (
+                /* The top tier gives only the reference, so the reference is what the card is. */
+                <p className="rx-reference">{item.scriptureReference}</p>
               ) : null
             }
             say={say}
@@ -2125,6 +2143,7 @@ export default function PrototypeReviewDock() {
               rows={3}
               disabled={outcome.isPending}
             />
+            {recallExercise?.words ? <WordTicks total={recallExercise.words} typed={attempt} /> : null}
           </ExerciseStage>
         ) : isGradedRung && reveal.isError ? (
           /*
@@ -2161,14 +2180,11 @@ export default function PrototypeReviewDock() {
           />
         ) : !revealed ? (
           /*
-           * The self-rated kinds: write what you remember, then go and look.
+           * The self-rated kinds (highlights, connections, Threads): think of it, then go and look.
            *
-           * One action, because there was only ever one. There used to be an "I have it in mind"
-           * beside this, for someone who retrieved the note mentally without typing. Both buttons
-           * revealed; the only difference was an invisible flag deciding which verdicts appeared
-           * afterwards. It also asked the reader to declare a mental state *before* checking it,
-           * which is the same invitation to a comfortable lie that the cold-reveal rule exists to
-           * avoid — writing something is the attempt.
+           * No writing box. Writing from memory is an exercise for Scripture — the verse rungs keep
+           * theirs — and on someone's own note it was a chore in front of the note. The question and
+           * the way to the note are the card; the rating comes after looking (`verdictButtons`).
            */
           <ExerciseStage
             task={item.prompt}
@@ -2183,15 +2199,7 @@ export default function PrototypeReviewDock() {
                 else setRevealed(true);
               },
             }}
-          >
-            <textarea
-              className="proto-review-dock__attempt"
-              placeholder={REVIEW_ATTEMPT_PLACEHOLDER}
-              value={attempt}
-              onChange={(event) => setAttempt(event.target.value)}
-              rows={3}
-            />
-          </ExerciseStage>
+          />
         ) : (
           <ExerciseStage
             task={item.prompt}

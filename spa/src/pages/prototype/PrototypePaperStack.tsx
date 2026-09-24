@@ -282,34 +282,33 @@ export default function PrototypePaperStack({
             <span className="pds-caption">{origin.label}</span>
           </span>
           <div className="pds-paper-stack__edge-verdicts">
-            {origin.review.attempted || origin.review.attempt ? (
-              <>
-                <button
-                  type="button"
-                  className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                  onClick={() => onReviewVerdict?.('almost')}
-                >
-                  {REVIEW_ALMOST_COPY}
-                </button>
-                <button
-                  type="button"
-                  className="proto-settings-btn proto-settings-btn--compact"
-                  onClick={() => onReviewVerdict?.('recalled')}
-                >
-                  {REVIEW_RECALLED_COPY}
-                </button>
-              </>
-            ) : (
-              /* Revealed without attempting. One honest answer — asking someone who has just
-                 opened the note whether they recalled it invites a lie the schedule pays for. */
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--compact"
-                onClick={() => onReviewVerdict?.('revealed')}
-              >
-                {REVIEW_REVEALED_ACK_COPY}
-              </button>
-            )}
+            {/*
+              * All three, after looking. The note is open above this edge, so the reader rates what
+              * they remembered with it in front of them. There used to be only "Got it now" unless
+              * they had typed an attempt on the card first; that box is gone (writing from memory is
+              * for Scripture), and so is the gate.
+              */}
+            <button
+              type="button"
+              className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+              onClick={() => onReviewVerdict?.('revealed')}
+            >
+              {REVIEW_REVEALED_ACK_COPY}
+            </button>
+            <button
+              type="button"
+              className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+              onClick={() => onReviewVerdict?.('almost')}
+            >
+              {REVIEW_ALMOST_COPY}
+            </button>
+            <button
+              type="button"
+              className="proto-settings-btn proto-settings-btn--compact"
+              onClick={() => onReviewVerdict?.('recalled')}
+            >
+              {REVIEW_RECALLED_COPY}
+            </button>
           </div>
           <button
             type="button"
