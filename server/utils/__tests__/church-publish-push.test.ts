@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { churchPushCopy, churchPushWindowOpen } from '../church-publish-push';
+import { churchPushCopy, churchPushUrl, churchPushWindowOpen } from '../church-publish-push';
 import { TITLE_MAX } from '../reminder-payload';
 import { parseReminderSettings, serializeReminderSettings, validateReminderSettingsInput, DEFAULT_REMINDER_SETTINGS } from '@/utils/reminder-settings';
 
@@ -22,7 +22,7 @@ describe('churchPushWindowOpen', () => {
 
 describe('churchPushCopy', () => {
   it('coalesces every channel into one line, busiest first', () => {
-    expect(churchPushCopy([{ title: 'Adults', count: 1 }, { title: 'Youth', count: 3 }])).toEqual({
+    expect(churchPushCopy([{ spaceId: 'space_a', title: 'Adults', count: 1 }, { spaceId: 'space_y', title: 'Youth', count: 3 }])).toEqual({
       title: 'New from your church',
       body: '3 new in Youth · 1 new in Adults',
     });
@@ -30,13 +30,28 @@ describe('churchPushCopy', () => {
 
   it('says nothing when nothing is new', () => {
     expect(churchPushCopy([])).toBeNull();
-    expect(churchPushCopy([{ title: 'Youth', count: 0 }])).toBeNull();
+    expect(churchPushCopy([{ spaceId: 'space_y', title: 'Youth', count: 0 }])).toBeNull();
   });
 
   it('keeps the title on one line and the body within budget', () => {
-    const copy = churchPushCopy(Array.from({ length: 20 }, (_, i) => ({ title: `Ministry ${i}`, count: 2 })))!;
+    const copy = churchPushCopy(Array.from({ length: 20 }, (_, i) => ({ spaceId: `space_${i}`, title: `Ministry ${i}`, count: 2 })))!;
     expect(copy.title.length).toBeLessThanOrEqual(TITLE_MAX);
     expect(copy.body.length).toBeLessThanOrEqual(120);
+  });
+});
+
+describe('churchPushUrl', () => {
+  it('opens the channel the body names first, not My Home', () => {
+    expect(
+      churchPushUrl([
+        { spaceId: 'space_a', title: 'Adults', count: 1 },
+        { spaceId: 'space_y', title: 'Youth', count: 3 },
+      ]),
+    ).toBe('/?enterSpace=y');
+  });
+
+  it('falls back to home only when there is nothing to point at', () => {
+    expect(churchPushUrl([])).toBe('/');
   });
 });
 

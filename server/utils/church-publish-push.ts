@@ -35,6 +35,7 @@ import {
   UserMetadata,
 } from '../db';
 import { parseReminderSettings } from '@/utils/reminder-settings';
+import { enterSpaceUrl } from '@/utils/enter-space-link';
 import { isValidIanaTimeZone } from './votd-local-date';
 import { localPartsFor } from './push-reminders';
 import { REMINDER_BADGE, REMINDER_ICON, TITLE_MAX } from './reminder-payload';
@@ -49,7 +50,7 @@ export const CHURCH_PUSH_HOUR_MAX = 20;
 const RECENTLY_ACTIVE_MS = 2 * 60 * 60 * 1000;
 const BODY_MAX = 120;
 
-export type ChannelNews = { title: string; count: number };
+export type ChannelNews = { spaceId: string; title: string; count: number };
 
 /** Whether this hour, today, may carry a church push. Pure. */
 export function churchPushWindowOpen(input: {
@@ -73,6 +74,18 @@ export function churchPushCopy(news: readonly ChannelNews[]): { title: string; b
   let body = parts.join(' · ');
   if (body.length > BODY_MAX) body = `${body.slice(0, BODY_MAX - 1)}…`;
   return { title: title.length <= TITLE_MAX ? title : 'From your church', body };
+}
+
+/**
+ * Where tapping the notification goes: the channel with the most that is new, the same one the
+ * body names first. It used to be `/`, which opened the app on My Home and left the reader to
+ * find the channel the notification was about — a tap that looked like it did nothing. Pure.
+ */
+export function churchPushUrl(news: readonly ChannelNews[]): string {
+  const top = news
+    .filter((n) => n.count > 0)
+    .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title))[0];
+  return top ? enterSpaceUrl(top.spaceId) : '/';
 }
 
 type Candidate = {
@@ -164,7 +177,7 @@ async function newsFor(userId: string, orgId: string, lastPushAt: Date | null): 
   }
   return followed
     .filter((f) => counts.has(f.id))
-    .map((f) => ({ title: f.title, count: counts.get(f.id)! }));
+    .map((f) => ({ spaceId: f.id, title: f.title, count: counts.get(f.id)! }));
 }
 
 export type ChurchPushTickSummary = {
@@ -195,7 +208,8 @@ export async function runChurchPublishTick(
     const lastSentLocalDate = lastAt ? localPartsFor(row.timezone, lastAt).localDate : null;
     if (!churchPushWindowOpen({ localHour: parts.hour, localDate: parts.localDate, lastSentLocalDate })) continue;
 
-    const copy = churchPushCopy(await newsFor(row.userId, row.connectedOrgId, lastAt));
+    const news = await newsFor(row.userId, row.connectedOrgId, lastAt);
+    const copy = churchPushCopy(news);
     if (!copy || dryRun) continue;
 
     const deliveryId = crypto.randomUUID();
@@ -220,7 +234,7 @@ export async function runChurchPublishTick(
       renotify: false,
       icon: REMINDER_ICON,
       badge: REMINDER_BADGE,
-      data: { url: '/', kind: CHURCH_PUSH_KIND, deliveryId, sentAt: now.toISOString() },
+      data: { url: churchPushUrl(news), kind: CHURCH_PUSH_KIND, deliveryId, sentAt: now.toISOString() },
       actions: [{ action: 'open', title: 'Open' }],
     };
     const result = await sendToUser(row.userId, payload);

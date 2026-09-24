@@ -59,7 +59,7 @@ const app = new Hono();
 
 function hmcErrorResponse(c: any, error: unknown) {
   if (error instanceof HmcPartnerError) {
-    return c.json({ error: error.message, code: error.code }, error.status as 400 | 401 | 403 | 404 | 429 | 500 | 502 | 503);
+    return c.json({ error: error.message, code: error.code }, error.status as 400 | 401 | 403 | 404 | 429 | 500 | 502 | 503 | 504);
   }
   return null;
 }

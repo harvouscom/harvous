@@ -10,6 +10,7 @@ import { resolveMainPaneSurface } from '../../layouts/resolve-main-pane-surface'
 import { readSharedSpaceDashboardFixtureMode } from '../dev/shared-spaces-design/shared-space-dashboard-fixture-mode';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import PrototypeGuestHome from './PrototypeGuestHome';
+import { useEnterSpaceParam } from './use-enter-space-param';
 
 /**
  * The main pane on `/`.
@@ -31,6 +32,8 @@ export default function PrototypeHomePage() {
   const { location } = useProtoShell();
   const { isSharedSpace } = useActiveSpace();
   const { isGuest } = useHarvousIdentity();
+  /* A notification about one space lands here with `?enterSpace=`; step inside it. */
+  useEnterSpaceParam();
   /*
    * The design gallery's fixture mode used to reach the space hub through the sidebar variant
    * resolver, which is where it was routed when the hub lived in the rail. The hub is on the

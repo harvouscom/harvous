@@ -12,6 +12,8 @@
  */
 import { db, eq, first, FeaturedItems, UserMetadata } from '../db';
 import { parseLastReadPosition, lastReadPositionReference } from '@/utils/last-read-position';
+import { parseScriptureReference } from '@/utils/scripture-detector';
+import { bookSlug } from '@/utils/bible-book-chapters';
 import { plainExcerpt } from './plain-excerpt';
 import { getLocalCalendarDateString } from './votd-local-date';
 import { resolveVotdForLocalDate } from './votd-today-public';
@@ -146,8 +148,28 @@ function readerUrl(book: string, chapter: number, translation: string): string {
 /** Deep link that opens Activity with today's passage in view. */
 export const TODAYS_PASSAGE_FOCUS = 'todays-passage';
 
-function todaysPassageActivityUrl(): string {
-  return `/?focus=${TODAYS_PASSAGE_FOCUS}`;
+/** Resolves today's passage client-side; for a reference this server could not parse. */
+export const TODAYS_PASSAGE_READER_URL = '/read/today';
+
+/**
+ * Deep link into the reader at the passage the notification quotes, lit.
+ *
+ * A verse reminder used to open Activity scrolled to today's passage row. That is the screen the
+ * app opens to anyway, so a tap on "For God so loved the world…" read as the app merely opening —
+ * the reader had to find and tap the row the notification was already about. The reader's own
+ * `v`/`vEnd` landing centres and lights the verses, which is the thing that was promised.
+ */
+export function passageReaderUrl(reference: string, translation: string): string {
+  const parsed = parseScriptureReference(reference);
+  if (!parsed) return TODAYS_PASSAGE_READER_URL;
+  const [start, end] = Array.isArray(parsed.verse) ? parsed.verse : [parsed.verse, parsed.verse];
+  const params = new URLSearchParams({ t: translation });
+  if (start > 0) params.set('v', String(start));
+  /* A range that crosses into the next chapter lands on its first verse; the reader lights one
+     chapter at a time. */
+  const sameChapter = parsed.endChapter == null || parsed.endChapter === parsed.chapter;
+  if (start > 0 && sameChapter && end > start) params.set('vEnd', String(end));
+  return `/read/${bookSlug(parsed.book)}/${parsed.chapter}?${params.toString()}`;
 }
 
 /**
@@ -251,7 +273,7 @@ export async function buildReminderPayload(
     variant = 'verse';
     title = verseTitle(kind);
     body = verseBody(verse);
-    url = todaysPassageActivityUrl();
+    url = passageReaderUrl(verse.reference, verse.translation);
   } else if (position) {
     const reference = lastReadPositionReference(position);
     variant = 'pickup';
