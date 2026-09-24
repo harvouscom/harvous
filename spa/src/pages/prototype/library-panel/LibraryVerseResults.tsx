@@ -72,17 +72,12 @@ export default function LibraryVerseResults({
         <VerseHitRow key={`${hit.translation}:${hit.reference}`} hit={hit} onOpen={onOpen} />
       ))}
       {moreLabel && onMore ? (
-        <li className="proto-note-row-item">
-          {/* In the lead column like the rows, so its label starts on their edge. */}
-          <button
-            type="button"
-            className="proto-note-row__main proto-note-row__main--lead proto-verse-hit__more"
-            onClick={onMore}
-          >
-            <span className="proto-note-row__lead-icon" aria-hidden>
-              <Icon name="arrow-right" size={12} />
-            </span>
-            <span className="proto-verse-hit__more-label">{moreLabel}</span>
+        <li className="proto-note-row-item proto-verse-hit__more-item">
+          {/* A way to see more, not a sixth result: no glyph in the lead column, set smaller
+              and quieter than the rows, starting on the titles' edge. */}
+          <button type="button" className="proto-verse-hit__more" onClick={onMore}>
+            <span>{moreLabel}</span>
+            <Icon name="arrow-right" size={10} />
           </button>
         </li>
       ) : null}

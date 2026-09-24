@@ -171,10 +171,13 @@ export type PrototypeLibrarySearchResultsProps = {
  */
 function ResultGroup({
   heading,
+  meta,
   children,
   alwaysLabelled = false,
 }: {
   heading: string;
+  /** A small tag after the label — the verse group's translation. */
+  meta?: string;
   children: ReactNode;
   /** Keep the heading on screen even as the only group — for a heading that says more than
       "these are the results" (the verse group's translation). */
@@ -186,6 +189,7 @@ function ResultGroup({
     >
       <h3 className="proto-library-results__heading">
         <span className="proto-library-results__heading-text">{heading}</span>
+        {meta ? <span className="proto-library-results__heading-meta">{meta}</span> : null}
       </h3>
       {children}
     </div>
@@ -748,7 +752,8 @@ export default function PrototypeLibrarySearchResults({
           /* The translation is said once, here, rather than on every row: it is the same for
              all of them, and repeated down the right edge it read as a column of data. */
           <ResultGroup
-            heading={`In the Bible · ${getTranslationAbbreviationDisplay(translation)}`}
+            heading="In the Bible"
+            meta={getTranslationAbbreviationDisplay(translation)}
             alwaysLabelled
           >
             <LibraryVerseResults

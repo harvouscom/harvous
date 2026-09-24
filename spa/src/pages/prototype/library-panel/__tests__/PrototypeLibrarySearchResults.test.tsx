@@ -216,7 +216,10 @@ describe('In the Bible', () => {
     state.verseHits = [verse('Matthew', 5, 44, `But I say to you, ${S}Love${E} your ${S}enemies${E}`)];
     const { container } = renderResults({ query: 'love your enemies', tab: 'all' });
 
-    expect(headings(container)).toContain('In the Bible · ESV');
+    const bible = [...container.querySelectorAll('.proto-library-results__heading')].find((h) =>
+      h.textContent?.startsWith('In the Bible'),
+    );
+    expect(bible?.querySelector('.proto-library-results__heading-meta')?.textContent).toBe('ESV');
     expect([...container.querySelectorAll('mark')].map((m) => m.textContent)).toEqual(['Love', 'enemies']);
 
     screen.getByText('Matthew 5:44').click();
