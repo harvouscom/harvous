@@ -22,6 +22,7 @@ import { OrderSlots, OrderTray } from '../../prototype/review-exercises/OrderPie
 import { GapLine } from '../../prototype/review-exercises/GapLine';
 import { OpeningLine, PairRail, Rail } from '../../prototype/review-exercises/RailSlot';
 import { InitialsTiles, MarkedExercise, WordTicks } from '../../prototype/review-exercises/VerseSurface';
+import { BookShelf, NoteStrip, SpeakerScene, TagSlotScene } from '../../prototype/review-exercises/IllustratedScenes';
 import ProtoLoadingDots from '../../prototype/ProtoLoadingDots';
 import {
   REVIEW_ALMOST_COPY,
@@ -370,23 +371,43 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'book',
     title: 'Where · which book',
-    note: 'verse.book. The same stem, and the book is the answer.',
+    note: 'verse.book. The whole Bible as a shelf of 66 spines; the offered books stand taller and are the only ones that come down. Shown after a wrong pick.',
     card: (
       <Card family="where" translation="ESV">
-        <ExerciseStage task="Pick the book this is from." scene={hero(PSALM_23_1)}>
-          <ChoiceOptions options={['Genesis', 'Psalms', 'Isaiah', 'John']} disabled={false} onPick={none} />
+        <ExerciseStage
+          task="Pick the book this is from."
+          scene={hero('“…I shall not want…”')}
+          missed
+          say={<p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>}
+        >
+          <BookShelf options={['Genesis', 'Psalms', 'Isaiah', 'John']} missed={['Isaiah']} disabled={false} onPick={none} />
         </ExerciseStage>
       </Card>
     ),
   },
   {
     id: 'who',
-    title: 'Who',
-    note: 'verse.person, chapter.person. Keyed to the curated index, not the reader.',
+    title: 'Who · a verse',
+    note: 'verse.person. The verse as a speech bubble from a portrait that fills with the pick; the answers are portraits. Shown on its way to being marked.',
     card: (
       <Card family="who" translation="ESV">
-        <ExerciseStage task="Pick who 1 Samuel 17:45 is about." scene={hero('You come to me with a sword and with a spear and with a javelin, but I come to you in the name of the LORD of hosts.')}>
-          <ChoiceOptions options={['Saul', 'David', 'Jonathan', 'Samuel']} disabled={false} onPick={none} />
+        <ExerciseStage
+          task="Pick who 1 Samuel 17:45 is about."
+          scene={<SpeakerScene label="1 Samuel 17:45" quote={<p>You come to me with a sword and with a spear and with a javelin, but I come to you in the name of the LORD of hosts.</p>} fill={{ text: 'David', state: 'picked' }} />}
+        >
+          <ChoiceOptions options={['Saul', 'David', 'Jonathan', 'Samuel']} variant="portrait" pending="David" disabled onPick={none} />
+        </ExerciseStage>
+      </Card>
+    ),
+  },
+  {
+    id: 'who-chapter',
+    title: 'Who · a chapter',
+    note: 'chapter.person. No single verse to quote, so the chapter’s name stands in the bubble.',
+    card: (
+      <Card family="who" translation="ESV">
+        <ExerciseStage task="Pick who appears in John 3." scene={<SpeakerScene quote={<p>John 3</p>} fill={null} />}>
+          <ChoiceOptions options={['Nicodemus', 'Lazarus', 'Martha', 'John the Baptist']} variant="portrait" disabled={false} onPick={none} />
         </ExerciseStage>
       </Card>
     ),
@@ -394,11 +415,18 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'place',
     title: 'Places',
-    note: 'verse.place, chapter.place. "Names", not "is set in": the index records a mention.',
+    note: 'verse.place, chapter.place. The verse, and a pin under it for the place it names; the answers carry a pin. (A map waits on place coordinates.)',
     card: (
       <Card family="place" translation="ESV">
-        <ExerciseStage task="Pick the place Luke 2:4 names." scene={hero('And Joseph also went up from Galilee, from the town of Nazareth, to Judea, to the city of David, which is called Bethlehem.')}>
-          <ChoiceOptions options={['Bethlehem', 'Capernaum', 'Jericho', 'Bethany']} disabled={false} onPick={none} />
+        <ExerciseStage
+          task="Pick the place Luke 2:4 names."
+          scene={
+            <TagSlotScene icon="location-dot" label="A place it names" fill={null}>
+              {hero('And Joseph also went up from Galilee, from the town of Nazareth, to Judea, to the city of David, which is called Bethlehem.')}
+            </TagSlotScene>
+          }
+        >
+          <ChoiceOptions options={['Bethlehem', 'Capernaum', 'Jericho', 'Bethany']} variant="place" disabled={false} onPick={none} />
         </ExerciseStage>
       </Card>
     ),
@@ -406,11 +434,18 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'theme',
     title: 'Theme',
-    note: 'verse.theme. A theme the index carries on the verse.',
+    note: 'verse.theme. The verse, a tag under it, and the themes as tags. Shown marked right.',
     card: (
       <Card family="theme" translation="ESV">
-        <ExerciseStage task="Pick the theme Psalm 23:1 carries." scene={hero(PSALM_23_1)}>
-          <ChoiceOptions options={['Judgment', 'Provision', 'Exile', 'Wisdom']} disabled={false} onPick={none} />
+        <ExerciseStage
+          task="Pick the theme Psalm 23:1 carries."
+          scene={
+            <TagSlotScene icon="tag" label="A theme it carries" fill={{ text: 'Provision', state: 'right' }}>
+              {hero(PSALM_23_1)}
+            </TagSlotScene>
+          }
+        >
+          <ChoiceOptions options={['Judgment', 'Provision', 'Exile', 'Wisdom']} variant="theme" correct="Provision" disabled onPick={none} />
         </ExerciseStage>
       </Card>
     ),
@@ -502,18 +537,20 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'note',
     title: 'Which note',
-    note: 'note.recognize. The reader’s own words, in the body face, the marked span emphasised.',
+    note: 'note.recognize. The reader’s line as a strip torn from a page, the marked span still marked, over a fan of their notes. Hover a note to lift it.',
     card: (
       <Card family="note">
         <ExerciseStage
           task="Pick the note this line is from."
           scene={
-            <p className="rx-hero" data-size="lg">
-              I didn&apos;t know you could have <strong>a relationship with God</strong>.
-            </p>
+            <NoteStrip>
+              <p>
+                I didn&apos;t know you could have <strong>a relationship with God</strong>.
+              </p>
+            </NoteStrip>
           }
         >
-          <ChoiceOptions options={['Start of it', 'The first book', 'Romans 8, slowly', 'My journey']} disabled={false} onPick={none} />
+          <ChoiceOptions options={['Start of it', 'The first book', 'Romans 8, slowly', 'My journey']} variant="note" disabled={false} onPick={none} />
         </ExerciseStage>
       </Card>
     ),
