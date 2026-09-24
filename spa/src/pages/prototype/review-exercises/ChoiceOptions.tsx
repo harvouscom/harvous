@@ -20,6 +20,15 @@ import { isTypingInInput } from '@/utils/keyboard-shortcuts';
 
 export const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
+/**
+ * The first words of something longer, trailing off. A clause that already ends in its own stop
+ * ("disappointment.") took the ellipsis after it and read as four dots; the stop goes first.
+ * Display only — the value sent back is always the option as the server built it.
+ */
+export function trailOff(text: string): string {
+  return `${text.replace(/[\s.,;:]+$/u, '')}…`;
+}
+
 /** Past this, an option is a sentence rather than a name, and wants a wider card. */
 const LONG_OPTION = 28;
 
@@ -94,7 +103,7 @@ export function ChoiceOptions({
             <span className="rx-option__key" aria-hidden>
               {CHOICE_LETTERS[index]}
             </span>
-            <span className="rx-option__label">{opening ? `${option}…` : option}</span>
+            <span className="rx-option__label">{opening ? trailOff(option) : option}</span>
           </button>
         );
       })}
