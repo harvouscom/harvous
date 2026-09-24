@@ -69,6 +69,7 @@ import { ChoiceOptions } from './review-exercises/ChoiceOptions';
 import { GapLine } from './review-exercises/GapLine';
 import { nextOpenGap, WordBankLine, WordTray } from './review-exercises/WordBank';
 import { OrderSlots, OrderTray } from './review-exercises/OrderPieces';
+import { OpeningLine, PairRail, Rail, slotFill } from './review-exercises/RailSlot';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { isSubmitKey, isTypingTarget } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -197,6 +198,22 @@ const INDEX_KEYED_RUNGS = new Set([
  * too until it became the recognition tap its name always meant.
  */
 const FREE_RECALL_RUNGS = new Set(['verse.recall']);
+
+/*
+ * The rungs drawn as a rail, and what their empty place is called. The label names the kind of
+ * answer, never the answer: "Next verse", not a reference, or the question becomes arithmetic.
+ */
+const NOTE_RAIL_SLOT: Partial<Record<string, string>> = {
+  'note.passage': 'A passage you cited',
+  'note.annotation': 'Written on',
+  'note.connect': 'Linked to',
+};
+const VERSE_RAIL_SLOT: Partial<Record<string, string>> = {
+  'verse.crossref': 'Cross-referenced with',
+  'verse.connect': 'Cited in',
+};
+/* The rungs whose answer is a verse's opening, asked with the reference and a gap. */
+const OPENING_LINE_RUNGS = new Set(['verse.recognize', 'chapter.verse']);
 
 export default function PrototypeReviewDock() {
   const {
@@ -1019,6 +1036,12 @@ export default function PrototypeReviewDock() {
   const correctOption = verdict?.state === 'right' ? verdict.option : null;
   /* The option on its way to the server, so a tap is seen to land before the reply does. */
   const pendingOption = outcome.isPending ? (outcome.variables?.answer?.option ?? null) : null;
+  /* What the rail's empty place holds — see `slotFill`. */
+  const railFill = slotFill({
+    pending: pendingOption,
+    correct: correctOption,
+    wrong: verdict?.state === 'wrong' ? verdict.option : null,
+  });
   /* Every gap has something in it — the gate on Check and on Enter from the last gap. */
   const gapsFilled = (total: number) =>
     Array.from({ length: total }).every((_, i) => Boolean(blanks[i]?.trim()));
@@ -1472,6 +1495,62 @@ export default function PrototypeReviewDock() {
           /* The question has moved to the stack's edge, at the top of the note. Saying so beats
              repeating the prompt down here, where it would read as a second, separate ask. */
           <p className="proto-review-dock__handoff">Answer at the top of your note.</p>
+        ) : noteChoice && NOTE_RAIL_SLOT[item.promptKey] ? (
+          /*
+           * A note rung that asks what goes with the note: the passage it cites, the passage a
+           * highlight was written on, the note it links to. The reader's line on the rail, in the
+           * body face (it is their prose, not Scripture), and the place the answer goes under it.
+           */
+          <ExerciseStage
+            task={item.prompt}
+            subject={subtitle}
+            scene={
+              <Rail
+                /*
+                 * A line of the note where the server sent one, under the note's name; where it
+                 * sent none (a `note.passage` stem is often just the note), the name is the card.
+                 */
+                fromLabel={
+                  item.promptKey === 'note.annotation'
+                    ? 'What you wrote'
+                    : noteChoice.span || noteChoice.fragment
+                      ? item.noteTitle?.trim() || 'Your note'
+                      : 'Your note'
+                }
+                from={
+                  noteChoice.span ? (
+                    <p>
+                      {noteChoice.span.leading ? '… ' : ''}
+                      {noteChoice.span.before ? `${noteChoice.span.before} ` : ''}
+                      <strong>{noteChoice.span.quote}</strong>
+                      {noteChoice.span.after ? ` ${noteChoice.span.after}` : ''}
+                      {noteChoice.span.trailing ? '…' : ''}
+                    </p>
+                  ) : noteChoice.fragment ? (
+                    <p>
+                      “{noteChoice.leading ? '…' : ''}{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
+                    </p>
+                  ) : (
+                    <p>{item.noteTitle?.trim() || 'This note'}</p>
+                  )
+                }
+                slotLabel={NOTE_RAIL_SLOT[item.promptKey]!}
+                fill={railFill}
+                join="link"
+              />
+            }
+            say={say}
+            missed={missedNow}
+          >
+            <ChoiceOptions
+              options={noteChoice.options}
+              disabled={outcome.isPending}
+              missed={missed}
+              correct={correctOption}
+              pending={pendingOption}
+              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+            />
+          </ExerciseStage>
         ) : noteChoice ? (
           /*
            * A note rung. The fragment is the reader's own writing, quoted back — in the body face,
@@ -1825,8 +1904,14 @@ export default function PrototypeReviewDock() {
           </ExerciseStage>
         ) : beforeExercise ? (
           /* Two openings from the same chapter; the verse itself is one of them, so it stays off
-             the card and the two openings are the card. */
-          <ExerciseStage task={item.prompt} say={say} missed={missedNow}>
+             the card. Two places on the rail: the pick goes first and the other follows it, so the
+             answer reads as an order rather than one of two buttons. */
+          <ExerciseStage
+            task={item.prompt}
+            scene={<PairRail options={beforeExercise.options} fill={railFill} />}
+            say={say}
+            missed={missedNow}
+          >
             <ChoiceOptions
               options={beforeExercise.options}
               disabled={outcome.isPending}
@@ -1836,6 +1921,68 @@ export default function PrototypeReviewDock() {
               opening
               onPick={(option) =>
                 answer('almost', { option, promptKey: item.promptKey }, option, { opening: true })
+              }
+            />
+          </ExerciseStage>
+        ) : contextChoice && VERSE_RAIL_SLOT[item.promptKey] && verseMarkup ? (
+          /*
+           * What goes with this verse: its cross-reference, the note it was cited in. The verse on
+           * the rail, a link, and the place the answer goes.
+           */
+          <ExerciseStage
+            task={item.prompt}
+            scene={
+              <Rail
+                fromLabel={item.scriptureReference ?? 'This verse'}
+                from={<p dangerouslySetInnerHTML={verseMarkup} />}
+                scripture
+                slotLabel={VERSE_RAIL_SLOT[item.promptKey]!}
+                fill={railFill}
+                join="link"
+                /* Cross-references arrive as verse openings: they trail off, in the reading face. */
+                trailing={contextChoice.opening}
+                slotScripture={contextChoice.opening}
+              />
+            }
+            say={say}
+            missed={missedNow}
+          >
+            <ChoiceOptions
+              options={contextChoice.options}
+              disabled={outcome.isPending}
+              missed={missed}
+              correct={correctOption}
+              pending={pendingOption}
+              opening={contextChoice.opening}
+              onPick={(option) =>
+                answer('almost', { option, promptKey: item.promptKey }, option, {
+                  opening: contextChoice.opening,
+                })
+              }
+            />
+          </ExerciseStage>
+        ) : contextChoice && OPENING_LINE_RUNGS.has(item.promptKey) ? (
+          /*
+           * How it begins: the reference, and a gap at the head of a line that trails off. The rest
+           * of the verse is withheld — it would answer the question — so the gap is the question.
+           */
+          <ExerciseStage
+            task={item.prompt}
+            scene={<OpeningLine reference={item.scriptureReference ?? ''} fill={railFill} />}
+            say={say}
+            missed={missedNow}
+          >
+            <ChoiceOptions
+              options={contextChoice.options}
+              disabled={outcome.isPending}
+              missed={missed}
+              correct={correctOption}
+              pending={pendingOption}
+              opening={contextChoice.opening}
+              onPick={(option) =>
+                answer('almost', { option, promptKey: item.promptKey }, option, {
+                  opening: contextChoice.opening,
+                })
               }
             />
           </ExerciseStage>
@@ -1884,11 +2031,14 @@ export default function PrototypeReviewDock() {
             task={item.prompt}
             scene={
               verseMarkup ? (
-                <p
-                  className="rx-hero"
-                  data-scripture=""
-                  data-size={heroSize(reveal.data?.verseText)}
-                  dangerouslySetInnerHTML={verseMarkup}
+                <Rail
+                  fromLabel={item.scriptureReference ?? 'This verse'}
+                  from={<p dangerouslySetInnerHTML={verseMarkup} />}
+                  scripture
+                  slotLabel="Next verse"
+                  fill={railFill}
+                  trailing
+                  slotScripture
                 />
               ) : null
             }

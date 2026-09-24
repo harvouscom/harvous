@@ -20,6 +20,7 @@ import { ChoiceOptions } from '../../prototype/review-exercises/ChoiceOptions';
 import { WordBankLine, WordTray } from '../../prototype/review-exercises/WordBank';
 import { OrderSlots, OrderTray } from '../../prototype/review-exercises/OrderPieces';
 import { GapLine } from '../../prototype/review-exercises/GapLine';
+import { OpeningLine, PairRail, Rail } from '../../prototype/review-exercises/RailSlot';
 import ProtoLoadingDots from '../../prototype/ProtoLoadingDots';
 import {
   REVIEW_ALMOST_COPY,
@@ -279,10 +280,13 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'next',
     title: 'What follows · next verse',
-    note: 'verse.next. The verse is the question; the options are openings of verses nearby.',
+    note: 'verse.next. The verse on the rail and a place for what follows; shown empty. The label never names the next reference.',
     card: (
       <Card family="next" translation="ESV">
-        <ExerciseStage task="Pick the verse that follows Psalm 23:1." scene={hero(PSALM_23_1)}>
+        <ExerciseStage
+          task="Pick the verse that follows Psalm 23:1."
+          scene={<Rail fromLabel="Psalm 23:1" from={<p>{PSALM_23_1}</p>} scripture slotLabel="Next verse" fill={null} trailing slotScripture />}
+        >
           <ChoiceOptions
             options={['He makes me lie down in green pastures', 'He restores my soul', 'You prepare a table before me', 'Surely goodness and mercy']}
             opening
@@ -296,11 +300,25 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'before',
     title: 'What follows · which comes first',
-    note: 'verse.before. Two openings from one chapter; the verse itself is one of them, so it stays off the card.',
+    note: 'verse.before. Two places: the pick goes first, the other follows it. Shown on its way to being marked.',
     card: (
       <Card family="next" translation="ESV">
-        <ExerciseStage task="Pick which comes first in Psalm 23.">
-          <ChoiceOptions options={['He restores my soul', 'He makes me lie down in green pastures']} opening disabled={false} onPick={none} />
+        <ExerciseStage
+          task="Pick which comes first in Psalm 23."
+          scene={
+            <PairRail
+              options={['He restores my soul', 'He makes me lie down in green pastures']}
+              fill={{ text: 'He makes me lie down in green pastures', state: 'picked' }}
+            />
+          }
+        >
+          <ChoiceOptions
+            options={['He restores my soul', 'He makes me lie down in green pastures']}
+            pending="He makes me lie down in green pastures"
+            opening
+            disabled
+            onPick={none}
+          />
         </ExerciseStage>
       </Card>
     ),
@@ -308,10 +326,10 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'opening',
     title: 'How it begins',
-    note: 'verse.recognize, chapter.verse. The reference is given; the reader picks its opening.',
+    note: 'verse.recognize, chapter.verse. The reference and a gap at the head of the line; the rest of the verse is withheld.',
     card: (
       <Card family="opening" translation="ESV">
-        <ExerciseStage task="Pick how Philippians 4:13 begins.">
+        <ExerciseStage task="Pick how Philippians 4:13 begins." scene={<OpeningLine reference="Philippians 4:13" fill={null} />}>
           <ChoiceOptions
             options={['I can do all things', 'I have learned in whatever state', 'My God will supply every need', 'Rejoice in the Lord always']}
             opening
@@ -385,11 +403,25 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'crossref',
     title: 'Cross-reference',
-    note: 'verse.crossref. A passage the Treasury of Scripture Knowledge links to it.',
+    note: 'verse.crossref. The verse, a link, and the place; shown after a wrong tap.',
     card: (
       <Card family="crossref" translation="ESV">
-        <ExerciseStage task="Pick the passage Psalm 23:1 is cross-referenced with." scene={hero(PSALM_23_1)}>
-          <ChoiceOptions options={['John 10:11', 'Romans 3:23', 'Genesis 1:1', 'Acts 2:38']} disabled={false} onPick={none} />
+        <ExerciseStage
+          task="Pick the passage Psalm 23:1 is cross-referenced with."
+          scene={
+            <Rail
+              fromLabel="Psalm 23:1"
+              from={<p>{PSALM_23_1}</p>}
+              scripture
+              slotLabel="Cross-referenced with"
+              fill={{ text: 'Romans 3:23', state: 'wrong' }}
+              join="link"
+            />
+          }
+          missed
+          say={<p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>}
+        >
+          <ChoiceOptions options={['John 10:11', 'Romans 3:23', 'Genesis 1:1', 'Acts 2:38']} missed={['Romans 3:23']} disabled={false} onPick={none} />
         </ExerciseStage>
       </Card>
     ),
@@ -458,10 +490,21 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'cited',
     title: 'Which passage',
-    note: 'note.passage, note.annotation. A passage the reader cited in a note, or wrote a highlight on.',
+    note: 'note.passage, note.annotation. The reader’s line on the rail (their prose, body face) and the passage it cites.',
     card: (
       <Card family="cited">
-        <ExerciseStage task="Pick a passage you cited in Shepherd psalms." scene={hero('“David writes from the field, not the throne…”', false)}>
+        <ExerciseStage
+          task="Pick a passage you cited in Shepherd psalms."
+          scene={
+            <Rail
+              fromLabel="Shepherd psalms"
+              from={<p>“David writes from the field, not the throne…”</p>}
+              slotLabel="A passage you cited"
+              fill={null}
+              join="link"
+            />
+          }
+        >
           <ChoiceOptions options={['Psalm 100:3', 'Psalm 23:1', 'Ezekiel 34:11', 'John 10:14']} disabled={false} onPick={none} />
         </ExerciseStage>
       </Card>
@@ -469,12 +512,43 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   },
   {
     id: 'linked',
-    title: 'What you linked',
-    note: 'note.connect, verse.connect. A note linked to this one, or the note a verse was cited in.',
+    title: 'What you linked · from a note',
+    note: 'note.connect. The note on the rail and the note it links to; shown marked right.',
     card: (
       <Card family="linked">
-        <ExerciseStage task="Pick a note you linked to Shepherd psalms.">
-          <ChoiceOptions options={['Exile timeline', 'Sermon on contentment', 'The good shepherd', 'Advent, week one']} disabled={false} onPick={none} />
+        <ExerciseStage
+          task="Pick a note you linked to Shepherd psalms."
+          scene={
+            <Rail
+              fromLabel="Shepherd psalms"
+              from={<p>“Provision here is about presence, not supply.”</p>}
+              slotLabel="Linked to"
+              fill={{ text: 'The good shepherd', state: 'right' }}
+              join="link"
+            />
+          }
+        >
+          <ChoiceOptions
+            options={['Exile timeline', 'Sermon on contentment', 'The good shepherd', 'Advent, week one']}
+            correct="The good shepherd"
+            disabled
+            onPick={none}
+          />
+        </ExerciseStage>
+      </Card>
+    ),
+  },
+  {
+    id: 'linked-verse',
+    title: 'What you linked · from a verse',
+    note: 'verse.connect. The verse on the rail and the note it was cited in.',
+    card: (
+      <Card family="linked" translation="ESV">
+        <ExerciseStage
+          task="Pick the note you cited Psalm 23:1 in."
+          scene={<Rail fromLabel="Psalm 23:1" from={<p>{PSALM_23_1}</p>} scripture slotLabel="Cited in" fill={null} join="link" />}
+        >
+          <ChoiceOptions options={['Shepherd psalms', 'Exile timeline', 'Sermon on contentment', 'Advent, week one']} disabled={false} onPick={none} />
         </ExerciseStage>
       </Card>
     ),

@@ -520,6 +520,160 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   -webkit-text-fill-color: var(--pds-text-secondary);
 }
 
+/*
+ * The rail: the known item, a small join, and the place the answer goes (`RailSlot.tsx`).
+ * Stacked so a whole verse never has to fit half a card. The known item is a piece at rest; the
+ * place is an open outline until a tap fills it, and then it wears the mark — the accent gradient
+ * with white on it while picked or right, the destructive tint when wrong.
+ */
+.rx-rail {
+  display: grid;
+  justify-items: stretch;
+  gap: 2px;
+}
+
+/* The rail's own pieces frame it, so the scene around it gives up most of its padding: a rail is
+   taller than the bare verse it replaces, and the options under it must still fit the card. */
+.rx-scene:has(> .rx-rail) {
+  padding: 12px;
+}
+
+.rx-rail__card,
+.rx-rail__slot {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  align-content: center;
+}
+
+/* An empty place keeps a line's height, so filling it does not move the options below. */
+.rx-rail__slot {
+  min-height: 58px;
+}
+
+.rx-rail__card {
+  border: 1px solid var(--rx-piece-edge);
+  background: var(--rx-piece-bg);
+}
+
+.rx-rail__slot {
+  border: 1.5px dashed var(--rx-open-edge);
+  background: transparent;
+}
+
+.rx-rail__label {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--pds-text-secondary);
+}
+
+.rx-rail__text {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--pds-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.rx-rail__text p {
+  margin: 0;
+}
+
+.rx-rail [data-scripture] > .rx-rail__text {
+  font-family: var(--pds-font-reading);
+  font-variation-settings: var(--pds-font-reading-variation);
+  font-synthesis: weight;
+}
+
+.rx-rail__text sup.verse-num {
+  font-family: var(--pds-font-body);
+  font-size: 0.6em;
+  color: var(--pds-text-tertiary);
+}
+
+/* The join: a small glyph on the rail's line, pointing down the stack. */
+.rx-rail__join {
+  justify-self: center;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: var(--pds-text-tertiary);
+}
+
+/* The arrow points down the stack; the link glyph has no direction and stays as drawn. */
+.rx-rail__join[data-join='next'] svg {
+  transform: rotate(90deg);
+}
+
+.rx-rail__slot[data-filled] {
+  border-style: solid;
+  border-color: var(--rx-piece-edge);
+  background: var(--rx-piece-bg);
+}
+
+.rx-rail__slot[data-state='picked'],
+.rx-rail__slot[data-state='right'] {
+  border-color: transparent;
+  background: var(--pds-bg-accent-button);
+}
+
+.rx-rail__slot[data-state='picked'] :is(.rx-rail__label, .rx-rail__text),
+.rx-rail__slot[data-state='right'] :is(.rx-rail__label, .rx-rail__text) {
+  color: var(--pds-on-accent);
+  -webkit-text-fill-color: var(--pds-on-accent);
+}
+
+.rx-rail__slot[data-state='wrong'] {
+  border-color: color-mix(in oklab, var(--pds-destructive) 55%, transparent);
+  background: var(--pds-destructive-bg);
+}
+
+.rx-rail__slot[data-state='wrong'] :is(.rx-rail__label, .rx-rail__text) {
+  color: var(--pds-destructive);
+  -webkit-text-fill-color: var(--pds-destructive);
+}
+
+/* How it begins: the opening is a gap at the head of a line that trails off. */
+.rx-opening {
+  display: inline-block;
+  /* Wide enough to read as "the first words go here", not a single word's gap. */
+  min-width: min(100%, 16ch);
+  min-height: 1.4em;
+  padding: 0 10px;
+  border: 1.5px dashed var(--rx-open-edge);
+  border-radius: 10px;
+  line-height: 1.3;
+  vertical-align: baseline;
+}
+
+.rx-opening[data-filled] {
+  border-style: solid;
+  border-color: var(--rx-piece-edge);
+  background: var(--rx-piece-bg);
+}
+
+.rx-opening[data-state='picked'],
+.rx-opening[data-state='right'] {
+  border-color: transparent;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  -webkit-text-fill-color: var(--pds-on-accent);
+}
+
+.rx-opening[data-state='wrong'] {
+  border-color: color-mix(in oklab, var(--pds-destructive) 55%, transparent);
+  background: var(--pds-destructive-bg);
+  color: var(--pds-destructive);
+  -webkit-text-fill-color: var(--pds-destructive);
+}
+
 /* Name some of its words: the boxes are the card, so they are set at the scene's size. */
 .rx-keywords {
   margin: 0;
@@ -655,7 +809,9 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   /* The mark lands on the piece itself: a spent answer shakes once, a right one settles. */
   .rx-option[data-state='wrong'],
   .rx-gap[data-state='wrong'],
-  .rx-slot[data-state='wrong'] {
+  .rx-slot[data-state='wrong'],
+  .rx-rail__slot[data-state='wrong'],
+  .rx-opening[data-state='wrong'] {
     animation: rx-shake 320ms ease;
   }
 
@@ -667,7 +823,10 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
 
   /* A word dropped into its gap, or a piece into its place, lands rather than appears. */
   .rx-gap[data-filled]:not([data-state]),
-  .rx-slot[data-filled]:not([data-state]) {
+  .rx-slot[data-filled]:not([data-state]),
+  .rx-rail__slot[data-state='picked'],
+  .rx-rail__slot[data-state='placed'],
+  .rx-opening[data-state='picked'] {
     animation: rx-land 180ms var(--pds-ease-emphasized);
   }
 }
