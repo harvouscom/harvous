@@ -40,7 +40,6 @@ import Icon from '@/components/react/Icon';
 import ProtoLoadingDots from './ProtoLoadingDots';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import {
-  canJudgeRecall,
   resolveReviewDockItem,
   reviewQuestionKey,
   shouldReleaseHeldItem,
@@ -987,15 +986,27 @@ export default function PrototypeReviewDock() {
   // `reviewRowSubtitle` suppresses itself on a graded rung — see its docblock.
   // What this is to the reader, else which thing is being asked about.
   const subtitle = item ? (item.framing ? fillFraming(item.framing) : reviewRowSubtitle(item)) : null;
-  const canJudge = canJudgeRecall({ attempt });
 
   /*
-   * The self-rated verdicts, in the footer where every other card's action is. Only the one
-   * accent button: "I recalled it" where there was an attempt to judge, "I've seen it" where
-   * there was not.
+   * The self-rated verdicts, after looking, in the footer where every other card's action is.
+   *
+   * All three, whether or not anything was written. These cards used to ask the reader to write
+   * what they remembered first, and only a written attempt earned "I recalled it" — reveal cold
+   * and the one answer was the short interval. Derek's call (Sept 2026): writing from memory is an
+   * exercise for Scripture, not for someone's own notes, so the box went, and with it the gate.
+   * Rating happens after the note is in front of the reader, never before — it is still not a
+   * survey of a mental state they have not yet checked. "I recalled it" is the one accent.
    */
-  const verdictButtons = canJudge ? (
+  const verdictButtons = (
     <>
+      <button
+        type="button"
+        className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary"
+        disabled={outcome.isPending}
+        onClick={() => answer('revealed')}
+      >
+        {REVIEW_REVEALED_ACK_COPY}
+      </button>
       <button
         type="button"
         className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary"
@@ -1013,15 +1024,6 @@ export default function PrototypeReviewDock() {
         {REVIEW_RECALLED_COPY}
       </button>
     </>
-  ) : (
-    <button
-      type="button"
-      className="proto-settings-btn proto-settings-btn--compact rx-primary"
-      disabled={outcome.isPending}
-      onClick={() => answer('revealed')}
-    >
-      {REVIEW_REVEALED_ACK_COPY}
-    </button>
   );
 
   /* What the card says about the last go, for the stage's footer band. Hint first, then the
@@ -2178,14 +2180,11 @@ export default function PrototypeReviewDock() {
           />
         ) : !revealed ? (
           /*
-           * The self-rated kinds: write what you remember, then go and look.
+           * The self-rated kinds (highlights, connections, Threads): think of it, then go and look.
            *
-           * One action, because there was only ever one. There used to be an "I have it in mind"
-           * beside this, for someone who retrieved the note mentally without typing. Both buttons
-           * revealed; the only difference was an invisible flag deciding which verdicts appeared
-           * afterwards. It also asked the reader to declare a mental state *before* checking it,
-           * which is the same invitation to a comfortable lie that the cold-reveal rule exists to
-           * avoid — writing something is the attempt.
+           * No writing box. Writing from memory is an exercise for Scripture — the verse rungs keep
+           * theirs — and on someone's own note it was a chore in front of the note. The question and
+           * the way to the note are the card; the rating comes after looking (`verdictButtons`).
            */
           <ExerciseStage
             task={item.prompt}
@@ -2200,15 +2199,7 @@ export default function PrototypeReviewDock() {
                 else setRevealed(true);
               },
             }}
-          >
-            <textarea
-              className="proto-review-dock__attempt"
-              placeholder={REVIEW_ATTEMPT_PLACEHOLDER}
-              value={attempt}
-              onChange={(event) => setAttempt(event.target.value)}
-              rows={3}
-            />
-          </ExerciseStage>
+          />
         ) : (
           <ExerciseStage
             task={item.prompt}

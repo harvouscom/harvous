@@ -35,6 +35,7 @@ import {
   REVIEW_NEXT_COPY,
   REVIEW_OUTCOME_ACK_COPY,
   REVIEW_RECALLED_COPY,
+  REVIEW_REVEALED_ACK_COPY,
   REVIEW_REVEAL_COPY,
   REVIEW_REVEAL_FAILED_COPY,
   REVIEW_REVEAL_RETRY_COPY,
@@ -586,19 +587,17 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'self-rated',
     title: 'Self-rated · before the reveal',
-    note: 'highlight, connection and thread items: no answer key, so the reader writes, then looks.',
+    note: 'highlight, connection and Thread items: no answer key and no writing box (writing from memory is for Scripture). Think of it, then open the note.',
     card: (
       <Card label="Your note">
-        <ExerciseStage task="What did you write about Romans 8:28?" primary={{ label: REVIEW_REVEAL_COPY, onClick: none }}>
-          <textarea className="proto-review-dock__attempt" placeholder={REVIEW_ATTEMPT_PLACEHOLDER} rows={3} readOnly />
-        </ExerciseStage>
+        <ExerciseStage task="What did you write about Romans 8:28?" primary={{ label: REVIEW_REVEAL_COPY, onClick: none }} />
       </Card>
     ),
   },
   {
     id: 'self-rated-verdict',
     title: 'Self-rated · judging it',
-    note: 'After the reveal: the two verdicts, "I recalled it" the one accent.',
+    note: 'After looking: all three answers, "I recalled it" the one accent. The paper-stack edge (ds-15, Review card origin) carries the same three.',
     card: (
       <Card label="Your note">
         <ExerciseStage
@@ -606,6 +605,9 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
           scene={hero('And we know that for those who love God all things work together for good.')}
           actions={
             <>
+              <button type="button" className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary">
+                {REVIEW_REVEALED_ACK_COPY}
+              </button>
               <button type="button" className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary">
                 {REVIEW_ALMOST_COPY}
               </button>

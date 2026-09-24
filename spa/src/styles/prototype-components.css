@@ -20086,9 +20086,25 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 @media (max-width: 620px) {
-  /* Narrow: the label steps back further so two verdicts still fit on one line. */
+  /*
+   * Narrow: three verdicts need the whole row. The "Review" label goes — the dock under the note
+   * already says what this is — and the answers take the width from the left gutter to the ×,
+   * kept on one line and a little tighter, so they never wrap into each other.
+   */
   .pds-paper-stack__edge-row--review .pds-paper-stack__edge--static {
-    max-width: 28%;
+    visibility: hidden;
+  }
+
+  .pds-paper-stack__edge-row--review .pds-paper-stack__edge-verdicts {
+    left: var(--pds-space-3);
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .pds-paper-stack__edge-verdicts .proto-settings-btn--compact {
+    padding: 0 8px;
+    font-size: 12px;
+    white-space: nowrap;
   }
 }
 

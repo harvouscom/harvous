@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   SITTING_STALE_MS,
-  canJudgeRecall,
   resolveReviewDockItem,
   reviewQuestionKey,
   shouldReaskInSitting,
@@ -44,19 +43,6 @@ describe('resolveReviewDockItem', () => {
   it('answers null rather than guessing when there is nothing due', () => {
     expect(resolveReviewDockItem('x', [], [])).toBeNull();
     expect(resolveReviewDockItem(null, [])).toBeNull();
-  });
-});
-
-describe('canJudgeRecall', () => {
-  it('lets someone judge after a written attempt', () => {
-    expect(canJudgeRecall({ attempt: 'the spirit of adoption' })).toBe(true);
-  });
-
-  it('does not offer a verdict to someone who revealed cold', () => {
-    // Writing is the whole signal. There is no button for "I had it in mind" — asking someone
-    // to declare a mental state before checking it is the survey the strategy doc rules out.
-    expect(canJudgeRecall({ attempt: '' })).toBe(false);
-    expect(canJudgeRecall({ attempt: '   ' })).toBe(false);
   });
 });
 

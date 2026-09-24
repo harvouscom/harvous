@@ -20,6 +20,7 @@ import ProtoPopoverShell from '../../prototype/ProtoPopoverShell';
 import ProtoSelectMenu from '../../prototype/ProtoSelectMenu';
 import PrototypePaperStack from '../../prototype/PrototypePaperStack';
 import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
+import { buildReviewCardStackOrigin } from '../../prototype/paper-stack-origins';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
 import PrototypeStudyFeedPart from '../../prototype/PrototypeStudyFeedPart';
 import PrototypeWelcome3Sheet from '../../prototype/PrototypeWelcome3Sheet';
@@ -881,7 +882,7 @@ function ReaderScene() {
 
 function PaperStackScene() {
   const [open, setOpen] = useState(true);
-  const [originKind, setOriginKind] = useState<'homeCard' | 'noteDock'>('homeCard');
+  const [originKind, setOriginKind] = useState<'homeCard' | 'noteDock' | 'reviewCard'>('homeCard');
 
   /**
    * The real component over canned origins — no network, no reader query. A hand-copied
@@ -889,7 +890,21 @@ function PaperStackScene() {
    * pill), which is the argument for rendering the thing itself.
    */
   const origin: PaperStackOrigin =
-    originKind === 'homeCard'
+    originKind === 'reviewCard'
+      ? /* A note opened from a self-rated Review card: the edge carries the three verdicts. */
+        buildReviewCardStackOrigin(
+          {
+            id: 'gallery-review',
+            prompt: 'What did you write about the vine and the branches?',
+            noteTitle: 'The vine and the branches',
+            secondaryNoteTitle: null,
+            scriptureReference: 'John 15:5',
+            recallState: 'forming',
+          },
+          { attempted: false },
+          { to: '/' },
+        )
+      : originKind === 'homeCard'
       ? {
           kind: 'homeCard',
           cardKind: 'revisitNote',
@@ -943,9 +958,11 @@ function PaperStackScene() {
         <button
           type="button"
           className="proto-share-popover__copy"
-          onClick={() => setOriginKind((k) => (k === 'homeCard' ? 'noteDock' : 'homeCard'))}
+          onClick={() =>
+            setOriginKind((k) => (k === 'homeCard' ? 'noteDock' : k === 'noteDock' ? 'reviewCard' : 'homeCard'))
+          }
         >
-          Origin: {originKind === 'homeCard' ? 'Home card' : 'note dock'}
+          Origin: {originKind === 'homeCard' ? 'Home card' : originKind === 'noteDock' ? 'note dock' : 'Review card'}
         </button>
       </div>
 
@@ -958,6 +975,7 @@ function PaperStackScene() {
           // The gallery keeps the paper: dismissing here would leave an empty frame with no
           // way to get the scene back short of a reload.
           onDismiss={() => setOpen(true)}
+          onReviewVerdict={() => {}}
         >
           {/*
             * The real paper class, not a bespoke fixture surface.

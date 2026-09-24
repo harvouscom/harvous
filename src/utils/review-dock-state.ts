@@ -49,23 +49,6 @@ export function resolveReviewDockItem<T extends ReviewDockItemLike>(
 }
 
 /**
- * Whether the reader may judge their own recall, or only acknowledge that they looked.
- *
- * Writing something is the attempt, and it is the only signal. There was briefly an "I have it
- * in mind" button beside the reveal for people who retrieved the note without typing, and it
- * was wrong twice: it asked someone to declare a mental state *before* checking it, and the
- * strategy doc's own rule is that "whether they attempt recall before revealing a note" is to
- * be inferred from behaviour rather than surveyed.
- *
- * The consequence is deliberate and worth stating: reveal without writing and you get the
- * shorter interval. That is the doc's model — revealing immediately means "needs support" —
- * and it quietly rewards the thing Harvous is for, which is writing something down.
- */
-export function canJudgeRecall(state: { attempt: string }): boolean {
-  return state.attempt.trim().length > 0;
-}
-
-/**
  * Whether the dock should let go of the question it pinned.
  *
  * `heldItem` exists so an answered question stays under its own result — the mutation drops the
