@@ -16,3 +16,9 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notes_fts
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_threads_fts
   ON "Threads"
   USING GIN (to_tsvector('english', title));
+
+-- BibleVerses: verse text, every translation (GET /api/scripture/search).
+-- Also standalone in server/db/manual/add-bibleverses-fts.sql.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_bibleverses_fts
+  ON "BibleVerses"
+  USING GIN (to_tsvector('english', text));

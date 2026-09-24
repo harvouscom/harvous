@@ -33,6 +33,7 @@ import { recordSearchEvent } from '../proto-search-events';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon, { type IconName } from '@/components/react/Icon';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { useSearch } from '@/hooks/useSearch';
 import { parseScriptureReference } from '@/utils/scripture-detector';
@@ -75,6 +76,15 @@ import { useLibraryPanelData } from './library-panel-data';
 import { useLibraryCommandContext } from './use-library-command-context';
 import { matchPrototypeCommands } from './library-command-matches';
 import { LIBRARY_TAB_LABELS } from './library-panel-view';
+import LibraryVerseResults from './LibraryVerseResults';
+import { useProfile } from '../../../hooks/queries/useProfile';
+import {
+  useScriptureVerseSearch,
+  type VerseSearchHit,
+} from '../../../hooks/queries/useScriptureVerseSearch';
+
+/** Verses shown under Everything before the rest move to the Scripture tab. */
+const VERSES_ON_ALL_TAB = 5;
 
 /**
  * One shared empty array for every not-yet-loaded corpus.
@@ -159,15 +169,55 @@ export type PrototypeLibrarySearchResultsProps = {
  * misnomer twice over: the sidebar had stopped rendering that class, and the treatment
  * (11px uppercase, letter-spaced) was a louder voice than anything else on the surface.
  */
-function ResultGroup({ heading, children }: { heading: string; children: ReactNode }) {
+function ResultGroup({
+  heading,
+  children,
+  alwaysLabelled = false,
+}: {
+  heading: string;
+  children: ReactNode;
+  /** Keep the heading on screen even as the only group — for a heading that says more than
+      "these are the results" (the verse group's translation). */
+  alwaysLabelled?: boolean;
+}) {
   return (
-    <div className="proto-library-results__group">
+    <div
+      className={`proto-library-results__group${alwaysLabelled ? ' proto-library-results__group--labelled' : ''}`}
+    >
       <h3 className="proto-library-results__heading">
         <span className="proto-library-results__heading-text">{heading}</span>
       </h3>
       {children}
     </div>
   );
+}
+
+/**
+ * The glyph each kind leads with — the browse list's own table (`PrototypeLibraryAllView`),
+ * so a row looks the same before and after you type. Search used to draw a smaller glyph
+ * inline with the title, and only for some kinds, so the list had no left edge: folders were
+ * marked, notes were not, and the text started at three different places.
+ */
+function resultLeadIcon(result: SidebarSearchResult): IconName {
+  switch (result.kind) {
+    case 'note':
+      return 'note-sticky';
+    case 'folder':
+      return 'folder';
+    case 'threadCluster':
+      return 'arrow-right-arrow-left';
+    case 'highlight':
+      return 'highlighter';
+    case 'scriptureBook':
+      return 'book';
+    case 'scripturePassage':
+    case 'scriptureReference':
+      return 'book-open';
+    case 'resource':
+      return 'newspaper';
+    default:
+      return 'note-sticky';
+  }
 }
 
 /** A row that runs a verb or goes somewhere, with its chord printed on the right. */
@@ -184,13 +234,13 @@ function ChordRow({
 }) {
   return (
     <li className="proto-note-row-item">
-      <button type="button" className="proto-note-row__main" onClick={onActivate}>
+      <button type="button" className="proto-note-row__main proto-note-row__main--lead" onClick={onActivate}>
+        <span className="proto-note-row__lead-icon" aria-hidden>
+          {/* Commands and navigation items both carry their glyph as a plain string —
+              `PrototypeCommand.icon` is a table entry, not a typed name. */}
+          <Icon name={icon as IconName} size={13} />
+        </span>
         <div className="proto-note-row__title-line">
-          <span className="proto-note-row__kind-icon" aria-hidden>
-            {/* Commands and navigation items both carry their glyph as a plain string —
-                `PrototypeCommand.icon` is a table entry, not a typed name. */}
-            <Icon name={icon as IconName} size={11} />
-          </span>
           <span className="pds-list-title proto-note-row__title-text">{label}</span>
           {keys ? <ProtoKbdChord keys={keys} compact /> : null}
         </div>
@@ -294,6 +344,23 @@ export default function PrototypeLibrarySearchResults({
   const homeFtsSearch = useSearch(homeFtsQuery, { excludeLegacyScriptureNotes: true }, 'notes', {
     holdPreviousResults: true,
   });
+
+  /*
+   * The whole Bible, not just the Scripture in notes — in the reader's own translation, since
+   * that is the wording they will remember and the one the reader opens in. Asked only on the
+   * tabs a verse belongs under; Notes or Folders is a narrower question than "where does it
+   * say this".
+   */
+  const { data: profile } = useProfile();
+  const translation = profile?.defaultTranslation || 'NET';
+  const versesApply = libraryTabMatches(tab, 'scriptureReference');
+  const verseSearch = useScriptureVerseSearch(versesApply ? trimmed : '', translation);
+  const verseHits = useMemo(
+    () => (versesApply ? verseSearch.data?.results ?? NONE : NONE),
+    [versesApply, verseSearch.data?.results],
+  );
+  const shownVerseHits = tab === 'all' ? verseHits.slice(0, VERSES_ON_ALL_TAB) : verseHits;
+  const moreVersesHidden = tab === 'all' && (verseHits.length > VERSES_ON_ALL_TAB || Boolean(verseSearch.data?.hasMore));
 
   const searchData: UniversalSearchData = useMemo(
     () => ({
@@ -470,11 +537,26 @@ export default function PrototypeLibrarySearchResults({
    * showed. Every list is counted — a query whose only hits are in the "everywhere else" or
    * My Home group still found something.
    */
-  const settledCount = visibleResults.length + elsewhereRest.length + homeResults.length;
+  const settledCount =
+    visibleResults.length + elsewhereRest.length + homeResults.length + verseHits.length;
+  const verseLoading = verseSearch.isLoading || verseSearch.isPlaceholderData;
   useEffect(() => {
-    if (!trimmed || ftsLoading) return;
+    if (!trimmed || ftsLoading || verseLoading) return;
     onResultsSettled?.({ query: trimmed, count: settledCount });
-  }, [trimmed, ftsLoading, settledCount, onResultsSettled]);
+  }, [trimmed, ftsLoading, verseLoading, settledCount, onResultsSettled]);
+
+  /* The same landing as the passage row below: the reader, at the verse, lit. */
+  const openVerse = (hit: VerseSearchHit) => {
+    if (!data.isScopedSharedSpace && trimmed) {
+      recordSearchEvent({ query: trimmed, action: 'resultOpen', surface: 'library' });
+    }
+    void navigate({
+      to: prototypeReadRouteTo(),
+      params: { book: bookSlug(hit.book), chapter: String(hit.chapter) },
+      search: { v: String(hit.verse), t: hit.translation, req: String(Date.now()) },
+    });
+    closeLibraryPanel({ preserveHistory: true });
+  };
 
   const activate = (result: SidebarSearchResult) => {
     /*
@@ -633,7 +715,11 @@ export default function PrototypeLibrarySearchResults({
         ) : null}
 
         {/* Named by the kind you are searching inside, so the heading says what the list
-            is rather than repeating "Results" above two different lists. */}
+            is rather than repeating "Results" above two different lists.
+
+            Left out only when it would be nothing but "no matches" above verses that did
+            match — on the Scripture tab that empty state read as the search having failed. */}
+        {visibleResults.length > 0 || ftsLoading || shownVerseHits.length === 0 ? (
         <ResultGroup heading={tab === 'all' ? 'Results' : LIBRARY_TAB_LABELS[tab]}>
           {visibleResults.length > 0 ? (
             <ul className="proto-note-list">
@@ -645,6 +731,7 @@ export default function PrototypeLibrarySearchResults({
                   onActivate={() => activate(result)}
                   notesById={data.notesById}
                   highlightsById={highlightsById}
+                  leadIcon={resultLeadIcon(result)}
                 />
               ))}
             </ul>
@@ -655,6 +742,23 @@ export default function PrototypeLibrarySearchResults({
             <PrototypeListNoMatchEmptyState title={emptyTitleForTab(tab)} />
           )}
         </ResultGroup>
+        ) : null}
+
+        {shownVerseHits.length > 0 ? (
+          /* The translation is said once, here, rather than on every row: it is the same for
+             all of them, and repeated down the right edge it read as a column of data. */
+          <ResultGroup
+            heading={`In the Bible · ${getTranslationAbbreviationDisplay(translation)}`}
+            alwaysLabelled
+          >
+            <LibraryVerseResults
+              hits={shownVerseHits}
+              onOpen={openVerse}
+              moreLabel={moreVersesHidden ? 'Show more verses' : undefined}
+              onMore={() => setLibraryPanelView({ tab: 'scripture', drill: null })}
+            />
+          </ResultGroup>
+        ) : null}
 
         {elsewhereRest.length > 0 ? (
           <ResultGroup heading="Everywhere else">
@@ -667,6 +771,7 @@ export default function PrototypeLibrarySearchResults({
                   onActivate={() => activate(result)}
                   notesById={data.notesById}
                   highlightsById={highlightsById}
+                  leadIcon={resultLeadIcon(result)}
                 />
               ))}
             </ul>
@@ -692,6 +797,7 @@ export default function PrototypeLibrarySearchResults({
                   }}
                   notesById={homeNotesById}
                   highlightsById={highlightsById}
+                  leadIcon={resultLeadIcon(result)}
                 />
               ))}
             </ul>

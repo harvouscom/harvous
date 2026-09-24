@@ -67,6 +67,11 @@ const state: {
   homeHits: unknown[];
   /** Every scope the component searched with, in order. */
   searchScopes: unknown[];
+  /** What the whole-Bible verse search returns. */
+  verseHits: unknown[];
+  verseHasMore: boolean;
+  /** Every (query, translation) the verse search was asked for. */
+  verseQueries: [string, string][];
 } = {
   notes: [],
   scriptureBooks: [],
@@ -76,6 +81,9 @@ const state: {
   spaceId: 'space-1',
   homeHits: [],
   searchScopes: [],
+  verseHits: [],
+  verseHasMore: false,
+  verseQueries: [],
 };
 
 const setLibraryPanelView = vi.fn();
@@ -95,8 +103,24 @@ vi.mock('@/hooks/useSearch', () => ({
   },
 }));
 
+const navigate = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigate,
+}));
+
+vi.mock('../../../../hooks/queries/useProfile', () => ({
+  useProfile: () => ({ data: { defaultTranslation: 'ESV' } }),
+}));
+
+vi.mock('../../../../hooks/queries/useScriptureVerseSearch', () => ({
+  useScriptureVerseSearch: (query: string, translation: string) => {
+    state.verseQueries.push([query, translation]);
+    return {
+      data: query ? { results: state.verseHits, hasMore: state.verseHasMore } : undefined,
+      isLoading: false,
+      isPlaceholderData: false,
+    };
+  },
 }));
 
 vi.mock('../../../../layouts/proto-shell-context', () => ({
@@ -165,7 +189,60 @@ beforeEach(() => {
   state.spaceId = 'space-1';
   state.homeHits = [];
   state.searchScopes = [];
+  state.verseHits = [];
+  state.verseHasMore = false;
+  state.verseQueries = [];
   vi.clearAllMocks();
+});
+
+describe('In the Bible', () => {
+  const S = '\u0002';
+  const E = '\u0003';
+  function verse(book: string, chapter: number, n: number, snippet: string) {
+    return { book, chapter, verse: n, reference: `${book} ${chapter}:${n}`, snippet, translation: 'ESV' };
+  }
+
+  it('searches the whole Bible in the reader’s own translation', () => {
+    renderResults({ query: 'love your enemies', tab: 'all' });
+    expect(state.verseQueries.at(-1)).toEqual(['love your enemies', 'ESV']);
+  });
+
+  it('does not ask on a tab a verse does not belong under', () => {
+    renderResults({ query: 'love your enemies', tab: 'notes' });
+    expect(state.verseQueries.at(-1)).toEqual(['', 'ESV']);
+  });
+
+  it('marks the matched words, and opens the reader at the verse', () => {
+    state.verseHits = [verse('Matthew', 5, 44, `But I say to you, ${S}Love${E} your ${S}enemies${E}`)];
+    const { container } = renderResults({ query: 'love your enemies', tab: 'all' });
+
+    expect(headings(container)).toContain('In the Bible · ESV');
+    expect([...container.querySelectorAll('mark')].map((m) => m.textContent)).toEqual(['Love', 'enemies']);
+
+    screen.getByText('Matthew 5:44').click();
+    expect(navigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: { book: 'matthew', chapter: '5' },
+        search: expect.objectContaining({ v: '44', t: 'ESV' }),
+      }),
+    );
+    expect(closeLibraryPanel).toHaveBeenCalledWith({ preserveHistory: true });
+  });
+
+  it('shows a few under Everything and hands the rest to the Scripture tab', () => {
+    state.verseHits = Array.from({ length: 8 }, (_, i) => verse('Psalms', 23, i + 1, `${S}shepherd${E}`));
+    const { container } = renderResults({ query: 'shepherd', tab: 'all' });
+
+    expect(container.querySelectorAll('.proto-verse-hit__text')).toHaveLength(5);
+    screen.getByText('Show more verses').click();
+    expect(setLibraryPanelView).toHaveBeenCalledWith({ tab: 'scripture', drill: null });
+  });
+
+  it('does not paint "no matches" above verses that did match', () => {
+    state.verseHits = [verse('John', 11, 35, `${S}Jesus${E} wept.`)];
+    renderResults({ query: 'jesus wept', tab: 'scripture' });
+    expect(screen.queryByText(SIDEBAR_NO_MATCH_COPY.noScriptureMatch)).toBeNull();
+  });
 });
 
 describe('My Home, searched from inside a shared space', () => {
