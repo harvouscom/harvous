@@ -2,16 +2,12 @@
  * Fixture previews for design-system foundation scenes.
  * Uses production tokens + primitives — edit linked files; HMR updates here.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import Icon from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from '../../prototype/ProtoRowSelectCheckbox';
 import ProtoIconBlock from '../../prototype/ProtoIconBlock';
-import { ExerciseStage } from '../../prototype/review-exercises/ExerciseStage';
-import { ChoiceOptions } from '../../prototype/review-exercises/ChoiceOptions';
-import { WordBankLine, WordTray } from '../../prototype/review-exercises/WordBank';
-import { OrderSlots, OrderTray } from '../../prototype/review-exercises/OrderPieces';
-import '../../../styles/review-exercises.css';
+import ReviewCardsScene from './ReviewCardsScene';
 import PrototypeRecallStateChip from '../../prototype/PrototypeRecallStateChip';
 import {
   PrototypeListEmptyState,
@@ -1464,113 +1460,6 @@ const MARK_SAMPLE = 'the light shines in the darkness';
  * only progress indicator in the app; they exist because a bar for a two-or-three step count
  * reads as a task being set, which the onboarding dock found first.
  */
-/*
- * The Review card stage and its pieces, each in the state that has to stay legible: a word bank
- * part-filled, the same after a miss (a right word, a word the app handed over, the retry line
- * in the band), a verse half put back in order, and answer cards marked. Static — every handler
- * is a no-op — so the scene is a reference for the states rather than a playground.
- */
-const DECK_VERSE = ['“I am the vine; you are the ', '. The one who remains in me bears ', ' fruit.'];
-const DECK_ORDER = ['that he gave', 'For God so loved', 'the world,', 'his only Son'];
-
-function DeckCard({ children }: { children: ReactNode }) {
-  return (
-    <div
-      className="proto-review-dock"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        /* The card's own height on a laptop (`--rx-card-h` tops out at 520). */
-        height: 520,
-        borderRadius: 18,
-        border: '1px solid var(--pds-border-control)',
-        background: 'var(--pds-bg-glass-light)',
-        overflow: 'hidden',
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function ReviewDeckCardsScene() {
-  const none = () => {};
-  const noMark = () => undefined;
-  return (
-    <div className="pds-stack" style={{ gap: 20, maxWidth: 560 }}>
-      <p className="pds-caption">Blanks, first meeting: words to place</p>
-      <DeckCard>
-        <ExerciseStage
-          task="Fill in the blanks in John 15:5."
-          scene={
-            <WordBankLine
-              hero="lg"
-              segments={DECK_VERSE}
-              blankLengths={[8, 4]}
-              values={['branches', '']}
-              given={new Map()}
-              partState={noMark}
-              disabled={false}
-              onClear={none}
-            />
-          }
-          primary={{ label: 'Check it', onClick: none, disabled: true }}
-        >
-          <WordTray bank={['spoken', 'branches', 'unless', 'bear', 'much']} values={['branches', '']} disabled={false} onPlace={none} />
-        </ExerciseStage>
-      </DeckCard>
-
-      <p className="pds-caption">After a miss: one right, one handed over</p>
-      <DeckCard>
-        <ExerciseStage
-          task="Fill in the blanks in John 15:5."
-          scene={
-            <WordBankLine
-              hero="lg"
-              segments={DECK_VERSE}
-              blankLengths={[8, 4]}
-              values={['branches', 'much']}
-              given={new Map([[1, 'much']])}
-              partState={(index) => (index === 0 ? 'right' : undefined)}
-              disabled={false}
-              onClear={none}
-            />
-          }
-          say={<p className="proto-caption proto-review-dock__retry">One of those is right. One more go.</p>}
-          missed
-          primary={{ label: 'Check it', onClick: none }}
-        >
-          <WordTray bank={['spoken', 'branches', 'unless', 'bear', 'much']} values={['branches', 'much']} disabled={false} onPlace={none} />
-        </ExerciseStage>
-      </DeckCard>
-
-      <p className="pds-caption">Put in order</p>
-      <DeckCard>
-        <ExerciseStage
-          task="Put John 3:16 back in order."
-          scene={<OrderSlots phrases={DECK_ORDER} placed={[1, 2]} partState={noMark} disabled={false} onRemove={none} />}
-          primary={{ label: 'Check it', onClick: none, disabled: true }}
-        >
-          <OrderTray phrases={DECK_ORDER} placed={[1, 2]} disabled={false} onPlace={none} />
-        </ExerciseStage>
-      </DeckCard>
-
-      <p className="pds-caption">Answer cards, marked</p>
-      <DeckCard>
-        <ExerciseStage task="Pick the book this is from." missed say={<p className="proto-caption proto-review-dock__retry">Not that one. One more go.</p>}>
-          <ChoiceOptions
-            options={['Genesis', 'Psalms', 'Isaiah', 'John']}
-            disabled={false}
-            missed={['Isaiah']}
-            correct={null}
-            onPick={none}
-          />
-        </ExerciseStage>
-      </DeckCard>
-    </div>
-  );
-}
-
 function ReviewVerdictsScene() {
   return (
     <div className="pds-stack" style={{ gap: 20, maxWidth: 520 }}>
@@ -1949,7 +1838,7 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
     case 'ds-23-whats-new-row':
       return <WhatsNewRowScene />;
     case 'ds-25-review-deck-cards':
-      return <ReviewDeckCardsScene />;
+      return <ReviewCardsScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

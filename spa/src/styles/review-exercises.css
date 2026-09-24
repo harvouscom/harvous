@@ -610,19 +610,18 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   padding-top: 4px;
 }
 
-/* What was said and what it says, at the card's scale rather than the old dock's 14px. */
+/*
+ * What was said and what it says, at the card's scale rather than the old dock's 14px. One size
+ * and one box for every block on the result — the reader's answer and the verse restored are a
+ * pair to compare, and a verse set larger than the answer above it read as a different kind of
+ * thing. The verse keeps only its reading face.
+ */
 .proto-review-dock .proto-review-dock__result .proto-review-dock__verse {
   padding: 12px 16px;
   border-radius: 14px;
   background: var(--rx-scene-bg);
   font-size: 16px;
   line-height: 1.55;
-}
-
-.proto-review-dock .proto-review-dock__result .proto-review-dock__verse--scripture {
-  padding: 16px 20px;
-  font-size: 18px;
-  line-height: 1.6;
 }
 
 .proto-review-dock .proto-review-dock__result .proto-review-dock__result-text {

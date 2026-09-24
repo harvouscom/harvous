@@ -295,9 +295,11 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
   },
   {
     id: 'ds-25-review-deck-cards',
-    title: 'Review deck cards',
+    title: 'Review learning cards',
     phase: 'Patterns',
     editFiles: [
+      'spa/src/pages/dev/design-system/ReviewCardsScene.tsx',
+      'spa/src/pages/prototype/PrototypeReviewDock.tsx',
       'spa/src/pages/prototype/review-exercises/ExerciseStage.tsx',
       'spa/src/pages/prototype/review-exercises/WordBank.tsx',
       'spa/src/pages/prototype/review-exercises/OrderPieces.tsx',
@@ -305,8 +307,9 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
       'spa/src/styles/review-exercises.css',
     ],
     screenshotSlug: 'ds-25-review-deck-cards',
-    // The card stage and its pieces in their states. Not a baseline yet: the gallery's baselines
-    // are darwin-only and outside CI, and this family is still being built out.
+    // Every exercise family's card, and the states (miss, right, loading, result), in the real
+    // dock chrome. Not a baseline yet: the gallery's baselines are darwin-only and outside CI, and
+    // the cards are still being redesigned family by family.
   },
 ];
 
