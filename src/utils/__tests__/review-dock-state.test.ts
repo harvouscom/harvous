@@ -32,6 +32,15 @@ describe('resolveReviewDockItem', () => {
     expect(resolveReviewDockItem(undefined, [item('a')])).toEqual(item('a'));
   });
 
+  it('waits for the full list rather than guessing at the head of the queue', () => {
+    // A scheduled item was tapped; the list that holds it has not come back yet.
+    expect(resolveReviewDockItem('z', [item('a')], [], { fallbackPending: true })).toBeNull();
+    // Once it has, the item that was asked for, not the head.
+    expect(resolveReviewDockItem('z', [item('a')], [item('z')], { fallbackPending: false })).toEqual(item('z'));
+    // A due item never waits on the other list.
+    expect(resolveReviewDockItem('a', [item('a')], [], { fallbackPending: true })).toEqual(item('a'));
+  });
+
   it('answers null rather than guessing when there is nothing due', () => {
     expect(resolveReviewDockItem('x', [], [])).toBeNull();
     expect(resolveReviewDockItem(null, [])).toBeNull();

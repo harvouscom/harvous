@@ -23710,7 +23710,6 @@ button.proto-feed-sheet__stat:hover {
 .proto-review-dock__echo-rows li[data-answer='right'] {
   color: var(--pds-accent-gradient-end);
   font-style: normal;
-  font-weight: 600;
 }
 
 /*

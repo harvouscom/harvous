@@ -7,6 +7,7 @@ import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import Icon from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from '../../prototype/ProtoRowSelectCheckbox';
 import ProtoIconBlock from '../../prototype/ProtoIconBlock';
+import ReviewCardsScene from './ReviewCardsScene';
 import PrototypeRecallStateChip from '../../prototype/PrototypeRecallStateChip';
 import {
   PrototypeListEmptyState,
@@ -1836,6 +1837,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <Welcome3Scene />;
     case 'ds-23-whats-new-row':
       return <WhatsNewRowScene />;
+    case 'ds-25-review-deck-cards':
+      return <ReviewCardsScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

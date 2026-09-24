@@ -18,12 +18,24 @@ export function resolveReviewDockItem<T extends ReviewDockItemLike>(
   requestedId: string | null | undefined,
   sessionItems: readonly T[],
   fallbackItems: readonly T[] = [],
+  options?: {
+    /**
+     * The full list has been asked for and has not answered yet.
+     *
+     * Then "in neither list" means "not loaded yet", not "just answered", and falling through to
+     * the head of the queue is a guess that sticks: the dock moves its pointer onto whatever it
+     * is showing, so the question the reader tapped never arrived. Waiting shows the loading dots
+     * for the moment the list takes.
+     */
+    fallbackPending?: boolean;
+  },
 ): T | null {
   if (requestedId) {
     const requested =
       sessionItems.find((i) => i.id === requestedId) ??
       fallbackItems.find((i) => i.id === requestedId);
     if (requested) return requested;
+    if (options?.fallbackPending) return null;
     /*
      * Asked for something that is in neither list.
      *

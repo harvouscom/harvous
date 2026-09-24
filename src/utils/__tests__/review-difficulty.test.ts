@@ -97,6 +97,16 @@ describe('every rung is gentle at tier 0 and hardest at tier 2', () => {
     expect(verseClozeSpec(1).uniformWidths).toBe(false);
   });
 
+  it('offers the missing words as tiles on a first meeting only', () => {
+    // Recognition first, then production: from tier 1 the same gaps are typed.
+    expect(verseClozeSpec(0).wordBank).toBe(true);
+    expect(verseClozeSpec(1).wordBank).toBe(false);
+    expect(verseClozeSpec(2).wordBank).toBe(false);
+    // A durable verse accelerates past tier 0 only after its first pass, never on it.
+    expect(verseClozeSpec(0, 'durable').wordBank).toBe(true);
+    expect(verseClozeSpec(1, 'durable').wordBank).toBe(false);
+  });
+
   it('reduces a share of the initials before the whole verse', () => {
     expect(verseInitialsShare(0)).toBeLessThan(verseInitialsShare(1));
     expect(verseInitialsShare(2)).toBe(1);

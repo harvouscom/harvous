@@ -70,12 +70,21 @@ export interface VerseClozeSpec {
   ratio: number;
   maxBlanks: number;
   uniformWidths: boolean;
+  /**
+   * Offer the missing words as tiles to place, among a few that do not belong.
+   *
+   * Recognition before production: choosing "loved" from five words is a question a first
+   * meeting can answer, and typing it cold is not. From tier 1 the tiles go and the same gaps
+   * are typed — the ladder moves from recognising a word to producing it, and the reader is never
+   * asked whether they would like the easier form (see `review_difficulty_adapts_silently`).
+   */
+  wordBank: boolean;
 }
 
 const CLOZE_TIERS: readonly VerseClozeSpec[] = [
-  { ratio: 0.2, maxBlanks: 2, uniformWidths: false },
-  { ratio: 0.4, maxBlanks: 4, uniformWidths: false },
-  { ratio: 0.6, maxBlanks: Number.POSITIVE_INFINITY, uniformWidths: true },
+  { ratio: 0.2, maxBlanks: 2, uniformWidths: false, wordBank: true },
+  { ratio: 0.4, maxBlanks: 4, uniformWidths: false, wordBank: false },
+  { ratio: 0.6, maxBlanks: Number.POSITIVE_INFINITY, uniformWidths: true, wordBank: false },
 ];
 
 export function verseClozeSpec(pass: number, recallState?: RecallState | null): VerseClozeSpec {

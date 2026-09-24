@@ -66,8 +66,11 @@ import '@/styles/scripture-pill-chrome.css';
 import '../../styles/review-exercises.css';
 import { ExerciseStage, heroSize } from './review-exercises/ExerciseStage';
 import { ChoiceOptions } from './review-exercises/ChoiceOptions';
+import { GapLine } from './review-exercises/GapLine';
+import { nextOpenGap, WordBankLine, WordTray } from './review-exercises/WordBank';
+import { OrderSlots, OrderTray } from './review-exercises/OrderPieces';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
-import { isSubmitKey, isTypingTarget, nextBlankIndex } from './review-dock-keys';
+import { isSubmitKey, isTypingTarget } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import {
@@ -195,103 +198,6 @@ const INDEX_KEYED_RUNGS = new Set([
  */
 const FREE_RECALL_RUNGS = new Set(['verse.recall']);
 
-/**
- * A verse with gaps in it, where the gaps are inputs.
- *
- * Two rungs render this: the cloze, where a gap is empty, and the lower tiers of the initials
- * rung, where each gap keeps its word's first letter beside it as the hint the rung is named
- * for. One component because they are the same act — put the missing words back where they
- * belong — and because the second one arrived by staging the first.
- *
- * A gap the server has given away after a miss is filled and locked: it is no longer a question,
- * and leaving it editable invites the reader to retype what they were just handed.
- */
-function GapLine({
-  hero,
-  segments,
-  blankLengths,
-  letters,
-  values,
-  given,
-  partState,
-  disabled,
-  onChange,
-  onSubmit,
-}: {
-  /** Set on the card stage: the line is the scene, in the reading face at the scene's size. */
-  hero?: ReturnType<typeof heroSize>;
-  segments: string[];
-  blankLengths: number[];
-  letters?: string[];
-  values: string[];
-  given: Map<number, string>;
-  partState: (index: number) => 'right' | 'wrong' | undefined;
-  disabled: boolean;
-  onChange: (index: number, value: string) => void;
-  /** Called when Enter lands on the last gap still to fill. */
-  onSubmit: () => void;
-}) {
-  return (
-    <p
-      className={hero ? 'rx-hero' : 'proto-challenge__cloze'}
-      data-size={hero}
-      data-scripture={hero ? '' : undefined}
-      data-gapline=""
-    >
-      {segments.map((segment, index) => (
-        <Fragment key={index}>
-          {segment}
-          {index < blankLengths.length ? (
-            <span className="proto-review-dock__gap">
-              {letters?.[index] ? (
-                // The letter is the hint, not part of what gets typed — so it sits beside the
-                // input rather than inside it, where it would have to be typed around.
-                <span className="proto-review-dock__gap-letter" aria-hidden>
-                  {letters[index]}
-                </span>
-              ) : null}
-              <input
-                type="text"
-                className="proto-review-dock__blank"
-                data-answer={given.has(index) ? 'given' : partState(index)}
-                style={{ width: `${Math.max(4, blankLengths[index]) + 1}ch` }}
-                value={values[index] ?? ''}
-                onChange={(event) => onChange(index, event.target.value)}
-                /*
-                 * Enter moves to the next gap still empty, and submits from the last one — the
-                 * tap rungs have had A-F bound since they shipped and the typed ones had
-                 * nothing, so filling in a verse ended with a reach for the mouse.
-                 */
-                onKeyDown={(event) => {
-                  if (!isSubmitKey(event)) return;
-                  event.preventDefault();
-                  const next = nextBlankIndex(values, index, blankLengths.length);
-                  if (next === null) {
-                    onSubmit();
-                    return;
-                  }
-                  const inputs = event.currentTarget
-                    .closest('[data-gapline]')
-                    ?.querySelectorAll<HTMLInputElement>('.proto-review-dock__blank');
-                  inputs?.[next]?.focus();
-                }}
-                aria-label={
-                  letters?.[index] ? `Word ${index + 1}, starts with ${letters[index]}` : `Blank ${index + 1}`
-                }
-                aria-invalid={partState(index) === 'wrong' ? true : undefined}
-                autoComplete="off"
-                spellCheck={false}
-                readOnly={given.has(index)}
-                disabled={disabled}
-              />
-            </span>
-          ) : null}
-        </Fragment>
-      ))}
-    </p>
-  );
-}
-
 export default function PrototypeReviewDock() {
   const {
     reviewDock,
@@ -324,9 +230,13 @@ export default function PrototypeReviewDock() {
   const settling =
     sessionQuery.isPending || sessionQuery.isFetching || (needsFallback && itemsQuery.isPending);
 
+  const fallbackPending = needsFallback && itemsQuery.isPending;
   const queued = useMemo(
-    () => resolveReviewDockItem(reviewDock?.itemId, sessionItems, itemsQuery.data?.items ?? []),
-    [reviewDock?.itemId, sessionItems, itemsQuery.data],
+    () =>
+      resolveReviewDockItem(reviewDock?.itemId, sessionItems, itemsQuery.data?.items ?? [], {
+        fallbackPending,
+      }),
+    [reviewDock?.itemId, sessionItems, itemsQuery.data, fallbackPending],
   );
 
   /*
@@ -1614,6 +1524,53 @@ export default function PrototypeReviewDock() {
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
           </ExerciseStage>
+        ) : clozeExercise && clozeExercise.blankLengths.length > 0 && clozeExercise.bank?.length ? (
+          /*
+           * The gentlest form of the cloze: the missing words as tiles, among a few that do not
+           * belong. Recognition before production — from tier 1 the same gaps are typed (the
+           * branch below). The server decides which by sending a bank or not; the page never
+           * offers the easier form.
+           */
+          <ExerciseStage
+            task={item.prompt}
+            subject={subtitle}
+            scene={
+              <WordBankLine
+                hero={heroSize(clozeExercise.segments.join(' '))}
+                segments={clozeExercise.segments}
+                blankLengths={clozeExercise.blankLengths}
+                values={blanks}
+                given={givenBlanks}
+                partState={partState}
+                disabled={outcome.isPending}
+                onClear={(index) => {
+                  const next = [...blanks];
+                  next[index] = '';
+                  setBlanks(next);
+                }}
+              />
+            }
+            say={say}
+            missed={missedNow}
+            primary={{
+              label: REVIEW_CHECK_COPY,
+              disabled: outcome.isPending || !gapsFilled(clozeExercise.blankLengths.length),
+              onClick: () => submitGaps(clozeExercise.blankLengths.length),
+            }}
+          >
+            <WordTray
+              bank={clozeExercise.bank}
+              values={blanks}
+              disabled={outcome.isPending}
+              onPlace={(word) => {
+                const at = nextOpenGap(clozeExercise.blankLengths.length, blanks, givenBlanks);
+                if (at === null) return;
+                const next = [...blanks];
+                next[at] = word;
+                setBlanks(next);
+              }}
+            />
+          </ExerciseStage>
         ) : clozeExercise && clozeExercise.blankLengths.length > 0 ? (
           /*
            * Fill in the blanks, in the blanks themselves.
@@ -1656,41 +1613,17 @@ export default function PrototypeReviewDock() {
             }}
           />
         ) : sequenceExercise ? (
-          /*
-           * Put the phrases back in order: the numbered places are the verse being rebuilt, the
-           * tiles under them are what is left to place. Tap a tile to place it, tap a placed one to
-           * take it back — no drag library, which would be a dependency and a touch-target problem
-           * for a puzzle of four pieces.
-           */
+          /* Put the phrases back in order — see `OrderPieces`. */
           <ExerciseStage
             task={item.prompt}
             scene={
-              <ol className="rx-slots">
-                {sequenceExercise.phrases.map((_, position) => {
-                  const index = placed[position];
-                  return (
-                    <li key={position}>
-                      {index === undefined ? (
-                        <span className="rx-slot" aria-hidden />
-                      ) : (
-                        /* The order you built is the answer, so each place wears its verdict. */
-                        <button
-                          type="button"
-                          className="rx-slot"
-                          data-filled=""
-                          data-state={partState(position)}
-                          disabled={outcome.isPending}
-                          onClick={() =>
-                            setPlaced((current) => current.filter((_, i) => i !== position))
-                          }
-                        >
-                          {sequenceExercise.phrases[index]}
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ol>
+              <OrderSlots
+                phrases={sequenceExercise.phrases}
+                placed={placed}
+                partState={partState}
+                disabled={outcome.isPending}
+                onRemove={(position) => setPlaced((current) => current.filter((_, i) => i !== position))}
+              />
             }
             say={say}
             missed={missedNow}
@@ -1701,22 +1634,14 @@ export default function PrototypeReviewDock() {
                 answer('almost', { order: placed }, null, { phrases: sequenceExercise.phrases }),
             }}
           >
+            {/* Gone once every piece is placed, so the card is the verse and its Check. */}
             {placed.length < sequenceExercise.phrases.length ? (
-              <div className="rx-tray">
-                {sequenceExercise.phrases.map((phrase, index) =>
-                  placed.includes(index) ? null : (
-                    <button
-                      key={index}
-                      type="button"
-                      className="rx-tile"
-                      disabled={outcome.isPending}
-                      onClick={() => setPlaced((current) => [...current, index])}
-                    >
-                      {phrase}
-                    </button>
-                  ),
-                )}
-              </div>
+              <OrderTray
+                phrases={sequenceExercise.phrases}
+                placed={placed}
+                disabled={outcome.isPending}
+                onPlace={(index) => setPlaced((current) => [...current, index])}
+              />
             ) : null}
           </ExerciseStage>
         ) : alteredExercise ? (

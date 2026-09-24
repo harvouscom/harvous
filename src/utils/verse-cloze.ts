@@ -271,6 +271,81 @@ function normaliseWord(value: string): string {
   return value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 }
 
+/** At most this many wrong words beside the right ones. More is a search, not a question. */
+const BANK_MAX_DISTRACTORS = 3;
+
+/** A word that could have been blanked: long enough, not a stopword, and sitting whole in its token. */
+function blankableWords(tokens: readonly string[], skip: ReadonlySet<number> = new Set()): string[] {
+  const out: string[] = [];
+  tokens.forEach((token, index) => {
+    if (skip.has(index)) return;
+    const word = bareWord(token);
+    if (word.length < MIN_BLANK_LENGTH) return;
+    if (STOPWORDS.has(word.toLowerCase())) return;
+    if (!token.includes(word)) return;
+    out.push(word);
+  });
+  return out;
+}
+
+function shuffled<T>(items: readonly T[], seed: string): T[] {
+  const random = mulberry32(hashSeed(seed));
+  const pool = [...items];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool;
+}
+
+/**
+ * The words to place, for the gentlest form of the cloze: every missing word, and a few that
+ * are not missing, shuffled together.
+ *
+ * **This ships the answers, deliberately.** Every other form of the rung withholds the missing
+ * words — see the payload test — because typing them is the exercise. A word bank is a
+ * recognition question instead, and recognition needs the right word in front of the reader. What
+ * it must still withhold is *which gap* each word goes in, so the bank is shuffled, and the tokens
+ * are never sent.
+ *
+ * Wrong words are the same kind of word as the right ones — content words a gap could have held
+ * — so the choice is about the verse, not about which tile is a verb. From `otherText` first
+ * (the chapter's other verses, on the chapter rung), because a word that is not on screen is a
+ * fairer distractor than one sitting in the sentence beside the gap; then from the verse's own
+ * unblanked words. Never one that normalises to an answer: "Love" beside "love" is two right
+ * answers, and one of them would be marked wrong.
+ *
+ * `undefined` where not even one wrong word can be found, and the gaps are typed instead: a bank
+ * holding only the answers is the answer, laid out.
+ */
+export function buildClozeBank(
+  cloze: VerseCloze,
+  seed: string,
+  otherText: readonly string[] = [],
+): string[] | undefined {
+  if (cloze.blanks.length === 0) return undefined;
+  const answers = cloze.blanks.map((blank) => blank.word);
+  const taken = new Set(answers.map(normaliseWord));
+  const want = Math.min(BANK_MAX_DISTRACTORS, answers.length + 1);
+
+  const distractors: string[] = [];
+  const offer = (candidates: readonly string[], salt: string) => {
+    for (const word of shuffled(candidates, `${seed}:bank:${salt}`)) {
+      if (distractors.length >= want) return;
+      const key = normaliseWord(word);
+      if (!key || taken.has(key)) continue;
+      taken.add(key);
+      distractors.push(word);
+    }
+  };
+  const elsewhere = otherText.flatMap((text) => blankableWords(text.trim().split(/\s+/).filter(Boolean)));
+  offer(elsewhere, 'other');
+  offer(blankableWords(cloze.tokens, new Set(cloze.blanks.map((blank) => blank.index))), 'verse');
+
+  if (distractors.length === 0) return undefined;
+  return shuffled([...answers, ...distractors], `${seed}:bank`);
+}
+
 /** One width for every gap once the letter-count hint is withdrawn. Wide enough for most words. */
 const UNIFORM_BLANK_WIDTH = 8;
 
