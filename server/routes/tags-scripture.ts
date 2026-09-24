@@ -29,6 +29,7 @@ import {
   normalizeScriptureReference,
 } from '@/utils/scripture-detector';
 import { fetchVerseText } from '../utils/fetch-verse-text';
+import { parseVerseSearchParams, searchBibleVerses } from '../utils/scripture-verse-search';
 import { nowISO } from '../db/dates';
 import { updateCanonicalNoteInTransaction } from '../utils/note-version-service';
 import { broadcastCanonicalNoteInvalidation } from '../utils/broadcast-shared-space-note';
@@ -385,6 +386,29 @@ app.get('/api/scripture/book', async (c) => {
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/scripture/book', action: 'fetch_book' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/scripture/search ───────────────────────────────────────────────
+// Word search across one translation's full text — the Library panel's "In the Bible" group.
+// Public like the chapter endpoint: Scripture is the same for every reader, and a guest looking
+// for a verse is exactly who this is for. Rate-limited by IP because it is not behind auth.
+app.get('/api/scripture/search', rateLimit('read'), async (c) => {
+  try {
+    const params = parseVerseSearchParams({
+      q: c.req.query('q'),
+      translation: c.req.query('translation'),
+      limit: c.req.query('limit'),
+    });
+    if (!params.ok) return c.json({ error: params.error, code: params.code }, 400);
+
+    const result = await searchBibleVerses(params);
+    // Same text, same query, same answer — until a reseed, which is rare enough that a day is fine.
+    c.res.headers.set('Cache-Control', 'public, max-age=86400');
+    return c.json(result);
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/scripture/search', action: 'search_verses' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

@@ -92,7 +92,14 @@ export default function PrototypeSidebarSearchResultItem({
         />
       );
     case 'scripturePassage':
-      return <ScripturePassageSearchResultItem result={result} active={active} onActivate={onActivate} />;
+      return (
+        <ScripturePassageSearchResultItem
+          result={result}
+          active={active}
+          onActivate={onActivate}
+          leadIcon={leadIcon}
+        />
+      );
     default:
       return null;
   }
@@ -324,14 +331,25 @@ function ScripturePassageSearchResultItem({
   result,
   active,
   onActivate,
+  leadIcon,
 }: {
   result: SidebarSearchResult;
   active: boolean;
   onActivate: () => void;
+  leadIcon?: IconName;
 }) {
   return (
     <li className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
-      <button type="button" className="proto-note-row__main" onClick={onActivate}>
+      <button
+        type="button"
+        className={`proto-note-row__main${leadIcon ? ' proto-note-row__main--lead' : ''}`}
+        onClick={onActivate}
+      >
+        {leadIcon ? (
+          <span className="proto-note-row__lead-icon" aria-hidden>
+            <Icon name={leadIcon} size={13} />
+          </span>
+        ) : null}
         <div className="proto-note-row__title-line">
           <span className="pds-list-title proto-note-row__title-text">{result.title}</span>
         </div>

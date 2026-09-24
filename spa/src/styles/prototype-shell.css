@@ -2410,6 +2410,48 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   background: var(--pds-border-on-paper);
 }
 
+/*
+ * "In the Bible" rows (LibraryVerseResults). The matched words are set in the title's weight
+ * and colour rather than on a tint: the note rows around them carry no highlight colour, and
+ * a coloured band would be the only one in the panel. Selectors carry `button` because the
+ * route override paints every preview descendant with !important — see
+ * prototype-route-overrides-2.css.
+ */
+/*
+ * Search results lead with a glyph column, like the browse list — quieter than the titles
+ * beside it, so the eye runs down the words and the glyphs only answer "what kind" when
+ * asked. The route override paints every button descendant the primary text colour, hence
+ * the specificity.
+ */
+html.harvous-prototype-route .proto-sidebar-search-results button .proto-note-row__lead-icon,
+html.harvous-prototype-route .proto-sidebar-search-results button .proto-note-row__lead-icon * {
+  color: var(--pds-text-tertiary) !important;
+}
+
+.proto-verse-hit__text {
+  /* Two lines of the verse rather than a note's one: a match halfway through is still the
+     reason the row is here. Clamped so a long verse cannot take the list over. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+html.harvous-prototype-route button .proto-note-row__preview mark.proto-verse-hit__match,
+.proto-verse-hit__match {
+  background: none;
+  color: var(--pds-text-primary) !important;
+  font-weight: 600;
+}
+
+.proto-verse-hit__more-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+}
+
 /* The first group opens the list, so it has nothing to be broken away from. */
 .proto-library-results__group:first-child .proto-library-results__heading {
   padding-top: 2px;
@@ -2432,7 +2474,7 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
  * heading is redundant on screen because the eye takes in the whole panel at once; read
  * linearly it is still the thing that says the list has started.
  */
-.proto-library-results__group:only-child .proto-library-results__heading {
+.proto-library-results__group:only-child:not(.proto-library-results__group--labelled) .proto-library-results__heading {
   position: absolute;
   width: 1px;
   height: 1px;
