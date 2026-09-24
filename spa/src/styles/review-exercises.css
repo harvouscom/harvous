@@ -24,6 +24,9 @@
   --rx-scene-bg: color-mix(in srgb, var(--pds-text-primary) 3.5%, transparent);
   --rx-piece-bg: var(--pds-bg-glass-strong);
   --rx-piece-edge: var(--pds-border-control-strong);
+  /* An empty place to put something. The control edge (12% black) all but vanished on the
+     scene's wash; this is the paper's own border colour, derived from the text, in both themes. */
+  --rx-open-edge: var(--pds-border-on-paper);
 }
 
 .proto-review-dock .proto-review-dock__body:has(> .rx-stage),
@@ -403,7 +406,7 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   align-items: center;
   margin: 0;
   padding: 8px 14px;
-  border: 1.5px dashed var(--pds-border-control-strong);
+  border: 1.5px dashed var(--rx-open-edge);
   border-radius: 12px;
   background: transparent;
   font: inherit;
@@ -443,6 +446,78 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
 .rx-tray .rx-tile {
   font-family: var(--pds-font-reading);
   font-variation-settings: var(--pds-font-reading-variation);
+}
+
+/*
+ * A placed piece leaves its outline, not its space, so the tray keeps its shape as it empties.
+ * The dashed edge plus the 2px drop matches a pressed piece's height exactly.
+ */
+.rx-tray .rx-tile[data-used] {
+  margin-top: 2px;
+  border-style: dashed;
+  border-bottom-width: 1px;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/*
+ * A gap in the verse on the word-bank form: a place a tile goes, in the line itself and at the
+ * scene's size, so the verse still reads as the verse. Dashed while empty, a piece once filled,
+ * and tapping a filled one sends its word back.
+ */
+.rx-gap {
+  display: inline-block;
+  min-height: 1.4em;
+  margin: 0 2px;
+  padding: 0 8px;
+  border: 1.5px dashed var(--rx-open-edge);
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+  text-align: center;
+  vertical-align: baseline;
+}
+
+.rx-gap[data-filled] {
+  border-style: solid;
+  border-color: var(--rx-piece-edge);
+  background: var(--rx-piece-bg);
+  cursor: pointer;
+}
+
+.rx-gap:disabled {
+  cursor: default;
+}
+
+.rx-gap:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The one blue: the accent gradient, filled, with white on it. */
+.rx-gap[data-state='right'] {
+  border-color: transparent;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  -webkit-text-fill-color: var(--pds-on-accent);
+}
+
+.rx-gap[data-state='wrong'] {
+  border-color: color-mix(in oklab, var(--pds-destructive) 55%, transparent);
+  background: var(--pds-destructive-bg);
+  color: var(--pds-destructive);
+  -webkit-text-fill-color: var(--pds-destructive);
+}
+
+/* Filled by the app after a miss: settled, not the reader's answer either way. */
+.rx-gap[data-state='given'] {
+  border-color: transparent;
+  background: var(--rx-scene-bg);
+  color: var(--pds-text-secondary);
+  -webkit-text-fill-color: var(--pds-text-secondary);
 }
 
 /* Name some of its words: the boxes are the card, so they are set at the scene's size. */
@@ -579,12 +654,33 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   }
 
   /* The mark lands on the piece itself: a spent answer shakes once, a right one settles. */
-  .rx-option[data-state='wrong'] {
+  .rx-option[data-state='wrong'],
+  .rx-gap[data-state='wrong'],
+  .rx-slot[data-state='wrong'] {
     animation: rx-shake 320ms ease;
   }
 
-  .rx-option[data-state='right'] {
+  .rx-option[data-state='right'],
+  .rx-gap[data-state='right'],
+  .rx-slot[data-state='right'] {
     animation: rx-settle 280ms var(--pds-ease-emphasized);
+  }
+
+  /* A word dropped into its gap, or a piece into its place, lands rather than appears. */
+  .rx-gap[data-filled]:not([data-state]),
+  .rx-slot[data-filled]:not([data-state]) {
+    animation: rx-land 180ms var(--pds-ease-emphasized);
+  }
+}
+
+@keyframes rx-land {
+  from {
+    transform: translateY(4px) scale(0.96);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
   }
 }
 

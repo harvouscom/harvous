@@ -97,7 +97,8 @@ export interface ReviewRevealResponse {
   note?: { id: string; title: string | null; content: string } | null;
   secondaryNote?: { id: string; title: string | null; content: string } | null;
   verseText?: string | null;
-  cloze?: { segments: string[]; blankLengths: number[] } | null;
+  /** `bank`: words to place at the gentlest tier, the answers shuffled among a few wrong ones. */
+  cloze?: { segments: string[]; blankLengths: number[]; bank?: string[] } | null;
   sequence?: { phrases: string[] } | null;
   /**
    * `leading` / `trailing` say whether there is really more verse either side of the phrase.

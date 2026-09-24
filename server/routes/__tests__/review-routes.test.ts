@@ -594,6 +594,24 @@ describe('the cloze payload', () => {
     expect(shape).not.toContain('VerseCloze');
     expect(shape).toContain('segments');
   });
+
+  it('ships the missing words only as a shuffled bank, and only at the tier that asks for one', () => {
+    /*
+     * The word bank is the one form of this rung that has to carry the answers — you cannot pick
+     * the right word without seeing it. It still never says which gap a word goes in, and it is
+     * gated on the tier table so the typed tiers keep withholding the words entirely.
+     */
+    const text = service();
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.rebuild'"));
+    const block = branch.slice(0, branch.indexOf("rung.key === 'verse.sequence'"));
+    expect(block).toMatch(/spec\.wordBank && cloze\.blanks\.length > 0/);
+    expect(block).toMatch(/buildClozeBank\(\s*cloze/);
+    expect(block).not.toMatch(/cloze\.blanks\.map/);
+
+    const finish = reveal.slice(reveal.indexOf("rung.key === 'chapter.finish'"));
+    expect(finish.slice(0, 900)).toMatch(/spec\.wordBank/);
+  });
 });
 
 describe('what the reader is told after a graded rung', () => {

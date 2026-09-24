@@ -148,6 +148,7 @@ import {
   type VerseAlteredExercise,
 } from '@/utils/verse-altered';
 import {
+  buildClozeBank,
   buildVerseCloze,
   clozeSegments,
   gradeVerseRebuild,
@@ -2187,7 +2188,12 @@ export interface ReviewRevealPayload {
    * shipping it wholesale handed the client both. Withholding `verseText` beside that achieved
    * nothing: the passage was still in the payload, spelled differently.
    */
-  cloze?: { segments: string[]; blankLengths: number[] } | null;
+  /**
+   * `bank` only at the gentlest tier (`VerseClozeSpec.wordBank`): the missing words and a few
+   * wrong ones, shuffled, to place rather than type. It carries the answers on purpose — see
+   * `buildClozeBank` — but never which gap each belongs in.
+   */
+  cloze?: { segments: string[]; blankLengths: number[]; bank?: string[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
   /** The ordering puzzle, without its answer key — see verse-ladder-exercises.ts. */
   sequence?: { phrases: string[] } | null;
@@ -3426,6 +3432,9 @@ const FREE_RECALL_KEYS = new Set<ReviewPromptKey>(['verse.recall']);
 /** Five asked for, three needed — see `buildVerseNextFor`. */
 const VERSE_NEXT_NEIGHBOURS = 5;
 
+/** Verses either side the word bank draws its wrong words from. Two is plenty for three words. */
+const CLOZE_BANK_NEIGHBOURS = 2;
+
 export async function gradeVerseAnswer(
   userId: string,
   item: ReviewItemRow,
@@ -4294,9 +4303,28 @@ export async function buildReviewReveal(
           // The pieces either side of each gap, so the page can put an input where the gap is
           // rather than a picture of one. `display` is never sent: it is unfillable.
           // `uniformWidths` withdraws the letter-count hint at the top tier.
+          /*
+           * The bank's wrong words come from the verses either side where they can: a word from
+           * the verse on screen sits beside the gap it is meant to be wrong for ("bears ___
+           * fruit" offered "fruit"). The same fetches `verse.next` makes, so they are usually
+           * cached; a failed one just leaves the verse's own words to fall back on.
+           */
+          let bank: string[] | undefined;
+          if (spec.wordBank && cloze.blanks.length > 0 && item.scriptureReference) {
+            const nearby = await Promise.all(
+              neighbourVerseAddresses(item.scriptureReference, CLOZE_BANK_NEIGHBOURS).map((address) =>
+                fetchVerseText(formatVerseAddress(address), translation).catch(() => null),
+              ),
+            );
+            bank = buildClozeBank(
+              cloze,
+              seed,
+              nearby.filter((html): html is string => Boolean(html)).map((html) => stripHtml(html)),
+            );
+          }
           payload.cloze =
             cloze.blanks.length > 0
-              ? clozeSegments(cloze, { uniformWidths: spec.uniformWidths })
+              ? { ...clozeSegments(cloze, { uniformWidths: spec.uniformWidths }), ...(bank ? { bank } : {}) }
               : null;
           /*
            * The gaps, not the verse. This rung shipped both and rendered neither: it was not
@@ -4379,8 +4407,18 @@ export async function buildReviewReveal(
     if (rung.key === 'chapter.finish') {
       const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
       const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
+      /* The chapter's other verses give the bank its wrong words: on the page they are not, so
+         a tile is a real choice rather than a word the reader can see beside the gap. */
+      const bank =
+        exercise && spec.wordBank
+          ? buildClozeBank(
+              exercise.cloze,
+              seed,
+              material.verses.filter((verse) => verse.number !== exercise.verse.number).map((verse) => verse.text),
+            )
+          : undefined;
       payload.cloze = exercise
-        ? clozeSegments(exercise.cloze, { uniformWidths: spec.uniformWidths })
+        ? { ...clozeSegments(exercise.cloze, { uniformWidths: spec.uniformWidths }), ...(bank ? { bank } : {}) }
         : null;
     }
     if (rung.key === 'chapter.order') {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildClozeBank,
   buildVerseCloze,
   clozeSegments,
   gradeVerseRebuild,
@@ -215,5 +216,56 @@ describe('clozeSegments', () => {
       .map((seg, i) => (i < punctuated.blanks.length ? seg + punctuated.blanks[i].word : seg))
       .join('');
     expect(rebuilt).toBe(punctuated.tokens.join(' '));
+  });
+});
+
+describe('buildClozeBank', () => {
+  const norm = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
+  it('holds every missing word exactly once each, and a few that are not missing', () => {
+    const cloze = buildVerseCloze(JOHN_15_5, 'review_1:0', 0.2, { maxBlanks: 2 });
+    const bank = buildClozeBank(cloze, 'review_1:0')!;
+    const answers = cloze.blanks.map((b) => b.word);
+    for (const answer of answers) {
+      expect(bank.filter((w) => w === answer).length).toBe(answers.filter((a) => a === answer).length);
+    }
+    const wrong = bank.filter((w) => !answers.includes(w));
+    expect(wrong.length).toBe(Math.min(3, answers.length + 1));
+  });
+
+  it('never offers a wrong word that reads the same as a right one', () => {
+    for (let i = 0; i < 40; i++) {
+      const cloze = buildVerseCloze(JOHN_15_5, `seed-${i}`, 0.4, { maxBlanks: 4 });
+      const bank = buildClozeBank(cloze, `seed-${i}`)!;
+      const answers = new Set(cloze.blanks.map((b) => norm(b.word)));
+      const wrong = bank.slice();
+      for (const b of cloze.blanks) wrong.splice(wrong.indexOf(b.word), 1);
+      for (const w of wrong) expect(answers.has(norm(w))).toBe(false);
+      // And no wrong word twice.
+      expect(new Set(wrong.map(norm)).size).toBe(wrong.length);
+    }
+  });
+
+  it('is the same bank for the same seed, and never the tokens', () => {
+    const cloze = buildVerseCloze(JOHN_15_5, 'review_1:0', 0.2, { maxBlanks: 2 });
+    expect(buildClozeBank(cloze, 'review_1:0')).toEqual(buildClozeBank(cloze, 'review_1:0'));
+    expect(buildClozeBank(cloze, 'review_1:0')!.length).toBeLessThan(cloze.tokens.length);
+  });
+
+  it('takes its wrong words from other text before the verse on screen', () => {
+    const cloze = buildVerseCloze(JOHN_15_5, 'review_1:0', 0.2, { maxBlanks: 2 });
+    const other = 'Remain steadfast, rejoicing always, praying continually, trusting quietly.';
+    const bank = buildClozeBank(cloze, 'review_1:0', [other])!;
+    const answers = cloze.blanks.map((b) => b.word);
+    const wrong = bank.filter((w) => !answers.includes(w));
+    for (const w of wrong) expect(other).toContain(w);
+  });
+
+  it('gives no bank at all when nothing could stand beside the answer', () => {
+    // One content word, blanked: nothing left to be the wrong one.
+    const cloze = buildVerseCloze('And so he did rejoice', 'seed', 1, { maxBlanks: 1 });
+    expect(cloze.blanks.length).toBe(1);
+    expect(buildClozeBank(cloze, 'seed')).toBeUndefined();
+    expect(buildClozeBank({ tokens: [], blanks: [], display: '' }, 'seed')).toBeUndefined();
   });
 });

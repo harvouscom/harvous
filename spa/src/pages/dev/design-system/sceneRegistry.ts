@@ -293,6 +293,21 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-23-whats-new-row',
     visualBaseline: true,
   },
+  {
+    id: 'ds-25-review-deck-cards',
+    title: 'Review deck cards',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/review-exercises/ExerciseStage.tsx',
+      'spa/src/pages/prototype/review-exercises/WordBank.tsx',
+      'spa/src/pages/prototype/review-exercises/OrderPieces.tsx',
+      'spa/src/pages/prototype/review-exercises/ChoiceOptions.tsx',
+      'spa/src/styles/review-exercises.css',
+    ],
+    screenshotSlug: 'ds-25-review-deck-cards',
+    // The card stage and its pieces in their states. Not a baseline yet: the gallery's baselines
+    // are darwin-only and outside CI, and this family is still being built out.
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {
