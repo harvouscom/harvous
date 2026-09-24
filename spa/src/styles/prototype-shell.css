@@ -2446,10 +2446,65 @@ html.harvous-prototype-route button .proto-note-row__preview mark.proto-verse-hi
   font-weight: 600;
 }
 
-.proto-verse-hit__more-label {
-  font-size: 13px;
+/*
+ * "Show more verses" — a quiet link under the list, starting on the titles' edge (the row's
+ * 10px inset, the 13px lead glyph and the 10px column gap). Not a row: in row type and with
+ * the arrow in the glyph column it read as a sixth verse.
+ */
+.proto-verse-hit__more {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 0 6px;
+  padding: 4px 6px 4px 33px;
+  border: 0;
+  border-radius: var(--pds-radius-button);
+  background: none;
+  cursor: pointer;
+  font-family: var(--pds-font-body);
+  font-size: 12.5px;
   font-weight: 500;
-  color: var(--pds-text-secondary);
+}
+
+html.harvous-prototype-route .proto-sidebar-search-results button.proto-verse-hit__more,
+html.harvous-prototype-route .proto-sidebar-search-results button.proto-verse-hit__more * {
+  color: var(--pds-text-secondary) !important;
+}
+
+@media (hover: hover) {
+  html.harvous-prototype-route .proto-sidebar-search-results button.proto-verse-hit__more:hover,
+  html.harvous-prototype-route .proto-sidebar-search-results button.proto-verse-hit__more:hover * {
+    color: var(--pds-text-primary) !important;
+  }
+}
+
+.proto-verse-hit__more:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: -2px;
+}
+
+/* The translation, said once, as a tag rather than "· NLT" run on to the label. */
+.proto-library-results__heading-meta {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 0.5px solid var(--pds-border-on-paper);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  color: var(--pds-text-muted);
+}
+
+/*
+ * A labelled group that opens the list: the first-group rule strips its top padding (it
+ * expects a heading about to be hidden), which left this one pressed against the search
+ * field and a larger gap below it than above — a label floating away from what it names.
+ */
+.proto-library-results__group.proto-library-results__group--labelled:first-child .proto-library-results__heading {
+  padding-top: 14px;
+  padding-bottom: 0;
 }
 
 /* The first group opens the list, so it has nothing to be broken away from. */
