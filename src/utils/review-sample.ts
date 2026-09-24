@@ -25,7 +25,14 @@
  * the morning is the answer to the question still on screen in the afternoon, and the grader
  * rebuilds exactly what was asked.
  */
-import { buildVerseCloze, clozeSegments, gradeVerseRebuild, seededIndex, type VerseClozeSegments } from './verse-cloze';
+import {
+  buildClozeBank,
+  buildVerseCloze,
+  clozeSegments,
+  gradeVerseRebuild,
+  seededIndex,
+  type VerseClozeSegments,
+} from './verse-cloze';
 import {
   buildVerseInitials,
   buildVerseNext,
@@ -96,10 +103,14 @@ export function isSampleExercise(value: unknown): value is SampleExercise {
 
 /** What the reader is shown. The answer key never appears in any variant. */
 export type ReviewSampleExercise =
-  | { kind: 'blanks'; cloze: VerseClozeSegments; blankCount: number }
+  /* `bank`: the missing words as tiles among a few wrong ones — the sample is a first meeting,
+     so it asks in the gentlest form, the dock's tier 0. Shuffled; never says which gap. */
+  | { kind: 'blanks'; cloze: VerseClozeSegments & { bank?: string[] }; blankCount: number }
   | { kind: 'letters'; initials: string; wordCount: number }
   | { kind: 'order'; phrases: string[] }
-  | { kind: 'next'; options: string[] };
+  /* `verse`: the verse asked about, which is the question and not the answer — the card puts it
+     on the rail above the place the next verse goes, as the paid rung shows it. */
+  | { kind: 'next'; options: string[]; verse: string };
 
 /**
  * What each exercise needs beyond the verse itself.
@@ -135,7 +146,13 @@ export function buildSampleExercise(
   if (kind === 'blanks') {
     const cloze = buildVerseCloze(text, salted, SAMPLE_CLOZE_RATIO);
     if (cloze.blanks.length === 0) return null;
-    return { kind, cloze: clozeSegments(cloze), blankCount: cloze.blanks.length };
+    // Wrong words from the verses either side, as the dock's bank takes them.
+    const bank = buildClozeBank(cloze, salted, material.neighbourTexts ?? []);
+    return {
+      kind,
+      cloze: { ...clozeSegments(cloze), ...(bank ? { bank } : {}) },
+      blankCount: cloze.blanks.length,
+    };
   }
   if (kind === 'letters') {
     /*
@@ -160,7 +177,7 @@ export function buildSampleExercise(
     seed: salted,
   });
   // `answerIndex` stays here, for the same reason it stays on every paid rung.
-  return built ? { kind, options: built.options } : null;
+  return built ? { kind, options: built.options, verse: text } : null;
 }
 
 /** Which of the four this verse can actually carry, for the chips to offer. */

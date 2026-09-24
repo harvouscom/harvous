@@ -23108,7 +23108,9 @@ button.proto-feed-sheet__stat:hover {
 
   A row of secondary buttons rather than a segmented control, because that is what every other
   set of choices in this feature already is — the ordering chips, the multiple choice. The
-  current one is marked by weight and a border, never by colour alone.
+  current one takes the accent gradient with white, the app's one selected state — the weight and
+  border it wore could not be told apart from its neighbours, which are bold already. It is never
+  colour alone: `aria-pressed` says which one it is.
 */
 .proto-review-sample__exercises {
   display: flex;
@@ -23118,9 +23120,9 @@ button.proto-feed-sheet__stat:hover {
 }
 
 .proto-review-sample__exercises button[data-current] {
-  border-color: var(--pds-border-control-strong, var(--pds-text-tertiary));
-  color: var(--pds-text-primary);
-  font-weight: 600;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent) !important;
+  -webkit-text-fill-color: var(--pds-on-accent);
 }
 
 /* The first-letter aid reads as the verse's shape, so it keeps the verse's own face. */
