@@ -171,6 +171,7 @@ import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
 import { pickRepNoteIdForCluster } from './study-thread-cluster-count';
 import { formatVerseAddress, lastVerseOf, neighbourVerseAddresses, nextVerseAddress } from '@/utils/verse-adjacency';
 import { partitionByBook } from '@/utils/scripture-book';
+import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import {
   CROSSREF_MIN_VOTES,
   VERSE_THEME_MIN_RELEVANCE,
@@ -2347,12 +2348,10 @@ interface VerseKnowledgeMaterial extends VerseMaterial {
   /** Places the index names at this verse, normalised, barred labels included. */
   places: string[];
   /**
-   * The cross-reference openings, loaded on demand.
-   *
-   * A function rather than an array: only `verse.crossref` reads them, and fetching them for
-   * every verse in a sitting was three round trips apiece for a rung most of them never ask.
+   * Every cross-reference the index carries for this verse, as references ("John 15:4",
+   * "Romans 8:28-30"), highest-voted first. What `verse.crossref` asks with — no text to fetch.
    */
-  crossRefs: () => Promise<{ reference: string; text: string }[]>;
+  crossRefReferences: string[];
   /** How many targets clear the vote floor at all, for the framing line. Capped by the query. */
   crossRefTotal: number;
   /** Distinguishing labels of the reader's notes that cite this verse. */
@@ -2374,7 +2373,7 @@ const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
   allThemeLabels: [],
   people: [],
   places: [],
-  crossRefs: () => Promise.resolve([]),
+  crossRefReferences: [],
   crossRefTotal: 0,
   citingNoteLabels: [],
   text: '',
@@ -2453,8 +2452,6 @@ async function loadChapterMaterial(
   );
 }
 
-const CROSSREF_TEXT_FETCHES = 3;
-
 async function loadVerseMaterialUncached(
   userId: string,
   reference: string | null,
@@ -2488,41 +2485,20 @@ async function loadVerseMaterialUncached(
   );
   const label = (t: { label: string }) => curatedTopicLabelForDisplay(t.label);
 
-  // Single-verse targets first: a whole-chapter cross-reference has no one opening to show.
-  const targets = (knowledge?.crossReferences ?? [])
-    .filter((c) => c.chapterStart === c.chapterEnd)
-    .slice(0, CROSSREF_TEXT_FETCHES);
   /*
-   * The three cross-reference openings — fetched together, and only if anything asks for them.
-   *
-   * `fetchVerseText` is a database round trip (a `VerseTextCache` read, then `BibleVerses`, then
-   * a cache write), not an in-memory lookup. These were awaited on every material load, which
-   * means every verse in a sitting paid for up to three of them — and exactly one rung ever reads
-   * the result. `verse.crossref` is one member of one five-member family, so the overwhelming
-   * majority of those fetches were made, held, and dropped. Against a real account that is the
-   * largest remaining cost in composing a session.
-   *
-   * Lazy and memoised: the first caller pays, a second gets the same promise, and a material
-   * nobody asks a cross-reference of costs nothing at all. `Promise.all` still preserves order,
-   * and the falsy-`html` rows are still dropped after rather than never pushed, so what comes
-   * back is what the eager version returned.
+   * The cross-references as references, for `verse.crossref`. Within one chapter only: a target
+   * spanning chapters is a passage to read rather than a place to name, and the label for it
+   * would be the longest option on the card by some way, which is its own giveaway.
    */
-  const crossRefTargets = targets.map((c) => `${c.book} ${c.chapterStart}:${c.verseStart}`);
-  let crossRefPending: Promise<{ reference: string; text: string }[]> | null = null;
-  const crossRefs = () => {
-    if (!crossRefPending) {
-      crossRefPending = Promise.all(
-        crossRefTargets.map((targetRef) => fetchVerseText(targetRef, translation)),
-      ).then((html) =>
-        crossRefTargets
-          .map((reference, i) => ({ reference, html: html[i] }))
-          .filter((entry) => Boolean(entry.html))
-          .map((entry) => ({ reference: entry.reference, text: stripHtml(entry.html) })),
-      );
-    }
-    return crossRefPending;
-  };
-
+  const crossRefReferences = (knowledge?.crossReferences ?? [])
+    .filter((c) => c.chapterStart === c.chapterEnd)
+    .map((c) =>
+      normalizeScriptureReference(
+        c.verseEnd > c.verseStart
+          ? `${c.book} ${c.chapterStart}:${c.verseStart}-${c.verseEnd}`
+          : `${c.book} ${c.chapterStart}:${c.verseStart}`,
+      ),
+    );
   return {
     reference: ref,
     citedInNotes: citing.length,
@@ -2531,19 +2507,13 @@ async function loadVerseMaterialUncached(
     // The count is of places that can actually be asked, so a verse naming only "the earth"
     // never resolves to a place rung the builder would then refuse.
     placeCount: askablePlaces((knowledge?.places ?? []).map((place) => place.name)).length,
-    /*
-     * Counted from the targets rather than from fetched text, because the count decides whether
-     * the rung is offered at all and must not depend on a fetch that has not happened. A target
-     * whose text later fails to load is the one case this over-counts by, and the builder already
-     * returns null there — which falls forward to another member of the family, as a missing
-     * material always does.
-     */
-    crossRefCount: crossRefTargets.length,
+    // The count decides whether the rung is offered at all; it is the references the rung asks with.
+    crossRefCount: crossRefReferences.length,
     themes: themesAbove.map(label),
     allThemeLabels: (knowledge?.themes ?? []).map(label),
     people: (knowledge?.people ?? []).map((p) => p.name),
     places: (knowledge?.places ?? []).map((place) => place.name),
-    crossRefs,
+    crossRefReferences,
     crossRefTotal: knowledge?.crossReferences.length ?? 0,
     citingNoteLabels: citing,
     text,
@@ -2696,20 +2666,25 @@ async function buildVerseContextFor(
   }
 
   if (rungKey === 'verse.crossref') {
-    const crossRefs = await material.crossRefs();
-    if (!crossRefs.length) return null;
-    const answer = crossRefs[seededIndex(seed, crossRefs.length)];
-    const barred = new Set(crossRefs.map((c) => c.reference.toLowerCase()));
-    const distractorTexts: string[] = [];
-    for (const ref of otherRefs) {
-      if (barred.has(ref.toLowerCase())) continue;
-      const html = await fetchVerseText(ref, translation);
-      if (html) distractorTexts.push(stripHtml(html));
-    }
-    const exercise = buildVerseCrossref({ answerText: answer.text, distractorTexts, seed });
-    return exercise
-      ? { exercise, acceptable: [exercise.options[exercise.answerIndex]], opening: true }
-      : null;
+    /*
+     * Asked with references. Any of the verse's cross-references is right; all are barred as
+     * distractors, and the reader's own passages from the same book come first, so the book
+     * never tells which option is the answer. See `buildVerseCrossref`.
+     */
+    const answers = material.crossRefReferences;
+    if (!answers.length) return null;
+    const own = (await listUserVerseReferences(userId, item.scriptureReference)).map((ref) =>
+      normalizeScriptureReference(ref),
+    );
+    const { close, rest } = partitionByBook(answers, own);
+    const exercise = buildVerseCrossref({
+      answers,
+      verse: normalizeScriptureReference(item.scriptureReference),
+      pool: close,
+      fallbackPool: rest,
+      seed,
+    });
+    return exercise ? { exercise, acceptable: answers, opening: false } : null;
   }
 
   return null;
