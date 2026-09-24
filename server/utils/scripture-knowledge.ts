@@ -103,40 +103,6 @@ export async function getKnowledgeForReference(
     eq(ScriptureCrossReferences.fromVerse, verse),
   );
 
-  const crossReferences = await db
-    .select({
-      book: ScriptureCrossReferences.toBook,
-      chapterStart: ScriptureCrossReferences.toChapterStart,
-      chapterEnd: ScriptureCrossReferences.toChapterEnd,
-      verseStart: ScriptureCrossReferences.toVerseStart,
-      verseEnd: ScriptureCrossReferences.toVerseEnd,
-      votes: ScriptureCrossReferences.votes,
-    })
-    .from(ScriptureCrossReferences)
-    .where(and(here, gte(ScriptureCrossReferences.votes, minVotes)))
-    .orderBy(desc(ScriptureCrossReferences.votes))
-    .limit(crossRefLimit);
-
-  const themes = await db
-    .select({
-      topicId: ScriptureTopics.id,
-      slug: ScriptureTopics.slug,
-      label: ScriptureTopics.label,
-      relevance: ScriptureTopicVerses.relevance,
-    })
-    .from(ScriptureTopicVerses)
-    .innerJoin(ScriptureTopics, eq(ScriptureTopicVerses.topicId, ScriptureTopics.id))
-    .where(
-      and(
-        eq(ScriptureTopicVerses.book, book),
-        eq(ScriptureTopicVerses.chapter, chapter),
-        eq(ScriptureTopicVerses.verse, verse),
-        gte(ScriptureTopicVerses.relevance, minRelevance),
-      ),
-    )
-    .orderBy(desc(ScriptureTopicVerses.relevance))
-    .limit(themeLimit);
-
   const atVerse = (type: 'person' | 'place') =>
     and(
       eq(ScriptureEntityRefs.entityType, type),
@@ -145,17 +111,54 @@ export async function getKnowledgeForReference(
       eq(ScriptureEntityRefs.verse, verse),
     );
 
-  const people = await db
-    .select({ id: BiblePeople.id, slug: BiblePeople.slug, name: BiblePeople.name })
-    .from(ScriptureEntityRefs)
-    .innerJoin(BiblePeople, eq(ScriptureEntityRefs.entityId, BiblePeople.id))
-    .where(atVerse('person'));
-
-  const places = await db
-    .select({ id: BiblePlaces.id, slug: BiblePlaces.slug, name: BiblePlaces.name })
-    .from(ScriptureEntityRefs)
-    .innerJoin(BiblePlaces, eq(ScriptureEntityRefs.entityId, BiblePlaces.id))
-    .where(atVerse('place'));
+  /*
+   * Four independent reads, side by side. They ran one after another — four round trips for every
+   * verse a sitting touched, about a third of a second each time on this database's latency floor.
+   */
+  const [crossReferences, themes, people, places] = await Promise.all([
+    db
+      .select({
+        book: ScriptureCrossReferences.toBook,
+        chapterStart: ScriptureCrossReferences.toChapterStart,
+        chapterEnd: ScriptureCrossReferences.toChapterEnd,
+        verseStart: ScriptureCrossReferences.toVerseStart,
+        verseEnd: ScriptureCrossReferences.toVerseEnd,
+        votes: ScriptureCrossReferences.votes,
+      })
+      .from(ScriptureCrossReferences)
+      .where(and(here, gte(ScriptureCrossReferences.votes, minVotes)))
+      .orderBy(desc(ScriptureCrossReferences.votes))
+      .limit(crossRefLimit),
+    db
+      .select({
+        topicId: ScriptureTopics.id,
+        slug: ScriptureTopics.slug,
+        label: ScriptureTopics.label,
+        relevance: ScriptureTopicVerses.relevance,
+      })
+      .from(ScriptureTopicVerses)
+      .innerJoin(ScriptureTopics, eq(ScriptureTopicVerses.topicId, ScriptureTopics.id))
+      .where(
+        and(
+          eq(ScriptureTopicVerses.book, book),
+          eq(ScriptureTopicVerses.chapter, chapter),
+          eq(ScriptureTopicVerses.verse, verse),
+          gte(ScriptureTopicVerses.relevance, minRelevance),
+        ),
+      )
+      .orderBy(desc(ScriptureTopicVerses.relevance))
+      .limit(themeLimit),
+    db
+      .select({ id: BiblePeople.id, slug: BiblePeople.slug, name: BiblePeople.name })
+      .from(ScriptureEntityRefs)
+      .innerJoin(BiblePeople, eq(ScriptureEntityRefs.entityId, BiblePeople.id))
+      .where(atVerse('person')),
+    db
+      .select({ id: BiblePlaces.id, slug: BiblePlaces.slug, name: BiblePlaces.name })
+      .from(ScriptureEntityRefs)
+      .innerJoin(BiblePlaces, eq(ScriptureEntityRefs.entityId, BiblePlaces.id))
+      .where(atVerse('place')),
+  ]);
 
   return {
     reference: { book, chapter, verse },

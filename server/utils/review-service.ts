@@ -169,8 +169,6 @@ import {
 } from '@/utils/review-difficulty';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
-import { collectStudyThreadGraph } from './study-thread-graph';
-import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
 import { pickRepNoteIdForCluster } from './study-thread-cluster-count';
 import { formatVerseAddress, lastVerseOf, neighbourVerseAddresses, nextVerseAddress } from '@/utils/verse-adjacency';
 import { partitionByBook } from '@/utils/scripture-book';
@@ -536,8 +534,18 @@ async function loadNoteChoiceSets(
   noteIds: readonly string[],
 ): Promise<Map<string, NoteChoiceSet>> {
   const unique = [...new Set(noteIds.filter(Boolean))];
+  if (!unique.length) return new Map();
+  // Memoised like the material built from it: the builder and the probe ask for the same notes.
+  return memoisedMaterial(`${userId}:note-sets:${[...unique].sort().join(',')}`, () =>
+    loadNoteChoiceSetsUncached(userId, unique),
+  );
+}
+
+async function loadNoteChoiceSetsUncached(
+  userId: string,
+  unique: string[],
+): Promise<Map<string, NoteChoiceSet>> {
   const out = new Map<string, NoteChoiceSet>();
-  if (!unique.length) return out;
 
   const [owned, titles, passages, links, labelPool, verseReferences, folderPool] = await Promise.all([
     db
@@ -732,7 +740,7 @@ async function loadNoteMaterial(
 ): Promise<Map<string, NoteMaterial>> {
   const unique = [...new Set(noteIds.filter(Boolean))];
   if (!unique.length) return new Map();
-  return memoisedMaterial(`note:${userId}:${[...unique].sort().join(',')}`, async () => {
+  return memoisedMaterial(`${userId}:note:${[...unique].sort().join(',')}`, async () => {
     const [sets, rungPrefs] = await Promise.all([
       loadNoteChoiceSets(userId, unique),
       loadRungPreferences(userId),
@@ -833,25 +841,6 @@ async function loadTitles(userId: string, noteIds: string[]): Promise<Map<string
 }
 
 /**
- * Thread items name the cluster, not the representative note.
- *
- * "What is taking shape across your `Adoption, not slavery` Thread" is wrong in a way a
- * reader notices immediately — that is one note inside the Thread, and the rep is an
- * implementation detail of how the graph picks a label.
- */
-async function threadTitleFor(userId: string, repNoteId: string): Promise<string | null> {
-  const rep = first(
-    await db
-      .select({ studyThreadTitle: Notes.studyThreadTitle, title: Notes.title })
-      .from(Notes)
-      .where(and(eq(Notes.id, repNoteId), eq(Notes.userId, userId)))
-      .limit(1),
-  );
-  if (!rep) return null;
-  return displayTitle(rep.studyThreadTitle) ?? displayTitle(rep.title);
-}
-
-/**
  * The rung a note item can actually answer, or null when there is nothing to ask about it.
  *
  * The stored step is nominal — a note with no links skips past "what did you link this to?"
@@ -889,10 +878,11 @@ export async function filterAskableReviewRows(
     .filter((r) => r.kind === 'note')
     .map((r) => r.noteId)
     .filter((id): id is string => Boolean(id));
-  const material =
+  // Started now and awaited below, beside the chapter probe rather than in front of it.
+  const materialPending =
     options.dropUnaskable && noteIds.length
-      ? await loadNoteMaterial(userId, noteIds)
-      : new Map<string, NoteMaterial>();
+      ? loadNoteMaterial(userId, noteIds)
+      : Promise.resolve(new Map<string, NoteMaterial>());
 
   /*
    * Chapters need their text before we can say whether they are askable, because every rung of a
@@ -929,8 +919,9 @@ export async function filterAskableReviewRows(
       ]
     : [];
   const chapterHasVerses = new Map<string, boolean>();
-  await Promise.all(
-    chapterRefs.map(async (key) => {
+  const [material] = await Promise.all([
+    materialPending,
+    ...chapterRefs.map(async (key) => {
       const [reference, translation] = key.split('|');
       const parts = chapterKeyPartsFromReference(reference);
       const html = parts
@@ -938,7 +929,7 @@ export async function filterAskableReviewRows(
         : '';
       chapterHasVerses.set(key, Boolean(html) && splitChapterHtmlIntoVerses(html).length > 0);
     }),
-  );
+  ]);
 
   return rows.filter((row) => {
     const kind = row.kind as ReviewItemKind;
@@ -974,58 +965,37 @@ export async function buildReviewItemSummaries(
   }));
 }
 
-export async function buildReviewItemViews(
-  userId: string,
-  rows: ReviewItemRow[],
-  /**
-   * Drop note items the resolver can ask nothing about.
-   *
-   * True when assembling a queue, false when rebuilding one item the caller already has in hand
-   * — a route that just recorded an outcome must get its item back, not an empty array.
-   */
-  options: { dropUnaskable?: boolean } = {},
-): Promise<ReviewItemView[]> {
-  /*
-   * The account's wording, resolved once for the whole build and passed to every material load
-   * below. Memoised per request, so this is the same answer `filterAskableReviewRows` already got
-   * and the same one the reveal and the grader will get — see `loadDefaultTranslation`.
-   */
-  const defaultTranslation = await loadDefaultTranslation(userId);
-  const titles = await loadTitles(
-    userId,
-    rows.flatMap((r) => [r.noteId, r.secondaryNoteId].filter((id): id is string => Boolean(id))),
-  );
-  // Only note items need it, and only they pay for it.
-  const material = await loadNoteMaterial(
-    userId,
-    rows.filter((r) => r.kind === 'note').map((r) => r.noteId).filter((id): id is string => Boolean(id)),
-  );
+/**
+ * The node a row's framing line reads its counters from.
+ *
+ * Kind first, always: `lastVerseOf` does not normalise a chapter-only reference, so a chapter row
+ * must never reach the verse branch.
+ */
+function framingNodeKeyFor(row: ReviewItemRow): string | null {
+  if (row.kind === 'note' && row.noteId) return studyNodeKey.note(row.noteId);
+  if (row.kind === 'chapter' && row.scriptureReference) {
+    const parts = chapterKeyPartsFromReference(row.scriptureReference);
+    return parts ? studyNodeKey.chapter(parts) : null;
+  }
+  if (row.kind === 'verse' && row.scriptureReference) {
+    const at = lastVerseOf(row.scriptureReference);
+    return at ? studyNodeKey.verse(at) : null;
+  }
+  return null;
+}
 
-  /*
-   * The facts a framing line is chosen from, loaded once for the whole build.
-   *
-   * Counters live on the Study Bible layer, keyed the way the engine keys them; a reader's own
-   * marks in the Bible reader are keyed by reference. Both are one query over the batch.
-   */
-  // Kind first, always: `lastVerseOf` does not normalise a chapter-only reference, so a
-  // chapter row must never reach the verse branch.
-  const nodeKeyFor = (row: ReviewItemRow): string | null => {
-    if (row.kind === 'note' && row.noteId) return studyNodeKey.note(row.noteId);
-    if (row.kind === 'chapter' && row.scriptureReference) {
-      const parts = chapterKeyPartsFromReference(row.scriptureReference);
-      return parts ? studyNodeKey.chapter(parts) : null;
-    }
-    if (row.kind === 'verse' && row.scriptureReference) {
-      const at = lastVerseOf(row.scriptureReference);
-      return at ? studyNodeKey.verse(at) : null;
-    }
-    return null;
-  };
-  const nodeKeys = rows.map(nodeKeyFor).filter((key): key is string => Boolean(key));
+/**
+ * The facts a framing line is chosen from, loaded once for the whole build.
+ *
+ * Counters live on the Study Bible layer, keyed the way the engine keys them; a reader's own
+ * marks in the Bible reader are keyed by reference. Both are one query over the batch.
+ */
+function loadFramingFacts(userId: string, rows: readonly ReviewItemRow[]) {
+  const nodeKeys = rows.map(framingNodeKeyFor).filter((key): key is string => Boolean(key));
   const references = [
     ...new Set(rows.map((row) => row.scriptureReference?.trim()).filter((r): r is string => Boolean(r))),
   ];
-  const [nodes, marks] = await Promise.all([
+  return Promise.all([
     nodeKeys.length
       ? db
           .select({
@@ -1054,6 +1024,40 @@ export async function buildReviewItemViews(
           )
       : Promise.resolve([]),
   ]);
+}
+
+export async function buildReviewItemViews(
+  userId: string,
+  rows: ReviewItemRow[],
+  /**
+   * Drop note items the resolver can ask nothing about.
+   *
+   * True when assembling a queue, false when rebuilding one item the caller already has in hand
+   * — a route that just recorded an outcome must get its item back, not an empty array.
+   */
+  options: { dropUnaskable?: boolean } = {},
+): Promise<ReviewItemView[]> {
+  /*
+   * The account's wording is resolved once for the whole build and passed to every material load
+   * below — the same memoised answer the askable filter, the reveal and the grader get.
+   *
+   * Four independent loads, side by side — they ran one after another, each waiting on a round
+   * trip whose answer the next did not need. Only note items need the note material, and only
+   * they pay for it.
+   */
+  const [defaultTranslation, titles, material, [nodes, marks]] = await Promise.all([
+    loadDefaultTranslation(userId),
+    loadTitles(
+      userId,
+      rows.flatMap((r) => [r.noteId, r.secondaryNoteId].filter((id): id is string => Boolean(id))),
+    ),
+    loadNoteMaterial(
+      userId,
+      rows.filter((r) => r.kind === 'note').map((r) => r.noteId).filter((id): id is string => Boolean(id)),
+    ),
+    loadFramingFacts(userId, rows),
+  ]);
+
   const nodeByKey = new Map(nodes.map((n) => [n.nodeKey, n]));
   const markedReferences = new Set(marks.map((m) => m.reference?.trim().toLowerCase()).filter(Boolean));
   const readerSpans = readerSpansByReference(marks);
@@ -1114,8 +1118,13 @@ export async function buildReviewItemViews(
     const secondaryNoteTitle = row.secondaryNoteId
       ? titles.get(row.secondaryNoteId)?.title ?? null
       : null;
-    const threadTitle =
-      kind === 'thread' && row.noteId ? await threadTitleFor(userId, row.noteId) : null;
+    /*
+     * A row for a kind Review no longer asks about — always, not only when dropping unaskable
+     * notes. These exist in the table from before the open questions moved to Home, and there
+     * is no prompt left to render for them. Checked first: a Thread row used to pay a title
+     * query on its way to being thrown away.
+     */
+    if (!isReviewAskableKind(kind)) continue;
 
     /*
      * A note is asked the rung it can answer, not the rung it has climbed to. The stored step
@@ -1134,13 +1143,6 @@ export async function buildReviewItemViews(
      * These notes are not lost: they are exactly what the Home mark-a-note suggestion is for.
      */
     if (kind === 'note' && !noteRung && options.dropUnaskable) continue;
-
-    /*
-     * A row for a kind Review no longer asks about — always, not only when dropping unaskable
-     * notes. These exist in the table from before the open questions moved to Home, and there
-     * is no prompt left to render for them.
-     */
-    if (!isReviewAskableKind(kind)) continue;
 
     const verseMaterial =
       kind === 'verse' && row.scriptureReference
@@ -1201,7 +1203,6 @@ export async function buildReviewItemViews(
         reference: row.scriptureReference,
         noteTitle,
         secondaryNoteTitle,
-        threadTitle,
         cue,
         recallMode: kind === 'verse' ? verseRecallMode(promptPass, promptRecallState) : null,
         keywordCount: kind === 'verse' ? verseKeywordsCount(promptPass, promptRecallState) : null,
@@ -1226,7 +1227,7 @@ export async function buildReviewItemViews(
     } else if (resolvedKey !== 'verse.recognize') {
       subjectCue = null;
     }
-    const framingNodeKey = nodeKeyFor(row);
+    const framingNodeKey = framingNodeKeyFor(row);
     const node = framingNodeKey ? nodeByKey.get(framingNodeKey) : undefined;
     const seed = promptSeed;
     const pass =
@@ -1272,7 +1273,7 @@ export async function buildReviewItemViews(
       // Real context on the note rungs too: `fillReviewPrompt(noteRung, {})` was throwing the
       // note's own name away, so every note prompt rendered in its nameless form.
       prompt: noteRung
-        ? fillReviewPrompt(noteRung, { reference: row.scriptureReference, noteTitle, threadTitle })
+        ? fillReviewPrompt(noteRung, { reference: row.scriptureReference, noteTitle })
         : prompt,
       task: reviewTaskFor(noteRung ?? key),
       exercise: (() => {
@@ -1286,7 +1287,7 @@ export async function buildReviewItemViews(
       dueAt: row.dueAt.toISOString(),
       reviewCount: row.reviewCount,
       ladderStep: row.ladderStep,
-      noteTitle: threadTitle ?? noteTitle,
+      noteTitle,
       secondaryNoteTitle,
       scriptureReference: row.scriptureReference,
       noteId: row.noteId,
@@ -1304,22 +1305,20 @@ export async function buildReviewItemViews(
 }
 
 /**
- * The reader's exercise preferences, read once per request.
+ * The reader's exercise preferences, memoised with the material.
  *
- * Memoised because a sitting resolves a rung for every item in it, and each resolution needs the
- * same set. Without this a queue of eighteen would read the same row eighteen times on the way to
- * one response. The cache is per-call rather than process-wide: a preference changed in Settings
- * must take effect on the next question, not the next deploy.
+ * A sitting resolves a rung for every item in it, and each resolution needs the same set. This
+ * was cleared on the next tick, so it merged only the reads that happened to overlap — and the
+ * view build, the askable filter and eight exercise builds each read it again, one after another.
+ * On the material's own window instead: the material already carries these preferences for its
+ * three seconds, so nothing new can go stale, and Settings calls `forgetReviewMaterial` so a saved
+ * preference is honoured on the very next read.
  */
-const emphasisCache = new Map<string, Promise<RungPreferences>>();
-
 /** What a reader with no stored preferences, or an unreadable one, resolves with. */
 const NO_RUNG_PREFERENCES: RungPreferences = { skip: new Set(), prefer: new Set() };
 
 async function loadPreferredEmphasis(userId: string): Promise<RungPreferences> {
-  const cached = emphasisCache.get(userId);
-  if (cached) return cached;
-  const pending = (async () => {
+  return memoisedMaterial(`${userId}:emphasis`, async () => {
     try {
       const [row] = await db
         .select({ value: UserMetadata.reviewExerciseSettings })
@@ -1335,11 +1334,7 @@ async function loadPreferredEmphasis(userId: string): Promise<RungPreferences> {
        */
       return NO_RUNG_PREFERENCES;
     }
-  })();
-  emphasisCache.set(userId, pending);
-  // Cleared on the next tick: within one request the answer is fixed, across requests it is not.
-  void pending.finally(() => queueMicrotask(() => emphasisCache.delete(userId)));
-  return pending;
+  });
 }
 
 /**
@@ -1360,12 +1355,8 @@ async function loadPreferredEmphasis(userId: string): Promise<RungPreferences> {
  * Wraps `getUserDefaultTranslation` rather than repeating its fallback, so there is one definition
  * of "what this account reads in" and the daily passage and Review cannot drift apart.
  */
-const translationCache = new Map<string, Promise<string>>();
-
 async function loadDefaultTranslation(userId: string): Promise<string> {
-  const cached = translationCache.get(userId);
-  if (cached) return cached;
-  const pending = (async () => {
+  return memoisedMaterial(`${userId}:translation`, async () => {
     try {
       return await getUserDefaultTranslation(userId);
     } catch {
@@ -1373,13 +1364,8 @@ async function loadDefaultTranslation(userId: string): Promise<string> {
       // default, never a broken queue.
       return DEFAULT_REVIEW_TRANSLATION;
     }
-  })();
-  translationCache.set(userId, pending);
-  // Cleared on the next tick: within one request the answer is fixed, across requests it is not.
-  void pending.finally(() => queueMicrotask(() => translationCache.delete(userId)));
-  return pending;
+  });
 }
-
 
 /**
  * The reader's recent thumbs-down votes, read once per request and memoised the same way.
@@ -1389,14 +1375,10 @@ async function loadDefaultTranslation(userId: string): Promise<string> {
  * The tally is done in JS rather than SQL so the rung-to-family mapping stays derived from
  * `FAMILY_BY_KEY` — see `review-exercise-feedback.ts`.
  */
-const dislikeCache = new Map<string, Promise<ReviewDislikeRow[]>>();
-
 const DISLIKE_ROW_CAP = 500;
 
 async function loadRecentDislikes(userId: string): Promise<ReviewDislikeRow[]> {
-  const cached = dislikeCache.get(userId);
-  if (cached) return cached;
-  const pending = (async () => {
+  return memoisedMaterial(`${userId}:dislikes`, async () => {
     try {
       const rows = await db
         .select({ reviewItemId: ReviewEvents.reviewItemId, rungKey: ReviewEvents.rungKey })
@@ -1420,10 +1402,7 @@ async function loadRecentDislikes(userId: string): Promise<ReviewDislikeRow[]> {
        */
       return [];
     }
-  })();
-  dislikeCache.set(userId, pending);
-  void pending.finally(() => queueMicrotask(() => dislikeCache.delete(userId)));
-  return pending;
+  });
 }
 
 /**
@@ -1446,8 +1425,18 @@ async function loadRungPreferences(userId: string): Promise<RungPreferences> {
 
 /** The tally behind the card's "Noted." — read after a vote lands, so it bypasses the memo. */
 export async function reviewDislikeRowsFor(userId: string): Promise<ReviewDislikeRow[]> {
-  dislikeCache.delete(userId);
+  materialMemo.delete(`${userId}:dislikes`);
   return loadRecentDislikes(userId);
+}
+
+/**
+ * Drop everything memoised for this reader, for a write that changes what a rung resolves to —
+ * a saved exercise preference, a new default translation. Without it the next few seconds of
+ * reads would still be asked the old way.
+ */
+export function forgetReviewMaterial(userId: string): void {
+  const prefix = `${userId}:`;
+  for (const key of materialMemo.keys()) if (key.startsWith(prefix)) materialMemo.delete(key);
 }
 
 /** Verse text arrives as formatted HTML with superscript verse numbers. */
@@ -1555,10 +1544,10 @@ export async function composeTodaySittingFor(
   dueHitLimit: boolean;
 }> {
   const { since, cap, slack, now } = options;
-  const answered = since ? await countReviewedSince(userId, since) : 0;
-
   const dueLimit = cap + 1 + slack;
-  const [due, upcoming] = await Promise.all([
+  // Three independent reads, side by side; the count used to go first, alone.
+  const [answered, due, upcoming] = await Promise.all([
+    since ? countReviewedSince(userId, since) : Promise.resolve(0),
     listDueReviewItems(userId, dueLimit, now),
     listUpcomingReviewItems(userId, cap, now),
   ]);
@@ -2224,8 +2213,6 @@ export async function setReviewItemStatus(
 }
 
 export interface ReviewRevealPayload {
-  note?: { id: string; title: string | null; content: string } | null;
-  secondaryNote?: { id: string; title: string | null; content: string } | null;
   verseText?: string | null;
   /**
    * The gapped line and how many gaps it has — never the tokens, never the words.
@@ -2240,7 +2227,6 @@ export interface ReviewRevealPayload {
    * `buildClozeBank` — but never which gap each belongs in.
    */
   cloze?: { segments: string[]; blankLengths: number[]; bank?: string[] } | null;
-  thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
   /** The ordering puzzle, without its answer key — see verse-ladder-exercises.ts. */
   sequence?: { phrases: string[] } | null;
   /**
@@ -2548,10 +2534,18 @@ async function loadVerseMaterialUncached(
   };
 }
 
-/** Distinguishing labels of the reader's notes that cite this verse, via either join. */
-async function loadNotesCitingVerse(
+/**
+ * The reader's own notes that cite a passage — a verse, or a whole chapter — by either join: a
+ * metadata row on the note itself, or a pill pointing at a scripture child note.
+ *
+ * Two round trips. It was four, one after another: the citations, the pills pointing at them, the
+ * notes, then the labels. The pill hop and the ownership check are one query now, the pill hop as
+ * a subquery. The first read is by passage across every account — a scripture child can be
+ * shared — and `ScriptureMetadata_passageIndex` is what keeps it a lookup rather than a scan.
+ */
+async function loadNoteIdsCitingPassage(
   userId: string,
-  at: { book: string; chapter: number; verse: number },
+  at: { book: string; chapter: number; verse?: number },
 ): Promise<string[]> {
   const meta = await db
     .select({ noteId: ScriptureMetadata.noteId })
@@ -2560,32 +2554,42 @@ async function loadNotesCitingVerse(
       and(
         eq(ScriptureMetadata.book, at.book),
         eq(ScriptureMetadata.chapter, at.chapter),
-        eq(ScriptureMetadata.verse, at.verse),
+        at.verse !== undefined ? eq(ScriptureMetadata.verse, at.verse) : undefined,
       ),
     );
   if (!meta.length) return [];
-  const scriptureNoteIds = meta.map((m) => m.noteId);
-  const viaPill = await db
-    .select({ noteId: NoteScriptureReferences.noteId })
-    .from(NoteScriptureReferences)
-    .where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureNoteIds));
-  const candidates = [...new Set([...scriptureNoteIds, ...viaPill.map((r) => r.noteId)])];
+  const scriptureNoteIds = [...new Set(meta.map((m) => m.noteId))];
   const owned = await db
     .select({ id: Notes.id })
     .from(Notes)
     .where(
       and(
         eq(Notes.userId, userId),
-        inArray(Notes.id, candidates),
+        or(
+          inArray(Notes.id, scriptureNoteIds),
+          inArray(
+            Notes.id,
+            db
+              .select({ noteId: NoteScriptureReferences.noteId })
+              .from(NoteScriptureReferences)
+              .where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureNoteIds)),
+          ),
+        ),
         ne(Notes.noteType, 'scripture'),
         countableUserNotesWhere(),
       ),
     );
+  return owned.map((row) => row.id);
+}
+
+/** Distinguishing labels of the reader's notes that cite this verse, via either join. */
+async function loadNotesCitingVerse(
+  userId: string,
+  at: { book: string; chapter: number; verse: number },
+): Promise<string[]> {
+  const owned = await loadNoteIdsCitingPassage(userId, at);
   if (!owned.length) return [];
-  const labels = await loadNoteSubjectLabels(
-    userId,
-    owned.map((r) => r.id),
-  );
+  const labels = await loadNoteSubjectLabels(userId, owned);
   const out = new Set<string>();
   for (const { label, distinguishing } of labels.values()) if (distinguishing) out.add(label);
   return [...out];
@@ -3057,29 +3061,7 @@ async function countNotesCitingChapter(
   parts: { book: string; chapter: number },
 ): Promise<number> {
   try {
-    const meta = await db
-      .select({ noteId: ScriptureMetadata.noteId })
-      .from(ScriptureMetadata)
-      .where(and(eq(ScriptureMetadata.book, parts.book), eq(ScriptureMetadata.chapter, parts.chapter)));
-    if (!meta.length) return 0;
-    const scriptureNoteIds = [...new Set(meta.map((m) => m.noteId))];
-    const viaPill = await db
-      .select({ noteId: NoteScriptureReferences.noteId })
-      .from(NoteScriptureReferences)
-      .where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureNoteIds));
-    const candidates = [...new Set([...scriptureNoteIds, ...viaPill.map((r) => r.noteId)])];
-    const owned = await db
-      .select({ id: Notes.id })
-      .from(Notes)
-      .where(
-        and(
-          eq(Notes.userId, userId),
-          inArray(Notes.id, candidates),
-          ne(Notes.noteType, 'scripture'),
-          countableUserNotesWhere(),
-        ),
-      );
-    return owned.length;
+    return (await loadNoteIdsCitingPassage(userId, parts)).length;
   } catch {
     return 0;
   }
@@ -3924,6 +3906,8 @@ export async function buildReviewReveal(
   userId: string,
   item: ReviewItemRow,
 ): Promise<ReviewRevealPayload> {
+  // Needs nothing the exercise does, so it loads beside it rather than after it.
+  const annotationPending = loadItemAnnotation(userId, item);
   const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   const payload: ReviewRevealPayload = {};
 
@@ -4185,43 +4169,11 @@ export async function buildReviewReveal(
     payload.noteChoice = built ? { options: built.exercise.options } : null;
   }
 
-  const noteIds = [item.noteId, item.secondaryNoteId].filter((id): id is string => Boolean(id));
-  if (noteIds.length > 0 && item.kind !== 'thread') {
-    const rows = await db
-      .select({
-        id: Notes.id,
-        title: Notes.title,
-        content: Notes.content,
-        contentEncrypted: Notes.contentEncrypted,
-      })
-      .from(Notes)
-      .where(and(eq(Notes.userId, userId), inArray(Notes.id, noteIds)));
-    const byId = new Map(rows.map((r) => [r.id, r]));
-    const primary = item.noteId ? byId.get(item.noteId) : undefined;
-    const secondary = item.secondaryNoteId ? byId.get(item.secondaryNoteId) : undefined;
-    /*
-     * A locked note's body is ciphertext the server cannot read, so there is nothing here worth
-     * sending and every reason not to. `loadTitles` above has always guarded this; the reveal
-     * did not, and shipped the encrypted bytes to whatever asked. The reader still gets the
-     * item — its title and the question — and opening the note is where the key lives.
-     */
-    const revealBody = (row: { id: string; title: string | null; content: string; contentEncrypted: boolean }) => ({
-      id: row.id,
-      title: displayTitle(row.title),
-      content: row.contentEncrypted ? '' : row.content,
-    });
-    payload.note = primary ? revealBody(primary) : null;
-    payload.secondaryNote = secondary ? revealBody(secondary) : null;
-  }
-
-  if (item.kind === 'thread' && item.noteId) {
-    const graph = await collectStudyThreadGraph(item.noteId, userId);
-    const rows = await fetchStudyThreadNoteRows(graph.nodeIds, userId);
-    payload.thread = {
-      title: await threadTitleFor(userId, item.noteId),
-      members: rows.map((r) => ({ id: r.id, title: displayTitle(r.title) })),
-    };
-  }
+  /*
+   * No note body. The reveal used to carry the note's whole HTML (and a Thread's member list),
+   * and nothing on the page read either: a note is opened in the real editor, never rendered
+   * from here. It was the heaviest field on the payload and a query on every exercise.
+   */
 
   /*
    * Where this came from, for the card that is shown once the answering is over.
@@ -4232,13 +4184,13 @@ export async function buildReviewReveal(
    * connection the whole feature is for. The reveal already carried the note's title and body
    * and the dock threw them away; this adds the one thing it never fetched.
    *
-   * Only the source label and the annotation. The note itself is already on the payload, and
-   * the framing line belongs to the item view, which the client holds.
+   * Only the source label and the annotation. The framing line belongs to the item view, which
+   * the client holds.
    */
   payload.context = {
     sourceLabel: item.sourceLabel ?? null,
     sourceAt: item.sourceAt ? item.sourceAt.toISOString() : null,
-    annotation: await loadItemAnnotation(userId, item),
+    annotation: await annotationPending,
   };
 
   return payload;

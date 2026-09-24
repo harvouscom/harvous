@@ -41,7 +41,7 @@ describe('material is loaded once per passage', () => {
 describe('the answer path asks for what it needs', () => {
   it('resolves the rung on its own rather than building the whole view for one string', () => {
     const outcome = route.slice(route.indexOf("'/api/review/items/:id/outcome'"));
-    const block = outcome.slice(0, outcome.indexOf('const graded'));
+    const block = outcome.slice(0, outcome.indexOf('const maxAttempts'));
     expect(block).toContain('askedRungFor(auth.userId, item)');
     expect(block).not.toContain('buildReviewItemViews');
   });

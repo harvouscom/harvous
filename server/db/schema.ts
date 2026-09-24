@@ -1568,6 +1568,8 @@ export const ScriptureMetadata = pgTable('ScriptureMetadata', {
   createdAt: ts('createdAt').notNull(),
 }, (table) => [
   index('ScriptureMetadata_noteIdIndex').on(table.noteId),
+  /* "Which of my notes cite this verse / chapter" — Review asks it for every passage it builds. */
+  index('ScriptureMetadata_passageIndex').on(table.book, table.chapter, table.verse),
 ]);
 
 // ─── NoteScriptureReferences (junction table) ──────────────────────────────────

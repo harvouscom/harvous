@@ -240,10 +240,37 @@ export async function engineColdStartFor(
  * Never throws: it runs at the top of a read the reader is waiting on, and an empty section is
  * a better outcome than a failed one.
  */
-export async function refillReviewQueue(
-  userId: string,
-  now: Date = new Date(),
-): Promise<ReviewItemRow[]> {
+export function refillReviewQueue(userId: string, now: Date = new Date()): Promise<ReviewItemRow[]> {
+  /*
+   * One run per reader at a time, and not again for a minute.
+   *
+   * Home reads the inbox and the session side by side, and both top up — two runs racing on the
+   * same daily cap, each seeing room for five. And every answer refetches the inbox, so a sitting
+   * of eight ran the engine eight times for a cap that allows five a day and is almost always
+   * already spent. Nothing it adds can matter inside a minute: a sitting is a fixed set.
+   */
+  const running = refillInFlight.get(userId);
+  if (running) return running;
+  const last = refillLastRun.get(userId);
+  if (last !== undefined && now.getTime() - last < REFILL_COOLDOWN_MS) return Promise.resolve([]);
+  refillLastRun.set(userId, now.getTime());
+  const run = runRefill(userId, now).finally(() => refillInFlight.delete(userId));
+  refillInFlight.set(userId, run);
+  if (refillLastRun.size > REFILL_TRACKED_MAX) {
+    for (const [key, at] of refillLastRun) {
+      if (now.getTime() - at >= REFILL_COOLDOWN_MS) refillLastRun.delete(key);
+    }
+  }
+  return run;
+}
+
+const REFILL_COOLDOWN_MS = 60_000;
+/** Bounded like the material memo, so a long-lived process does not keep every reader forever. */
+const REFILL_TRACKED_MAX = 500;
+const refillInFlight = new Map<string, Promise<ReviewItemRow[]>>();
+const refillLastRun = new Map<string, number>();
+
+async function runRefill(userId: string, now: Date): Promise<ReviewItemRow[]> {
   try {
     const windowStart = new Date(now.getTime() - REVIEW_ENGINE_WINDOW_HOURS * 60 * 60 * 1000);
 

@@ -65,14 +65,16 @@ describe('no rung resolves its own wording', () => {
     expect(text.slice(text.indexOf('sampleTranslationFrom'))).toContain("'NET'");
   });
 
-  it('resolves once per request rather than once per item', () => {
+  it('resolves once per sitting rather than once per item, and forgets on a change', () => {
     const text = service();
-    expect(text).toContain('const translationCache');
-    // Per call, not process-wide: a reader who changes their translation must be asked in the new
-    // one on the next question, not after the next deploy.
+    // Memoised with the material, which already carries the same answer for its few seconds.
     const memo = text.slice(text.indexOf('async function loadDefaultTranslation'));
-    expect(memo.slice(0, 900)).toContain('queueMicrotask');
-    expect(memo.slice(0, 900)).toContain('translationCache.delete');
+    expect(memo.slice(0, 400)).toContain('memoisedMaterial(`${userId}:translation`');
+    // Not process-wide: a reader who changes their translation is asked in the new one on the
+    // very next question, because the write clears it.
+    const user = source('server/routes/user.ts');
+    const write = user.slice(user.indexOf('defaultTranslation is required'));
+    expect(write.slice(0, 1500)).toContain('forgetReviewMaterial(auth.userId)');
   });
 
   it('reuses the one definition of what an account reads in', () => {
