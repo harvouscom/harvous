@@ -70,6 +70,7 @@ import { nextOpenGap, WordBankLine, WordTray } from './review-exercises/WordBank
 import { OrderSlots, OrderTray } from './review-exercises/OrderPieces';
 import { OpeningLine, PairRail, Rail, slotFill } from './review-exercises/RailSlot';
 import { InitialsTiles, MarkedExercise, plainVerse, WordTicks } from './review-exercises/VerseSurface';
+import { BookShelf, NoteStrip, shelfCanHold, SpeakerScene, TagSlotScene } from './review-exercises/IllustratedScenes';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { isSubmitKey, isTypingTarget } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -211,6 +212,14 @@ const NOTE_RAIL_SLOT: Partial<Record<string, string>> = {
 const VERSE_RAIL_SLOT: Partial<Record<string, string>> = {
   'verse.crossref': 'Cross-referenced with',
   'verse.connect': 'Cited in',
+};
+/* The rungs drawn as the kind of thing their answer is: a person, a place, a theme. */
+const ILLUSTRATED_RUNGS: Partial<Record<string, 'portrait' | 'place' | 'theme'>> = {
+  'verse.person': 'portrait',
+  'chapter.person': 'portrait',
+  'verse.place': 'place',
+  'chapter.place': 'place',
+  'verse.theme': 'theme',
 };
 /* The rungs whose answer is a verse's opening, asked with the reference and a gap. */
 const OPENING_LINE_RUNGS = new Set(['verse.recognize', 'chapter.verse']);
@@ -1568,32 +1577,32 @@ export default function PrototypeReviewDock() {
                sentence when it has a name, and say nothing when it does not — this is the line
                that answers "which note?" for a nameless one. */
             subject={subtitle}
+            /* The reader's line as a strip torn from a page, over a fan of their notes. */
             scene={
-              noteChoice.span ? (
-                /*
-                 * The span the reader marked, inside the sentence they marked it in. The sentence
-                 * is what stops a bold clause reading as a grammar puzzle before it reads as a
-                 * question about their study; the marked words stay the emphasis.
-                 *
-                 * Ellipses only where the server says something was actually dropped.
-                 */
-                <p
-                  className="rx-hero"
-                  data-size={heroSize(
-                    `${noteChoice.span.before} ${noteChoice.span.quote} ${noteChoice.span.after}`,
+              noteChoice.span || noteChoice.fragment ? (
+                <NoteStrip>
+                  {noteChoice.span ? (
+                    /*
+                     * The span the reader marked, inside the sentence they marked it in. The
+                     * sentence is what stops a bold clause reading as a grammar puzzle before it
+                     * reads as a question about their study; the marked words stay the emphasis.
+                     *
+                     * Ellipses only where the server says something was actually dropped.
+                     */
+                    <p>
+                      {noteChoice.span.leading ? <span>… </span> : null}
+                      {noteChoice.span.before ? <span>{noteChoice.span.before} </span> : null}
+                      <strong>{noteChoice.span.quote}</strong>
+                      {noteChoice.span.after ? <span> {noteChoice.span.after}</span> : null}
+                      {noteChoice.span.trailing ? <span>…</span> : null}
+                    </p>
+                  ) : (
+                    /* An ellipsis at each end that was cut, so a clause is not passed off as one. */
+                    <p>
+                      “{noteChoice.leading ? '…' : ''}{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
+                    </p>
                   )}
-                >
-                  {noteChoice.span.leading ? <span>… </span> : null}
-                  {noteChoice.span.before ? <span>{noteChoice.span.before} </span> : null}
-                  <strong>{noteChoice.span.quote}</strong>
-                  {noteChoice.span.after ? <span> {noteChoice.span.after}</span> : null}
-                  {noteChoice.span.trailing ? <span>…</span> : null}
-                </p>
-              ) : noteChoice.fragment ? (
-                /* An ellipsis at each end that was cut, so a clause is not passed off as one. */
-                <p className="rx-hero" data-size={heroSize(noteChoice.fragment)}>
-                  “{noteChoice.leading ? '…' : ''}{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
-                </p>
+                </NoteStrip>
               ) : null
             }
             say={say}
@@ -1605,6 +1614,7 @@ export default function PrototypeReviewDock() {
               missed={missed}
               correct={correctOption}
               pending={pendingOption}
+              variant="note"
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
           </ExerciseStage>
@@ -1986,6 +1996,63 @@ export default function PrototypeReviewDock() {
               }
             />
           </ExerciseStage>
+        ) : contextChoice && ILLUSTRATED_RUNGS[item.promptKey] ? (
+          /*
+           * Who, Places, Theme: the answer is a person, a place or a theme, so the card draws one —
+           * the verse as a speech bubble from a portrait, or the verse with a pin or a tag under it
+           * — and the options are portraits, pins and tags. A chapter has no verse to quote, so its
+           * name stands in the bubble or over the tag.
+           */
+          <ExerciseStage
+            task={item.prompt}
+            scene={(() => {
+              const look = ILLUSTRATED_RUNGS[item.promptKey]!;
+              const quote = verseMarkup ? (
+                <p dangerouslySetInnerHTML={verseMarkup} />
+              ) : (
+                <p>{item.scriptureReference}</p>
+              );
+              if (look === 'portrait') {
+                return (
+                  <SpeakerScene
+                    quote={quote}
+                    label={verseMarkup ? item.scriptureReference ?? undefined : undefined}
+                    fill={railFill}
+                  />
+                );
+              }
+              return (
+                <TagSlotScene
+                  icon={look === 'place' ? 'location-dot' : 'tag'}
+                  label={look === 'place' ? 'A place it names' : 'A theme it carries'}
+                  fill={railFill}
+                >
+                  {verseMarkup ? (
+                    <p
+                      className="rx-hero"
+                      data-scripture=""
+                      data-size={heroSize(reveal.data?.verseText)}
+                      dangerouslySetInnerHTML={verseMarkup}
+                    />
+                  ) : (
+                    <p className="rx-reference">{item.scriptureReference}</p>
+                  )}
+                </TagSlotScene>
+              );
+            })()}
+            say={say}
+            missed={missedNow}
+          >
+            <ChoiceOptions
+              options={contextChoice.options}
+              disabled={outcome.isPending}
+              missed={missed}
+              correct={correctOption}
+              pending={pendingOption}
+              variant={ILLUSTRATED_RUNGS[item.promptKey]}
+              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+            />
+          </ExerciseStage>
         ) : contextChoice && item.promptKey === 'verse.marked' && reveal.data?.verseText ? (
           /* What you marked: pointing at an option paints its words in the verse. */
           <MarkedExercise
@@ -2088,14 +2155,27 @@ export default function PrototypeReviewDock() {
             say={say}
             missed={missedNow}
           >
-            <ChoiceOptions
-              options={locateExercise.options}
-              disabled={outcome.isPending}
-              missed={missed}
-              correct={correctOption}
-              pending={pendingOption}
-              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
-            />
+            {/* Which book: the whole Bible as a shelf, the offered books standing out. Only where
+                the shelf knows every option; otherwise the cards, as before. */}
+            {item.promptKey === 'verse.book' && shelfCanHold(locateExercise.options) ? (
+              <BookShelf
+                options={locateExercise.options}
+                disabled={outcome.isPending}
+                missed={missed}
+                correct={correctOption}
+                pending={pendingOption}
+                onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+              />
+            ) : (
+              <ChoiceOptions
+                options={locateExercise.options}
+                disabled={outcome.isPending}
+                missed={missed}
+                correct={correctOption}
+                pending={pendingOption}
+                onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+              />
+            )}
           </ExerciseStage>
         ) : FREE_RECALL_RUNGS.has(item.promptKey) ? (
           /*
