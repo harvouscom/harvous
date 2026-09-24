@@ -143,10 +143,10 @@ describe('which rungs hide the identity line', () => {
     expect(reviewRowSubtitle({ ...note, ladderStep: 2 })).toBe(note.noteContext);
   });
 
-  it('hides it where the note itself is the answer', () => {
-    expect(
-      reviewRowSubtitle({ ...note, prompt: 'Which of your notes says this?', ladderStep: 0 }),
-    ).toBeNull();
+  it('keeps it on every note rung, since no note question has the note as its answer', () => {
+    for (const step of [0, 1, 2, 3]) {
+      expect(reviewRowSubtitle({ ...note, prompt: 'Pick a folder it is in.', ladderStep: step })).not.toBeNull();
+    }
   });
 
   it('hides the reference on "where is this from?" and nowhere else on the verse ladder', () => {
@@ -171,16 +171,7 @@ describe('reviewRowSubject', () => {
   it('says only what kind of thing it is where the subject is the answer', () => {
     expect(
       reviewRowSubject({ prompt: 'x', kind: 'note', noteLabel: 'Adoption', ladderStep: 0 }),
-    ).toBe('One of your notes');
-    expect(
-      reviewRowSubject({
-        prompt: 'x',
-        kind: 'note',
-        noteLabel: 'Adoption',
-        ladderStep: 0,
-        promptKey: 'note.recognize',
-      }),
-    ).toBe('One of your notes');
+    ).toBe('Adoption');
     expect(
       reviewRowSubject({
         prompt: 'x',
@@ -192,16 +183,6 @@ describe('reviewRowSubject', () => {
   });
 
   it('leads with the quoted line when the name would be the answer', () => {
-    expect(
-      reviewRowSubject({
-        prompt: 'x',
-        kind: 'note',
-        noteLabel: 'Adoption',
-        ladderStep: 0,
-        promptKey: 'note.recognize',
-        cue: 'chose us before the foundation of the world',
-      }),
-    ).toBe('“chose us before the foundation of the world”');
     expect(
       reviewRowSubject({
         prompt: 'x',

@@ -123,25 +123,22 @@ describe('the two graded rungs are marked on the server', () => {
     expect(reveal).toContain('buildNoteExercise');
   });
 
-  it('quotes one line per note, chosen the same way on the shelf and in the dock', () => {
+  it('decides which note questions exist from the inputs they are built from', () => {
     /*
-     * The row printed a random window of the prose while the card preferred a span the reader
-     * had marked, so the same item quoted two different lines and the better one never reached
-     * the list. Both go through `noteStemFor` now, with the same seed and the same `avoid`.
+     * The probe measured raw HTML length and counted rivals; the builder actually tried. When they
+     * disagreed the reader got "Pick the note this line is from." over an empty card. Both read
+     * `loadNoteChoiceSets` now, and the probe's verdict is the builder run without a seed.
      */
     const text = service();
-    const views = text.slice(text.indexOf('export async function buildReviewItemViews'));
-    const viewsBlock = views.slice(0, views.indexOf('export async function', 10));
-    expect(viewsBlock).toContain('noteStemFor(');
-    expect(viewsBlock).toContain('loadNoteSpans(');
-    // The window is the last resort inside the chooser, never a call of its own out here.
-    expect(viewsBlock).not.toContain('noteFragment(');
+    const material = text.slice(text.indexOf('async function loadNoteMaterial('));
+    const materialBlock = material.slice(0, material.indexOf('\nconst EMPTY_NOTE_MATERIAL'));
+    expect(materialBlock).toContain('loadNoteChoiceSets(');
+    expect(materialBlock).toContain('noteChoiceBuildable(');
 
     const exercise = text.slice(text.indexOf('async function buildNoteExercise'));
-    const exerciseBlock = exercise.slice(0, exercise.indexOf('\nasync function', 10));
-    expect(exerciseBlock).toContain('noteStemFor(');
-    expect(exerciseBlock).toContain('loadNoteSpans(');
-    expect(exerciseBlock).not.toContain('noteFragment(');
+    const exerciseBlock = exercise.slice(0, exercise.indexOf('\n}\n'));
+    expect(exerciseBlock).toContain('loadNoteChoiceSets(');
+    expect(exerciseBlock).toContain('buildNoteChoice(');
   });
 
   it('never sends a note rung its own answer', () => {
@@ -696,16 +693,18 @@ describe('the context-step rungs', () => {
     expect(list).toContain('material: verseMaterial');
   });
 
-  it('withholds the verse on the rung that asks which words were marked', () => {
+  it('keeps the verse on the marked rung only when every option is a run of it', () => {
     /*
-     * The verse in full would print the marked words among the options and again in the text,
-     * with only the highlighting missing — which is the question. It comes back as the truth.
+     * The highlighting is the question, not the words, so the verse is not the answer — and the
+     * card needs it to paint each option where it sits. It shipped withheld, and the highlighter
+     * card never once rendered. Withheld still when an option came from a neighbouring verse,
+     * which the verse on screen would rule out at a glance.
      */
     const text = service();
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
     const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.marked'"));
     const block = branch.slice(0, branch.indexOf("rung.key === 'verse.locate'"));
-    expect(block).toContain('payload.verseText = null');
+    expect(block).toMatch(/!verseMarkedFitsVerse\(text, exercise\.options\)\) payload\.verseText = null/);
     expect(block).not.toContain('answerIndex');
     const truth = text.slice(text.indexOf('export async function verseTruthFor'));
     expect(truth.slice(0, 900)).toContain("'verse.marked'");

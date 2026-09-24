@@ -34,6 +34,7 @@ import {
   type ReviewEchoShown,
 } from '@/utils/review-answer-echo';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { prototypeHref } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
@@ -70,7 +71,8 @@ import { nextOpenGap, WordBankLine, WordTray } from './review-exercises/WordBank
 import { OrderSlots, OrderTray } from './review-exercises/OrderPieces';
 import { OpeningLine, PairRail, Rail, slotFill } from './review-exercises/RailSlot';
 import { InitialsTiles, MarkedExercise, plainVerse, WordTicks } from './review-exercises/VerseSurface';
-import { BookShelf, NoteStrip, shelfCanHold, SpeakerScene, TagSlotScene } from './review-exercises/IllustratedScenes';
+import { BookShelf, shelfCanHold, SpeakerScene, TagSlotScene } from './review-exercises/IllustratedScenes';
+import { UnbuildableQuestion } from './review-exercises/UnbuildableQuestion';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { isSubmitKey, isTypingTarget } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -80,6 +82,7 @@ import {
   useReviewReveal,
   usePrefetchReviewReveals,
   useReviewSession,
+  reviewSessionQueryKey,
   type ReviewItemView,
 } from '../../hooks/queries/useReview';
 import {
@@ -206,8 +209,13 @@ const FREE_RECALL_RUNGS = new Set(['verse.recall']);
  */
 const NOTE_RAIL_SLOT: Partial<Record<string, string>> = {
   'note.passage': 'A passage you cited',
-  'note.annotation': 'Written on',
   'note.connect': 'Linked to',
+  'note.folder': 'Filed in',
+};
+/* What each note rung's options are, drawn as that thing: notes as sheets, folders as folders. */
+const NOTE_CHOICE_VARIANT: Partial<Record<string, 'note' | 'folder'>> = {
+  'note.connect': 'note',
+  'note.folder': 'folder',
 };
 const VERSE_RAIL_SLOT: Partial<Record<string, string>> = {
   'verse.crossref': 'Cross-referenced with',
@@ -342,6 +350,23 @@ export default function PrototypeReviewDock() {
   const outcome = useReviewOutcome();
   const setStatus = useSetReviewStatus();
   const defer = useDeferReview();
+  const queryClient = useQueryClient();
+  /*
+   * Take a question with no exercise out of this sitting and move to the next.
+   *
+   * Local, on purpose: the sitting is frozen (see `useReviewSession`), so this is the same kind of
+   * edit the practice re-ask makes, not a refetch that would reshuffle the queue under the reader.
+   */
+  const skipUnbuildable = useCallback(
+    (id: string) => {
+      queryClient.setQueryData<{ items: ReviewItemView[] }>(reviewSessionQueryKey, (prev) =>
+        prev ? { ...prev, items: prev.items.filter((entry) => entry.id !== id) } : prev,
+      );
+      setHeldItem(null);
+      setReviewDockItem(null);
+    },
+    [queryClient, setReviewDockItem],
+  );
   /*
    * The reader's rating of the question, and the family Settings may be offered for.
    *
@@ -1509,46 +1534,20 @@ export default function PrototypeReviewDock() {
           /* The question has moved to the stack's edge, at the top of the note. Saying so beats
              repeating the prompt down here, where it would read as a second, separate ask. */
           <p className="proto-review-dock__handoff">Answer at the top of your note.</p>
-        ) : noteChoice && NOTE_RAIL_SLOT[item.promptKey] ? (
+        ) : noteChoice ? (
           /*
-           * A note rung that asks what goes with the note: the passage it cites, the passage a
-           * highlight was written on, the note it links to. The reader's line on the rail, in the
-           * body face (it is their prose, not Scripture), and the place the answer goes under it.
+           * A note rung asks what goes with the note: the passage it studies, the note it links
+           * to, the folder it is filed in. The note's name on the rail — never a line of it, which
+           * is what the two retired rungs quoted — and the place the answer goes under it.
            */
           <ExerciseStage
             task={item.prompt}
             subject={subtitle}
             scene={
               <Rail
-                /*
-                 * A line of the note where the server sent one, under the note's name; where it
-                 * sent none (a `note.passage` stem is often just the note), the name is the card.
-                 */
-                fromLabel={
-                  item.promptKey === 'note.annotation'
-                    ? 'What you wrote'
-                    : noteChoice.span || noteChoice.fragment
-                      ? item.noteTitle?.trim() || 'Your note'
-                      : 'Your note'
-                }
-                from={
-                  noteChoice.span ? (
-                    <p>
-                      {noteChoice.span.leading ? '… ' : ''}
-                      {noteChoice.span.before ? `${noteChoice.span.before} ` : ''}
-                      <strong>{noteChoice.span.quote}</strong>
-                      {noteChoice.span.after ? ` ${noteChoice.span.after}` : ''}
-                      {noteChoice.span.trailing ? '…' : ''}
-                    </p>
-                  ) : noteChoice.fragment ? (
-                    <p>
-                      “{noteChoice.leading ? '…' : ''}{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
-                    </p>
-                  ) : (
-                    <p>{item.noteTitle?.trim() || 'This note'}</p>
-                  )
-                }
-                slotLabel={NOTE_RAIL_SLOT[item.promptKey]!}
+                fromLabel="Your note"
+                from={<p>{item.noteTitle?.trim() || item.noteLabel?.trim() || 'This note'}</p>}
+                slotLabel={NOTE_RAIL_SLOT[item.promptKey] ?? 'Goes with it'}
                 fill={railFill}
                 join="link"
               />
@@ -1562,59 +1561,7 @@ export default function PrototypeReviewDock() {
               missed={missed}
               correct={correctOption}
               pending={pendingOption}
-              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
-            />
-          </ExerciseStage>
-        ) : noteChoice ? (
-          /*
-           * A note rung. The fragment is the reader's own writing, quoted back — in the body face,
-           * never the reading face, because it is their prose and not Scripture. The question above
-           * already says what is being asked, so it needs no other framing.
-           */
-          <ExerciseStage
-            task={item.prompt}
-            /* Which note is being asked about. `note.passage` and `note.connect` name it in the
-               sentence when it has a name, and say nothing when it does not — this is the line
-               that answers "which note?" for a nameless one. */
-            subject={subtitle}
-            /* The reader's line as a strip torn from a page, over a fan of their notes. */
-            scene={
-              noteChoice.span || noteChoice.fragment ? (
-                <NoteStrip>
-                  {noteChoice.span ? (
-                    /*
-                     * The span the reader marked, inside the sentence they marked it in. The
-                     * sentence is what stops a bold clause reading as a grammar puzzle before it
-                     * reads as a question about their study; the marked words stay the emphasis.
-                     *
-                     * Ellipses only where the server says something was actually dropped.
-                     */
-                    <p>
-                      {noteChoice.span.leading ? <span>… </span> : null}
-                      {noteChoice.span.before ? <span>{noteChoice.span.before} </span> : null}
-                      <strong>{noteChoice.span.quote}</strong>
-                      {noteChoice.span.after ? <span> {noteChoice.span.after}</span> : null}
-                      {noteChoice.span.trailing ? <span>…</span> : null}
-                    </p>
-                  ) : (
-                    /* An ellipsis at each end that was cut, so a clause is not passed off as one. */
-                    <p>
-                      “{noteChoice.leading ? '…' : ''}{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
-                    </p>
-                  )}
-                </NoteStrip>
-              ) : null
-            }
-            say={say}
-            missed={missedNow}
-          >
-            <ChoiceOptions
-              options={noteChoice.options}
-              disabled={outcome.isPending}
-              missed={missed}
-              correct={correctOption}
-              pending={pendingOption}
-              variant="note"
+              variant={NOTE_CHOICE_VARIANT[item.promptKey]}
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
           </ExerciseStage>
@@ -2257,6 +2204,22 @@ export default function PrototypeReviewDock() {
                 <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
               </div>
             }
+          />
+        ) : isGradedRung && reveal.isSuccess ? (
+          /*
+           * A marked question whose exercise did not come back.
+           *
+           * Every branch above is keyed on a field of the reveal, so a reveal that arrived without
+           * one fell all the way through to the self-rated card below: the prompt, an empty card
+           * and "Check my note". The server now builds the sitting's exercises before it hands the
+           * sitting over and drops any it cannot build, so this should not be reached — but when
+           * it is, the question is set aside for this sitting rather than shown with nothing to
+           * answer. No request: the server sets it aside for good the next time it composes one.
+           */
+          <UnbuildableQuestion
+            key={questionKey}
+            label={REVIEW_LOADING_LABEL}
+            onSkip={() => skipUnbuildable(item.id)}
           />
         ) : !revealed ? (
           /*

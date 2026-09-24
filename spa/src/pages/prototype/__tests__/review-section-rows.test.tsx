@@ -199,21 +199,21 @@ describe('what it shows a subscriber', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('names only the kind of thing on a rung whose answer is the subject', () => {
-    // "Pick the note this line is from" — printing the note's name would answer it on the row.
+  it('names the note on a folder question, whose answer is not the note', () => {
+    // No note rung has the note as its answer since "Which note" was retired, so the row names it.
     inbox.data = {
       items: [
         {
-          ...reviewItem('r1', 'Pick the note this line is from.'),
-          promptKey: 'note.recognize',
-          ladderStep: 0,
+          ...reviewItem('r1', 'Pick a folder Adoption, not slavery is in.'),
+          promptKey: 'note.folder',
+          ladderStep: 2,
         },
       ],
       hasMore: false,
     };
     render(<PrototypeReviewSection />);
-    expect(screen.getByText('One of your notes')).toBeInTheDocument();
-    expect(screen.queryByText('Adoption, not slavery')).not.toBeInTheDocument();
+    expect(screen.getByText('Adoption, not slavery')).toBeInTheDocument();
+    expect(screen.queryByText('One of your notes')).not.toBeInTheDocument();
   });
 
   it('shows one note and one passage closed, whatever the queue is made of', () => {

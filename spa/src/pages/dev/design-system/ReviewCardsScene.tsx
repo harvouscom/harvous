@@ -22,7 +22,7 @@ import { OrderSlots, OrderTray } from '../../prototype/review-exercises/OrderPie
 import { GapLine } from '../../prototype/review-exercises/GapLine';
 import { OpeningLine, PairRail, Rail } from '../../prototype/review-exercises/RailSlot';
 import { InitialsTiles, MarkedExercise, WordTicks } from '../../prototype/review-exercises/VerseSurface';
-import { BookShelf, NoteStrip, SpeakerScene, TagSlotScene } from '../../prototype/review-exercises/IllustratedScenes';
+import { BookShelf, SpeakerScene, TagSlotScene } from '../../prototype/review-exercises/IllustratedScenes';
 import ProtoLoadingDots from '../../prototype/ProtoLoadingDots';
 import PrototypeReviewSample from '../../prototype/PrototypeReviewSample';
 import type { ReviewSampleView, SampleExerciseKind } from '../../../hooks/queries/useReview';
@@ -537,38 +537,17 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
     ),
   },
   {
-    id: 'note',
-    title: 'Which note',
-    note: 'note.recognize. The reader’s line as a strip torn from a page, the marked span still marked, over a fan of their notes. Hover a note to lift it.',
-    card: (
-      <Card family="note">
-        <ExerciseStage
-          task="Pick the note this line is from."
-          scene={
-            <NoteStrip>
-              <p>
-                I didn&apos;t know you could have <strong>a relationship with God</strong>.
-              </p>
-            </NoteStrip>
-          }
-        >
-          <ChoiceOptions options={['Start of it', 'The first book', 'Romans 8, slowly', 'My journey']} variant="note" disabled={false} onPick={none} />
-        </ExerciseStage>
-      </Card>
-    ),
-  },
-  {
     id: 'cited',
     title: 'Which passage',
-    note: 'note.passage, note.annotation. The reader’s line on the rail (their prose, body face) and the passage it cites.',
+    note: 'note.passage. The note on the rail, by name — never a line of it — and the passage it cites.',
     card: (
       <Card family="cited">
         <ExerciseStage
           task="Pick a passage you cited in Shepherd psalms."
           scene={
             <Rail
-              fromLabel="Shepherd psalms"
-              from={<p>“David writes from the field, not the throne…”</p>}
+              fromLabel="Your note"
+              from={<p>Shepherd psalms</p>}
               slotLabel="A passage you cited"
               fill={null}
               join="link"
@@ -590,8 +569,8 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
           task="Pick a note you linked to Shepherd psalms."
           scene={
             <Rail
-              fromLabel="Shepherd psalms"
-              from={<p>“Provision here is about presence, not supply.”</p>}
+              fromLabel="Your note"
+              from={<p>Shepherd psalms</p>}
               slotLabel="Linked to"
               fill={{ text: 'The good shepherd', state: 'right' }}
               join="link"
@@ -601,9 +580,25 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
           <ChoiceOptions
             options={['Exile timeline', 'Sermon on contentment', 'The good shepherd', 'Advent, week one']}
             correct="The good shepherd"
+            variant="note"
             disabled
             onPick={none}
           />
+        </ExerciseStage>
+      </Card>
+    ),
+  },
+  {
+    id: 'folder',
+    title: 'Folder',
+    note: 'note.folder. The note on the rail and the folder it is filed in; the options are the reader’s other folders.',
+    card: (
+      <Card family="folder">
+        <ExerciseStage
+          task="Pick a folder Shepherd psalms is in."
+          scene={<Rail fromLabel="Your note" from={<p>Shepherd psalms</p>} slotLabel="Filed in" fill={null} join="link" />}
+        >
+          <ChoiceOptions options={['Providence', 'Exile', 'Psalms of ascent', 'Kingship']} variant="folder" disabled={false} onPick={none} />
         </ExerciseStage>
       </Card>
     ),

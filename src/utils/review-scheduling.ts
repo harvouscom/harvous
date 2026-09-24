@@ -71,10 +71,10 @@ export const REVIEW_DEFER_DAYS = 1;
  * the table, not the arithmetic.
  */
 export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
-  'note.recognize': 0.9,
   'note.passage': 1.0,
   'note.connect': 1.0,
-  'note.annotation': 1.0,
+  // A tap among four folder names, on screen — below 1 by the rule above.
+  'note.folder': 0.8,
   'verse.recognize': 0.6,
   'verse.rebuild': 1.0,
   'verse.initials': 1.1,
@@ -168,6 +168,11 @@ export const NEVER_LAPSES: ReadonlySet<ReviewPromptKey> = new Set([
   // And where it says a chapter names. Each place rung follows its own twin exactly, which is
   // why `verse.place` is absent: `verse.person` is not here either.
   'chapter.place',
+  /*
+   * A folder is often the app's filing before it is the reader's — auto-folder places a note by
+   * its strongest topic — so missing it can be a disagreement with that filing, not forgetting.
+   */
+  'note.folder',
 ]);
 
 export function lapseDamping(lapseCount: number): number {

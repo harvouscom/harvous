@@ -24,6 +24,7 @@ import {
   buildVerseRecognize,
   buildVerseMarked,
   gradeVerseMarked,
+  verseMarkedFitsVerse,
   verseLocateStem,
 } from '@/utils/verse-ladder-exercises';
 
@@ -507,6 +508,35 @@ describe('verse.marked', () => {
     expect(gradeVerseMarked(exercise, 'bears much fruit', 'bears much fruit')).toBe(true);
     const wrong = exercise.options.find((_, i) => i !== exercise.answerIndex)!;
     expect(gradeVerseMarked(exercise, wrong, 'bears much fruit')).toBe(false);
+  });
+
+  it('draws every wrong answer from the verse itself when it can spare three', () => {
+    /*
+     * The card shows the verse and paints each option where it sits. An option from a
+     * neighbouring verse is one the reader can rule out by looking, so the verse's own windows
+     * come first as a tier of their own rather than shuffled in with the neighbours'.
+     */
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
+      const exercise = buildVerseMarked({
+        verseText: VERSE,
+        neighbourTexts: NEIGHBOURS,
+        span: 'bears much fruit',
+        seed,
+      })!;
+      expect(verseMarkedFitsVerse(VERSE, exercise.options)).toBe(true);
+    }
+  });
+
+  it('reaches for a neighbour only when the verse is too short, and then says so', () => {
+    const SHORT = 'Jesus wept and the people saw';
+    const exercise = buildVerseMarked({
+      verseText: SHORT,
+      neighbourTexts: NEIGHBOURS,
+      span: 'Jesus wept and',
+      seed: 's',
+    })!;
+    expect(exercise).not.toBeNull();
+    expect(verseMarkedFitsVerse(SHORT, exercise.options)).toBe(false);
   });
 
   it('has no question when the marked words are not in the verse', () => {

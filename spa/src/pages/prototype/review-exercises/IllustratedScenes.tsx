@@ -1,6 +1,6 @@
 /**
  * The illustrated cards: questions about a verse whose answer is a kind of thing — a person, a
- * place, a theme, a book of the Bible, one of the reader's notes — drawn as that thing.
+ * place, a theme, a book of the Bible — drawn as that thing.
  *
  * Neutral, like every scene: the only colour is the mark (the accent gradient with white for
  * picked or right, the destructive tint for wrong). Each scene has one empty place the answer goes
@@ -71,19 +71,6 @@ export function TagSlotScene({
         <span className="rx-tagslot__text">{fill ? fill.text : label}</span>
       </p>
     </>
-  );
-}
-
-/**
- * Which note: the line quoted back as a strip torn from a page — the reader's own words, in the
- * body face, the marked span still marked — above the fan of their notes it could be from.
- */
-export function NoteStrip({ children }: { children: ReactNode }) {
-  return (
-    <div className="rx-notestrip">
-      <p className="rx-rail__label">A line from one of your notes</p>
-      <div className="rx-notestrip__text">{children}</div>
-    </div>
   );
 }
 

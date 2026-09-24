@@ -11,7 +11,7 @@ import { REVIEW_PROMPT_KEYS } from '@/utils/review-prompts';
 
 describe('how many goes a question gets', () => {
   it('gives a four-option tap two, because a third leaves one option', () => {
-    for (const key of ['verse.recognize', 'verse.locate', 'verse.next', 'note.recognize']) {
+    for (const key of ['verse.recognize', 'verse.locate', 'verse.next', 'note.folder']) {
       expect(maxAttemptsFor(key)).toBe(2);
     }
   });

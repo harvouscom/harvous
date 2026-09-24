@@ -98,6 +98,7 @@ import {
   askablePlaces,
   buildChapterFinish,
   buildChapterMarked,
+  chapterMarkedDraw,
   buildChapterOrder,
   buildChapterPerson,
   buildChapterPlace,
@@ -122,6 +123,7 @@ import {
   markVerseInitialsParts,
   buildVerseLocate,
   buildVerseMarked,
+  verseMarkedFitsVerse,
   buildVerseNext,
   buildVerseRecognize,
   buildVerseSequence,
@@ -209,15 +211,13 @@ import {
 import {
   buildNoteChoice,
   labelNamesWhat,
-  buildNoteRecognize,
   gradeNoteChoice,
-  chooseNoteStem,
+  noteChoiceBuildable,
   resolveNoteRung,
+  type NoteChoiceInput,
   type NoteMaterial,
-  buildNoteSpan,
-  buildNoteAnnotation,
-  type NoteSpan,
 } from '@/utils/note-ladder-exercises';
+import { noteFolderMembershipLabels, normalizeFolderKey } from '@/utils/note-folder-display';
 import type { ChoiceExercise } from '@/utils/choice-exercise';
 import { reviewExerciseFamily } from '@/utils/review-exercise-families';
 import {
@@ -230,7 +230,7 @@ import {
   reviewDislikeWindowStart,
   type ReviewDislikeRow,
 } from '@/utils/review-exercise-feedback';
-import { getNotePassages } from './scripture-knowledge';
+import type { VerseKey } from './scripture-knowledge';
 import { REVIEWED_SOURCE } from '@/utils/study-bible-source-copy';
 import { READING_DWELL_BUCKETS, readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
 
@@ -413,24 +413,18 @@ function displayTitle(title: string | null | undefined): string | null {
 }
 
 /**
- * What each note can actually be asked, in three queries for the whole batch.
- *
- * The ladder is material-gated: a note with no links cannot be asked what it was linked to, and
- * a note that is one scripture pill has no prose to quote back. `resolveNoteRung` turns the
- * stored step into the rung a given note can answer, and this is what it needs to decide.
- *
- * Batched deliberately. The session read renders ten items; asking per note would be a
- * straightforward N+1 on the page a subscriber uses most.
- */
-/**
  * Every label in this account that names *what* a note is, and the label for each pool member.
  *
- * One loader, because the material probe and the exercise builder must agree about rung 0. When
- * the probe thinks a note can be recognised and the builder cannot build the question, the reader
- * gets "Which of your notes says this?" above nothing at all — which is exactly what the first
- * preview showed.
+ * The wrong answers for "pick a note you linked": notes the reader can tell apart by name. A
+ * note labelled "Written 10 Jul" is barred — no one can say which day's note they linked.
  */
 async function loadNoteLabelPool(
+  userId: string,
+): Promise<{ distinguishing: string[]; byId: Map<string, string>; bookByLabel: Map<string, string> }> {
+  return memoisedMaterial(`${userId}:note-label-pool`, () => loadNoteLabelPoolUncached(userId));
+}
+
+async function loadNoteLabelPoolUncached(
   userId: string,
 ): Promise<{ distinguishing: string[]; byId: Map<string, string>; bookByLabel: Map<string, string> }> {
   const rows = await db
@@ -441,7 +435,7 @@ async function loadNoteLabelPool(
     .limit(NOTE_OPTION_POOL_LIMIT);
 
   // `loadTitles` already resolves title, then excerpt, then cited passage — the same ladder the
-  // option label wants, minus the excerpt, which is barred here because it is the stem.
+  // option label wants, minus the excerpt, which reads as a line of prose rather than a name.
   const resolved = await loadTitles(
     userId,
     rows.map((row) => row.id),
@@ -472,210 +466,296 @@ async function loadNoteLabelPool(
 }
 
 /**
- * The words a reader typed on a highlight.
+ * Every folder this reader files notes in, most used first.
  *
- * `miniNoteBody` first — the note written on the highlight itself — then `notesBody`. Both the
- * probe and the builder read through here so they cannot disagree about which field is the one.
- *
- * **Both fields are HTML**, canonicalised as such on write (`server/routes/study-threads.ts`).
- * This collapsed whitespace but never stripped tags, and the dock renders the result as escaped
- * text — so an annotation carrying a scripture pill was shown to the reader as a literal
- * `<span data-scripture-reference="…">…</span>` inside quotation marks. Every neighbouring rung
- * (note.recognize, the verse cue, the row excerpt) already strips; this was the one that didn't.
- *
- * Stripping here also fixes the three-word floor that both call sites apply to this result:
- * counting `split(/\s+/)` over markup let a one-word annotation qualify on its tags alone.
+ * The wrong answers for "pick a folder it is in". My Pile is not a folder anyone chose, and
+ * apostrophe variants of one label are one folder — see `normalizeFolderKey`.
  */
-/**
- * **Both fields are HTML**, canonicalised as such on write (`server/routes/study-threads.ts`).
- * That collapsed whitespace but never stripped tags, and the dock renders the result as escaped
- * text — so an annotation carrying a scripture pill was shown to the reader as a literal
- * `<span data-scripture-reference="…">…</span>` inside quotation marks. Every neighbouring rung
- * (note.recognize, the verse cue, the row excerpt) already strips; this was the one that didn't.
- *
- * Stripping here also fixes the three-word floor both call sites apply to this result: counting
- * `split(/\s+/)` over markup let a one-word annotation qualify on its tags alone.
- */
-function annotationTextOf(row: { miniNoteBody?: string | null; notesBody?: string | null }): string {
-  const raw = row.miniNoteBody?.trim() || row.notesBody?.trim() || '';
-  return stripHtml(raw);
+async function loadNoteFolderPool(userId: string): Promise<string[]> {
+  return memoisedMaterial(`${userId}:note-folder-pool`, async () => {
+    const rows = await db
+      .select({ primary: Notes.primaryCollection, secondary: Notes.secondaryCollections })
+      .from(Notes)
+      .where(
+        and(
+          eq(Notes.userId, userId),
+          ne(Notes.noteType, 'scripture'),
+          countableUserNotesWhere(),
+          or(isNotNull(Notes.primaryCollection), isNotNull(Notes.secondaryCollections)),
+        ),
+      );
+    const counts = new Map<string, { label: string; n: number }>();
+    for (const row of rows) {
+      for (const label of folderLabelsOf(row)) {
+        const key = normalizeFolderKey(label);
+        const entry = counts.get(key);
+        if (entry) entry.n += 1;
+        else counts.set(key, { label, n: 1 });
+      }
+    }
+    return [...counts.values()].sort((a, b) => b.n - a.n).map((entry) => entry.label);
+  });
+}
+
+/** A note's folders, primary first. `secondaryCollections` is a JSON array stored as text. */
+function folderLabelsOf(row: { primary: string | null; secondary: string | null }): string[] {
+  let secondary: string[] = [];
+  if (row.secondary) {
+    try {
+      const parsed: unknown = JSON.parse(row.secondary);
+      if (Array.isArray(parsed)) secondary = parsed.filter((v): v is string => typeof v === 'string');
+    } catch {
+      // An unreadable column is no secondaries, not a failed question.
+    }
+  }
+  return noteFolderMembershipLabels({ primaryCollection: row.primary, secondaryCollections: secondary });
 }
 
 /**
- * Memoised on the same short TTL the verse and chapter material use, and for the same reason
- * spelled out there — with one more caller than they have.
+ * Everything each note question is built from — the right answers and the pool of wrong ones —
+ * for a batch of notes.
  *
- * Composing a session loads this twice over the same notes: `filterAskableReviewRows` needs it to
- * decide which note rows can be asked anything at all, and `buildReviewItemViews` needs it again
- * to resolve each one's rung. That is nine queries paid twice, back to back, for an answer that
- * cannot have changed in between — and the two phases run one after the other, so the second set
- * is dead wall time in front of the reader rather than work spread across a batch.
+ * **The one loader behind both the probe and the builder.** `loadNoteMaterial` turns these into
+ * can/cannot flags through `noteChoiceBuildable`; `buildNoteExercise` builds the question from
+ * the same inputs with a seed. They used to be two readings of the same note — a cheap probe that
+ * measured raw HTML length and counted rivals, and a builder that actually tried — and whenever
+ * they disagreed the reader got the prompt of a question over an empty card. Now there is nothing
+ * to disagree about.
  *
- * Keyed on the exact set, sorted, so a different batch is a different entry. Recording an answer
- * benefits too: `askedRungFor`, the grader and the reveal each load one note's material.
+ * `shown` is whatever the card calls the note — title, else opening line, else cited passage,
+ * exactly as the item view's `noteLabel` — because an option that repeats it is the answer.
  */
-async function loadNoteMaterial(
+interface NoteChoiceSet {
+  passage: Omit<NoteChoiceInput, 'seed'>;
+  connect: Omit<NoteChoiceInput, 'seed'>;
+  folder: Omit<NoteChoiceInput, 'seed'>;
+}
+
+async function loadNoteChoiceSets(
   userId: string,
   noteIds: readonly string[],
-): Promise<Map<string, NoteMaterial>> {
+): Promise<Map<string, NoteChoiceSet>> {
   const unique = [...new Set(noteIds.filter(Boolean))];
-  const out = new Map<string, NoteMaterial>();
+  const out = new Map<string, NoteChoiceSet>();
   if (!unique.length) return out;
-  return memoisedMaterial(`note:${userId}:${[...unique].sort().join(',')}`, () =>
-    loadNoteMaterialUncached(userId, unique, out),
-  );
-}
 
-async function loadNoteMaterialUncached(
-  userId: string,
-  unique: string[],
-  out: Map<string, NoteMaterial>,
-): Promise<Map<string, NoteMaterial>> {
-
-  const [bodies, viaPill, ownPassage, links, quotes, annotated, pool, labels, rungPrefs] = await Promise.all([
+  const [owned, titles, passages, links, labelPool, verseReferences, folderPool] = await Promise.all([
     db
       .select({
         id: Notes.id,
-        length: sql<number>`length(${Notes.content})`,
-        contentEncrypted: Notes.contentEncrypted,
+        primary: Notes.primaryCollection,
+        secondary: Notes.secondaryCollections,
+        linkedFrom: Notes.linkedFromNoteId,
       })
       .from(Notes)
       .where(and(eq(Notes.userId, userId), inArray(Notes.id, unique))),
-    /*
-     * Both halves of what `getNotePassages` sees, because the probe deciding *whether* to ask
-     * "which of these did you cite here?" and the builder answering it must read the same thing.
-     * A pill points at a canonical scripture child, but a note can also carry its own metadata
-     * row — checking only the first silently drops the rung for every note of the second kind.
-     */
-    db
-      .select({ noteId: NoteScriptureReferences.noteId })
-      .from(NoteScriptureReferences)
-      .innerJoin(
-        ScriptureMetadata,
-        eq(NoteScriptureReferences.scriptureNoteId, ScriptureMetadata.noteId),
-      )
-      .where(inArray(NoteScriptureReferences.noteId, unique)),
-    db
-      .select({ noteId: ScriptureMetadata.noteId })
-      .from(ScriptureMetadata)
-      .where(inArray(ScriptureMetadata.noteId, unique)),
-    db
-      .select({ from: NoteConnections.fromNoteId, to: NoteConnections.toNoteId })
-      .from(NoteConnections)
-      .where(
-        and(
-          eq(NoteConnections.userId, userId),
-          or(
-            inArray(NoteConnections.fromNoteId, unique),
-            inArray(NoteConnections.toNoteId, unique),
-          ),
-        ),
-      ),
-    // A span the reader selected themselves. `resolved` matters: a detached anchor holds a
-    // quote that is no longer anywhere in the note. `miniNote` matters too: a derived
-    // reference or scripture link carries an anchor without anyone having marked it, and a
-    // one-word "kids" is not a line to recognise a note by. The floor is the builder's.
-    db
-      .select({ parentNoteId: StudyThreadEntries.parentNoteId, quote: StudyThreadEntries.anchorQuote })
-      .from(StudyThreadEntries)
-      .where(
-        and(
-          eq(StudyThreadEntries.userId, userId),
-          inArray(StudyThreadEntries.parentNoteId, unique),
-          eq(StudyThreadEntries.anchorStatus, 'resolved'),
-          eq(StudyThreadEntries.entryKindRaw, 'miniNote'),
-          isNotNull(StudyThreadEntries.anchorQuote),
-        ),
-      ),
-    /*
-     * Highlights in these notes that carry words the reader typed, on a passage that can be
-     * named. Both ends have to be theirs for the annotation rung to have a question: the stem
-     * is what they wrote, the answer is where they wrote it.
-     */
-    db
-      .select({
-        parentNoteId: StudyThreadEntries.parentNoteId,
-        reference: StudyThreadEntries.scriptureReference,
-        miniNoteBody: StudyThreadEntries.miniNoteBody,
-        notesBody: StudyThreadEntries.notesBody,
-      })
-      .from(StudyThreadEntries)
-      .where(
-        and(
-          eq(StudyThreadEntries.userId, userId),
-          inArray(StudyThreadEntries.parentNoteId, unique),
-          isNotNull(StudyThreadEntries.scriptureReference),
-        ),
-      ),
+    loadTitles(userId, unique),
+    loadNotePassagesBatch(unique),
+    loadNoteNeighbourIds(userId, unique),
     loadNoteLabelPool(userId),
-    loadNoteSubjectLabels(userId, unique),
-    loadRungPreferences(userId),
+    listUserVerseReferences(userId, ''),
+    loadNoteFolderPool(userId),
   ]);
 
-  const withAnnotation = new Set(
-    annotated
-      .filter((row) => annotationTextOf(row).split(/\s+/).filter(Boolean).length >= 3)
-      .map((row) => row.parentNoteId)
-      .filter((id): id is string => Boolean(id)),
-  );
+  // The notes on the other end of every link, named the way the label pool names them.
+  const neighbourIds = [...new Set([...links.values()].flatMap((ids) => [...ids]))];
+  const neighbourLabels = await loadNoteSubjectLabels(userId, neighbourIds);
 
-  const withPassage = new Set([...viaPill, ...ownPassage].map((row) => row.noteId));
-  const withLink = new Set<string>();
-  for (const edge of links) {
-    withLink.add(edge.from);
-    withLink.add(edge.to);
-  }
-  // The same floor the reveal applies, so the probe never promises a span the reveal refuses.
-  const withQuote = new Set(
-    quotes
-      .filter((row) => buildNoteSpan({ quote: row.quote ?? '' }) !== null)
-      .map((row) => row.parentNoteId)
-      .filter((id): id is string => Boolean(id)),
-  );
+  for (const row of owned) {
+    const title = titles.get(row.id);
+    const shown = title ? title.title ?? title.excerpt ?? title.passage ?? null : null;
 
-  for (const row of bodies) {
+    // Which passage: every passage the note cites is right; the reader's other passages are not.
+    const cited = (passages.get(row.id) ?? []).map((p) => verseReferenceLabel(p));
+    const byBook = partitionByBook(cited, verseReferences);
+
     /*
-     * Rung 0 needs more than a body: it needs an *answer someone could name*. A note labelled
-     * "Written 10 Jul" cannot be picked out of a line of its own prose, and neither can the three
-     * options beside it. Checked here rather than in the builder so that the question the list
-     * asks and the exercise the reveal builds are decided by one rule.
+     * What you linked: every note on the other end of a link is right. Only neighbours with a
+     * name that says *what* they are — "Written 10 Jul" among the options is a question no one
+     * can answer — and the pool is the reader's other nameable notes, nearest book first.
      */
-    const label = labels.get(row.id);
-    const namedRivals = label
-      ? pool.distinguishing.filter((other) => other.toLowerCase() !== label.label.toLowerCase())
-      : pool.distinguishing;
-    const answerable = Boolean(label?.distinguishing) && namedRivals.length >= MIN_NOTE_DISTRACTORS;
+    const ownLabel = labelPool.byId.get(row.id)?.toLowerCase() ?? null;
+    const neighbours = [...(links.get(row.id) ?? [])]
+      .map((id) => neighbourLabels.get(id))
+      .filter((label): label is { label: string; distinguishing: boolean } => Boolean(label?.distinguishing))
+      .map((label) => label.label);
+    const neighbourSet = new Set(neighbours.map((label) => label.toLowerCase()));
+    const others = labelPool.distinguishing.filter(
+      (label) => label.toLowerCase() !== ownLabel && !neighbourSet.has(label.toLowerCase()),
+    );
+    const noteBooks = partitionByBook(
+      cited,
+      others.map((label) => labelPool.bookByLabel.get(label.toLowerCase()) ?? label),
+    );
+    const labelFor = (value: string): string | undefined =>
+      others.find((label) => label === value || (labelPool.bookByLabel.get(label.toLowerCase()) ?? '') === value);
+    const closeNotes = noteBooks.close.map(labelFor).filter((label): label is string => Boolean(label));
+    const restNotes = noteBooks.rest.map(labelFor).filter((label): label is string => Boolean(label));
+
+    // Which folder: every folder it is filed in is right; the reader's other folders are not.
+    const folders = folderLabelsOf(row);
+    const folderKeys = new Set(folders.map(normalizeFolderKey));
 
     out.set(row.id, {
-      // Encrypted bodies are ciphertext the server cannot quote from, so those notes get the
-      // two rungs built on plaintext tables instead.
-      canRecognize:
-        answerable &&
-        !row.contentEncrypted &&
-        ((row.length ?? 0) >= MIN_QUIZZABLE_BODY_CHARS || withQuote.has(row.id)),
-      canPassage: withPassage.has(row.id),
-      canConnect: withLink.has(row.id),
-      canAnnotation: withAnnotation.has(row.id),
-      skip: rungPrefs.skip,
-      prefer: rungPrefs.prefer,
+      passage: {
+        acceptable: cited,
+        poolLabels: byBook.close.length ? byBook.close : verseReferences,
+        fallbackLabels: byBook.close.length ? byBook.rest : undefined,
+        shown,
+      },
+      connect: {
+        acceptable: neighbours,
+        poolLabels: closeNotes.length ? closeNotes : others,
+        fallbackLabels: closeNotes.length ? restNotes : undefined,
+        shown,
+      },
+      folder: {
+        acceptable: folders,
+        poolLabels: folderPool.filter((label) => !folderKeys.has(normalizeFolderKey(label))),
+        shown,
+      },
     });
   }
   return out;
 }
 
 /**
- * Below this a body has nothing recognisable to quote — see `MIN_FRAGMENT_WORDS` next door.
- * Measured in stored characters because that is what a batched query can ask cheaply, and the
- * fragment builder does the real check on words once it has the text.
+ * The passages each note cites, by either join — what `getNotePassages` sees, for a batch.
+ *
+ * A pill points at a canonical scripture child note, but a note can also carry its own metadata
+ * row; reading only one of the two silently drops the question for every note of the other kind.
  */
-const MIN_QUIZZABLE_BODY_CHARS = 120;
+async function loadNotePassagesBatch(noteIds: readonly string[]): Promise<Map<string, VerseKey[]>> {
+  const out = new Map<string, VerseKey[]>();
+  if (!noteIds.length) return out;
+  const linked = await db
+    .select({ noteId: NoteScriptureReferences.noteId, sid: NoteScriptureReferences.scriptureNoteId })
+    .from(NoteScriptureReferences)
+    .where(inArray(NoteScriptureReferences.noteId, [...noteIds]));
+  const ownersOf = new Map<string, string[]>();
+  for (const id of noteIds) ownersOf.set(id, [id]);
+  for (const link of linked) {
+    const owners = ownersOf.get(link.sid);
+    if (owners) owners.push(link.noteId);
+    else ownersOf.set(link.sid, [link.noteId]);
+  }
+  const rows = await db
+    .select({
+      noteId: ScriptureMetadata.noteId,
+      book: ScriptureMetadata.book,
+      chapter: ScriptureMetadata.chapter,
+      verse: ScriptureMetadata.verse,
+    })
+    .from(ScriptureMetadata)
+    .where(inArray(ScriptureMetadata.noteId, [...ownersOf.keys()]));
+  const seen = new Map<string, Set<string>>();
+  for (const row of rows) {
+    for (const owner of ownersOf.get(row.noteId) ?? []) {
+      const key = `${row.book}|${row.chapter}|${row.verse}`;
+      let keys = seen.get(owner);
+      if (!keys) {
+        keys = new Set();
+        seen.set(owner, keys);
+      }
+      if (keys.has(key)) continue;
+      keys.add(key);
+      const list = out.get(owner);
+      const at = { book: row.book, chapter: row.chapter, verse: row.verse };
+      if (list) list.push(at);
+      else out.set(owner, [at]);
+    }
+  }
+  return out;
+}
+
+/**
+ * The notes each note is connected to, both ways: a link the reader drew (`NoteConnections`), and
+ * a note made from a highlight in another (`linkedFromNoteId`) — the second is as deliberate a
+ * connection as the first, and was never asked about.
+ */
+async function loadNoteNeighbourIds(
+  userId: string,
+  noteIds: readonly string[],
+): Promise<Map<string, Set<string>>> {
+  const out = new Map<string, Set<string>>();
+  if (!noteIds.length) return out;
+  const ids = [...noteIds];
+  const [edges, parents, children] = await Promise.all([
+    db
+      .select({ from: NoteConnections.fromNoteId, to: NoteConnections.toNoteId })
+      .from(NoteConnections)
+      .where(
+        and(
+          eq(NoteConnections.userId, userId),
+          or(inArray(NoteConnections.fromNoteId, ids), inArray(NoteConnections.toNoteId, ids)),
+        ),
+      ),
+    db
+      .select({ id: Notes.id, other: Notes.linkedFromNoteId })
+      .from(Notes)
+      .where(and(eq(Notes.userId, userId), inArray(Notes.id, ids), isNotNull(Notes.linkedFromNoteId))),
+    db
+      .select({ id: Notes.linkedFromNoteId, other: Notes.id })
+      .from(Notes)
+      .where(and(eq(Notes.userId, userId), inArray(Notes.linkedFromNoteId, ids), countableUserNotesWhere())),
+  ]);
+  const wanted = new Set(ids);
+  const add = (a: string | null, b: string | null) => {
+    if (!a || !b || a === b || !wanted.has(a)) return;
+    let set = out.get(a);
+    if (!set) {
+      set = new Set();
+      out.set(a, set);
+    }
+    set.add(b);
+  };
+  for (const edge of edges) {
+    add(edge.from, edge.to);
+    add(edge.to, edge.from);
+  }
+  for (const row of [...parents, ...children]) add(row.id, row.other);
+  return out;
+}
+
+/**
+ * What each note can actually be asked, decided by the same inputs the questions are built from.
+ *
+ * Memoised on the same short TTL the verse and chapter material use. Composing a session loads
+ * this more than once over overlapping notes — `filterAskableReviewRows` decides which rows can
+ * be asked anything at all, `buildReviewItemViews` resolves each one's rung, and the reveal and
+ * grader each load one note — so the per-user pools behind it are memoised on their own, and a
+ * different batch reuses them rather than paying for them again.
+ */
+async function loadNoteMaterial(
+  userId: string,
+  noteIds: readonly string[],
+): Promise<Map<string, NoteMaterial>> {
+  const unique = [...new Set(noteIds.filter(Boolean))];
+  if (!unique.length) return new Map();
+  return memoisedMaterial(`note:${userId}:${[...unique].sort().join(',')}`, async () => {
+    const [sets, rungPrefs] = await Promise.all([
+      loadNoteChoiceSets(userId, unique),
+      loadRungPreferences(userId),
+    ]);
+    const out = new Map<string, NoteMaterial>();
+    for (const [id, set] of sets) {
+      out.set(id, {
+        canPassage: noteChoiceBuildable(set.passage),
+        canConnect: noteChoiceBuildable(set.connect),
+        canFolder: noteChoiceBuildable(set.folder),
+        skip: rungPrefs.skip,
+        prefer: rungPrefs.prefer,
+      });
+    }
+    return out;
+  });
+}
 
 /** A note the probe knows nothing about can be asked nothing — the safe reading, not the loud one. */
 const EMPTY_NOTE_MATERIAL: NoteMaterial = {
-  canRecognize: false,
   canPassage: false,
   canConnect: false,
-  canAnnotation: false,
+  canFolder: false,
 };
 
 /**
@@ -1025,29 +1105,6 @@ export async function buildReviewItemViews(
     }),
   );
 
-  const recognizeNoteIds = [
-    ...new Set(
-      rows
-        .filter((row) => row.kind === 'note' && row.noteId && noteRungFor(row, material) === 'note.recognize')
-        .map((row) => row.noteId as string),
-    ),
-  ];
-  /*
-   * The body, the marked spans and the note's own option label — the three things `noteStemFor`
-   * needs, batched. The row has to build the same stem the dock will, and the dock builds it
-   * from all three; loading only the body here is what let the two surfaces disagree.
-   */
-  const [recognizeBodies, recognizeSpans, recognizeLabels] = recognizeNoteIds.length
-    ? await Promise.all([
-        db
-          .select({ id: Notes.id, content: Notes.content, contentEncrypted: Notes.contentEncrypted })
-          .from(Notes)
-          .where(and(eq(Notes.userId, userId), inArray(Notes.id, recognizeNoteIds))),
-        loadNoteSpans(userId, recognizeNoteIds),
-        loadNoteSubjectLabels(userId, recognizeNoteIds),
-      ])
-    : [[], new Map<string, NoteSpan[]>(), new Map<string, { label: string; distinguishing: boolean }>()];
-  const recognizeBodyById = new Map(recognizeBodies.map((row) => [row.id, row]));
 
   const views: ReviewItemView[] = [];
   for (const row of rows) {
@@ -1155,23 +1212,11 @@ export async function buildReviewItemViews(
 
     const resolvedKey = noteRung ?? key;
     /*
-     * When the name is the answer, the row leads with the stem instead of "One of your notes".
-     * A quoted line from the middle of the note, or a fragment of the verse — unique, and not
-     * a spoiler. Opening words are barred: they are the untitled note's option label.
+     * When the verse's own address is the answer, the row leads with a fragment of the verse
+     * instead of the reference — unique, and not a spoiler.
      */
     let subjectCue: string | null = cue;
-    if (resolvedKey === 'note.recognize' && row.noteId) {
-      const body = recognizeBodyById.get(row.noteId);
-      subjectCue = body
-        ? noteStemFor({
-            content: body.content,
-            contentEncrypted: body.contentEncrypted,
-            spans: recognizeSpans.get(row.noteId) ?? [],
-            seed: reviewSeed(row),
-            ownLabel: recognizeLabels.get(row.noteId)?.label ?? null,
-          })?.fragment ?? null
-        : null;
-    } else if (
+    if (
       (resolvedKey === 'verse.locate' || resolvedKey === 'verse.book') &&
       row.scriptureReference
     ) {
@@ -2213,40 +2258,10 @@ export interface ReviewRevealPayload {
     trailing?: boolean;
   } | null;
   /**
-   * A note rung: the question's own material and its four options, never which is right.
-   *
-   * `fragment` is present only on `note.recognize`, where the question quotes the reader's own
-   * writing back at them. The other two rungs name the note in the row and ask about it.
+   * A note rung's options — the passages, notes or folders to pick between. Never which is right,
+   * and never a line of the note: every note question is about what the note belongs to.
    */
-  noteChoice?: {
-    fragment: string | null;
-    /**
-     * Present when the stem is a span the reader marked: the quote, and the words either side.
-     *
-     * The words either side are now the rest of the sentence the quote was highlighted inside,
-     * taken from the note itself. They used to come from the anchor's stored prefix and suffix,
-     * which are nullable and usually absent — which is why a marked-span question so often
-     * showed a bold clause floating on its own. `leading` / `trailing` mark where the sentence
-     * was cut back, and only where it actually was.
-     */
-    span?: {
-      before: string;
-      quote: string;
-      after: string;
-      leading?: boolean;
-      trailing?: boolean;
-    } | null;
-    /**
-     * The stem is a clause, not a whole sentence.
-     *
-     * The card quotes the fragment, and a quotation that reads as a complete sentence when it is
-     * half of one is a small lie about the reader's own writing. An ellipsis says where it stops.
-     * `leading` is its twin, for a stem that does not begin where its sentence does.
-     */
-    truncated?: boolean;
-    leading?: boolean;
-    options: string[];
-  } | null;
+  noteChoice?: { options: string[] } | null;
   /**
    * The four openings on "what comes after this?", and never the next verse's reference.
    *
@@ -3026,6 +3041,7 @@ const EMPTY_CHAPTER_MATERIAL: ChapterKnowledgeMaterial = {
   personCount: 0,
   placeCount: 0,
   highlightCount: 0,
+  markedAnswerable: 0,
 };
 
 /**
@@ -3161,6 +3177,7 @@ async function loadChapterMaterialUncached(
     personCount: askablePeople(people).length,
     placeCount: askablePlaces(places).length,
     highlightCount: highlightedNumbers.length,
+    markedAnswerable: chapterMarkedDraw(verses, highlightedNumbers).viable.length,
     skip: rungPrefs.skip,
     prefer: rungPrefs.prefer,
   };
@@ -3642,124 +3659,6 @@ function noteOptionLabel(row: {
 }
 
 
-/**
- * The note's own option label, and a pool of other notes to sit beside it.
- *
- * `distinguishing` carries the whole quality of the exercise. Four options reading "Written 10
- * Jul", "August 13, 2026", "Written 26 Jun" and "August 16, 2026" is not a question anyone can
- * answer — the reader is being asked which of four days a sentence came from. Rung 0 requires
- * every option to name *what* rather than *when*, and falls through when it cannot.
- */
-async function loadNoteOptionLabels(
-  userId: string,
-  noteId: string,
-): Promise<{ own: string; ownDistinguishing: boolean; others: string[]; close: string[]; rest: string[] }> {
-  const [pool, subject, passages] = await Promise.all([
-    loadNoteLabelPool(userId),
-    loadNoteSubjectLabels(userId, [noteId]),
-    getNotePassages(noteId),
-  ]);
-  const ownLabel = subject.get(noteId) ?? { label: 'A note', distinguishing: false };
-  const own = ownLabel.label.toLowerCase();
-  const others = pool.distinguishing.filter((label) => label.toLowerCase() !== own);
-  const anchors = passages.map((p) => verseReferenceLabel(p));
-  const { close, rest } = partitionByBook(
-    anchors,
-    others.map((label) => pool.bookByLabel.get(label.toLowerCase()) ?? label),
-  );
-  // The pool is labels (titles or passages). Re-map close/rest back to the labels that produced them.
-  const labelFor = (value: string): string | undefined =>
-    others.find((label) => label === value || (pool.bookByLabel.get(label.toLowerCase()) ?? '') === value);
-  return {
-    own: ownLabel.label,
-    ownDistinguishing: ownLabel.distinguishing,
-    others,
-    close: close.map((value) => labelFor(value)).filter((label): label is string => Boolean(label)),
-    rest: rest.map((value) => labelFor(value)).filter((label): label is string => Boolean(label)),
-  };
-}
-
-/**
- * Every span the reader marked in these notes, in the order the picker has always used.
- *
- * Batched, because the shelf builds a page of rows at once and the dock builds one. Both draw
- * from this so a row and the card it opens quote the same line — see `chooseNoteStem`. The
- * ordering is load-bearing: the span is picked by hash over the array, so a query without
- * `orderBy` would hand the row one span and the reveal another from the same seed.
- */
-async function loadNoteSpans(
-  userId: string,
-  noteIds: readonly string[],
-): Promise<Map<string, NoteSpan[]>> {
-  const unique = [...new Set(noteIds.filter(Boolean))];
-  const out = new Map<string, NoteSpan[]>();
-  if (!unique.length) return out;
-
-  const rows = await db
-    .select({
-      parentNoteId: StudyThreadEntries.parentNoteId,
-      quote: StudyThreadEntries.anchorQuote,
-      prefix: StudyThreadEntries.anchorPrefixContext,
-      suffix: StudyThreadEntries.anchorSuffixContext,
-    })
-    .from(StudyThreadEntries)
-    .where(
-      and(
-        eq(StudyThreadEntries.userId, userId),
-        inArray(StudyThreadEntries.parentNoteId, unique),
-        eq(StudyThreadEntries.anchorStatus, 'resolved'),
-        eq(StudyThreadEntries.entryKindRaw, 'miniNote'),
-        isNotNull(StudyThreadEntries.anchorQuote),
-      ),
-    )
-    .orderBy(StudyThreadEntries.createdAt, StudyThreadEntries.id);
-
-  for (const row of rows) {
-    if (!row.parentNoteId || !row.quote) continue;
-    /*
-     * Only spans that clear the floor are in the draw, so a short one cannot win the seed.
-     *
-     * Stripped defensively: these three columns normally hold plain text (the anchor is built
-     * from canonicalised text), but the failure branch in `study-threads.ts` writes the
-     * client-supplied quote raw — and both surfaces that show a span render it as escaped text,
-     * so one HTML quote that got through would print as markup rather than words.
-     */
-    const span = buildNoteSpan({
-      quote: stripHtml(row.quote),
-      prefix: row.prefix ? stripHtml(row.prefix) : row.prefix,
-      suffix: row.suffix ? stripHtml(row.suffix) : row.suffix,
-    });
-    if (!span) continue;
-    const list = out.get(row.parentNoteId);
-    if (list) list.push(span);
-    else out.set(row.parentNoteId, [span]);
-  }
-  return out;
-}
-
-/**
- * The line a note is quoted by — the one call both the shelf row and the dock card make.
- *
- * They used to choose separately, and chose differently: the card preferred a span the reader
- * had marked, the row only ever took a random window of the prose. Same note, same seed, two
- * different lines, and the better one never reached the list. One helper, one seed, one `avoid`.
- */
-function noteStemFor(input: {
-  content: string | null;
-  contentEncrypted: boolean | null;
-  spans: readonly NoteSpan[];
-  seed: string;
-  ownLabel: string | null;
-}): { fragment: string; span: NoteSpan | null; truncated: boolean; leading?: boolean } | null {
-  if (input.contentEncrypted) return null;
-  return chooseNoteStem({
-    html: input.content ?? '',
-    spans: input.spans,
-    seed: input.seed,
-    avoid: input.ownLabel ? [input.ownLabel] : [],
-  });
-}
-
 /** The option label for specific notes, which may be older than the pool reaches. */
 async function loadNoteSubjectLabels(
   userId: string,
@@ -3791,27 +3690,6 @@ async function loadNoteSubjectLabels(
   return out;
 }
 
-/** The notes on the other end of this one's links — every one of them is a right answer. */
-async function loadConnectedNoteLabels(userId: string, noteId: string): Promise<string[]> {
-  const edges = await db
-    .select({ from: NoteConnections.fromNoteId, to: NoteConnections.toNoteId })
-    .from(NoteConnections)
-    .where(
-      and(
-        eq(NoteConnections.userId, userId),
-        or(eq(NoteConnections.fromNoteId, noteId), eq(NoteConnections.toNoteId, noteId)),
-      ),
-    );
-  const ids = [...new Set(edges.flatMap((e) => [e.from, e.to]))].filter((id) => id !== noteId);
-  if (!ids.length) return [];
-
-  const rows = await db
-    .select({ id: Notes.id, title: Notes.title, createdAt: Notes.createdAt })
-    .from(Notes)
-    .where(and(eq(Notes.userId, userId), inArray(Notes.id, ids)));
-  return rows.map((row) => noteOptionLabel(row).label);
-}
-
 /**
  * How wide the option pool is drawn.
  *
@@ -3819,168 +3697,36 @@ async function loadConnectedNoteLabels(userId: string, noteId: string): Promise<
  * citing three passages the reader has also studied elsewhere shrinks the usable pool by three.
  */
 const NOTE_OPTION_POOL_LIMIT = 60;
-/** Three wrong options, or the question is a coin toss between two. */
-const MIN_NOTE_DISTRACTORS = 3;
 
 /**
  * Everything a note rung needs, built once so the reveal and the grader cannot disagree.
  *
  * Both call this. The reveal keeps `options` and throws the key away; the grader keeps the key
- * and throws the options away. One function means there is no second implementation to drift.
+ * and throws the options away. One function means there is no second implementation to drift —
+ * and the inputs are `loadNoteChoiceSets`, the same ones the probe decided the rung from, so a
+ * rung the list promised is a rung this can build.
  */
 async function buildNoteExercise(
   userId: string,
   item: ReviewItemRow,
-): Promise<{
-  rung: ReviewPromptKey;
-  exercise: ChoiceExercise;
-  fragment: string | null;
-  /** The marked span behind `fragment`, where the reader highlighted rather than the app chose. */
-  span: NoteSpan | null;
-  /** The stem is a clause cut out of a longer sentence, so the card may show it as partial. */
-  truncated?: boolean;
-  /** And the same at the front, for a stem that does not begin where its sentence does. */
-  leading?: boolean;
-  acceptable: string[];
-} | null> {
+): Promise<{ rung: ReviewPromptKey; exercise: ChoiceExercise; acceptable: string[] } | null> {
   if (item.kind !== 'note' || !item.noteId) return null;
 
-  const material = (await loadNoteMaterial(userId, [item.noteId])).get(item.noteId);
-  if (!material) return null;
-  const rung = resolveNoteRung(item.ladderStep, material, reviewSeed(item));
+  const [material, sets] = await Promise.all([
+    loadNoteMaterial(userId, [item.noteId]),
+    loadNoteChoiceSets(userId, [item.noteId]),
+  ]);
+  const noteMaterial = material.get(item.noteId);
+  const set = sets.get(item.noteId);
+  if (!noteMaterial || !set) return null;
+  const seed = reviewSeed(item);
+  const rung = resolveNoteRung(item.ladderStep, noteMaterial, seed);
   if (!rung) return null;
 
-  const seed = reviewSeed(item);
-  const labels = await loadNoteOptionLabels(userId, item.noteId);
-
-  if (rung === 'note.recognize') {
-    const [note] = await db
-      .select({ content: Notes.content, contentEncrypted: Notes.contentEncrypted })
-      .from(Notes)
-      .where(and(eq(Notes.id, item.noteId), eq(Notes.userId, userId)))
-      .limit(1);
-    if (!note || note.contentEncrypted) return null;
-
-    /*
-     * A span the reader marked beats a sentence the app chose, and a sentence beats a window
-     * cut out of the middle of the note. `chooseNoteStem` holds that order, and the shelf row
-     * calls it with the same seed and the same `avoid`, so the list and this card agree.
-     */
-    const spans = (await loadNoteSpans(userId, [item.noteId])).get(item.noteId) ?? [];
-    const stem = noteStemFor({
-      content: note.content,
-      contentEncrypted: note.contentEncrypted,
-      spans,
-      seed,
-      ownLabel: labels.own,
-    });
-    if (!stem) return null;
-    const { fragment, span } = stem;
-
-    // An answer nobody could name is not an answer. Falls through to the passage rung.
-    if (!labels.ownDistinguishing) return null;
-
-    const exercise = buildNoteRecognize({
-      fragment,
-      span,
-      answerLabel: labels.own,
-      poolLabels: labels.close.length ? labels.close : labels.others,
-      fallbackLabels: labels.close.length ? labels.rest : undefined,
-      seed,
-    });
-    /*
-     * The exercise's span, not the one handed in.
-     *
-     * `buildNoteRecognize` may narrow the context, or drop it entirely, when an option label
-     * turns out to be hiding in it. Returning the span we passed *in* would undo that silently
-     * and print the leaked words after all — the check would have run, found the problem, and
-     * been overruled by this line.
-     */
-    const shownSpan = exercise?.span ?? null;
-    return exercise
-      ? {
-          rung,
-          exercise,
-          fragment: exercise.fragment,
-          span: shownSpan,
-          truncated: shownSpan ? Boolean(shownSpan.trailing) : stem.truncated,
-          leading: shownSpan ? Boolean(shownSpan.leading) : stem.leading,
-          acceptable: [labels.own],
-        }
-      : null;
-  }
-
-  if (rung === 'note.passage') {
-    const passages = await getNotePassages(item.noteId);
-    const acceptable = passages.map((p) => verseReferenceLabel(p));
-    if (!acceptable.length) return null;
-    // Generous pool: every acceptable answer is also barred as a distractor.
-    const pool = await listUserVerseReferences(userId, '');
-    const { close, rest } = partitionByBook(acceptable, pool);
-    const exercise = buildNoteChoice({
-      acceptable,
-      poolLabels: close.length ? close : pool,
-      fallbackLabels: close.length ? rest : undefined,
-      seed,
-    });
-    return exercise ? { rung, exercise, fragment: null, span: null, acceptable } : null;
-  }
-
-  if (rung === 'note.annotation') {
-    /*
-     * The words the reader typed on a highlight, and the passage they typed them on. Ordered and
-     * seeded for the same reason the marked span is: the reveal and the grader must build the
-     * same question from the same inputs.
-     */
-    const rows = await db
-      .select({
-        reference: StudyThreadEntries.scriptureReference,
-        miniNoteBody: StudyThreadEntries.miniNoteBody,
-        notesBody: StudyThreadEntries.notesBody,
-      })
-      .from(StudyThreadEntries)
-      .where(
-        and(
-          eq(StudyThreadEntries.userId, userId),
-          eq(StudyThreadEntries.parentNoteId, item.noteId),
-          isNotNull(StudyThreadEntries.scriptureReference),
-        ),
-      )
-      .orderBy(StudyThreadEntries.createdAt, StudyThreadEntries.id);
-
-    const usable = rows.filter(
-      (row) => annotationTextOf(row).split(/\s+/).filter(Boolean).length >= 3 && row.reference,
-    );
-    if (!usable.length) return null;
-
-    const chosen = usable[hashSeed(seed) % usable.length];
-    const reference = chosen.reference!.trim();
-    const pool = await listUserVerseReferences(userId, reference);
-    const { close, rest } = partitionByBook([reference], pool);
-    const exercise = buildNoteAnnotation({
-      annotation: annotationTextOf(chosen),
-      reference,
-      poolReferences: close.length ? close : pool,
-      fallbackReferences: close.length ? rest : undefined,
-      seed,
-    });
-    return exercise
-      ? { rung, exercise, fragment: exercise.fragment, span: null, acceptable: [reference] }
-      : null;
-  }
-
-  const neighbours: string[] = await loadConnectedNoteLabels(userId, item.noteId);
-  if (!neighbours.length) return null;
-  const distractors = labels.others.filter((label) => !neighbours.includes(label));
-  const close = labels.close.filter((label) => !neighbours.includes(label));
-  const rest = labels.rest.filter((label) => !neighbours.includes(label));
-  const exercise = buildNoteChoice({
-    acceptable: neighbours,
-    poolLabels: close.length ? close : distractors,
-    fallbackLabels: close.length ? rest : undefined,
-    seed,
-  });
-  return exercise ? { rung, exercise, fragment: null, span: null, acceptable: neighbours } : null;
+  const input =
+    rung === 'note.passage' ? set.passage : rung === 'note.connect' ? set.connect : set.folder;
+  const exercise = buildNoteChoice({ ...input, seed });
+  return exercise ? { rung, exercise, acceptable: [...input.acceptable] } : null;
 }
 
 /**
@@ -4344,11 +4090,13 @@ export async function buildReviewReveal(
           const exercise = await buildVerseMarkedFor(item, material, seed, translation);
           payload.choice = exercise ? { options: exercise.options, opening: false } : null;
           /*
-           * The verse itself would print the marked words among the options and again in full,
-           * with only the highlighting missing — which is the question. It comes back as the
-           * truth once the answer is in.
+           * The verse stays when every option is a run of it: the highlighting is the question,
+           * not the words, and the card lets the reader choose *on* the verse, painting each
+           * option where it sits. It shipped withholding the verse, so that card never once
+           * rendered. Where an option had to come from a neighbouring verse, the verse would rule
+           * it out at a glance, so it is withheld then and the options stand alone.
            */
-          if (exercise) payload.verseText = null;
+          if (exercise && !verseMarkedFitsVerse(text, exercise.options)) payload.verseText = null;
         }
         if (rung.key === 'verse.locate') {
           const pool = await listUserVerseReferences(userId, item.scriptureReference);
@@ -4433,16 +4181,8 @@ export async function buildReviewReveal(
    */
   if (item.kind === 'note') {
     const built = await buildNoteExercise(userId, item);
-    payload.noteChoice = built
-      ? {
-          fragment: built.fragment,
-          // `span` only where the reader marked one; `answerIndex` never.
-          span: built.span,
-          truncated: built.truncated ?? false,
-          leading: built.leading ?? false,
-          options: built.exercise.options,
-        }
-      : null;
+    // The options, and never `answerIndex`.
+    payload.noteChoice = built ? { options: built.exercise.options } : null;
   }
 
   const noteIds = [item.noteId, item.secondaryNoteId].filter((id): id is string => Boolean(id));

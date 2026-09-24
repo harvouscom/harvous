@@ -284,45 +284,50 @@ export function useReviewSession(options?: { enabled?: boolean }) {
     queryFn: async () => {
       const data = await api.get<{
         items: ReviewItemView[];
+        /** Every marked question's exercise, keyed by item — built before the sitting left. */
+        reveals?: Record<string, ReviewRevealResponse>;
+        /** The head's alone, from a server older than `reveals`. */
         firstReveal?: ReviewRevealResponse;
         nextDueAt?: string | null;
       }>(`/api/review/session?dayStart=${encodeURIComponent(readerDayStartISO())}`);
-      if (data.firstReveal && data.items[0]) {
-        /* Keyed with the item's own translation, which is what the card reads with. Seeded
-           under the bare key, this warm copy sat beside the one being looked for and every
-           graded question paid a round trip for an answer already in the cache. */
-        queryClient.setQueryData(
-          reviewRevealQueryKey(data.items[0].id, data.items[0].translation ?? undefined),
-          data.firstReveal,
-        );
+      /*
+       * Seed each exercise under the key the card reads — with the item's own translation. Seeded
+       * under the bare key, a warm copy sat beside the one being looked for and every graded
+       * question paid a round trip for an answer already in the cache.
+       */
+      const reveals =
+        data.reveals ??
+        (data.firstReveal && data.items[0] ? { [data.items[0].id]: data.firstReveal } : {});
+      for (const item of data.items) {
+        const reveal = reveals[item.id];
+        if (reveal) {
+          queryClient.setQueryData(reviewRevealQueryKey(item.id, item.translation ?? undefined), reveal);
+        }
       }
-      return data;
+      /* The exercises live in their own cache entries now; the sitting is the list and its date. */
+      return { items: data.items, nextDueAt: data.nextDueAt };
     },
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
 }
 
-const REVEAL_STALE_MS = 5 * 60_000;
 /** How many reveals to have in flight at once while warming a sitting. Gentle on the pool. */
 const REVEAL_PREFETCH_CONCURRENCY = 2;
 
 /**
- * Warm every reveal in the sitting, so "Next one" never waits.
+ * Warm any exercise in the sitting that did not arrive with it, so "Next one" never waits.
  *
- * This replaced a one-ahead prefetch that never hit the cache anyway (see `reviewRevealQueryKey`).
- * One ahead was also the wrong shape: the reader moves through a sitting at their own pace, and
- * a prefetch that only starts when they reach the previous question is a prefetch that is still
- * in flight when they press the button. A sitting is at most eight questions; warming all of them
- * once the session lands is a few seconds of background work for a card that then opens each one
- * instantly.
+ * The session carries every marked question's exercise now (`reveals`), so on a normal sitting
+ * this finds everything warm and does nothing. It is here for what the session did not build: a
+ * missed question appended back for a second look (its cached reveal is removed on purpose — see
+ * `useReviewOutcome`), and a page talking to a server older than `reveals`.
  *
  * Only the marked rungs, whose reveal *is* the exercise. On a self-judged rung the fetch is the
  * signal "I need to see it", and warming it would record a look that never happened.
  *
- * Two at a time, in order, skipping anything already warm — the head is usually seeded by the
- * session itself. A long queue does not become a burst against the database, and the reader's
- * next question is still the first thing in line.
+ * Two at a time, in order, skipping anything already cached. A long queue does not become a burst
+ * against the database, and the reader's next question is still the first thing in line.
  */
 export function usePrefetchReviewReveals(
   items: readonly {
@@ -349,14 +354,13 @@ export function usePrefetchReviewReveals(
       while (!cancelled && queue.length) {
         const [itemId, itemTranslation] = queue.shift()!.split('::');
         const key = reviewRevealQueryKey(itemId, itemTranslation || undefined);
-        const state = queryClient.getQueryState(key);
-        if (state?.data && Date.now() - state.dataUpdatedAt < REVEAL_STALE_MS) continue;
+        if (queryClient.getQueryState(key)?.data) continue;
         await queryClient
           .prefetchQuery({
             queryKey: key,
             queryFn: () =>
               api.get<ReviewRevealResponse>(`/api/review/items/${encodeURIComponent(itemId)}/reveal`),
-            staleTime: REVEAL_STALE_MS,
+            staleTime: Infinity,
           })
           .catch(() => {});
       }
@@ -382,7 +386,13 @@ export function useReviewReveal(itemId: string | null, options?: { enabled?: boo
           translation ? `?translation=${encodeURIComponent(translation)}` : ''
         }`,
       ),
-    staleTime: 5 * 60_000,
+    /*
+     * Part of the sitting, and frozen with it. An exercise is built from the same seed the
+     * question was, and refetching one mid-sitting — on focus, or after five minutes — only ever
+     * put loading dots over an exercise the card already had.
+     */
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 }
 

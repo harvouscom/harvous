@@ -10,7 +10,7 @@
  * stored and never graded. See docs/future/REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md.
  */
 
-import { reviewRungIsGraded, type ReviewPromptKey } from '@/utils/review-prompts';
+import type { ReviewPromptKey } from '@/utils/review-prompts';
 import { TRANSLATION_ORDER } from '@/data/translations';
 import {
   DEFAULT_SAMPLE_EXERCISE,
@@ -61,6 +61,7 @@ import {
   gradeReviewSample,
 } from '../utils/review-service';
 import { engineColdStartFor, refillReviewQueue } from '../utils/review-opportunities';
+import { buildReviewSitting } from '../utils/review-sitting';
 
 const route = new Hono();
 
@@ -263,35 +264,19 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
     });
     const rows = sitting.rows;
     /*
-     * The first question's exercise, built *beside* the views rather than after them.
+     * Every question with its exercise, built before the sitting leaves.
      *
-     * The reveal stays its own request for the rungs where fetching it *is* the signal "I need
-     * to see it" — but on a marked rung the payload is the exercise, without which there is
-     * nothing to answer, and the page asks for it the instant it renders. It used to be built
-     * once the views were done, which was the two longest phases of this route run end to end:
-     * ~750ms of views, then ~700ms of reveal, for a reader looking at loading dots.
-     *
-     * Both load the same material, and the material is memoised for a few seconds, so running
-     * them together costs one flight rather than two — the reveal's loads join the views' rather
-     * than repeating them. Built speculatively for the head of the sitting: the views can drop
-     * an unaskable row, so if the first *view* turns out not to be the first *row* the reveal is
-     * simply discarded and the page fetches its own, as it always could.
+     * The first question's exercise used to ride along and the page warmed the rest two at a
+     * time — and a question whose builder came back empty was only discovered when the dock drew
+     * its prompt over nothing. `buildReviewSitting` builds them all here, moves a question that
+     * cannot be built to a rung that can, and leaves out any that cannot be built at all. The
+     * page seeds each exercise into the cache the card reads, so a sitting asks for nothing more.
      */
-    const headRow = rows[0] ?? null;
-    const [items, speculativeReveal] = await Promise.all([
-      buildReviewItemViews(auth.userId, rows, { dropUnaskable: true }),
-      headRow ? buildReviewReveal(auth.userId, headRow).catch(() => null) : Promise.resolve(null),
-    ]);
+    const { items, reveals } = await buildReviewSitting(auth.userId, rows, now);
     /*
-     * Bookkeeping, so it happens beside the response rather than in front of it. These were
-     * awaited one row at a time, which put a write per item between the reader and their
-     * question — the same pattern `recordReviewOutcomeNodes` already avoids.
-     *
-     * Driven by `items` rather than `rows`, and carrying the rung, because this log is the only
-     * denominator a per-rung rate can have. `rows` includes candidates that
-     * `buildReviewItemViews` then dropped as unaskable, so writing one `shown` per row counted
-     * questions nobody was ever asked; and a `shown` with a null rung cannot be divided into at
-     * all, which is why "asked" could only ever be counted from outcomes.
+     * Bookkeeping, so it happens beside the response rather than in front of it. Driven by
+     * `items` rather than `rows`, and carrying the rung, because this log is the only denominator
+     * a per-rung rate can have — and `rows` holds candidates the sitting then left out.
      */
     const rowById = new Map(rows.map((row) => [row.id, row]));
     void Promise.all(
@@ -303,11 +288,9 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
       }),
     ).catch(() => {});
 
+    /* Kept one release for a page still reading the old field; `reveals` replaces it. */
     const first = items[0];
-    const firstReveal =
-      first && headRow && first.id === headRow.id && reviewRungIsGraded(first)
-        ? speculativeReveal
-        : null;
+    const firstReveal = first ? reveals[first.id] ?? null : null;
 
     /*
      * With nothing due, when the next thing is scheduled — so the card can say why it is empty
@@ -319,6 +302,7 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
     return c.json({
       success: true,
       items,
+      reveals,
       ...(firstReveal ? { firstReveal } : {}),
       ...(nextDueAt ? { nextDueAt: nextDueAt.toISOString() } : {}),
     });

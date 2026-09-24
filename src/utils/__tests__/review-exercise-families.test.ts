@@ -54,11 +54,11 @@ describe('review exercise families', () => {
 
   it('never lets the label be the answer', () => {
     /*
-     * The two rungs where the subject is what is being asked for. "Which note" must not name the
-     * note and "Where" must not name the passage, or the card answers itself above the question.
+     * "Where" must not name the passage, and "Folder" must not name the folder, or the card
+     * answers itself above the question.
      */
-    expect(reviewExerciseFamily('note.recognize').label).toBe('Which note');
     expect(reviewExerciseFamily('verse.locate').label).toBe('Where');
+    expect(reviewExerciseFamily('note.folder').label).toBe('Folder');
   });
 
   it('groups the same act across kinds, and keeps different acts apart', () => {

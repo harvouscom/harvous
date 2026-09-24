@@ -1,5 +1,5 @@
 import { NOTE_WRITTEN_SOURCE } from '@/utils/study-bible-source-copy';
-import { NOTE_RECOGNIZE_STEP, verseRungFor } from '@/utils/review-prompts';
+import { verseRungFor } from '@/utils/review-prompts';
 
 const WRITTEN_PREFIX = 'Written ';
 
@@ -143,10 +143,7 @@ export function rungIdentityIsTheAnswer(item: {
   ladderStep?: number | null;
   promptKey?: string | null;
 }): boolean {
-  if (item.kind === 'note') {
-    if (item.promptKey) return item.promptKey === 'note.recognize';
-    return item.ladderStep === NOTE_RECOGNIZE_STEP;
-  }
+  // No note rung has the note as its answer any more: every one asks what the note belongs to.
   if (item.kind !== 'verse') return false;
   const key = item.promptKey ?? verseRungFor(item.ladderStep ?? 0).key;
   return key === 'verse.locate' || key === 'verse.book';

@@ -1,26 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildNoteChoice,
-  buildNoteRecognize,
   gradeNoteChoice,
   labelNamesWhat,
-  noteFragment,
+  noteChoiceBuildable,
   resolveNoteRung,
   type NoteMaterial,
-  buildNoteSpan,
-  buildNoteAnnotation,
-  chooseNoteStem,
-  noteFragmentWindow,
-  noteSpanText,
-  NOTE_SPAN_MIN_WORDS,
 } from '@/utils/note-ladder-exercises';
-import { hashSeed } from '@/utils/verse-cloze';
 
-const ALL: NoteMaterial = { canRecognize: true, canPassage: true, canConnect: true, canAnnotation: true };
-const NONE: NoteMaterial = { canRecognize: false, canPassage: false, canConnect: false, canAnnotation: false };
-
-const BODY =
-  'God chose us before the foundation of the world, not because we had done anything to deserve it but because it pleased him to do so, and that is the whole ground of adoption.';
+const ALL: NoteMaterial = { canPassage: true, canConnect: true, canFolder: true };
+const NONE: NoteMaterial = { canPassage: false, canConnect: false, canFolder: false };
 
 describe('a preference can never be the reason a note goes unasked', () => {
   /*
@@ -30,31 +19,29 @@ describe('a preference can never be the reason a note goes unasked', () => {
    * Turning "ask me this less" into "never show me this note" is the failure being pinned here.
    */
   it('still resolves when the only buildable rung is skipped', () => {
-    const onlyRecognize: NoteMaterial = {
-      canRecognize: true,
+    const onlyFolder: NoteMaterial = {
       canPassage: false,
       canConnect: false,
-      canAnnotation: false,
-      skip: new Set(['note.recognize' as const]),
+      canFolder: true,
+      skip: new Set(['note.folder' as const]),
     };
-    expect(resolveNoteRung(0, onlyRecognize, 'seed')).toBe('note.recognize');
+    expect(resolveNoteRung(0, onlyFolder, 'seed')).toBe('note.folder');
   });
 
   it('still resolves when every rung the note has is skipped', () => {
     const allSkipped: NoteMaterial = {
       ...ALL,
-      skip: new Set(['note.recognize', 'note.passage', 'note.connect', 'note.annotation'] as const),
+      skip: new Set(['note.passage', 'note.connect', 'note.folder'] as const),
     };
     expect(resolveNoteRung(0, allSkipped, 'seed')).not.toBeNull();
   });
 
   it('prefers an unskipped rung over the skipped one when the note has both', () => {
     const both: NoteMaterial = {
-      canRecognize: true,
       canPassage: true,
       canConnect: false,
-      canAnnotation: false,
-      skip: new Set(['note.recognize' as const]),
+      canFolder: true,
+      skip: new Set(['note.folder' as const]),
     };
     expect(resolveNoteRung(0, both, 'seed')).toBe('note.passage');
   });
@@ -67,21 +54,19 @@ describe('a preference can never be the reason a note goes unasked', () => {
 
 describe('resolveNoteRung', () => {
   it('asks the rung the note has climbed to when it can answer it', () => {
-    expect(resolveNoteRung(0, ALL)).toBe('note.recognize');
-    expect(resolveNoteRung(1, ALL)).toBe('note.passage');
-    expect(resolveNoteRung(2, ALL)).toBe('note.connect');
+    expect(resolveNoteRung(0, ALL)).toBe('note.passage');
+    expect(resolveNoteRung(1, ALL)).toBe('note.connect');
+    expect(resolveNoteRung(2, ALL)).toBe('note.folder');
   });
 
   it('walks past a rung the note has no material for', () => {
     // A note with no links cannot be asked what it was linked to, whatever step it is on.
-    expect(resolveNoteRung(2, { ...ALL, canConnect: false })).toBe('note.annotation');
-    expect(resolveNoteRung(1, { ...ALL, canPassage: false })).toBe('note.connect');
+    expect(resolveNoteRung(1, { ...ALL, canConnect: false })).toBe('note.folder');
+    expect(resolveNoteRung(0, { ...ALL, canPassage: false })).toBe('note.connect');
   });
 
   it('wraps once rather than falling off the end', () => {
-    expect(resolveNoteRung(2, { canRecognize: true, canPassage: false, canConnect: false, canAnnotation: false })).toBe(
-      'note.recognize',
-    );
+    expect(resolveNoteRung(2, { canPassage: true, canConnect: false, canFolder: false })).toBe('note.passage');
   });
 
   it('says nothing can be asked, which is a real answer', () => {
@@ -90,101 +75,25 @@ describe('resolveNoteRung', () => {
     expect(resolveNoteRung(2, NONE)).toBeNull();
   });
 
-  it('gives an encrypted note the two rungs built on plaintext', () => {
-    expect(resolveNoteRung(0, { canRecognize: false, canPassage: true, canConnect: true, canAnnotation: false })).toBe(
-      'note.passage',
-    );
+  it('keeps a note that climbed past the retired rungs askable', () => {
+    // Stored steps up to 3 exist from the four-rung ladder; the walk wraps rather than failing.
+    expect(resolveNoteRung(3, ALL)).toBe('note.passage');
+    expect(resolveNoteRung(3, { ...ALL, canPassage: false })).toBe('note.connect');
   });
 
   it('tolerates a nonsense step', () => {
-    expect(resolveNoteRung(-5, ALL)).toBe('note.recognize');
+    expect(resolveNoteRung(-5, ALL)).toBe('note.passage');
     expect(resolveNoteRung(99, ALL)).toBeTruthy();
-    expect(resolveNoteRung(Number.NaN, ALL)).toBe('note.recognize');
+    expect(resolveNoteRung(Number.NaN, ALL)).toBe('note.passage');
   });
 
   it('spreads notes on the same step across different questions', () => {
     const keys = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8'].map((id) =>
-      resolveNoteRung(0, ALL, `${id}:0`),
+      resolveNoteRung(0, ALL, `${id}:0:0`),
     );
     expect(new Set(keys).size).toBeGreaterThan(1);
     // Same seed, same question — list, reveal and grader must agree.
-    expect(resolveNoteRung(0, ALL, 'n1:0')).toBe(resolveNoteRung(0, ALL, 'n1:0'));
-  });
-});
-
-describe('noteFragment', () => {
-  it('quotes from the middle, never the opening words', () => {
-    /*
-     * The row and the dock both print the note's opening line as their context line, and an
-     * untitled note's option label falls back to that same line. An opening-words fragment
-     * would be printed directly above its own answer.
-     */
-    for (const seed of ['a', 'b', 'c', 'd', 'e']) {
-      const fragment = noteFragment(BODY, seed)!;
-      expect(BODY.startsWith(fragment)).toBe(false);
-      expect(BODY).toContain(fragment);
-    }
-  });
-
-  it('is the same fragment for the same seed', () => {
-    expect(noteFragment(BODY, 'a')).toBe(noteFragment(BODY, 'a'));
-  });
-
-  it('refuses a body with nothing recognisable in it', () => {
-    expect(noteFragment('Romans 8:15', 'a')).toBeNull();
-    expect(noteFragment('', 'a')).toBeNull();
-  });
-
-  it('takes the whole of a short-but-usable body', () => {
-    const short = 'the ground of adoption is his good pleasure';
-    expect(noteFragment(short, 'a')).toBe(short);
-  });
-});
-
-describe('buildNoteRecognize', () => {
-  const poolLabels = ['Adoption, not slavery', 'Covenant and kingship', 'Ruth 3', 'Written 9 Aug'];
-
-  it('offers four notes with the right one among them', () => {
-    const ex = buildNoteRecognize({
-      fragment: 'not because we had done anything to deserve it',
-      answerLabel: 'The ground of adoption',
-      poolLabels,
-      seed: 'a',
-    })!;
-    expect(ex.options).toHaveLength(4);
-    expect(ex.options[ex.answerIndex]).toBe('The ground of adoption');
-    expect(ex.fragment).toContain('deserve');
-  });
-
-  it('refuses when the fragment contains one of its own options', () => {
-    /*
-     * Not hypothetical. An untitled note's label falls back to its opening line, so a question
-     * built from that note's body can quote the very string that is offered as an answer.
-     */
-    // Exactly three distractors, so the offending one is certain to be drawn.
-    const ex = buildNoteRecognize({
-      fragment: 'God chose us before the foundation of the world',
-      answerLabel: 'The ground of adoption',
-      poolLabels: ['Ruth 3', 'Covenant and kingship', 'God chose us before the foundation'],
-      seed: 'a',
-    });
-    expect(ex).toBeNull();
-  });
-
-  it('refuses when an option contains the whole fragment', () => {
-    const ex = buildNoteRecognize({
-      fragment: 'the ground of adoption',
-      answerLabel: 'On the ground of adoption, and what follows',
-      poolLabels,
-      seed: 'a',
-    });
-    expect(ex).toBeNull();
-  });
-
-  it('refuses rather than offering a thin question', () => {
-    expect(
-      buildNoteRecognize({ fragment: 'x', answerLabel: 'A', poolLabels: ['B'], seed: 'a' }),
-    ).toBeNull();
+    expect(resolveNoteRung(0, ALL, 'n1:0:0')).toBe(resolveNoteRung(0, ALL, 'n1:0:0'));
   });
 });
 
@@ -277,275 +186,72 @@ describe('labelNamesWhat and chapter references', () => {
   });
 });
 
-describe('buildNoteSpan', () => {
-  it('keeps a running start and a tail, trimmed to whole words', () => {
-    const span = buildNoteSpan({
-      quote: 'not because we had done anything to deserve it',
-      prefix: 'God chose us before the foundation of the world, and he did so',
-      suffix: 'but because it pleased him to do so, and that is the whole ground of adoption',
-    })!;
-    expect(span.quote).toBe('not because we had done anything to deserve it');
-    expect(span.before.split(' ').length).toBeLessThanOrEqual(8);
-    expect(span.after.split(' ').length).toBeLessThanOrEqual(8);
-    // The run-up is the words nearest the quote, not the start of the paragraph.
-    expect(span.before.endsWith('he did so')).toBe(true);
-    expect(span.after.startsWith('but because')).toBe(true);
-  });
+describe('buildNoteChoice and what the card already says', () => {
+  const folders = ['Providence', 'Exile', 'Kingship', 'Psalms of ascent', 'Covenant'];
 
-  it('is fine with no context at all', () => {
-    const span = buildNoteSpan({ quote: 'the ground of adoption' })!;
-    expect(span).toEqual({ before: '', quote: 'the ground of adoption', after: '' });
-  });
-
-  it('refuses an empty quote', () => {
-    expect(buildNoteSpan({ quote: '   ', prefix: 'a', suffix: 'b' })).toBeNull();
-  });
-});
-
-describe('buildNoteRecognize with a marked span', () => {
-  const poolLabels = ['Adoption, not slavery', 'Covenant and kingship', 'Ruth 3', 'Acts 2'];
-
-  it('drops the run-up rather than the question when an option hides in it', () => {
-    /*
-     * The context either side is on screen too, so an option hiding in the run-up answers the
-     * question just as surely as one hiding in the quote.
-     *
-     * This used to return null, which was the safe half of the rule and not the whole of it: a
-     * stem that gives its answer away should not be *shown*, and that is not the same as the
-     * note losing its rung. Now that a span arrives wrapped in its whole sentence there is more
-     * text on screen and more chance of a leak, so the context is narrowed and then dropped
-     * before giving up — each step showing less of the reader's own sentence, and only the last
-     * one, the words they highlighted, being something they would notice.
-     *
-     * The invariant is what is asserted: no option appears anywhere in what is printed.
-     */
-    const span = buildNoteSpan({
-      quote: 'not because we had done anything',
-      prefix: 'I wrote about Covenant and kingship here, and',
-      suffix: 'to deserve it',
-    })!;
-    const ex = buildNoteRecognize({
-      fragment: span.quote,
-      span,
-      answerLabel: 'The ground of adoption',
-      poolLabels: ['Covenant and kingship', 'Ruth 3', 'Acts 2'],
-      seed: 'a',
-    });
-    expect(ex).not.toBeNull();
-    const shown = noteSpanText(ex!.span!).toLowerCase();
-    for (const option of ex!.options) {
-      expect(shown).not.toContain(option.toLowerCase());
+  it('drops a wrong option the note title names', () => {
+    for (const seed of ['a', 'b', 'c', 'd', 'e']) {
+      const ex = buildNoteChoice({
+        acceptable: ['Providence'],
+        poolLabels: folders,
+        shown: 'Exile and return',
+        seed,
+      })!;
+      expect(ex.options).not.toContain('Exile');
     }
-    expect(ex!.span!.quote).toBe('not because we had done anything');
   });
 
-  it('gives up only when the quote itself names an option', () => {
-    const span = buildNoteSpan({
-      quote: 'Covenant and kingship run together here',
-      prefix: 'I wrote that',
-      suffix: 'all the way through',
-    })!;
+  it('will not ask a question the title already answers', () => {
+    // "Grace in Romans 8" cannot be asked which folder it is in when the only folder is "Grace".
     expect(
-      buildNoteRecognize({
-        fragment: span.quote,
-        span,
-        answerLabel: 'The ground of adoption',
-        poolLabels: ['Covenant and kingship', 'Ruth 3', 'Acts 2'],
-        seed: 'a',
-      }),
+      buildNoteChoice({ acceptable: ['Grace'], poolLabels: folders, shown: 'Grace in Romans 8', seed: 'a' }),
     ).toBeNull();
   });
 
-  it('carries the span through when nothing gives the answer away', () => {
-    const span = buildNoteSpan({
-      quote: 'not because we had done anything to deserve it',
-      prefix: 'God chose us',
-      suffix: 'but because it pleased him',
-    })!;
-    const ex = buildNoteRecognize({
-      fragment: span.quote,
-      span,
-      answerLabel: 'The ground of adoption',
-      poolLabels,
+  it('still asks about a right answer the title does not name', () => {
+    const ex = buildNoteChoice({
+      acceptable: ['Grace', 'Providence'],
+      poolLabels: folders,
+      shown: 'Grace in Romans 8',
       seed: 'a',
     })!;
-    expect(ex.span).toEqual(span);
-    expect(ex.fragment).toBe(span.quote);
-  });
-});
-
-describe('buildNoteAnnotation', () => {
-  const pool = ['Romans 8:28', 'Psalm 23:1', '1 Peter 2:9', 'Genesis 1:1', 'Hebrews 11:1'];
-
-  it('asks which passage the reader wrote their words on', () => {
-    const ex = buildNoteAnnotation({
-      annotation: 'This is the clearest promise in the whole letter',
-      reference: 'John 15:5',
-      poolReferences: pool,
-      seed: 'a',
-    })!;
-    expect(ex.fragment).toContain('clearest promise');
-    expect(ex.options).toContain('John 15:5');
-    expect(ex.options[ex.answerIndex]).toBe('John 15:5');
+    expect(ex.options[ex.answerIndex]).toBe('Providence');
+    // The one the title named is still right, so it is never offered as a wrong answer either.
+    expect(ex.options).not.toContain('Grace');
   });
 
-  it('refuses when the annotation names its own passage', () => {
-    /*
-     * Common, not hypothetical: people write "Romans 8 is about..." on a highlight of Romans 8.
-     * The book alone gives it away as surely as the full reference.
-     */
+  it('treats a cited passage inside the title as named', () => {
     expect(
-      buildNoteAnnotation({
-        annotation: 'John 15:5 is the clearest promise here',
-        reference: 'John 15:5',
-        poolReferences: pool,
-        seed: 'a',
-      }),
-    ).toBeNull();
-    expect(
-      buildNoteAnnotation({
-        annotation: 'the whole of John turns on this',
-        reference: 'John 15:5',
-        poolReferences: pool,
+      buildNoteChoice({
+        acceptable: ['Romans 8:28'],
+        poolLabels: ['Psalm 23:1', 'John 3:16', 'Genesis 1:1'],
+        shown: 'Romans 8',
         seed: 'a',
       }),
     ).toBeNull();
   });
-
-  it('refuses a scribble too short to be about anything', () => {
-    expect(
-      buildNoteAnnotation({ annotation: 'yes!', reference: 'John 15:5', poolReferences: pool, seed: 'a' }),
-    ).toBeNull();
-  });
 });
 
-describe('buildNoteSpan floor', () => {
-  it('refuses a span too short to recognise a note by', () => {
-    // Real rows on the owner's account: "box", "kids" — derived reference words, not lines.
-    expect(buildNoteSpan({ quote: 'box' })).toBeNull();
-    expect(buildNoteSpan({ quote: 'two words' })).toBeNull();
-    expect(buildNoteSpan({ quote: 'a relationship with God' })?.quote).toBe('a relationship with God');
-    expect(NOTE_SPAN_MIN_WORDS).toBe(3);
-  });
-});
-
-describe('chooseNoteStem', () => {
-  const HTML =
-    '<h2>A heading nobody should be quoted by</h2>' +
-    '<p>An opening line that names the note itself.</p>' +
-    '<p>God chose us before the foundation of the world because it pleased him.</p>' +
-    '<blockquote data-scripture-quote-reference="Ephesians 1:4">' +
-    '<p>For he chose us in him before the creation of the world to be holy.</p>' +
-    '</blockquote>';
-
-  const span = (quote: string) => buildNoteSpan({ quote })!;
-
-  it('quotes a line the reader marked before one the app chose', () => {
-    const spans = [span('the whole ground of adoption'), span('nothing we brought to it')];
-    const stem = chooseNoteStem({ html: HTML, spans, seed: 'item:0' });
-    expect(stem?.span).not.toBeNull();
-    // The draw the dock has always used, kept exactly so items in flight do not move.
-    expect(stem?.fragment).toBe(spans[hashSeed('item:0') % spans.length].quote);
-  });
-
-  it('falls back to a scored sentence, never to a heading or a quoted passage', () => {
-    const stem = chooseNoteStem({ html: HTML, spans: [], seed: 'item:0' });
-    expect(stem?.span).toBeNull();
-    expect(stem?.fragment).not.toContain('holy');
-    expect(stem?.fragment).not.toContain('A heading');
-  });
-
-  it('falls back to the old window for a note with no sentence in it', () => {
-    const wall =
-      '<p>' +
-      'no punctuation anywhere in this note at all just a long run of words that never stops '.repeat(3) +
-      '</p>';
-    const stem = chooseNoteStem({ html: wall, spans: [], seed: 'item:0' });
-    expect(stem?.fragment.split(' ').length).toBeGreaterThanOrEqual(6);
-  });
-
-  it('gives the same line to two callers passing the same seed and avoid', () => {
-    const a = chooseNoteStem({ html: HTML, spans: [], seed: 'item:3', avoid: ['A note'] });
-    const b = chooseNoteStem({ html: HTML, spans: [], seed: 'item:3', avoid: ['A note'] });
-    expect(a?.fragment).toBe(b?.fragment);
-  });
-
-  it('has nothing to offer when the note is only a heading', () => {
-    expect(chooseNoteStem({ html: '<h1>Only this</h1>', spans: [], seed: 's' })).toBeNull();
-  });
-});
-
-describe('a marked span reaches the card inside its sentence', () => {
-  const HTML =
-    '<p>God chose us before the foundation of the world because it pleased him to do so.</p>';
-
-  it('takes the sentence from the note rather than the anchor, which is usually empty', () => {
-    /*
-     * The case the complaint came from: a highlight made by a path that recorded no anchor
-     * context at all. The span arrives with nothing either side, and what the reader used to
-     * see was a bold clause on its own line.
-     */
-    const span = buildNoteSpan({ quote: 'because it pleased him', prefix: null, suffix: null })!;
-    expect(span.before).toBe('');
-    expect(span.after).toBe('');
-
-    const chosen = chooseNoteStem({ html: HTML, spans: [span], seed: 'item:0' })!;
-    expect(chosen.span!.before).toBe('God chose us before the foundation of the world');
-    expect(chosen.span!.after).toBe('to do so.');
-    expect(chosen.span!.leading).toBe(false);
-    expect(chosen.span!.trailing).toBe(false);
-    /* The fragment stays the quote, so the shelf row is unchanged. */
-    expect(chosen.fragment).toBe('because it pleased him');
-  });
-
-  it('keeps the anchor context, honestly marked, when the note no longer has the quote', () => {
-    const span = buildNoteSpan({
-      quote: 'a line since edited away',
-      prefix: 'something before it',
-      suffix: 'and something after',
-    })!;
-    const chosen = chooseNoteStem({ html: HTML, spans: [span], seed: 'item:0' })!;
-    expect(chosen.span!.before).toBe('something before it');
-    /* It does not start like a sentence or end like one, and now says as much. */
-    expect(chosen.span!.leading).toBe(true);
-    expect(chosen.span!.trailing).toBe(true);
-  });
-
-  it('draws the same span from the same seed as before', () => {
-    const spans = [
-      buildNoteSpan({ quote: 'because it pleased him' })!,
-      buildNoteSpan({ quote: 'before the foundation' })!,
-    ];
-    const drawn = chooseNoteStem({ html: HTML, spans, seed: 'item:3' })!;
-    expect(drawn.fragment).toBe(spans[hashSeed('item:3') % spans.length].quote);
-  });
-
-});
-
-describe('noteFragmentWindow', () => {
+describe('noteChoiceBuildable', () => {
   /*
-   * The last-resort branch, and the only one guaranteed to hand back a fragment: twelve words
-   * from the middle of the note, beginning and ending mid-clause by construction. It was also
-   * the one branch that reported itself whole, so the card printed it in quotation marks with
-   * no ellipsis at either end — the clearest case of the thing being fixed here.
+   * The probe and the builder used to be two readings of the same note, and every disagreement
+   * reached the reader as a prompt over an empty card. The probe is the builder now, without a
+   * seed — so it must agree with a build under every seed.
    */
-  it('says a middle window was cut at both ends', () => {
-    const long = Array.from({ length: 40 }, (_, i) => `word${i}`).join(' ');
-    const window = noteFragmentWindow(long, 'a')!;
-    expect(window.text.split(' ')).toHaveLength(12);
-    expect(window.leading).toBe(true);
-    expect(window.trailing).toBe(true);
-  });
-
-  it('claims nothing was cut from a body it quotes whole', () => {
-    const short = 'the ground of adoption is his good pleasure';
-    const window = noteFragmentWindow(short, 'a')!;
-    expect(window.text).toBe(short);
-    expect(window.leading).toBe(false);
-    expect(window.trailing).toBe(false);
-  });
-
-  it('is the same window the old helper returns, for the same seed', () => {
-    expect(noteFragmentWindow(BODY, 'c')!.text).toBe(noteFragment(BODY, 'c'));
+  const cases = [
+    { acceptable: ['Grace'], poolLabels: ['Exile', 'Kingship', 'Covenant'] },
+    { acceptable: ['Grace'], poolLabels: ['Exile', 'Kingship'] },
+    { acceptable: ['Grace'], poolLabels: ['Exile', 'exile', 'Kingship'] },
+    { acceptable: ['Grace'], poolLabels: ['Exile', 'Kingship', 'Grace'] },
+    { acceptable: ['Grace'], poolLabels: ['Exile', 'Kingship', 'Covenant'], shown: 'Grace notes' },
+    { acceptable: [], poolLabels: ['Exile', 'Kingship', 'Covenant'] },
+  ];
+  it('agrees with the builder under every seed', () => {
+    for (const input of cases) {
+      const buildable = noteChoiceBuildable(input);
+      for (const seed of ['a', 'b', 'c', 'x:1:0', 'y:2:5']) {
+        expect(buildNoteChoice({ ...input, seed }) !== null).toBe(buildable);
+      }
+    }
   });
 });
