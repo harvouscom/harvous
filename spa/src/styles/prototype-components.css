@@ -10399,7 +10399,6 @@ button.proto-appearance-hero__card {
   outline: none;
 }
 
-
 .proto-welcome3__sub {
   margin: 0;
   max-width: 34ch;
@@ -10500,7 +10499,6 @@ button.proto-appearance-hero__card {
   right: var(--pds-space-3);
   z-index: 2;
 }
-
 
 /*
  * Bigger once the sheet stops being squeezed.
@@ -23040,7 +23038,6 @@ button.proto-feed-sheet__stat:hover {
     animation-delay: 60ms;
   }
 
-  .proto-review-dock__chips,
   .proto-review-dock__attempt,
   .proto-review-dock__actions {
     animation-delay: 120ms;
@@ -23123,11 +23120,6 @@ button.proto-feed-sheet__stat:hover {
   background: var(--pds-bg-accent-button);
   color: var(--pds-on-accent) !important;
   -webkit-text-fill-color: var(--pds-on-accent);
-}
-
-/* The first-letter aid reads as the verse's shape, so it keeps the verse's own face. */
-.proto-review-dock__initials {
-  letter-spacing: 0.04em;
 }
 
 /*
@@ -23366,55 +23358,6 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
- * The two graded rungs: phrases to arrange, or four references to choose between.
- *
- * Chips rather than drag handles. A drag library for a puzzle of four pieces is a dependency
- * and a touch-target problem; tap to place and tap again to take it back works with one finger
- * and reads the same on a phone and a desktop. The chip itself is a compact secondary button,
- * which already exists — only the wrapping and the placed state are new here.
- */
-.proto-review-dock__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pds-space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/*
- * An option reads left, and its words wrap rather than run off the card.
- *
- * `.proto-settings-btn` is built for a full-width action button: `width: 100%` with its
- * content centred. That is right for "Check it" and wrong for a sentence — on a narrow card a
- * verse opening overflowed *both* edges at once, taking the letter keycap off the left with
- * it, so option A had no A and began mid-word. Found at 375px; on a desktop card the openings
- * happened to fit.
- *
- * Doubled selector to out-specify the button's own rule. `anywhere` rather than `break-word`
- * because it also lets the label shrink below its longest word, which is what allows the flex
- * row to give the text a narrower box instead of overflowing one.
- */
-.proto-review-dock__choice.proto-review-dock__choice {
-  justify-content: flex-start;
-  text-align: left;
-}
-
-/*
- * `flex: 1 1 auto` because a global `* { flex-shrink: 0 }` reset is in force.
- *
- * That is the whole reason the words could not wrap: the label was `flex: 0 0 auto`, so its
- * box stayed at the full width of the sentence no matter how narrow the card got, and the text
- * simply hung outside it. `min-width: 0` and `overflow-wrap` are the usual pair for letting a
- * flex item narrow, and neither does anything until the item is allowed to shrink at all.
- */
-.proto-review-dock__choice-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-/*
  * A gap in a cloze, which is a real input rather than a picture of one.
  *
  * Sits on the line it interrupts: no border box, just the underline the underscores used to
@@ -23514,122 +23457,6 @@ button.proto-feed-sheet__stat:hover {
 .proto-review-dock__truth-label {
   margin: 0 0 4px;
   color: var(--pds-text-secondary);
-}
-
-/*
- * A lettered option, which is what makes a row of buttons read as a question.
- *
- * The keycap is the toolbar's own `.proto-kbd`, not a new lozenge: the letters are real
- * shortcuts, and a key that looks like a key everywhere else in the app should look like one
- * here. `--compact` is the size that fits inside a 28px control without setting its height.
- */
-/*
- * The chip's own class doubled, because `.proto-settings-btn--compact` sets `padding: 0 12px`
- * further down this file and would win on source order alone — the same shape of collision the
- * verdict colours hit with that variant's `!important` colour.
- */
-.proto-review-dock__choice.proto-review-dock__choice {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  /* The keycap is its own round shape with its own edge, so the chip's padding only has to
-     clear it — any more and the cap floats in a gutter instead of starting the option. */
-  padding-left: 4px;
-}
-
-/*
- * How an answer went, said in colour: the accent blue for right, the destructive red for
- * wrong. It is only ever the server's verdict — the page holds no answer key — and it lasts a
- * beat before the result takes the card.
- */
-/*
- * `!important` and a ring rather than a border, because the chip is a `proto-settings-btn`:
- * that class sets `border: 0` — so a border-colour paints nothing — and its secondary variant
- * sets `color` with `!important`, which quietly beat the first version of these rules. The
- * verdict has to out-shout the variant to be seen at all.
- */
-.proto-review-dock__choice[data-missed] {
-  /*
-   * Solid, like the right answer's blue: a tint with a ring read as "disabled", not "spent". The
-   * red is the destructive *button's* gradient rather than the flat token — the token is the
-   * deep red of a warning, and this is an option that has been used, in the same family as the
-   * blue one beside it that was right.
-   */
-  /* Held in a variable so the hover rule below can restate it without a second copy of the
-     gradient — two literals is how the resting state and the hover state drift apart. */
-  --proto-verdict-bg: linear-gradient(180deg, #f05252 0%, #d42828 55%, #be1f1f 100%);
-  background: var(--proto-verdict-bg);
-  box-shadow: var(--pds-shadow-destructive-button);
-  color: var(--pds-on-accent) !important;
-  opacity: 1;
-}
-
-/*
- * The words paint themselves. Whatever wins `color` on this button — and something outside this
- * file does, with `!important`, because even an inline important white computes back to the
- * text colour — `-webkit-text-fill-color` is what the glyphs are actually drawn with.
- *
- * On the button as well as on the label, because not every chip has a label span: the ordering
- * rung's placed phrases are bare text inside the button, and wore the same solid red and blue
- * with the text left dark. A rule aimed only at the span fixed the multiple-choice chips and
- * left the ones next door unreadable.
- */
-.proto-review-dock__choice[data-missed],
-.proto-review-dock__choice[data-correct],
-.proto-review-dock__choice[data-missed] .proto-review-dock__choice-label,
-.proto-review-dock__choice[data-correct] .proto-review-dock__choice-label {
-  -webkit-text-fill-color: var(--pds-on-accent);
-}
-
-/*
- * The strike is drawn on the label where there is one, and on the button where there is not, so
- * it takes the same white as the words either way.
- */
-.proto-review-dock__choice[data-missed],
-.proto-review-dock__choice[data-missed] .proto-review-dock__choice-label {
-  text-decoration: line-through;
-  text-decoration-color: var(--pds-on-accent);
-  text-decoration-thickness: 1.5px;
-}
-
-/* Never twice: a struck label inside a struck button draws two lines through the same words. */
-.proto-review-dock__choice[data-missed]:has(.proto-review-dock__choice-label) {
-  text-decoration: none;
-}
-
-/* The disc on a spent chip: a shade of the red, so the white letter has something to sit on. */
-.proto-review-dock__choice[data-missed] .proto-review-dock__choice-key {
-  background: color-mix(in oklab, #000 18%, transparent);
-  color: var(--pds-on-accent);
-  -webkit-text-fill-color: var(--pds-on-accent);
-}
-
-.proto-review-dock__choice[data-correct] {
-  --proto-verdict-bg: var(--pds-bg-accent-button);
-  background: var(--proto-verdict-bg);
-  box-shadow: var(--pds-shadow-accent-button);
-  color: var(--pds-on-accent) !important;
-}
-
-/*
- * A spent chip keeps its verdict under the pointer.
- *
- * `.proto-settings-btn--secondary:hover:not(:disabled)` is 0,3,0 and the verdict rules above are
- * 0,2,0, so the neutral row-hover background won outright. The white the verdict paints its words
- * with survives, because that is set with `!important` and again through
- * `-webkit-text-fill-color` — so hovering an answered option left white text on pale grey and the
- * words disappeared.
- *
- * Restated rather than fought with another `!important`: these chips are no longer offers, they
- * are the answer being shown, so there is nothing for a hover to preview. `:focus-visible` gets
- * the same treatment, since a keyboard reader would otherwise lose the words at the moment they
- * arrived on them.
- */
-.proto-review-dock__choice[data-correct]:hover:not(:disabled),
-.proto-review-dock__choice[data-correct]:focus-visible,
-.proto-review-dock__choice[data-missed]:hover:not(:disabled),
-.proto-review-dock__choice[data-missed]:focus-visible {
-  background: var(--proto-verdict-bg);
 }
 
 /* The gap's line carries its verdict, the same line that carries focus. */
@@ -24001,89 +23828,6 @@ button.proto-feed-sheet__stat:hover {
 
 .proto-review-sample__eyebrow {
   margin: 0;
-}
-
-/*
- * A circle, like every other small round marker in the app.
- *
- * `.proto-kbd` is a keyboard cap — a rounded rectangle, sized by its content, because a chord
- * like "⌘K" has to fit. Here it always holds one letter, so it is a disc: equal width and
- * height, no border to make it look like a key, and the letter centred in it.
- */
-.proto-review-dock__choice-key {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
-  min-height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  /* Dimmer than the answer it points at: the letter is a way in, not part of the reading. */
-  color: var(--pds-text-secondary);
-  transition:
-    background 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease;
-}
-
-/*
- * Hover lands on the keycap rather than the chip.
- *
- * A row of options is a row of similar shapes, and a whole-chip tint was too quiet to say which
- * one the pointer is on. The cap is the smallest thing that can carry it, it is already the
- * thing a keyboard would press, and taking the accent gradient makes hovering and pressing A
- * look like the same act.
- */
-.proto-review-dock__choice:hover:not(:disabled) .proto-review-dock__choice-key,
-.proto-review-dock__choice:focus-visible .proto-review-dock__choice-key {
-  background: var(--pds-bg-accent-button);
-  color: var(--pds-on-accent);
-  /* Belt and braces: a `kbd` is one of the elements a UA may paint with its own fill. */
-  -webkit-text-fill-color: var(--pds-on-accent);
-  box-shadow: var(--pds-shadow-accent-button);
-}
-
-/* A marked chip keeps its verdict: the pointer must not repaint an answer already given. */
-.proto-review-dock__choice[data-correct] .proto-review-dock__choice-key {
-  background: color-mix(in oklab, #fff 22%, transparent);
-  box-shadow: none;
-  color: var(--pds-on-accent);
-  -webkit-text-fill-color: var(--pds-on-accent);
-}
-
-.proto-review-dock__choice:disabled .proto-review-dock__choice-key {
-  opacity: 0.5;
-}
-
-/* Where the placed phrases gather, numbered so the order the reader built is visible. */
-.proto-review-dock__chips--placed {
-  flex-direction: column;
-  align-items: stretch;
-  counter-reset: proto-review-chip;
-}
-
-.proto-review-dock__chips--placed li {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pds-space-2);
-  counter-increment: proto-review-chip;
-}
-
-.proto-review-dock__chips--placed li::before {
-  content: counter(proto-review-chip);
-  width: 1.2em;
-  flex: none;
-  font-size: 12px;
-  color: var(--pds-text-tertiary);
-  font-variant-numeric: tabular-nums;
-}
-
-/* A placed phrase reads as part of the sentence being rebuilt, not as an option any more. */
-.proto-review-dock__chips--placed .proto-settings-btn {
-  flex: 1;
-  text-align: left;
-  white-space: normal;
 }
 
 /*

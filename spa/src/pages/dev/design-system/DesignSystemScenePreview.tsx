@@ -8,6 +8,7 @@ import Icon from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from '../../prototype/ProtoRowSelectCheckbox';
 import ProtoIconBlock from '../../prototype/ProtoIconBlock';
 import ReviewCardsScene from './ReviewCardsScene';
+import { ChoiceOptions } from '../../prototype/review-exercises/ChoiceOptions';
 import PrototypeRecallStateChip from '../../prototype/PrototypeRecallStateChip';
 import {
   PrototypeListEmptyState,
@@ -1536,29 +1537,17 @@ function ReviewVerdictsScene() {
       </div>
 
       <div>
+        {/* The answer cards as the dock draws them — one marked right, one tried and spent. The
+            wrapper carries the card's variables, as the dock's root does. */}
         <p className="pds-caption">Options</p>
-        <div className="proto-review-dock__chips">
-          <button
-            type="button"
-            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
-            data-correct
-          >
-            <kbd className="proto-kbd proto-kbd--compact proto-review-dock__choice-key" aria-hidden>
-              A
-            </kbd>
-            <span className="proto-review-dock__choice-label">I am the vine; you are the branches.</span>
-          </button>
-          <button
-            type="button"
-            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
-            data-missed
+        <div className="proto-review-dock">
+          <ChoiceOptions
+            options={['I am the vine; you are the branches.', 'The LORD is my shepherd.']}
+            correct="I am the vine; you are the branches."
+            missed={['The LORD is my shepherd.']}
             disabled
-          >
-            <kbd className="proto-kbd proto-kbd--compact proto-review-dock__choice-key" aria-hidden>
-              B
-            </kbd>
-            <span className="proto-review-dock__choice-label">The LORD is my shepherd.</span>
-          </button>
+            onPick={() => {}}
+          />
         </div>
       </div>
 
