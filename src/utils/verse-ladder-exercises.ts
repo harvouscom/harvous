@@ -653,10 +653,17 @@ export const RECALL_MIN_SHARE = 0.45;
 export interface VerseRecallExercise {
   shown: string | null;
   hiddenText: string;
+  /** How many words `hiddenText` holds: a count the card may show, where the text never is. */
+  hiddenWords: number;
   mode: VerseRecallMode;
 }
 
 export function buildVerseRecall(text: string, mode: VerseRecallMode): VerseRecallExercise {
+  const built = splitVerseRecall(text, mode);
+  return { ...built, hiddenWords: built.hiddenText.split(' ').filter(Boolean).length };
+}
+
+function splitVerseRecall(text: string, mode: VerseRecallMode): Omit<VerseRecallExercise, 'hiddenWords'> {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (!clean || mode === 'reference') return { shown: null, hiddenText: clean, mode };
 

@@ -21,6 +21,7 @@ import { WordBankLine, WordTray } from '../../prototype/review-exercises/WordBan
 import { OrderSlots, OrderTray } from '../../prototype/review-exercises/OrderPieces';
 import { GapLine } from '../../prototype/review-exercises/GapLine';
 import { OpeningLine, PairRail, Rail } from '../../prototype/review-exercises/RailSlot';
+import { InitialsTiles, MarkedExercise, WordTicks } from '../../prototype/review-exercises/VerseSurface';
 import ProtoLoadingDots from '../../prototype/ProtoLoadingDots';
 import {
   REVIEW_ALMOST_COPY,
@@ -195,32 +196,45 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'letters-full',
     title: 'First letters · whole verse',
-    note: 'verse.initials at tier 2: every word on its first letter, the verse written out below.',
+    note: 'verse.initials at tier 2: each word a tile on its first letter, taking the reader’s word as they write. A word that has lost its letter is shown off, gently; the next tile is outlined.',
     card: (
       <Card family="letters" translation="ESV">
         <ExerciseStage
           task="Write Psalm 23:1 from its first letters."
-          scene={
-            <p className="rx-hero proto-review-dock__initials" data-scripture="" data-size="lg">
-              T L i m s; I s n w.
-            </p>
-          }
-          primary={{ label: REVIEW_CHECK_COPY, onClick: none, disabled: true }}
+          scene={<InitialsTiles initials="T L i m s; I s n w." typed="The Lord is my sheep" />}
+          primary={{ label: REVIEW_CHECK_COPY, onClick: none }}
         >
-          <textarea className="proto-review-dock__attempt" placeholder={REVIEW_INITIALS_PLACEHOLDER} rows={3} readOnly />
+          <textarea className="proto-review-dock__attempt" placeholder={REVIEW_INITIALS_PLACEHOLDER} rows={3} readOnly defaultValue="The Lord is my sheep" />
         </ExerciseStage>
       </Card>
     ),
   },
   {
     id: 'memory-recall',
-    title: 'From memory · write it out',
-    note: 'verse.recall. Tier 0 gives most of the verse to finish, tier 1 the opening, tier 2 only the reference.',
+    title: 'From memory · finish it',
+    note: 'verse.recall at tier 0 and 1: the way in, then the writing area, with a tick per word left to write, filled as words are written. Counted, never read.',
     card: (
       <Card family="memory" translation="ESV">
         <ExerciseStage
           task="Finish John 3:16."
           scene={hero('For God so loved the world, that he gave his only Son …')}
+          primary={{ label: REVIEW_CHECK_COPY, onClick: none }}
+        >
+          <textarea className="proto-review-dock__attempt" placeholder={REVIEW_ATTEMPT_PLACEHOLDER} rows={3} readOnly defaultValue="that whoever believes in him" />
+          <WordTicks total={12} typed="that whoever believes in him" />
+        </ExerciseStage>
+      </Card>
+    ),
+  },
+  {
+    id: 'memory-reference',
+    title: 'From memory · the reference alone',
+    note: 'verse.recall at tier 2: only the reference, as the card. No ticks: the top tier withdraws the helpers.',
+    card: (
+      <Card family="memory" translation="ESV">
+        <ExerciseStage
+          task="Write John 3:16 from memory."
+          scene={<p className="rx-reference">John 3:16</p>}
           primary={{ label: REVIEW_CHECK_COPY, onClick: none, disabled: true }}
         >
           <textarea className="proto-review-dock__attempt" placeholder={REVIEW_ATTEMPT_PLACEHOLDER} rows={3} readOnly />
@@ -429,12 +443,14 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'changed',
     title: 'Changed word',
-    note: 'verse.altered. The one card that shows words the passage does not say, so it is never dressed as Scripture.',
+    note: 'verse.altered. Never dressed as Scripture. The word tapped wears the mark in place; shown after a wrong tap, struck and spent.',
     card: (
       <Card family="changed" translation="ESV">
         <ExerciseStage
           task="One word in John 3:16 has been changed. Find it."
           sceneTone="altered"
+          missed
+          say={<p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>}
           scene={
             <>
               <p className="rx-eyebrow">{REVIEW_ALTERED_CAPTION}</p>
@@ -444,7 +460,12 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
                   .map((token, index) => (
                     <Fragment key={index}>
                       {index > 0 ? ' ' : null}
-                      <button type="button" className="proto-review-dock__altered-word">
+                      <button
+                        type="button"
+                        className="proto-review-dock__altered-word"
+                        data-answer={token === 'gave' ? 'wrong' : undefined}
+                        disabled={token === 'gave'}
+                      >
                         {token}
                       </button>
                     </Fragment>
@@ -459,12 +480,21 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
   {
     id: 'marked',
     title: 'What you marked',
-    note: 'verse.marked, chapter.marked. The words (or verse) the reader highlighted while reading.',
+    note: 'verse.marked. Pointing at an option paints its words in the verse with the highlighter. Live here: hover an option.',
     card: (
       <Card family="marked" translation="ESV">
-        <ExerciseStage task="Pick the words you marked in Psalm 23:1." scene={hero(PSALM_23_1)}>
-          <ChoiceOptions options={['my shepherd', 'I shall not want', 'The LORD', 'is my']} disabled={false} onPick={none} />
-        </ExerciseStage>
+        <MarkedExercise
+          task="Pick the words you marked in Psalm 23:1."
+          verse={PSALM_23_1}
+          options={['The LORD is my', 'I shall not want.', 'my shepherd; I', 'is my shepherd;']}
+          disabled={false}
+          missed={[]}
+          correct={null}
+          pending={null}
+          wrong={null}
+          missedNow={false}
+          onPick={none}
+        />
       </Card>
     ),
   },

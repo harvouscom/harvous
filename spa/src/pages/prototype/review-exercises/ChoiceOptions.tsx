@@ -44,6 +44,11 @@ export interface ChoiceOptionsProps {
   pending?: string | null;
   /** These options are the first words of something longer, so they trail off. */
   opening?: boolean;
+  /**
+   * The option under the pointer or the keyboard focus, and null when it leaves — for a card
+   * that shows on its scene what an option would mean (the highlighter on What you marked).
+   */
+  onPreview?: (option: string | null) => void;
 }
 
 export function ChoiceOptions({
@@ -54,6 +59,7 @@ export function ChoiceOptions({
   correct,
   pending,
   opening = false,
+  onPreview,
 }: ChoiceOptionsProps) {
   const pick = useRef(onPick);
   pick.current = onPick;
@@ -98,6 +104,10 @@ export function ChoiceOptions({
             data-state={state}
             disabled={disabled || missed.includes(option)}
             onClick={() => pick.current(option)}
+            onMouseEnter={onPreview ? () => onPreview(option) : undefined}
+            onMouseLeave={onPreview ? () => onPreview(null) : undefined}
+            onFocus={onPreview ? () => onPreview(option) : undefined}
+            onBlur={onPreview ? () => onPreview(null) : undefined}
           >
             {/* aria-hidden: the letter is a way to reach the button, not part of what it says. */}
             <span className="rx-option__key" aria-hidden>

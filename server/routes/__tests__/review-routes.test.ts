@@ -760,6 +760,17 @@ describe('the text-keyed rungs withhold the verse', () => {
     expect(block).toContain('payload.verseText = null');
   });
 
+  it('counts the words left to write below the top tier, and never sends them', () => {
+    // The ticks on the card need how many words, never which: a count from the builder, withheld
+    // at the top tier where the helpers go.
+    const reveal = service().slice(service().indexOf('export async function buildReviewReveal'));
+    const block = reveal.slice(
+      reveal.indexOf('FREE_RECALL_KEYS.has(rung.key)'),
+      reveal.indexOf("rung.key === 'verse.initials'"),
+    );
+    expect(block).toMatch(/built\.mode !== 'reference' && built\.hiddenWords > 0 \? \{ words: built\.hiddenWords \}/);
+  });
+
   it('sends two openings and not which is first', () => {
     const block = revealBlock('verse.before', "rung.key === 'verse.book'");
     expect(block).toContain('options: exercise.options');

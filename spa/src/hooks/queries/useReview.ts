@@ -138,7 +138,8 @@ export interface ReviewRevealResponse {
     segments?: { segments: string[]; blankLengths: number[]; letters: string[] } | null;
   } | null;
   /** How much of the verse the recall rung gives away before the reader writes the rest. */
-  recall?: { shown: string | null; mode: string } | null;
+  /** `words`: how many are left to write, below the top tier only — never which ones. */
+  recall?: { shown: string | null; mode: string; words?: number } | null;
   /** Where in the reader's Harvous this question came from, for the card shown after it. */
   context?: {
     sourceLabel: string | null;

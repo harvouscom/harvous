@@ -687,8 +687,141 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
 
 /* The altered rung's words are the targets; at the scene's size they get a target's padding. */
 .rx-hero .proto-review-dock__altered-word {
+  /* Padding for the mark to sit in, taken back from the real space between words so the line
+     keeps its ordinary spacing rather than reading as a grid of buttons. */
   padding: 0 3px;
+  margin: 0 -2px;
   border-radius: 6px;
+}
+
+/*
+ * Changed word, as it is marked. The word tapped wears the mark where it sits: the accent gradient
+ * with white on it on its way and when right, struck through in red when it was not the changed
+ * one — spent, and left in place so the reader can see what they ruled out.
+ */
+.rx-hero .proto-review-dock__altered-word[data-answer='picked'],
+.rx-hero .proto-review-dock__altered-word[data-answer='right'] {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  -webkit-text-fill-color: var(--pds-on-accent);
+  opacity: 1;
+}
+
+.rx-hero .proto-review-dock__altered-word[data-answer='wrong'] {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  opacity: 1;
+}
+
+/* ── The verse as the surface (`VerseSurface.tsx`) ───────────────────── */
+
+/*
+ * The whole-verse skeleton as tiles, one per word. A first letter until a word is written for it,
+ * then the reader's word on a piece; the next one to write is outlined; a word that does not start
+ * with its tile's letter is shown off, gently, in a dashed edge — the letter is on the card
+ * already, so this marks nothing, it only says the place was lost.
+ */
+.rx-initials {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-family: var(--pds-font-reading);
+  font-variation-settings: var(--pds-font-reading-variation);
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.rx-initial {
+  display: inline-flex;
+  align-items: center;
+  min-width: 2.2em;
+  min-height: 34px;
+  padding: 2px 9px;
+  border: 1.5px dashed var(--rx-open-edge);
+  border-radius: 9px;
+  color: var(--pds-text-secondary);
+  justify-content: center;
+}
+
+.rx-initial[data-written] {
+  border-style: solid;
+  border-color: var(--rx-piece-edge);
+  background: var(--rx-piece-bg);
+  color: var(--pds-text-primary);
+}
+
+.rx-initial[data-current] {
+  border-style: solid;
+  border-color: var(--pds-text-tertiary);
+  color: var(--pds-text-primary);
+}
+
+.rx-initial[data-off] {
+  border-style: dashed;
+  border-color: color-mix(in oklab, var(--pds-destructive) 45%, transparent);
+}
+
+/* The words left to write, counted off as they are written. Never read, only counted. */
+.rx-ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.rx-tick {
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--pds-bg-control-strong);
+  transition: background-color var(--pds-duration-press) ease;
+}
+
+.rx-tick[data-filled] {
+  background: var(--pds-text-secondary);
+}
+
+/* The top tier of From memory gives only the reference, so the reference is the card. */
+.rx-reference {
+  margin: 0;
+  text-align: center;
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: clamp(24px, 3vw + 12px, 34px);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--pds-text-primary);
+}
+
+/*
+ * The highlighter on What you marked: the words an option stands for, painted in the verse. The
+ * warm amber the app marks with while pointing — it is the reader's highlighter — then the mark:
+ * the accent gradient with white when picked or right, red when wrong.
+ */
+.rx-mark {
+  padding: 0 2px;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  transition: background-color var(--pds-duration-press) ease;
+}
+
+.rx-mark[data-state='preview'] {
+  background: color-mix(in srgb, var(--pds-highlight-warm-amber) 45%, transparent);
+}
+
+.rx-mark[data-state='picked'],
+.rx-mark[data-state='right'] {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  -webkit-text-fill-color: var(--pds-on-accent);
+}
+
+.rx-mark[data-state='wrong'] {
+  background: var(--pds-destructive-bg-strong);
+  color: var(--pds-destructive);
+  -webkit-text-fill-color: var(--pds-destructive);
 }
 
 /* A writing area, sized for writing a verse rather than a note in a form. */

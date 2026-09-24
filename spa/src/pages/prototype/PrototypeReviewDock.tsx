@@ -70,6 +70,7 @@ import { GapLine } from './review-exercises/GapLine';
 import { nextOpenGap, WordBankLine, WordTray } from './review-exercises/WordBank';
 import { OrderSlots, OrderTray } from './review-exercises/OrderPieces';
 import { OpeningLine, PairRail, Rail, slotFill } from './review-exercises/RailSlot';
+import { InitialsTiles, MarkedExercise, plainVerse, WordTicks } from './review-exercises/VerseSurface';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { isSubmitKey, isTypingTarget } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -1036,6 +1037,8 @@ export default function PrototypeReviewDock() {
   const correctOption = verdict?.state === 'right' ? verdict.option : null;
   /* The option on its way to the server, so a tap is seen to land before the reply does. */
   const pendingOption = outcome.isPending ? (outcome.variables?.answer?.option ?? null) : null;
+  /* The word on its way to being marked on the altered rung, which answers with an index. */
+  const pendingWord = outcome.isPending ? outcome.variables?.answer?.wordIndex : undefined;
   /* What the rail's empty place holds — see `slotFill`. */
   const railFill = slotFill({
     pending: pendingOption,
@@ -1753,9 +1756,11 @@ export default function PrototypeReviewDock() {
                         data-answer={
                           spentWords.includes(index)
                             ? 'wrong'
-                            : verdict?.option === String(index)
-                              ? verdict.state
-                              : undefined
+                            : pendingWord === index
+                              ? 'picked'
+                              : verdict?.option === String(index)
+                                ? verdict.state
+                                : undefined
                         }
                         disabled={outcome.isPending || spentWords.includes(index)}
                         onClick={() =>
@@ -1830,15 +1835,8 @@ export default function PrototypeReviewDock() {
           <ExerciseStage
             task={item.prompt}
             subject={subtitle}
-            scene={
-              <p
-                className="rx-hero proto-review-dock__initials"
-                data-scripture=""
-                data-size={heroSize(initialsExercise.initials)}
-              >
-                {initialsExercise.initials}
-              </p>
-            }
+            /* The skeleton as tiles that take the reader's words as they write them. */
+            scene={<InitialsTiles initials={initialsExercise.initials} typed={attempt} />}
             say={say}
             missed={missedNow}
             primary={{
@@ -1986,6 +1984,21 @@ export default function PrototypeReviewDock() {
               }
             />
           </ExerciseStage>
+        ) : contextChoice && item.promptKey === 'verse.marked' && reveal.data?.verseText ? (
+          /* What you marked: pointing at an option paints its words in the verse. */
+          <MarkedExercise
+            task={item.prompt}
+            verse={plainVerse(reveal.data.verseText)}
+            options={contextChoice.options}
+            disabled={outcome.isPending}
+            missed={missed}
+            correct={correctOption}
+            pending={pendingOption}
+            wrong={verdict?.state === 'wrong' ? verdict.option : null}
+            say={say}
+            missedNow={missedNow}
+            onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+          />
         ) : contextChoice ? (
           /*
            * The context step: which note cites this, which theme it carries, who it is about,
@@ -2100,6 +2113,9 @@ export default function PrototypeReviewDock() {
                 <p className="rx-hero" data-scripture="" data-size={heroSize(recallExercise.shown)}>
                   {recallExercise.shown} …
                 </p>
+              ) : item.scriptureReference ? (
+                /* The top tier gives only the reference, so the reference is what the card is. */
+                <p className="rx-reference">{item.scriptureReference}</p>
               ) : null
             }
             say={say}
@@ -2125,6 +2141,7 @@ export default function PrototypeReviewDock() {
               rows={3}
               disabled={outcome.isPending}
             />
+            {recallExercise?.words ? <WordTicks total={recallExercise.words} typed={attempt} /> : null}
           </ExerciseStage>
         ) : isGradedRung && reveal.isError ? (
           /*
