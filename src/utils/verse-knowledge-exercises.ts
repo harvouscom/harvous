@@ -25,7 +25,6 @@
  */
 
 import { buildChoiceExercise, type ChoiceExercise } from '@/utils/choice-exercise';
-import { buildVerseNext, type VerseNextExercise } from '@/utils/verse-ladder-exercises';
 
 /** Below this an OpenBible topic edge is incidental. Mirrors `MIN_THEME_CORROBORATION_RELEVANCE`. */
 export const VERSE_THEME_MIN_RELEVANCE = 50;
@@ -119,23 +118,51 @@ export function buildVersePlace(input: {
 }
 
 /**
- * "Pick the passage this verse is cross-referenced with."
+ * "Pick the passage this verse is cross-referenced with" — asked with references.
  *
- * The same shape as "what comes next": the answer is a verse shown as an eight-word opening,
- * never as a reference — naming it would answer nothing but arithmetic, and a reader is far more
- * likely to recognise "Abide in me, and I in you" than "John 15:4". The caller supplies the
- * highest-voted target as the answer and cues of unrelated passages the reader has cited as the
- * distractors. Reusing the next-verse builder is deliberate: the two rungs differ only in which
- * text is the answer, and one builder cannot drift from itself.
+ * It was asked with eight-word openings, reusing the next-verse builder, on the reasoning that a
+ * reader recognises "Abide in me, and I in you" before "John 15:4". Derek's call (Sept 2026) went
+ * the other way: a cross-reference *is* a reference, it is how the index and every study Bible
+ * print it, and a line of openings made the card another "what comes next". So the options are
+ * references, and the verse on the card is the question.
+ *
+ * Shaped like the other index-keyed rungs. `answers` is every cross-reference the index carries
+ * for the verse — a set, since any of them is right — and all of them are barred as distractors,
+ * with the verse itself, so no wrong option is secretly a right one. Distractors are the reader's
+ * own passages, same book first (`pool`, from `partitionByBook`), so the book never gives the
+ * answer away; well-known verses top it up for a reader with little on file.
  */
 export function buildVerseCrossref(input: {
-  answerText: string;
-  distractorTexts: readonly string[];
+  /** Every cross-reference of the verse, as references. */
+  answers: readonly string[];
+  /** The verse asked about, never an option. */
+  verse: string;
+  /** The reader's passages, closest first. */
+  pool: readonly string[];
+  fallbackPool?: readonly string[];
   seed: string;
-}): VerseNextExercise | null {
-  return buildVerseNext({
-    answerText: input.answerText,
-    neighbourTexts: input.distractorTexts,
+}): ChoiceExercise | null {
+  if (!input.answers.length) return null;
+  return buildChoiceExercise({
+    answers: input.answers,
+    pool: input.pool,
+    fallbackPool: [...(input.fallbackPool ?? []), ...CROSSREF_FALLBACK_REFERENCES],
+    exclude: [...input.answers, input.verse],
+    optionCount: OPTION_COUNT,
     seed: input.seed,
   });
 }
+
+/** Verses most readers half-know, for a reader with too few passages of their own. */
+export const CROSSREF_FALLBACK_REFERENCES = [
+  'John 3:16',
+  'Psalms 23:1',
+  'Romans 8:28',
+  'Philippians 4:13',
+  'Genesis 1:1',
+  'Proverbs 3:5',
+  'Isaiah 40:31',
+  'Matthew 11:28',
+  'Jeremiah 29:11',
+  'John 14:6',
+] as const;

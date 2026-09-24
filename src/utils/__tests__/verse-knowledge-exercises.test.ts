@@ -66,28 +66,38 @@ describe('buildVersePerson', () => {
 });
 
 describe('buildVerseCrossref', () => {
-  const answerText = 'Abide in me, and I in you. As the branch cannot bear fruit by itself';
-  const distractors = [
-    'The Lord is my shepherd; I shall not want.',
-    'For God so loved the world that he gave his only Son',
-    'In the beginning God created the heavens and the earth.',
-    'Trust in the Lord with all your heart and lean not on your own understanding',
-  ];
+  // John 15:5's cross-references, and passages the reader has of their own.
+  const answers = ['John 15:4', 'Galatians 2:20', 'Philippians 4:13'];
+  const verse = 'John 15:5';
+  const pool = ['John 10:11', 'John 14:6', 'John 15:6', 'John 3:16'];
 
-  it('shows the cross-reference as an opening, never as a reference', () => {
-    /*
-     * Naming it would make the answer arithmetic, and a reader is far more likely to recognise
-     * "Abide in me, and I in you" than "John 15:4".
-     */
-    const ex = buildVerseCrossref({ answerText, distractorTexts: distractors, seed: 'a' })!;
-    for (const option of ex.options) {
-      expect(option).not.toMatch(/\d+:\d+/);
-      expect(option.split(/\s+/).length).toBeLessThanOrEqual(8);
-    }
-    expect(answerText.startsWith(ex.options[ex.answerIndex])).toBe(true);
+  it('asks with references, and exactly one option is a cross-reference', () => {
+    const ex = buildVerseCrossref({ answers, verse, pool, seed: 'a' })!;
+    expect(ex.options).toHaveLength(4);
+    for (const option of ex.options) expect(option).toMatch(/^[1-3]?\s?[A-Za-z ]+ \d+:\d+/);
+    expect(ex.options.filter((option) => answers.includes(option))).toHaveLength(1);
+    expect(answers).toContain(ex.options[ex.answerIndex]);
   });
 
-  it('refuses rather than offering a thin question', () => {
-    expect(buildVerseCrossref({ answerText, distractorTexts: distractors.slice(0, 1), seed: 'a' })).toBeNull();
+  it('never offers the verse itself', () => {
+    for (let i = 0; i < 20; i++) {
+      const ex = buildVerseCrossref({ answers, verse, pool: [...pool, verse], seed: `s${i}` })!;
+      expect(ex.options).not.toContain(verse);
+    }
+  });
+
+  it('draws its wrong options from the reader passages given, before the well-known fallback', () => {
+    const ex = buildVerseCrossref({ answers, verse, pool, seed: 'a' })!;
+    const wrong = ex.options.filter((option) => !answers.includes(option));
+    for (const option of wrong) expect(pool).toContain(option);
+  });
+
+  it('tops up from well-known verses for a reader with little on file', () => {
+    const ex = buildVerseCrossref({ answers, verse, pool: [], seed: 'a' })!;
+    expect(ex.options).toHaveLength(4);
+  });
+
+  it('refuses a verse the index carries no cross-reference for', () => {
+    expect(buildVerseCrossref({ answers: [], verse, pool, seed: 'a' })).toBeNull();
   });
 });
