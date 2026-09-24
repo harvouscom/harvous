@@ -75,6 +75,7 @@ import { PROTO_MENU_CHECK_ICON_SIZE, PROTO_SEG_GLYPH_SIZE, PROTO_TOOLBAR_ICON_SI
 import { UNLIMITED, isUnlimited } from '@/lib/shared-spaces-limits';
 import {
   anySpaceHasUnseenActivity,
+  hiddenSpacesHaveUnseenActivity,
   normalizeSwitcherSpaceId as normalizeSpaceId,
   spaceHasUnseenActivity,
   unseenDotLabelSuffix,
@@ -464,6 +465,24 @@ export default function SpaceSwitcherMenu({
   );
   const visibleChurchSpaces = displayedChurchSpaces.slice(0, SWITCHER_SPACES_PER_PARENT);
   const churchOverflow = displayedChurchSpaces.length - visibleChurchSpaces.length;
+  const isActiveRow = (row: NavSpace) => activeSpaceId === normalizeSpaceId(row.id);
+  const personalOverflowUnseen = hiddenSpacesHaveUnseenActivity(
+    displayedPersonalSpaces,
+    visiblePersonalSpaces.length,
+    isActiveRow,
+  );
+  const churchOverflowUnseen = hiddenSpacesHaveUnseenActivity(
+    displayedChurchSpaces,
+    visibleChurchSpaces.length,
+    isActiveRow,
+  );
+  /*
+   * The church row carries a roll-up of its spaces, where My Home's does not: pressing it opens
+   * the church hub, which dots every space card — so the dot promises exactly what the row
+   * leads to. And the church's spaces sit below My Home's in a scrolling list, where a dotted
+   * row is easily out of view while the toolbar says something is new.
+   */
+  const churchHasUnseen = anySpaceHasUnseenActivity(churchSpaces, isActiveRow);
 
   /** A parent row is checked when you're at that parent's hub (no space open). */
   const atHomeHub = protoLocation.parent.kind === 'home' && !activeSpaceId;
@@ -715,6 +734,9 @@ export default function SpaceSwitcherMenu({
             >
               <span className="proto-menu-item__icon" aria-hidden>
                 <ProtoHouseIcon size={PROTO_TOOLBAR_ICON_SIZE} />
+                {/* Home's own news — today's suggestions — which was the commonest reason
+                    the trigger wore a dot while no row in here did. */}
+                {hasUnseenSuggestions ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
               </span>
               <span className="proto-menu-item__label">My Home</span>
               <span className="proto-menu-item__check" aria-hidden>
@@ -748,6 +770,9 @@ export default function SpaceSwitcherMenu({
                 onClick={selectHome}
               >
                 <span className="proto-menu-item__label">{`See all ${displayedPersonalSpaces.length} in My Home`}</span>
+                {personalOverflowUnseen ? (
+                  <span className="proto-space-switcher-dot proto-space-switcher-dot--inline" aria-hidden />
+                ) : null}
               </button>
             ) : null}
           </div>
@@ -764,6 +789,7 @@ export default function SpaceSwitcherMenu({
               >
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="church" size={PROTO_TOOLBAR_ICON_SIZE} />
+                  {churchHasUnseen ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
                 </span>
                 <span
                   className="proto-menu-item__label proto-marquee"
@@ -803,6 +829,9 @@ export default function SpaceSwitcherMenu({
                   onClick={selectMyChurch}
                 >
                   <span className="proto-menu-item__label">{`See all ${churchSpaces.length} in ${myChurch.churchName}`}</span>
+                  {churchOverflowUnseen ? (
+                    <span className="proto-space-switcher-dot proto-space-switcher-dot--inline" aria-hidden />
+                  ) : null}
                 </button>
               ) : null}
             </div>

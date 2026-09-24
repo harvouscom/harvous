@@ -39,6 +39,22 @@ export function anySpaceHasUnseenActivity(
 }
 
 /**
+ * Whether a row cut off by the menu's per-parent cap has a dot.
+ *
+ * The switcher shows a handful of spaces per parent and folds the rest into "See all N". The
+ * trigger counts every space, so a space with news past the cap lit the toolbar while nothing in
+ * the open menu said where — the dot pointed at a row that was not there. The "See all" row
+ * speaks for the ones it hides.
+ */
+export function hiddenSpacesHaveUnseenActivity(
+  rows: readonly NavSpace[],
+  visibleCount: number,
+  isActive: (row: NavSpace) => boolean,
+): boolean {
+  return anySpaceHasUnseenActivity(rows.slice(Math.max(0, visibleCount)), isActive);
+}
+
+/**
  * What the trigger's `aria-label` has to add, given what is actually new.
  *
  * The dot is `aria-hidden`, so its meaning only reaches anyone through here. Two sources can

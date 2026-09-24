@@ -153,6 +153,63 @@ describe('hmcGetChurchById', () => {
   });
 });
 
+describe('HMC read resilience', () => {
+  it('retries a read once after an upstream 500', async () => {
+    setEnv();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('<html>boom</html>', { status: 500 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ changes: [], nextSince: '2026-09-21T14:38:38.181494+00:00', hasMore: false }), {
+          status: 200,
+        }),
+      );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(hmcFetchChurchChanges({ since: '2026-09-21T14:38:38.181494+00:00' })).resolves.toMatchObject({
+      hasMore: false,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up after the retry and keeps the upstream code', async () => {
+    setEnv();
+    const fetchMock = vi.fn(async () => new Response('<html>boom</html>', { status: 500 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(hmcFetchChurchChanges({ since: '2026-09-21T14:38:38Z' })).rejects.toMatchObject({
+      code: 'HMC_UPSTREAM_ERROR',
+      status: 500,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('names a hang as a timeout rather than a bare network error', async () => {
+    setEnv();
+    const fetchMock = vi.fn(async () => {
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(hmcFetchChurchChanges({ since: '2026-09-21T14:38:38Z' })).rejects.toMatchObject({
+      code: 'HMC_UPSTREAM_TIMEOUT',
+      status: 504,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry an auth failure', async () => {
+    setEnv();
+    const fetchMock = vi.fn(async () => new Response('{}', { status: 401 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(hmcFetchChurchChanges({ since: '2026-09-21T14:38:38Z' })).rejects.toMatchObject({
+      code: 'HMC_UNAUTHORIZED',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('hmcDenormFields', () => {
   it('trims empty city/state to null and derives country', () => {
     expect(

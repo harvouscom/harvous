@@ -98,19 +98,67 @@ function normalizeLeanChurch(raw: unknown): HmcLeanChurch | null {
   };
 }
 
+/**
+ * How long one HMC request may take before we give up on it.
+ *
+ * Under Cloudflare's 20s proxy cutoff with room for one retry's worth of a fast answer. HMC
+ * sometimes hangs rather than failing, and with no timeout here the proxy gave up first and
+ * the caller saw a bare 504 that said nothing about whose side stalled.
+ */
+export const HMC_REQUEST_TIMEOUT_MS = 9_000;
+
+/** By name, not `instanceof Error`: an abort surfaces as a DOMException, which is not an Error in every runtime. */
+function isTimeoutError(error: unknown): boolean {
+  const name = (error as { name?: unknown } | null)?.name;
+  return name === 'TimeoutError' || name === 'AbortError';
+}
+
 async function hmcFetchJson<T>(pathWithQuery: string, init?: RequestInit): Promise<T> {
+  /*
+   * Reads get one retry: HMC's intermittent 500s and hangs clear on the next attempt far more
+   * often than not. Anything that writes does not — a retried write that had in fact landed
+   * would be applied twice.
+   */
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const attempts = method === 'GET' ? 2 : 1;
+  let lastError: HmcPartnerError | null = null;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await hmcFetchJsonOnce<T>(pathWithQuery, init);
+    } catch (error) {
+      if (!(error instanceof HmcPartnerError)) throw error;
+      const retryable =
+        error.code === 'HMC_UPSTREAM_TIMEOUT' ||
+        error.code === 'HMC_NETWORK_ERROR' ||
+        (error.code === 'HMC_UPSTREAM_ERROR' && error.status >= 500);
+      if (!retryable) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError!;
+}
+
+async function hmcFetchJsonOnce<T>(pathWithQuery: string, init?: RequestInit): Promise<T> {
   const config = readHmcConfig();
   const url = `${config.baseUrl}${pathWithQuery.startsWith('/') ? '' : '/'}${pathWithQuery}`;
   let response: Response;
   try {
     response = await fetch(url, {
       ...init,
+      signal: init?.signal ?? AbortSignal.timeout(HMC_REQUEST_TIMEOUT_MS),
       headers: {
         ...partnerHeaders(config),
         ...(init?.headers ?? {}),
       },
     });
   } catch (error) {
+    if (isTimeoutError(error)) {
+      throw new HmcPartnerError(
+        `Here’s My Church did not answer within ${HMC_REQUEST_TIMEOUT_MS / 1000}s`,
+        'HMC_UPSTREAM_TIMEOUT',
+        504,
+      );
+    }
     throw new HmcPartnerError(
       error instanceof Error ? error.message : 'Here’s My Church request failed',
       'HMC_NETWORK_ERROR',

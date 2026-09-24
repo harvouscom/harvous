@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   anySpaceHasUnseenActivity,
+  hiddenSpacesHaveUnseenActivity,
   spaceHasUnseenActivity,
   unseenDotLabelSuffix,
 } from '../space-switcher-unseen';
@@ -61,5 +62,22 @@ describe('what the label says', () => {
 
   it('is absent when there is no dot to explain', () => {
     expect(unseenDotLabelSuffix({ suggestions: false, spaces: false })).toBeNull();
+  });
+});
+
+describe('the rows past the cap', () => {
+  const rows = [space('a'), space('b'), space('c', 2)];
+  const none = () => false;
+
+  it('speaks for news the menu has folded away', () => {
+    expect(hiddenSpacesHaveUnseenActivity(rows, 2, none)).toBe(true);
+  });
+
+  it('stays quiet when the news is on a row already showing its own dot', () => {
+    expect(hiddenSpacesHaveUnseenActivity(rows, 3, none)).toBe(false);
+  });
+
+  it('does not count the space you are in', () => {
+    expect(hiddenSpacesHaveUnseenActivity(rows, 2, (row) => row.id === 'c')).toBe(false);
   });
 });

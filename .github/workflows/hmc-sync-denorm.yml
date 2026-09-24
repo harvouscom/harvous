@@ -23,15 +23,35 @@ jobs:
             exit 1
           fi
 
+          # Here's My Church has intermittent 500s and hangs that clear within minutes, so a
+          # 5xx gets two more tries with a pause before this run decides anything.
           response_file="$(mktemp)"
-          code="$(
-            curl -sS -o "$response_file" -w '%{http_code}' -X POST "${SITE_URL}/api/admin/hmc/sync-denorm" \
-              -H "Authorization: Bearer ${SECRET_TOKEN}"
-          )"
-          body="$(cat "$response_file")"
+          code="000"
+          body=""
+          for attempt in 1 2 3; do
+            code="$(
+              curl -sS --max-time 60 -o "$response_file" -w '%{http_code}' -X POST "${SITE_URL}/api/admin/hmc/sync-denorm" \
+                -H "Authorization: Bearer ${SECRET_TOKEN}" || true
+            )"
+            body="$(cat "$response_file" 2>/dev/null || true)"
+            echo "Attempt $attempt: HTTP $code"
+            echo "$body"
+            case "$code" in
+              5??|000)
+                if [ "$attempt" -lt 3 ]; then sleep $((attempt * 20)); continue; fi
+                ;;
+            esac
+            break
+          done
           rm -f "$response_file"
-          echo "$body"
-          echo "$code"
+
+          # An outage on Here's My Church's side is theirs, not ours, and nothing is lost by
+          # waiting: the cursor only moves on success, so the next run (2h) picks up from the
+          # same point. Say so as a warning rather than failing the run and emailing about it.
+          if [ "$code" != "200" ] && printf '%s' "$body" | grep -Eq 'HMC_UPSTREAM_ERROR|HMC_UPSTREAM_TIMEOUT|HMC_NETWORK_ERROR|upstream_timeout'; then
+            echo "::warning::Here's My Church was unavailable (HTTP $code) after 3 attempts. The next scheduled run resumes from the same cursor."
+            exit 0
+          fi
 
           # The message has to name the failure it actually saw. This step used to answer
           # every non-200 with "set HMC_SYNC_CRON_SECRET", which is right for a 401 and

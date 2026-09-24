@@ -12953,10 +12953,75 @@ p.proto-teaching-plan__divider {
   than a change to `.proto-add-notes-sheet__footer` itself, because every other
   sheet using that class expects its current single-button layout.
 */
-.proto-sheet-footer--stacked {
+/*
+  The action row: Save, Cancel and a destructive action, on one line.
+
+  They used to stack — a full-width Save with each quiet action as its own full-width
+  deck underneath — so a three-button edit card spent more height on its buttons than on
+  its fields, and "Remove from church" read as a third equal choice rather than an aside.
+
+  One row, primary on the right where the eye finishes, the destructive act pushed to the
+  far left away from it. `row-reverse` rather than `order`, so the DOM keeps its existing
+  sequence (primary first) in every call site and tab order still starts on Save. It wraps
+  rather than stacking: when the row cannot fit, whatever does not fit takes the next line,
+  so a narrow card still puts two buttons side by side instead of a column of three.
+
+  A lone primary (a footer whose secondaries are conditional and absent) keeps the full
+  width it always had — a single small button stranded at the right edge reads as a
+  layout fault, not a choice.
+*/
+.proto-sheet-footer--stacked,
+.proto-sheet-footer__row,
+.proto-church-starter__edit-actions {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px 8px;
+}
+
+/* A row nested inside a footer (the sermon editor's secondary pair) joins the outer row
+   rather than becoming a row within a row. */
+.proto-sheet-footer--stacked > .proto-sheet-footer__row {
+  display: contents;
+}
+
+.proto-sheet-footer--stacked .proto-share-popover__primary,
+.proto-sheet-footer__row > .proto-share-popover__primary,
+.proto-church-starter__edit-actions > .proto-share-popover__primary {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 96px;
+  padding-inline: 18px;
+}
+
+.proto-sheet-footer--stacked .proto-sheet-quiet-action,
+.proto-sheet-footer__row > .proto-sheet-quiet-action,
+.proto-church-starter__edit-actions > .proto-sheet-quiet-action {
+  flex: 0 0 auto;
+  width: auto;
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+
+/* The destructive act keeps its distance from the primary: the auto margin takes up the
+   slack between it and Cancel. */
+.proto-sheet-footer--stacked .proto-sheet-quiet-action--danger,
+.proto-sheet-footer__row > .proto-sheet-quiet-action--danger,
+.proto-church-starter__edit-actions > .proto-sheet-quiet-action--danger {
+  margin-right: auto;
+}
+
+.proto-sheet-footer--stacked > .proto-share-popover__primary:only-child,
+.proto-sheet-footer__row > .proto-share-popover__primary:only-child,
+.proto-church-starter__edit-actions > .proto-share-popover__primary:only-child {
+  flex: 1 1 100%;
+}
+
+/* Anything that is not a button (the sermon editor's repeat picker) takes its own line. */
+.proto-sheet-footer--stacked > :not(button):not(.proto-sheet-footer__row) {
+  flex: 1 1 100%;
 }
 
 /*
@@ -15290,8 +15355,23 @@ html.harvous-prototype-route
   box-shadow: 0 0 0 1.5px #fff;
 }
 
-.proto-menu-item__icon--space {
+.proto-menu-item__icon--space,
+.proto-space-switcher__parent-item .proto-menu-item__icon {
   position: relative;
+}
+
+/* A space tile somewhere the icon slot is not ours to style (ProtoSelectMenu's options). */
+.proto-space-dot-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+/* On "See all N": no tile to sit on the corner of, so it follows the label instead. */
+.proto-space-switcher-dot--inline {
+  position: static;
+  flex: 0 0 auto;
+  margin-left: 6px;
+  box-shadow: none;
 }
 
 .proto-note-row--unseen .proto-note-row__title-line::before {
@@ -15371,10 +15451,7 @@ html.harvous-prototype-route
 }
 
 .proto-church-starter__edit-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .proto-service-editor__starter-hint {
@@ -17018,16 +17095,6 @@ html.harvous-prototype-route
 }
 
 /* Two secondary actions abreast, under the primary. */
-.proto-sheet-footer__row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.proto-sheet-footer__row > .proto-sheet-quiet-action {
-  flex: 1 1 0;
-  min-width: 0;
-}
 
 @media (max-width: 899px) {
   /* One thing at a time: the editor covers the views rather than splitting a

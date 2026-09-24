@@ -40,6 +40,7 @@ import { useNavigation } from '../../hooks/queries/useNavigation';
 import ProtoSelectMenu, { type ProtoSelectOption } from './ProtoSelectMenu';
 import ProtoHouseIcon from './ProtoHouseIcon';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import { spaceHasUnseenActivity } from './space-switcher-unseen';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeStudyFeedPart from './PrototypeStudyFeedPart';
@@ -301,7 +302,17 @@ export default function PrototypeStudyFeedPage() {
         /* The space's own colour tile — how someone finds their space in a list before they
            have read a single name. Same mark the note destination picker uses, so the two
            menus of the same spaces look like the same spaces. */
-        icon: <ProtoSpaceMenuIcon color={space.color || 'paper'} />,
+        icon: (
+          <span className="proto-space-dot-anchor">
+            <ProtoSpaceMenuIcon color={space.color || 'paper'} />
+            {/* The switcher's dot, on the same space: this list is the other place someone
+                goes looking for "which of my spaces has something new". Never "active" here —
+                Activity stands in My Home, so no listed space is the one you are in. */}
+            {spaceHasUnseenActivity(space, false) ? (
+              <span className="proto-space-switcher-dot" aria-hidden />
+            ) : null}
+          </span>
+        ),
       })),
     ];
   }, [sharedSpaces]);
@@ -324,38 +335,6 @@ export default function PrototypeStudyFeedPage() {
 
   /** Index into `days`, newest first. 0 is today. */
   const [index, setIndex] = useState(0);
-  /** Set when a space scope is picked, so the jump can wait for that scope's days. */
-  const pendingScopeJump = useRef(false);
-
-  /* A narrower scope has fewer days in it, so the sheet you were on is not the sheet that
-     index now points at. Going back to today is the only answer that is never surprising. */
-  useEffect(() => {
-    setIndex(0);
-    /*
-     * ...except for a space, where today is usually a rest day and going there says nothing.
-     *
-     * "All" and "My home" always have today's own study on them, so landing on today shows the
-     * change immediately. A room's last note might be a fortnight back — so picking one landed
-     * on an empty sheet, which is indistinguishable from the filter having done nothing at all.
-     * Jump to the newest day the space actually has something on instead. Deferred rather than
-     * done here because the items for the new scope have not arrived yet.
-     */
-    pendingScopeJump.current = scope.kind === 'space';
-  }, [scope]);
-
-  /* The deferred half of the jump above, run once this scope's days have arrived. Cleared
-     either way once the fetch settles, so a space with nothing in it simply stays on today
-     rather than leaving the jump armed for the next unrelated change. */
-  useEffect(() => {
-    if (!pendingScopeJump.current) return;
-    const firstWithItems = days.findIndex((day) => !day.isEmpty);
-    if (firstWithItems > 0) {
-      pendingScopeJump.current = false;
-      setIndex(firstWithItems);
-      return;
-    }
-    if (!isPending && !isFetchingNextPage) pendingScopeJump.current = false;
-  }, [days, isPending, isFetchingNextPage]);
   const safeIndex = Math.min(index, Math.max(0, days.length - 1));
   const day = days[safeIndex];
 
@@ -398,6 +377,9 @@ export default function PrototypeStudyFeedPage() {
 
   useEffect(() => {
     if (!pendingJumpKey) return;
+    /* A scope change arms this before the new scope's first page has arrived; resolving against
+       the one-sheet placeholder would settle on today and throw the date away. */
+    if (isPending) return;
     const step = studyFeedJumpStep({ days, targetDayKey: pendingJumpKey, hasMore: Boolean(hasNextPage) });
     if (step.action === 'fetch') {
       if (!isFetchingNextPage) void fetchNextPage();
@@ -405,7 +387,25 @@ export default function PrototypeStudyFeedPage() {
     }
     if (step.action === 'jump' || step.action === 'settle') setIndex(step.index);
     setPendingJumpKey(null);
-  }, [pendingJumpKey, days, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [pendingJumpKey, days, hasNextPage, isFetchingNextPage, fetchNextPage, isPending]);
+
+  /*
+   * Changing whose study the sheet shows keeps the date you were reading.
+   *
+   * It used to go back to today — and a space scope then jumped on to that space's newest day —
+   * on the reasoning that a narrower scope has fewer days, so the old index pointed somewhere
+   * arbitrary. But the stack is continuous from today (rest days included), so a date means the
+   * same sheet in every scope; only how far back each scope has *loaded* differs. Carrying the
+   * date rather than the index, and letting the jump page back until it is loaded, answers the
+   * question the reader was actually asking: what did this day look like for them instead.
+   */
+  const changeScope = useCallback(
+    (next: StudyFeedScope) => {
+      if (safeIndex > 0 && day) setPendingJumpKey(day.dayKey);
+      setScope(next);
+    },
+    [safeIndex, day],
+  );
 
   /* Jumping straight to a depth still has to ask for more, the same way stepping one day
      did — the edges are the way back now, so the fetch has to travel with them. */
@@ -823,7 +823,7 @@ export default function PrototypeStudyFeedPage() {
                 <ProtoSelectMenu
                   value={serializeStudyFeedScope(scope)}
                   options={scopeOptions}
-                  onChange={(next) => setScope(parseStudyFeedScope(next))}
+                  onChange={(next) => changeScope(parseStudyFeedScope(next))}
                   label="Whose study to show"
                   className="proto-feed-sheet__scope"
                   menuClassName="proto-note-destination"

@@ -1,6 +1,6 @@
 /**
- * Reminder copy follows the account's default translation, and a verse reminder opens
- * Activity on today's passage rather than the catalog reader URL.
+ * Reminder copy follows the account's default translation, and a verse reminder opens the
+ * reader on the passage it quotes, in that same translation.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -37,7 +37,7 @@ vi.mock('@/utils/last-read-position', () => ({
   lastReadPositionReference: () => '',
 }));
 
-import { buildReminderPayload, TODAYS_PASSAGE_FOCUS } from '../reminder-payload';
+import { buildReminderPayload, passageReaderUrl, TODAYS_PASSAGE_READER_URL } from '../reminder-payload';
 
 function metadataRow(overrides: Record<string, string | null> = {}) {
   return {
@@ -79,9 +79,9 @@ describe('buildReminderPayload translation', () => {
     expect(built.payload.body).toContain('For God so loved the world');
   });
 
-  it("opens Activity focused on today's passage so the row is actually on the sheet", async () => {
+  it('opens the reader on the quoted verse, in the translation it was quoted in', async () => {
     const built = await buildReminderPayload('user_1', { kind: 'daily' });
-    expect(built.payload.data.url).toBe(`/?focus=${TODAYS_PASSAGE_FOCUS}`);
+    expect(built.payload.data.url).toBe('/read/john/3?t=ESV&v=16');
   });
 
   it('falls back to catalog HTML when the preferred rendering is empty', async () => {
@@ -107,5 +107,23 @@ describe('buildReminderPayload translation', () => {
     const built = await buildReminderPayload('user_1', { kind: 'daily' });
     expect(built.payload.body).toContain('Catalog NET wording');
     expect(built.payload.body).toContain('(ESV)');
+  });
+});
+
+describe('passageReaderUrl', () => {
+  it('lights a verse range inside one chapter', () => {
+    expect(passageReaderUrl('1 John 4:7-8', 'NET')).toBe('/read/1-john/4?t=NET&v=7&vEnd=8');
+  });
+
+  it('lands on the first verse of a range that crosses chapters', () => {
+    expect(passageReaderUrl('Romans 8:38-9:1', 'NET')).toBe('/read/romans/8?t=NET&v=38');
+  });
+
+  it('slugs multi-word books', () => {
+    expect(passageReaderUrl('Song of Solomon 2:1', 'KJV')).toBe('/read/song-of-solomon/2?t=KJV&v=1');
+  });
+
+  it("falls back to the reader's today route for a reference it cannot parse", () => {
+    expect(passageReaderUrl('not a reference', 'NET')).toBe(TODAYS_PASSAGE_READER_URL);
   });
 });
