@@ -66,7 +66,8 @@ const OVERFETCH = 3;
  * Three entries, not five. `connection` and `thread` had open questions with nothing to mark,
  * and are Home suggestions now — see `REVIEW_ASKABLE_KINDS`.
  */
-const REVIEW_KIND_FOR_NODE: Record<string, ReviewAskableKind> = {
+/** The engine asks about the reader's own study; a church question only ever comes from a church. */
+const REVIEW_KIND_FOR_NODE: Record<string, Exclude<ReviewAskableKind, 'church'>> = {
   verse: 'verse',
   note: 'note',
   chapter: 'chapter',

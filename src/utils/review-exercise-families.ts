@@ -48,7 +48,8 @@ export type ReviewExerciseIcon =
   | 'link'
   | 'book'
   | 'compass'
-  | 'folder';
+  | 'folder'
+  | 'church';
 
 export interface ReviewExerciseFamily {
   /** Stable across renames of the label, because preferences are stored against it. */
@@ -175,6 +176,25 @@ export const REVIEW_EXERCISE_FAMILIES = {
     description: 'Pick a folder one of your notes is in: the theme you filed it under.',
     typed: false,
   },
+  /*
+   * A church's own questions. Named for the act like every other family — "Question" is what
+   * you are about to answer, "Match" is what you are about to do — and never for the church,
+   * which the row already names. Ordering a church wrote is the `order` family: the same act.
+   */
+  question: {
+    id: 'question',
+    label: 'Question',
+    icon: 'church',
+    description: 'Answer a question your church wrote about what it taught.',
+    typed: false,
+  },
+  match: {
+    id: 'match',
+    label: 'Match',
+    icon: 'arrows-left-right',
+    description: 'Match each item on the left with its partner on the right.',
+    typed: false,
+  },
 } as const satisfies Record<string, ReviewExerciseFamily>;
 
 export type ReviewExerciseFamilyId = keyof typeof REVIEW_EXERCISE_FAMILIES;
@@ -222,6 +242,10 @@ const FAMILY_BY_KEY: Record<ReviewPromptKey, ReviewExerciseFamilyId> = {
 
   'verse.marked': 'marked',
   'chapter.marked': 'marked',
+
+  'church.choice': 'question',
+  'church.order': 'order',
+  'church.match': 'match',
 };
 
 /** Where a rung has somehow arrived unnamed — an old stored key, say — this is the safe word. */
@@ -250,6 +274,14 @@ export function reviewPromptKeysInFamily(id: ReviewExerciseFamilyId): ReviewProm
  * context rungs — rather than alphabetical, which would put "Blanks" beside "Changed word" and
  * tell the reader nothing about how the two relate.
  */
+/**
+ * Families only a church's questions use. **Not on the settings page**: that page tunes Review
+ * of your own study, and there is nothing a reader can lean toward or away from in a question
+ * their church asked — it is the church's to ask. Listed so the tests can say every family is
+ * either offered there or is one of these.
+ */
+export const CHURCH_EXERCISE_FAMILY_IDS: readonly ReviewExerciseFamilyId[] = ['question', 'match'];
+
 export const REVIEW_EXERCISE_FAMILY_ORDER: ReviewExerciseFamilyId[] = [
   'opening',
   'blanks',

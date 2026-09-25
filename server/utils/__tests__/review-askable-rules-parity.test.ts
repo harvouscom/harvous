@@ -34,7 +34,7 @@ const buildBody = bodyOf('export async function buildReviewItemViews');
 const filterBody = bodyOf('export async function filterAskableReviewRows');
 
 describe('askable-row rules stay in step', () => {
-  it('the build drops rows in exactly three places', () => {
+  it('the build drops rows in exactly four places', () => {
     /*
      * A guard on the number, not the wording. If a fourth `continue` appears in the build loop,
      * this fails — and the fix is to teach `filterAskableReviewRows` the same rule, not to bump
@@ -42,12 +42,12 @@ describe('askable-row rules stay in step', () => {
      * contract between these two.
      */
     const drops = buildBody.match(/\bcontinue;/g) ?? [];
-    expect(drops).toHaveLength(3);
+    expect(drops).toHaveLength(4);
   });
 
-  it('the filter rejects rows in the same three places', () => {
+  it('the filter rejects rows in the same four places', () => {
     const rejects = filterBody.match(/\breturn false;/g) ?? [];
-    expect(rejects).toHaveLength(3);
+    expect(rejects).toHaveLength(4);
   });
 
   it('both know the kind rule', () => {
@@ -67,5 +67,13 @@ describe('askable-row rules stay in step', () => {
     expect(buildBody).toContain('verses.length');
     expect(filterBody).toContain("kind === 'chapter'");
     expect(filterBody).toContain('splitChapterHtmlIntoVerses');
+  });
+
+  it('both know the church-question rule', () => {
+    // A church question whose definition is gone, unpublished or unreadable asks nothing.
+    expect(buildBody).toContain("kind === 'church'");
+    expect(buildBody).toContain('churchQuestionIsAskable');
+    expect(filterBody).toContain("kind === 'church'");
+    expect(filterBody).toContain('churchQuestionIsAskable');
   });
 });

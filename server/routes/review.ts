@@ -414,6 +414,11 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
               ? body.answer.order.filter((v: unknown) => Number.isInteger(v)).slice(0, 12)
               : undefined,
             option: typeof body.answer.option === 'string' ? body.answer.option : undefined,
+            // A church matching question: for each left row, the right index chosen. Validated
+            // against the exercise's size by the grader.
+            pairs: Array.isArray(body.answer.pairs)
+              ? body.answer.pairs.filter((v: unknown) => Number.isInteger(v)).slice(0, 6)
+              : undefined,
             // Which word the reader pointed at. Sanitised to an integer here rather than
             // trusted: it indexes a token array on the server.
             wordIndex: Number.isInteger(body.answer.wordIndex)

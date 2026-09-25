@@ -1863,10 +1863,25 @@ export const ReviewItems = pgTable('ReviewItems', {
   sourceAt: ts('sourceAt'),
   /** Set when a challenge created this item, so completing the challenge can advance it. */
   challengeId: text('challengeId'),
+  /**
+   * A church's exercise this row is this reader's copy of (`ChurchReviewExercises.id`), with
+   * `origin='church'` and `sourceKey='church:<id>'`. The definition is the church's; everything
+   * else on the row — schedule, answers, ladder — is the reader's own, and no church read ever
+   * reaches it. Never paired with `noteId`: `delete-note-cascade.ts` deletes `ReviewEvents` by
+   * `noteId` with no user filter, so a staff note there would erase congregants' history.
+   */
+  churchExerciseId: text('churchExerciseId'),
+  /**
+   * The definition's `version` this row was last reset against. When staff edit a published
+   * exercise the version moves, and the reader's own refill resets the row to the new question
+   * — staff never write into anyone's rows.
+   */
+  churchExerciseVersion: integer('churchExerciseVersion'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [
   uniqueIndex('ReviewItems_userId_sourceKeyIndex').on(table.userId, table.sourceKey),
+  index('ReviewItems_churchExerciseIdIndex').on(table.churchExerciseId),
   // The inbox read: due, active, oldest first.
   index('ReviewItems_userId_status_dueAtIndex').on(table.userId, table.status, table.dueAt),
   // The three cascade filters. NoteVisitEvents_noteIdIndex's docblock calls the missing
@@ -1874,6 +1889,70 @@ export const ReviewItems = pgTable('ReviewItems', {
   index('ReviewItems_noteIdIndex').on(table.noteId),
   index('ReviewItems_secondaryNoteIdIndex').on(table.secondaryNoteId),
   index('ReviewItems_studyThreadEntryIdIndex').on(table.studyThreadEntryId),
+]);
+
+// ─── ChurchReviewExercises (a church's review questions, and the passages it suggests) ─
+/**
+ * What a church puts into its people's Review: a passage from what it taught (asked on the
+ * existing verse and chapter ladders), or a question staff wrote — multiple choice, put in
+ * order, or match the pairs. Part of the Church plan; free to anyone connected who follows the
+ * channel it is published in. Plus stays review of your *own* study. See
+ * docs/CHURCH_V2_ROADMAP.md §B.
+ *
+ * **A definition, not a delivery.** Nothing fans out on publish. Each follower's own lazy
+ * refill (`refillChurchReviewQueue`) creates their `ReviewItems` row, with
+ * `churchExerciseId` pointing here, so the schedule and every answer stay the reader's.
+ *
+ * **The answer key lives in `content`, and `content` never leaves the server** except to the
+ * staff who wrote it. Builders shuffle it into options, phrases or columns with no key attached.
+ *
+ * **No generative AI.** A suggestion is a passage the church itself cited, found by a fixed
+ * rule; a question is staff's own words. Every answer is Scripture or the church's own key.
+ *
+ * `status`: `dismissed` (a suggestion staff said no to — a row, so it is never suggested
+ * again), `draft`, `published`, `archived`. `answeredCount` is the only thing a church ever
+ * learns back, and only above a floor of five.
+ *
+ * Row ids: `crx_${crypto.randomUUID()}`.
+ */
+export const ChurchReviewExercises = pgTable('ChurchReviewExercises', {
+  id: text('id').primaryKey(),
+  churchId: text('churchId').notNull(),
+  orgId: text('orgId').notNull(),
+  /** The ministry channel it is published in; its followers are its audience. */
+  channelSpaceId: text('channelSpaceId').notNull(),
+  /** verse | chapter | choice | order | match — see src/utils/church-exercise.ts. */
+  kind: text('kind').notNull(),
+  /** Staff's question, for choice/order/match. Null on a passage exercise. */
+  prompt: text('prompt'),
+  /** JSON answer key for choice/order/match. Server-only; never in a congregant payload. */
+  content: text('content'),
+  /** verse/chapter: the passage. Normalized reference, e.g. "John 15:5" or "John 15". */
+  scriptureReference: text('scriptureReference'),
+  translation: text('translation'),
+  /** suggested | authored. */
+  origin: text('origin').notNull(),
+  /** The canonical reference a suggestion was made for — its dedupe key within the channel. */
+  suggestionKey: text('suggestionKey'),
+  sourceNoteId: text('sourceNoteId'),
+  sourceServiceId: text('sourceServiceId'),
+  sourceSeriesId: text('sourceSeriesId'),
+  status: text('status').notNull().default('draft'),
+  /** Bumped on every edit of a published exercise; readers' rows reset to catch up. */
+  version: integer('version').notNull().default(1),
+  /** People who have answered it at least once. A count, never who. */
+  answeredCount: integer('answeredCount').notNull().default(0),
+  createdBy: text('createdBy').notNull(),
+  updatedBy: text('updatedBy'),
+  publishedAt: ts('publishedAt'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('ChurchReviewExercises_channel_statusIndex').on(table.channelSpaceId, table.status),
+  index('ChurchReviewExercises_orgIdIndex').on(table.orgId),
+  uniqueIndex('ChurchReviewExercises_channel_suggestion_unique')
+    .on(table.channelSpaceId, table.suggestionKey)
+    .where(sql`${table.suggestionKey} IS NOT NULL`),
 ]);
 
 // ─── ReviewEvents (append-only log of what a review session was answered with) ─

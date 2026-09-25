@@ -66,7 +66,9 @@ export type ReviewFramingTemplate =
   | 'person'
   | 'crossrefs'
   | 'pass'
-  | 'holding';
+  | 'holding'
+  /** A church's question, or a passage it taught: "From Youth." */
+  | 'fromChurch';
 
 export interface ReviewFramingSpec {
   template: ReviewFramingTemplate;
@@ -223,5 +225,17 @@ export function fillFraming(spec: ReviewFramingSpec, now: Date = new Date()): st
       return 'Back for another pass.';
     case 'holding':
       return 'You have this one. Keep it.';
+    case 'fromChurch':
+      return spec.args.label ? `From ${spec.args.label}.` : 'From your church.';
   }
+}
+
+/**
+ * The framing for anything a church put into Review. Always shown — even where a reader fact
+ * would otherwise be chosen — because "whose question is this" is the one thing a reader needs
+ * to know about it, and the channel name never gives an answer away.
+ */
+export function churchFraming(channelTitle: string | null | undefined): ReviewFramingSpec {
+  const label = channelTitle?.trim();
+  return { template: 'fromChurch', args: label ? { label } : {} };
 }

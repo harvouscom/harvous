@@ -81,6 +81,7 @@ export {
   ChurchServiceLibraryItems,
   ChurchSpaceChannelLinks,
   ChurchJoinLinks,
+  ChurchReviewExercises,
   InboxItems,
   InboxItemNotes,
   UserInboxItems,

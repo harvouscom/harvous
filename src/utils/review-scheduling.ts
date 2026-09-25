@@ -115,6 +115,13 @@ export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
   'chapter.place': 0.9,
   'chapter.marked': 0.8,
   'verse.marked': 0.8,
+  /*
+   * A church's own questions. A tap among options on screen is below 1 by the rule above;
+   * ordering and matching place every piece, so they sit just under the full fortnight.
+   */
+  'church.choice': 0.8,
+  'church.order': 0.9,
+  'church.match': 0.9,
 };
 
 /**
@@ -534,9 +541,11 @@ export function deferReview(
  * is exactly what the seed did in the first preview.
  */
 export function firstDueAt(now: Date = new Date(), origin: ReviewItemOrigin = 'user'): Date {
-  // Seeded and engine-added items are due immediately: the reader did not ask for them, so a
-  // section that stays empty until tomorrow reads as a feature that does not work.
-  return origin === 'seed' || origin === 'engine' ? new Date(now.getTime()) : addDays(now, 1);
+  // Seeded, engine-added and church items are due immediately: the reader did not ask for them,
+  // so a section that stays empty until tomorrow reads as a feature that does not work.
+  return origin === 'seed' || origin === 'engine' || origin === 'church'
+    ? new Date(now.getTime())
+    : addDays(now, 1);
 }
 
 /**
@@ -551,7 +560,9 @@ export function firstDueAtFor(
   origin: ReviewItemOrigin = 'user',
   now: Date = new Date(),
 ): Date {
-  if (kind === 'chapter') return addDays(now, 1);
+  // Not a church's chapter: that one comes from what the church taught, not from the page the
+  // reader has open.
+  if (kind === 'chapter' && origin !== 'church') return addDays(now, 1);
   return firstDueAt(now, origin);
 }
 

@@ -64,6 +64,12 @@ export const REVIEW_KIND_ICONS: Record<ReviewItemKind, IconName> = {
    * chapter you sat with.
    */
   chapter: 'book-open-reader',
+
+  /*
+   * `church` — a question your church wrote. The row says whose question it is before it says
+   * anything else, which is the thing a reader needs to know about it.
+   */
+  church: 'church',
 };
 
 export function reviewKindIcon(kind: ReviewItemKind): IconName {
