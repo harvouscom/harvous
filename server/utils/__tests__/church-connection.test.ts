@@ -31,6 +31,7 @@ import {
   CLEARED_CHURCH_CONNECTION,
   connectionFieldsForHmcChurchId,
   findActiveChurchByHmcId,
+  shouldKeepLinkOnlyConnection,
 } from '../church-connection';
 
 function mockChurchRow(row: { id: string; orgId: string; isActive: boolean } | null) {
@@ -92,5 +93,29 @@ describe('church-connection', () => {
       // A preserved ISO string is normalized to a Date before it is persisted.
       connectedChurchAt: new Date('2026-01-01T00:00:00.000Z'),
     });
+  });
+});
+
+describe('shouldKeepLinkOnlyConnection', () => {
+  const linkOnly = { hmcChurchId: null, name: 'New Hope  Assembly', isActive: true, deletedAt: null };
+
+  it('keeps a directory-less church re-saved under its own name', () => {
+    expect(shouldKeepLinkOnlyConnection(linkOnly, ' new hope assembly ')).toBe(true);
+  });
+
+  it('lets a different name leave — it is a different church', () => {
+    expect(shouldKeepLinkOnlyConnection(linkOnly, 'Grace Chapel')).toBe(false);
+    expect(shouldKeepLinkOnlyConnection(linkOnly, null)).toBe(false);
+    expect(shouldKeepLinkOnlyConnection(linkOnly, '   ')).toBe(false);
+  });
+
+  it('never applies to a church with a directory id, which re-derives on its own', () => {
+    expect(shouldKeepLinkOnlyConnection({ ...linkOnly, hmcChurchId: 'TX-1' }, 'New Hope Assembly')).toBe(false);
+  });
+
+  it('never keeps a church that is gone or switched off', () => {
+    expect(shouldKeepLinkOnlyConnection({ ...linkOnly, isActive: false }, 'New Hope Assembly')).toBe(false);
+    expect(shouldKeepLinkOnlyConnection({ ...linkOnly, deletedAt: new Date() }, 'New Hope Assembly')).toBe(false);
+    expect(shouldKeepLinkOnlyConnection(null, 'New Hope Assembly')).toBe(false);
   });
 });

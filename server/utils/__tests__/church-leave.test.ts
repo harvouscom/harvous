@@ -31,11 +31,22 @@ describe('releaseChannelFollowsForOrg', () => {
   });
 
   it('runs after the new connection is written, and never fails the save', () => {
+    // Both connect doors (Settings and the join link) write through this helper.
+    const helper = source('server/utils/church-selection-write.ts');
+    const body = helper.slice(helper.indexOf('export async function persistChurchSelection'));
+    const write = body.indexOf('connectedOrgId: connection.connectedOrgId');
+    const release = body.indexOf('releaseChannelFollowsForOrg(userId, leftOrgId)');
+    expect(write).toBeGreaterThan(-1);
+    expect(release).toBeGreaterThan(write);
+    expect(body.slice(release - 200, release)).toContain('try {');
+  });
+
+  it('is reached from both connect doors, never re-implemented beside them', () => {
     const route = source('server/routes/user.ts');
-    const write = route.indexOf("message: 'Church information updated'");
-    const release = route.indexOf('releaseChannelFollowsForOrg(auth.userId, leftOrgId)');
-    expect(release).toBeGreaterThan(route.indexOf('connectedOrgId: connection.connectedOrgId'));
-    expect(release).toBeLessThan(write);
-    expect(route.slice(release - 200, release)).toContain('try {');
+    expect(route).toContain('await persistChurchSelection(');
+    expect(route).not.toContain('releaseChannelFollowsForOrg(');
+    const helper = source('server/utils/church-selection-write.ts');
+    const connect = helper.slice(helper.indexOf('export async function connectUserToChurch'));
+    expect(connect).toContain('await persistChurchSelection(');
   });
 });

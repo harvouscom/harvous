@@ -67,15 +67,15 @@ import {
 import { getCachedUserData, invalidateUserCache } from '../utils/user-cache';
 import {
   getSeasonalXP, getLifetimeXP, checkLifetimeMilestones, getAllSeasonalXP,
-  awardMonthlyAttendanceXP, awardSessionXP, awardChurchAddedXP,
+  awardMonthlyAttendanceXP, awardSessionXP,
   calculateTotalXP, getXPBreakdown, backfillUserXP,
 } from '../utils/xp-system';
 import { calculateSessionXP, type SessionData } from '../utils/session-tracker';
 import { canCreateSharedSpace, getUserLimitsInfo, getSpaceMemberCount } from '../utils/tier-limits';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
-import { connectionFieldsForHmcChurchId } from '../utils/church-connection';
+import { connectionFieldsForHmcChurchId, keepLinkOnlyConnection } from '../utils/church-connection';
+import { persistChurchSelection } from '../utils/church-selection-write';
 import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-staff';
-import { orgLeftByChurchChange, releaseChannelFollowsForOrg } from '../utils/ministry-channel-follow';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { addImportedNotesToSpace, decideImportSpaceTarget } from '../utils/import-space-target';
 import { fetchClerkOrgMemberships } from '../utils/clerk-org';
@@ -734,8 +734,8 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
     }
 
     const nextHmc = normalizedHmcChurchId ?? null;
-    const connection = await connectionFieldsForHmcChurchId(nextHmc);
     const existing = existingRecord[0];
+    let connection = await connectionFieldsForHmcChurchId(nextHmc);
     if (
       connection.connectedChurchId &&
       existing?.connectedChurchId === connection.connectedChurchId &&
@@ -744,77 +744,34 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       connection.connectedChurchAt = existing.connectedChurchAt;
     }
 
-    if (existingRecord.length > 0) {
-      const isFirstTimeAddingChurch =
-        !existing.hmcChurchId &&
-        !existing.churchName &&
-        !existing.churchCity &&
-        !existing.churchState &&
-        !existing.churchCountry &&
-        Boolean(
-          nextHmc ||
-            normalizedChurchName ||
-            normalizedChurchCity ||
-            normalizedChurchState ||
-            normalizedChurchCountry,
-        );
-
-      await db
-        .update(UserMetadata)
-        .set({
-          hmcChurchId: nextHmc,
-          churchName: normalizedChurchName ?? null,
-          churchCity: normalizedChurchCity ?? null,
-          churchState: normalizedChurchState ?? null,
-          churchCountry: normalizedChurchCountry ?? null,
-          connectedChurchId: connection.connectedChurchId,
-          connectedOrgId: connection.connectedOrgId,
-          connectedChurchAt: connection.connectedChurchAt,
-          churchAddedAt: isFirstTimeAddingChurch ? nowISO() : existing.churchAddedAt,
-          updatedAt: nowISO(),
-        })
-        .where(eq(UserMetadata.userId, auth.userId));
-
-      if (isFirstTimeAddingChurch) {
-        await awardChurchAddedXP(auth.userId);
+    /* A church registered without a directory id can only be reached by its join link,
+       so the person's row has no hmcChurchId to re-derive the connection from. Re-saving
+       that same church by hand in Settings would otherwise read as "no registered church"
+       and quietly disconnect them. Only a deliberate clear or a different church leaves. */
+    if (!nextHmc && existing?.connectedChurchId && !connection.connectedChurchId) {
+      const kept = await keepLinkOnlyConnection(existing.connectedChurchId, normalizedChurchName ?? null);
+      if (kept) {
+        connection = {
+          connectedChurchId: existing.connectedChurchId,
+          connectedOrgId: existing.connectedOrgId,
+          connectedChurchAt: existing.connectedChurchAt,
+        };
       }
-    } else {
-      const hasChurchData =
-        nextHmc ||
-        normalizedChurchName ||
-        normalizedChurchCity ||
-        normalizedChurchState ||
-        normalizedChurchCountry;
-      await db.insert(UserMetadata).values({
-        id: crypto.randomUUID(),
-        userId: auth.userId,
+    }
+
+    await persistChurchSelection({
+      userId: auth.userId,
+      existing,
+      fields: {
         hmcChurchId: nextHmc,
         churchName: normalizedChurchName ?? null,
         churchCity: normalizedChurchCity ?? null,
         churchState: normalizedChurchState ?? null,
         churchCountry: normalizedChurchCountry ?? null,
-        connectedChurchId: connection.connectedChurchId,
-        connectedOrgId: connection.connectedOrgId,
-        connectedChurchAt: connection.connectedChurchAt,
-        churchAddedAt: hasChurchData ? nowISO() : null,
-        highestSimpleNoteId: 0,
-        userColor: 'blue',
-        createdAt: nowISO(),
-        updatedAt: nowISO(),
-      });
-      if (hasChurchData) await awardChurchAddedXP(auth.userId);
-    }
-
-    /* Moved or left: the old church's channels stop filling this person's feed.
-       After the write, so a failure here never costs them the new connection. */
-    const leftOrgId = orgLeftByChurchChange(existing?.connectedOrgId, connection.connectedOrgId);
-    if (leftOrgId) {
-      try {
-        await releaseChannelFollowsForOrg(auth.userId, leftOrgId);
-      } catch (error) {
-        console.warn('[update-church] could not release old channel follows', { leftOrgId, error });
-      }
-    }
+      },
+      connection,
+      logTag: 'update-church',
+    });
 
     return c.json({
       success: true,
