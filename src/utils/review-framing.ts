@@ -27,7 +27,7 @@
 
 import type { RecallState } from '@/utils/review-item-kinds';
 import type { ReviewPromptKey } from '@/utils/review-prompts';
-import { hashSeed } from '@/utils/verse-cloze';
+import { seededIndex } from '@/utils/verse-cloze';
 
 export interface ReviewFramingFacts {
   kind: 'note' | 'verse' | 'chapter';
@@ -173,7 +173,7 @@ export function reviewFraming(
   if (facts.recallState === 'durable') state.push({ template: 'holding', args: {} });
 
   for (const group of [reader, curated, state]) {
-    if (group.length) return group[hashSeed(seed) % group.length];
+    if (group.length) return group[seededIndex(seed, group.length)];
   }
   return null;
 }

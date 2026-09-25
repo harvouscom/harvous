@@ -20,7 +20,13 @@ import {
   type ReviewItemOrigin,
   type ReviewOutcome,
 } from './review-item-kinds';
-import { nextLadderStep, openingStepsFor, type ReviewPromptKey } from './review-prompts';
+import {
+  CHAPTER_FAMILIES,
+  nextLadderStep,
+  openingStepsFor,
+  VERSE_FAMILIES,
+  type ReviewPromptKey,
+} from './review-prompts';
 
 /**
  * The three base intervals.
@@ -269,11 +275,24 @@ export function shouldEaseRung(state: {
   return Boolean(family) && family === ladderFamilyOf(state.previousRungKey);
 }
 
-/** The family half of a rung key: `verse.locate` and `verse.book` are both `verse`. */
-function ladderFamilyOf(key: ReviewPromptKey | string | null | undefined): string | null {
+/**
+ * The ladder family a rung belongs to: `verse.locate` and `verse.book` are both the where-is-it
+ * step, so a near-miss on each is a run. It returned the key itself, which made "same family"
+ * mean "same rung" — and a family's members are drawn by seed, so two misses on the same step
+ * were usually asked as two different members and never counted as a run at all.
+ *
+ * A note rung is its own family: the note ladder is a rotation, not steps of related members.
+ */
+export function ladderFamilyOf(key: ReviewPromptKey | string | null | undefined): string | null {
   const value = (key ?? '').trim();
-  if (!value) return null;
-  return value.includes('.') ? value : null;
+  if (!value || !value.includes('.')) return null;
+  const verse = VERSE_FAMILIES.findIndex((members) => members.includes(value as ReviewPromptKey));
+  if (verse >= 0) return `verse:${verse}`;
+  /* `chapter.verse` closes every chapter family as the fallback; it belongs to its own step. */
+  if (value === 'chapter.verse') return 'chapter:0';
+  const chapter = CHAPTER_FAMILIES.findIndex((members) => members.includes(value as ReviewPromptKey));
+  if (chapter >= 0) return `chapter:${chapter}`;
+  return value;
 }
 
 /**

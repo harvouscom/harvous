@@ -25,11 +25,22 @@ export interface SessionOrderInput {
 }
 
 export function sittingHalf(kind: string): 'passage' | 'note' {
-  return kind === 'verse' || kind === 'chapter' || kind === 'highlight' ? 'passage' : 'note';
+  return kind === 'verse' || kind === 'chapter' ? 'passage' : 'note';
 }
 
 export const SITTING_NEAR_DAYS = 2;
 export const SITTING_OTHER_HALF = 2;
+/**
+ * At most this many items of one kind on one step in a sitting, while there is anything else.
+ *
+ * A step names the question: every chapter on step 0 is "pick the verse that is in it". Measured
+ * on a real account, five of a sitting's seven were exactly that — the backlog of chapters read
+ * last month, all overdue by the same week, so "most overdue first" put them all in front and the
+ * interleave only spaced them apart. So a third of a kind goes behind everything else due or
+ * nearly due, and only fills a slot nothing else can — a sitting still fills (see the test that
+ * pins it), it just stops being the same question five times while there was another to ask.
+ */
+export const SITTING_SAME_STEP_CAP = 2;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -112,17 +123,23 @@ export function composeSitting<T extends SessionOrderInput>(
   const picked: T[] = [];
   const used = new Set<string>();
   const count = { note: 0, passage: 0 };
+  const perStep = new Map<string, number>();
+  const stepKey = (item: T) => `${item.kind}:${item.ladderStep ?? 0}`;
 
-  const tryPick = (item: T): void => {
+  const tryPick = (item: T, relaxed = false): void => {
     if (used.has(item.id) || picked.length >= max) return;
     const half = sittingHalf(item.kind);
     if (count[half] >= capFor(half)) return;
+    const same = perStep.get(stepKey(item)) ?? 0;
+    if (!relaxed && same >= SITTING_SAME_STEP_CAP) return;
     used.add(item.id);
     count[half] += 1;
+    perStep.set(stepKey(item), same + 1);
     picked.push(item);
   };
 
-  for (const item of interleaveSession([...due], now)) tryPick(item);
+  const orderedDue = interleaveSession([...due], now);
+  for (const item of orderedDue) tryPick(item);
   for (const item of interleaveSession(near, now)) tryPick(item);
 
   if (count.note < SITTING_OTHER_HALF && picked.length < max) {
@@ -130,6 +147,10 @@ export function composeSitting<T extends SessionOrderInput>(
       if (sittingHalf(item.kind) === 'note') tryPick(item);
     }
   }
+
+  // Nothing else to ask: what the cap held back fills the rest, most overdue first.
+  for (const item of orderedDue) tryPick(item, true);
+  for (const item of interleaveSession(near, now)) tryPick(item, true);
 
   return interleaveSession(picked, now);
 }

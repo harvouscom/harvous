@@ -5,11 +5,12 @@
  * the inbox, the session and the manage list at once, and enumerating which three would be a
  * list to keep in sync with every new surface.
  */
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { toast } from '@/utils/toast';
 import { toastError } from '../../lib/error-copy';
 import {
+  reviewInboxQueryKey,
   reviewQueryKey,
   reviewSessionQueryKey,
   type ReviewItemView,
@@ -25,7 +26,6 @@ import {
   REVIEW_RESUMED_TOAST,
   REVIEW_FEEDBACK_FAILED_TOAST,
   REVIEW_OUTCOME_FAILED_TOAST,
-  REVIEW_STEP_BACK_FAILED_TOAST,
 } from '../../pages/prototype/proto-review-copy';
 import type { ReviewItemKind, ReviewItemStatus, ReviewOutcome } from '@/utils/review-item-kinds';
 import { invalidateStudyFeed } from '@/utils/study-feed-invalidation';
@@ -194,14 +194,33 @@ export function useReviewOutcome() {
   });
 }
 
+/**
+ * An item set aside — deferred, paused, removed — leaves the sitting without the sitting being
+ * refetched.
+ *
+ * These invalidated the whole `['review']` prefix, which includes the session: the one query
+ * that is frozen on purpose (see `useReviewSession`), so setting one question aside reshuffled
+ * every other one under the reader. The item is taken out of the cached sitting instead, the way
+ * an answer takes it out, and only the lists that count it are refetched.
+ */
+function settleWithout(queryClient: QueryClient, itemId: string | null): void {
+  if (itemId) {
+    queryClient.setQueryData<{ items: ReviewItemView[] }>(reviewSessionQueryKey, (prev) =>
+      prev ? { ...prev, items: prev.items.filter((entry) => entry.id !== itemId) } : prev,
+    );
+  }
+  void queryClient.invalidateQueries({ queryKey: reviewInboxQueryKey });
+  void queryClient.invalidateQueries({ queryKey: ['review', 'items'] });
+}
+
 export function useDeferReview() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (itemId: string) =>
       api.post<{ dueAt: string }>(`/api/review/items/${encodeURIComponent(itemId)}/defer`, {}),
-    onSuccess: () => {
+    onSuccess: (_data, itemId) => {
       toast.success(REVIEW_DEFERRED_TOAST);
-      void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
+      settleWithout(queryClient, itemId);
     },
     onError: (error) => {
       toastError(error, REVIEW_DEFER_FAILED_TOAST, { scope: 'review-defer' });
@@ -239,20 +258,6 @@ export function useReviewFeedback() {
   });
 }
 
-export function useStepBackReview() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ itemId }: { itemId: string }) =>
-      api.post<{ item: ReviewItemView }>(`/api/review/items/${encodeURIComponent(itemId)}/step-back`, {}),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
-    },
-    onError: (error) => {
-      toastError(error, REVIEW_STEP_BACK_FAILED_TOAST, { scope: 'review-step-back' });
-    },
-  });
-}
-
 export function useSetReviewStatus() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -265,11 +270,11 @@ export function useSetReviewStatus() {
      * Spoken here rather than at the two call sites (the Home row menu and the dock's leech
      * result) so both say the same thing, and so a third surface cannot ship silent.
      */
-    onSuccess: (_data, { status }) => {
+    onSuccess: (_data, { itemId, status }) => {
       if (status === 'archived') toast.success(REVIEW_REMOVED_TOAST);
       else if (status === 'paused') toast.success(REVIEW_PAUSED_TOAST);
       else if (status === 'active') toast.success(REVIEW_RESUMED_TOAST);
-      void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
+      settleWithout(queryClient, status === 'active' ? null : itemId);
     },
     onError: (error, { status }) => {
       toastError(
