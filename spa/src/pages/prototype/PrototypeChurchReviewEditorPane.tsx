@@ -1,6 +1,10 @@
 /**
  * Write or edit one of a church's review questions (docs/CHURCH_V2_ROADMAP.md §B).
  *
+ * A pane docked beside the list in the expanded Review questions tool — the planner's and the
+ * library's editor shape (`proto-planner-editor`), not a modal: the list stays in view while
+ * you write, and on a narrow screen the pane covers it the way the planner's does.
+ *
  * Four kinds: multiple choice, put in order, match the pairs — each written by staff, with the
  * answer marked here and kept on the server — or a passage, which Review asks on the same
  * exercises it uses for a reader's own verses. The same validation runs here and on the server
@@ -9,16 +13,8 @@
  * "Preview" shows the question exactly as a congregant gets it: shuffled by the server, with no
  * sign of which answer is right. Nothing is written until Save or Publish.
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
-import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
-import ProtoPopoverShell from './ProtoPopoverShell';
-import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
-import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
-import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
-import { useSheetPresentation } from './design-system/useSheetPresentation';
-import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import {
   CHURCH_CHOICE_MAX,
   CHURCH_CHOICE_MIN,
@@ -48,17 +44,15 @@ const KINDS: Array<{ id: EditorKind; label: string }> = [
 
 const blank = (n: number) => Array.from({ length: n }, () => '');
 
-export default function PrototypeChurchReviewEditorSheet({
-  open,
-  onOpenChange,
+export default function PrototypeChurchReviewEditorPane({
+  onClose,
   orgId,
   channelId,
   channelTitle,
   exercise,
   canWrite,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
   orgId: string | null;
   channelId: string;
   channelTitle: string;
@@ -66,10 +60,8 @@ export default function PrototypeChurchReviewEditorSheet({
   exercise: ChurchReviewExercise | null;
   canWrite: boolean;
 }) {
-  const { mounted, exiting } = useProtoOverlayMotion(open);
   const actions = useChurchReviewActions(orgId);
   const previewCall = useChurchReviewPreview(orgId);
-  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const [kind, setKind] = useState<EditorKind>('choice');
   const [prompt, setPrompt] = useState('');
@@ -83,9 +75,8 @@ export default function PrototypeChurchReviewEditorSheet({
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<ChurchReviewPreview | null>(null);
 
-  /* Seed on open, from the question being edited or empty. */
+  /* Seed from the question being edited, or empty — again whenever the selection changes. */
   useEffect(() => {
-    if (!open) return;
     setError(null);
     setPreview(null);
     const content = exercise?.content;
@@ -108,7 +99,7 @@ export default function PrototypeChurchReviewEditorSheet({
     }
     if (content && 'items' in content) setItems(content.items);
     if (content && 'pairs' in content) setPairs(content.pairs);
-  }, [open, exercise]);
+  }, [exercise]);
 
   const draft: ChurchReviewDraft = useMemo(() => {
     if (kind === 'passage') return { kind: 'passage', reference };
@@ -130,16 +121,6 @@ export default function PrototypeChurchReviewEditorSheet({
   const editing = Boolean(exercise);
   const isPublished = exercise?.status === 'published';
 
-  const { asSheet } = useSheetPresentation();
-  const asPopover = !asSheet;
-  const { position } = useProtoAnchoredPopoverPosition(
-    cardRef,
-    {},
-    { enabled: asPopover && mounted, strategy: 'centered', topVhFraction: 0.08, fallbackWidth: 460, fallbackHeight: 620 },
-    [kind, options.length, items.length, pairs.length, Boolean(preview)],
-  );
-  useDismissOnOutside(cardRef, () => onOpenChange(false), open && asPopover);
-
   async function save(publish: boolean) {
     if (problem || !canWrite) return;
     setError(null);
@@ -150,7 +131,7 @@ export default function PrototypeChurchReviewEditorSheet({
       } else {
         await actions.mutateAsync({ type: 'create', channelId, draft, publish });
       }
-      onOpenChange(false);
+      onClose();
       window.toast?.success(publish ? `Published to ${channelTitle}` : 'Saved as a draft');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save that');
@@ -221,23 +202,24 @@ export default function PrototypeChurchReviewEditorSheet({
     </div>
   );
 
-  const content = (
-    <>
-      <div className="proto-study-thread-popover__header">
-        <div className="proto-study-thread-popover__title-row">
-          <span className="proto-study-thread-popover__title">{editing ? 'Edit question' : 'New question'}</span>
+  return (
+    <aside className="proto-planner-editor proto-church-review-pane" aria-label={editing ? 'Edit question' : 'New question'}>
+      <div className="proto-side-panel__header proto-side-panel__header--minimal">
+        <span className="proto-side-panel__header-label">{editing ? 'Edit question' : 'New question'}</span>
+        <div className="proto-side-panel__header-actions">
+          <button
+            type="button"
+            className="proto-side-panel__action-btn"
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+          >
+            <Icon name="xmark" size={12} />
+          </button>
         </div>
-        <button
-          type="button"
-          className="proto-side-panel__action-btn"
-          onClick={() => onOpenChange(false)}
-          aria-label="Close"
-          title="Close"
-        >
-          <Icon name="xmark" size={12} />
-        </button>
       </div>
 
+      <div className="proto-planner-editor__body">
       <div className="proto-church-review-editor">
         {!editing ? (
           <div
@@ -279,7 +261,7 @@ export default function PrototypeChurchReviewEditorSheet({
                 value={reference}
                 placeholder="John 15:5, or John 15"
                 onChange={(event) => setReference(event.target.value)}
-                autoFocus={open}
+                autoFocus
               />
             </label>
             <p className="proto-caption proto-church-review-editor__hint">
@@ -307,7 +289,7 @@ export default function PrototypeChurchReviewEditorSheet({
                   setPrompt(event.target.value.replace(/\n/g, ' '));
                   setPreview(null);
                 }}
-                autoFocus={open}
+                autoFocus
               />
             </label>
 
@@ -455,38 +437,8 @@ export default function PrototypeChurchReviewEditorSheet({
           {busy ? 'Saving…' : isPublished ? 'Save changes' : 'Publish'}
         </button>
       </div>
-    </>
-  );
-
-  if (asPopover && mounted && typeof document !== 'undefined') {
-    return createPortal(
-      <>
-        <ProtoDialogBackdrop exiting={exiting} onDismiss={() => onOpenChange(false)} aria-label="Close question editor" />
-        <ProtoPopoverShell
-          ref={cardRef}
-          role="dialog"
-          aria-label={editing ? 'Edit question' : 'New question'}
-          className={portaledDialogShellClassName('proto-connect-note-popover proto-church-review-popover', exiting)}
-          style={{ position: 'fixed', top: position?.top ?? -9999, left: position?.left ?? -9999, zIndex: 6000 }}
-        >
-          <div className="proto-connect-note-sheet proto-connect-note-sheet--popover">{content}</div>
-        </ProtoPopoverShell>
-      </>,
-      document.body,
-    );
-  }
-
-  if (!open) return null;
-  return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
-      <DrawerContent
-        onOverlayClick={() => onOpenChange(false)}
-        overlayClassName="proto-connect-note-sheet-overlay"
-        className="proto-connect-note-sheet"
-      >
-        {content}
-      </DrawerContent>
-    </Drawer.Root>
+      </div>
+    </aside>
   );
 }
 

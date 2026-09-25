@@ -12246,32 +12246,6 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 /* ── Church review questions (hub pane + editor) ──────────────────────────── */
-.proto-church-review__channels {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 0 12px;
-}
-
-.proto-church-review__channel {
-  appearance: none;
-  border: 0;
-  border-radius: 999px;
-  padding: 6px 12px;
-  background: var(--pds-bg-input);
-  color: var(--pds-text-primary);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-/* Selected is the accent fill with white text — the one "selected" treatment. The white
-   comes from `proto-ink-on-accent` (prototype-route-overrides-1.css), not from here. */
-.proto-church-review__channel--on {
-  background: var(--pds-bg-accent-button);
-}
-
 .proto-church-review__eyebrow {
   margin-top: 14px;
 }
@@ -12313,28 +12287,36 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-primary);
 }
 
-.proto-church-review__new {
-  gap: 6px;
-  margin-top: 14px;
+/* The list column of the expanded tool: its own scroll, the panel's reading measure. */
+.proto-church-review__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 20px 32px;
+  box-sizing: border-box;
 }
 
-.proto-church-review-popover {
-  width: min(460px, calc(100vw - 32px));
+/* The row being edited, marked the way a selected row is everywhere else. */
+.proto-church-review__row-open[aria-current='true'] .proto-church-tools__row-title {
+  color: var(--pds-text-link, var(--pds-text-primary));
 }
 
-/* Taller than the shared 520px cap: a question with five options and a preview needs the
-   room, and the header and footer must stay put while the middle scrolls. */
-.proto-church-review-popover .proto-connect-note-sheet--popover {
-  max-height: min(86vh, 760px);
+/* Wider than the planner's 344px rail: a matching pair is two inputs on one line. */
+.proto-planner-editor.proto-church-review-pane {
+  flex-basis: 420px;
 }
 
-/* The only part that scrolls. `flex: 1 1 auto` + `min-height: 0` because the app reset sets
-   `flex-shrink: 0`, which let this push the footer out of the card instead of scrolling. */
+/* The only part that scrolls; the pane's body already sets the side inset. `flex: 1 1 auto`
+   + `min-height: 0` because the app reset sets `flex-shrink: 0`, which pushed the footer
+   out of the card instead of scrolling. */
 .proto-church-review-editor {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 4px 16px 8px;
+  padding: 8px 0 12px;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -12428,6 +12410,8 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-church-review-editor__footer > * {
   flex: 1 1 0;
   min-width: 0;
+  /* "Save draft" broke onto two lines at phone width; a label that wraps reads as two buttons. */
+  white-space: nowrap;
 }
 
 .proto-church-review-preview {

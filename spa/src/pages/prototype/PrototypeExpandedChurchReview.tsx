@@ -1,5 +1,9 @@
 /**
- * A church's review questions, in the My Church hub (docs/CHURCH_V2_ROADMAP.md §B).
+ * A church's review questions — an expanded tool, opened from the My Church hub
+ * (docs/CHURCH_V2_ROADMAP.md §B). The planner's and the library's shape: the list in the
+ * main column, the editor docked beside it, channels as chips beside the title. It was a
+ * narrow hub pane with a modal editor on top, which cramped both on the screen where staff
+ * actually write.
  *
  * Per channel: the passages Harvous suggests from what the channel published (keep publishes a
  * passage question, no thanks makes sure it is never suggested again), the questions staff have
@@ -9,7 +13,7 @@
  * What it never shows: who has a question, who answered, or how anyone did. The one number is
  * "Answered by N", and only from five people up.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import {
   useChurchReviewActions,
@@ -17,8 +21,14 @@ import {
   useChurchReviewExercises,
   type ChurchReviewExercise,
 } from '../../hooks/queries/useChurchReview';
-import PrototypeChurchReviewEditorSheet from './PrototypeChurchReviewEditorSheet';
+import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
+import { useChurchChannels } from '../../hooks/queries/useChurchChannels';
+import { useProtoShell } from '../../layouts/proto-shell-context';
+import PrototypeChurchReviewEditorPane from './PrototypeChurchReviewEditorPane';
+import ProtoSidebarExpandedPanel from './ProtoSidebarExpandedPanel';
+import ProtoChipBar from './components/ProtoChipBar';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import type { ExpandedSidebarToolProps } from './PrototypeExpandedSidebarHost';
 
 const KIND_LABEL: Record<string, string> = {
   choice: 'Multiple choice',
@@ -49,56 +59,39 @@ function exerciseMeta(exercise: ChurchReviewExercise): string {
   return parts.filter(Boolean).join(' · ');
 }
 
-export default function PrototypeChurchReviewSection({
-  orgId,
-  canView,
-  lapsed,
-}: {
-  orgId: string | null;
-  /** Any staff member. Gates the requests, not just the render. */
-  canView: boolean;
-  /** The church's plan has ended: questions can be taken down, not written. */
-  lapsed: boolean;
-}) {
+type Selection = { mode: 'create' } | { mode: 'edit'; exerciseId: string } | null;
+
+export default function PrototypeExpandedChurchReview({ exiting, origin, onClose }: ExpandedSidebarToolProps) {
+  const { activeChurchOrgId } = useProtoShell();
+  const orgId = activeChurchOrgId ?? null;
+  const { can } = useChurchStaffStatus(orgId);
+  // Any staff member: writing a channel's questions is publishing to it.
+  const canView = can('publish');
+  /* Lapsed gates writes only — read off the channels payload the hub already loads. */
+  const lapsed = useChurchChannels().data?.sponsorship?.state === 'lapsed';
+
   const channels = useChurchReviewChannels(orgId, { enabled: canView });
-  const list = channels.data?.channels ?? [];
+  const list = useMemo(() => channels.data?.channels ?? [], [channels.data]);
   const [channelId, setChannelId] = useState<string | null>(null);
   useEffect(() => {
     if (!channelId && list.length) setChannelId(list[0].id);
   }, [channelId, list]);
-  const exercises = useChurchReviewExercises(orgId, channelId, { enabled: canView && Boolean(channelId) });
+  const channel = list.find((c) => c.id === channelId) ?? list[0] ?? null;
+  const exercises = useChurchReviewExercises(orgId, channel?.id ?? null, { enabled: canView && Boolean(channel) });
   const actions = useChurchReviewActions(orgId);
-  const [editor, setEditor] = useState<{ open: boolean; exercise: ChurchReviewExercise | null }>({
-    open: false,
-    exercise: null,
-  });
+  const [selection, setSelection] = useState<Selection>(null);
 
-  if (!canView) return null;
-  if (channels.isPending) return <ProtoSpaceLoading label="Loading review questions" />;
-  if (channels.isError) {
-    return (
-      <div className="proto-home-section">
-        <p className="proto-caption proto-church-join__lede">Couldn&rsquo;t load review questions.</p>
-        <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => void channels.refetch()}>
-          Try again
-        </button>
-      </div>
-    );
-  }
-  if (list.length === 0) {
-    return (
-      <div className="proto-home-section">
-        <p className="proto-caption proto-church-join__lede">
-          Review questions belong to a channel. Make a ministry channel first, and its followers get
-          its questions in their Review.
-        </p>
-      </div>
-    );
-  }
-
-  const channel = list.find((c) => c.id === channelId) ?? list[0];
   const data = exercises.data;
+  const editing = useMemo<ChurchReviewExercise | null>(() => {
+    if (selection?.mode !== 'edit') return null;
+    return data?.exercises.find((e) => e.id === selection.exerciseId) ?? null;
+  }, [selection, data]);
   const busy = actions.isPending;
+
+  function chooseChannel(id: string) {
+    setChannelId(id);
+    setSelection(null);
+  }
 
   function run(action: Parameters<typeof actions.mutate>[0], done?: string) {
     actions.mutate(action, {
@@ -110,29 +103,62 @@ export default function PrototypeChurchReviewSection({
   }
 
   return (
-    <div className="proto-home-section proto-church-review">
-      <p className="proto-caption proto-church-join__lede">
-        Questions your people answer in their Review. Anyone who follows the channel gets them, free.
-        You only ever see how many answered, never who.
-      </p>
-
-      {list.length > 1 ? (
-        <div className="proto-church-review__channels" role="tablist" aria-label="Channel">
-          {list.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              role="tab"
-              aria-selected={c.id === channel.id}
-              className={`proto-church-review__channel${c.id === channel.id ? ' proto-church-review__channel--on proto-ink-on-accent' : ''}`}
-              onClick={() => setChannelId(c.id)}
-            >
-              {c.title}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
+    <ProtoSidebarExpandedPanel
+      label="Review questions"
+      title="Review questions"
+      scope={
+        list.length > 1 && channel ? (
+          <ProtoChipBar
+            ariaLabel="Channel"
+            options={list.map((c) => ({ id: c.id, label: c.title }))}
+            selectedId={channel.id}
+            onSelect={chooseChannel}
+          />
+        ) : undefined
+      }
+      actions={
+        canView && channel ? (
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+            disabled={lapsed}
+            title={lapsed ? 'Your church’s plan has ended' : undefined}
+            onClick={() => setSelection({ mode: 'create' })}
+          >
+            <Icon name="plus" size={12} aria-hidden />
+            <span className="proto-glass-action__label">New question</span>
+          </button>
+        ) : undefined
+      }
+      exiting={exiting}
+      origin={origin}
+      centered
+      onClose={onClose}
+    >
+      <div className="proto-planner">
+        <div className="proto-planner__main proto-church-review">
+          {!canView ? null : channels.isPending ? (
+            <ProtoSpaceLoading label="Loading review questions" />
+          ) : channels.isError ? (
+            <div className="proto-church-review__body">
+              <p className="proto-caption proto-church-join__lede">Couldn&rsquo;t load review questions.</p>
+              <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => void channels.refetch()}>
+                Try again
+              </button>
+            </div>
+          ) : !channel ? (
+            <div className="proto-church-review__body">
+              <p className="proto-caption proto-church-join__lede">
+                Review questions belong to a channel. Make a ministry channel first, and its followers
+                get its questions in their Review.
+              </p>
+            </div>
+          ) : (
+            <div className="proto-church-review__body">
+              <p className="proto-caption proto-church-join__lede">
+                Questions your people answer in their Review. Anyone who follows {channel.title} gets
+                them, free. You only ever see how many answered, never who.
+              </p>
       {!data ? (
         exercises.isError ? (
           <p className="proto-caption proto-church-join__count">Couldn&rsquo;t load this channel&rsquo;s questions.</p>
@@ -219,7 +245,8 @@ export default function PrototypeChurchReviewSection({
                     type="button"
                     className="proto-church-review__row-open"
                     disabled={exercise.status === 'archived'}
-                    onClick={() => setEditor({ open: true, exercise })}
+                    aria-current={selection?.mode === 'edit' && selection.exerciseId === exercise.id ? 'true' : undefined}
+                    onClick={() => setSelection({ mode: 'edit', exerciseId: exercise.id })}
                   >
                     <span className="proto-church-tools__row-text">
                       <span className="pds-list-title proto-church-tools__row-title">{exerciseTitle(exercise)}</span>
@@ -258,27 +285,25 @@ export default function PrototypeChurchReviewSection({
             </p>
           )}
 
-          <button
-            type="button"
-            className="proto-settings-btn proto-church-review__new"
-            disabled={lapsed}
-            title={lapsed ? 'Your church’s plan has ended' : undefined}
-            onClick={() => setEditor({ open: true, exercise: null })}
-          >
-            <Icon name="plus" size={12} /> New question
-          </button>
         </>
       )}
 
-      <PrototypeChurchReviewEditorSheet
-        open={editor.open}
-        onOpenChange={(open) => setEditor((prev) => ({ ...prev, open }))}
-        orgId={orgId}
-        channelId={channel.id}
-        channelTitle={channel.title}
-        exercise={editor.exercise}
-        canWrite={!lapsed}
-      />
-    </div>
+            </div>
+          )}
+        </div>
+
+        {selection && channel ? (
+          <PrototypeChurchReviewEditorPane
+            key={selection.mode === 'edit' ? selection.exerciseId : `new:${channel.id}`}
+            onClose={() => setSelection(null)}
+            orgId={orgId}
+            channelId={channel.id}
+            channelTitle={channel.title}
+            exercise={editing}
+            canWrite={!lapsed}
+          />
+        ) : null}
+      </div>
+    </ProtoSidebarExpandedPanel>
   );
 }
