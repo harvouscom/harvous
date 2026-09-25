@@ -16,7 +16,7 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { requireDbTarget, PRODUCTION_ACK_FLAG } from '../utils/require-db-target';
 
 /**
@@ -48,17 +48,23 @@ function drizzleKitBin(): string {
   return local;
 }
 
+/**
+ * Makes drizzle-kit exit non-zero when a statement fails. Without it a rejected statement is
+ * printed, every statement after it is skipped, and the run still exits 0 — see the file.
+ */
+export const FAIL_LOUD_PRELOAD = join(dirname(fileURLToPath(import.meta.url)), 'db-push-fail-loud.cjs');
+
+export function drizzlePushArgs(bin: string, forwarded: readonly string[]): string[] {
+  return ['-r', 'dotenv/config', '-r', FAIL_LOUD_PRELOAD, bin, 'push', '--config', 'drizzle.config.ts', ...forwarded];
+}
+
 export function runGuardedDbPush(argv: readonly string[] = process.argv.slice(2)): number {
   requireDbTarget({ scriptName: 'db:push', writes: true, argv });
 
   // Everything except our own acknowledgement flag, which drizzle-kit would reject.
   const forwarded = argv.filter((a) => a !== PRODUCTION_ACK_FLAG);
 
-  const result = spawnSync(
-    'node',
-    ['-r', 'dotenv/config', drizzleKitBin(), 'push', '--config', 'drizzle.config.ts', ...forwarded],
-    { stdio: 'inherit' },
-  );
+  const result = spawnSync('node', drizzlePushArgs(drizzleKitBin(), forwarded), { stdio: 'inherit' });
   return result.status ?? 1;
 }
 
