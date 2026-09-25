@@ -186,6 +186,12 @@ import {
   parseChurchMatchAnswer,
 } from '@/utils/church-exercise';
 import {
+  capChurchShare,
+  countChurchAnswer,
+  reviewScopeSql,
+  type ReviewScope,
+} from './church-review-delivery';
+import {
   churchQuestionIsAskable,
   loadChurchExerciseDefinitions,
   type ChurchExerciseDefinition,
@@ -1488,10 +1494,18 @@ export function stripHtml(html: string): string {
     .trim();
 }
 
+/**
+ * Every list here takes a `ReviewScope`: a reader with Plus sees everything they hold, and a
+ * reader Review is free to through their church sees church rows only. Both only ever see a
+ * church row they still hold — see `churchItemHeldSql`.
+ */
+const FULL_SCOPE: ReviewScope = { access: 'full' };
+
 export async function listDueReviewItems(
   userId: string,
   limit: number,
   now: Date = new Date(),
+  scope: ReviewScope = FULL_SCOPE,
 ): Promise<ReviewItemRow[]> {
   return (await db
     .select()
@@ -1501,6 +1515,7 @@ export async function listDueReviewItems(
         eq(ReviewItems.userId, userId),
         eq(ReviewItems.status, 'active'),
         lte(ReviewItems.dueAt, now),
+        reviewScopeSql(scope),
       ),
     )
     .orderBy(ReviewItems.dueAt)
@@ -1512,6 +1527,7 @@ export async function listUpcomingReviewItems(
   userId: string,
   limit: number,
   now: Date = new Date(),
+  scope: ReviewScope = FULL_SCOPE,
 ): Promise<ReviewItemRow[]> {
   return (await db
     .select()
@@ -1521,6 +1537,7 @@ export async function listUpcomingReviewItems(
         eq(ReviewItems.userId, userId),
         eq(ReviewItems.status, 'active'),
         gt(ReviewItems.dueAt, now),
+        reviewScopeSql(scope),
       ),
     )
     .orderBy(ReviewItems.dueAt)
@@ -1570,7 +1587,7 @@ export async function countReviewedSince(userId: string, since: Date): Promise<n
  */
 export async function composeTodaySittingFor(
   userId: string,
-  options: { since: Date | null; cap: number; slack: number; now: Date },
+  options: { since: Date | null; cap: number; slack: number; now: Date; scope?: ReviewScope },
 ): Promise<{
   rows: ReviewItemRow[];
   answered: number;
@@ -1580,16 +1597,18 @@ export async function composeTodaySittingFor(
   dueHitLimit: boolean;
 }> {
   const { since, cap, slack, now } = options;
+  const scope = options.scope ?? FULL_SCOPE;
   const dueLimit = cap + 1 + slack;
   // Three independent reads, side by side; the count used to go first, alone.
   const [answered, due, upcoming] = await Promise.all([
     since ? countReviewedSince(userId, since) : Promise.resolve(0),
-    listDueReviewItems(userId, dueLimit, now),
-    listUpcomingReviewItems(userId, cap, now),
+    listDueReviewItems(userId, dueLimit, now, scope),
+    listUpcomingReviewItems(userId, cap, now, scope),
   ]);
+  /* A church's questions never crowd a Plus reader's own study: at most a few per sitting. */
   const [askableDue, askableUpcoming] = await Promise.all([
-    filterAskableReviewRows(userId, due, { dropUnaskable: true }),
-    filterAskableReviewRows(userId, upcoming, { dropUnaskable: true }),
+    filterAskableReviewRows(userId, due, { dropUnaskable: true }).then((rows) => capChurchShare(rows, scope)),
+    filterAskableReviewRows(userId, upcoming, { dropUnaskable: true }).then((rows) => capChurchShare(rows, scope)),
   ]);
   const withKey = (row: ReviewItemRow) => ({ ...row, groupKey: sessionGroupKeyFor(row) });
   const common = { answered, askableDue, dueHitLimit: due.length >= dueLimit };
@@ -1618,10 +1637,11 @@ export async function composeTodaySittingFor(
 export async function listReviewItems(
   userId: string,
   status?: ReviewItemStatus,
+  scope: ReviewScope = FULL_SCOPE,
 ): Promise<ReviewItemRow[]> {
   const where = status
-    ? and(eq(ReviewItems.userId, userId), eq(ReviewItems.status, status))
-    : eq(ReviewItems.userId, userId);
+    ? and(eq(ReviewItems.userId, userId), eq(ReviewItems.status, status), reviewScopeSql(scope))
+    : and(eq(ReviewItems.userId, userId), reviewScopeSql(scope));
   return (await db
     .select()
     .from(ReviewItems)
@@ -1638,13 +1658,22 @@ export async function listReviewItems(
  * down. Only ever read when there is nothing due, so a normal sitting pays nothing for it, and
  * it runs straight down the index the inbox already uses.
  */
-export async function nextScheduledReviewAt(userId: string, now: Date = new Date()): Promise<Date | null> {
+export async function nextScheduledReviewAt(
+  userId: string,
+  now: Date = new Date(),
+  scope: ReviewScope = FULL_SCOPE,
+): Promise<Date | null> {
   const row = first(
     await db
       .select({ dueAt: ReviewItems.dueAt })
       .from(ReviewItems)
       .where(
-        and(eq(ReviewItems.userId, userId), eq(ReviewItems.status, 'active'), gt(ReviewItems.dueAt, now)),
+        and(
+          eq(ReviewItems.userId, userId),
+          eq(ReviewItems.status, 'active'),
+          gt(ReviewItems.dueAt, now),
+          reviewScopeSql(scope),
+        ),
       )
       .orderBy(ReviewItems.dueAt)
       .limit(1),
@@ -1652,12 +1681,21 @@ export async function nextScheduledReviewAt(userId: string, now: Date = new Date
   return row?.dueAt ? new Date(row.dueAt) : null;
 }
 
-export async function getReviewItem(userId: string, id: string): Promise<ReviewItemRow | null> {
+/**
+ * One item, if this reader may act on it in this scope. A church-only reader cannot reach their
+ * own (Plus) rows through here — otherwise a lapsed subscriber connected to a church would keep
+ * reviewing their own study for free — and nobody reaches a church row they no longer hold.
+ */
+export async function getReviewItem(
+  userId: string,
+  id: string,
+  scope: ReviewScope = FULL_SCOPE,
+): Promise<ReviewItemRow | null> {
   const row = first(
     await db
       .select()
       .from(ReviewItems)
-      .where(and(eq(ReviewItems.id, id), eq(ReviewItems.userId, userId)))
+      .where(and(eq(ReviewItems.id, id), eq(ReviewItems.userId, userId), reviewScopeSql(scope)))
       .limit(1),
   );
   return (row as ReviewItemRow | undefined) ?? null;
@@ -2062,6 +2100,11 @@ export async function applyReviewOutcome(
     attemptNumber: answered.attemptNumber ?? null,
     graded: answered.graded ?? null,
   }, now);
+
+  // "Answered by N" — once per person, on their first finalized answer. A count, never who.
+  if (item.churchExerciseId) {
+    void countChurchAnswer(item).catch((error) => console.warn('[church-review] answered count', error));
+  }
 
   if (outcome === 'recalled') {
     for (const id of [item.noteId, item.secondaryNoteId]) {
