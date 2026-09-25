@@ -12384,9 +12384,20 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   opacity: 0.72;
 }
 
-.proto-ministries__move {
+/* The select's trigger is full-width by default; on a row it sits at the end at its own size,
+   so the room's name keeps the space. */
+.proto-church-tools__row .proto-select-menu__trigger.proto-ministries__move {
   flex: 0 0 auto;
+  width: auto;
+  max-width: 45%;
+  min-height: 28px;
   margin-left: auto;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.proto-church-tools__row .proto-select-menu__trigger.proto-ministries__move + .proto-select-menu__trigger.proto-ministries__move {
+  margin-left: 6px;
 }
 
 /* Wider than the planner's 344px rail: a matching pair is two inputs on one line. */

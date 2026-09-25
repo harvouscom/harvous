@@ -16,6 +16,7 @@ import {
   useChurchMinistries,
   useChurchMinistryActions,
   type ChurchMinistry,
+  type ChurchMinistriesResponse,
   type MinistryAction,
   type MinistrySpace,
 } from '../../hooks/queries/useChurchMinistries';
@@ -46,9 +47,9 @@ type Audience = 'church' | 'ministry' | 'leaders';
 
 function audienceOptions(ministryName: string): ProtoSelectOption<Audience>[] {
   return [
-    { value: 'church', label: 'Whole church', triggerLabel: 'Whole church' },
-    { value: 'ministry', label: `People in ${ministryName} groups`, triggerLabel: `${ministryName} groups` },
-    { value: 'leaders', label: `${ministryName} group leaders`, triggerLabel: 'Leaders' },
+    { value: 'church', label: 'Anyone in the church can follow', triggerLabel: 'Open to all' },
+    { value: 'ministry', label: `Only people in ${ministryName} groups`, triggerLabel: 'Groups only' },
+    { value: 'leaders', label: `Only ${ministryName} group leaders`, triggerLabel: 'Leaders only' },
   ];
 }
 
@@ -170,6 +171,7 @@ export default function PrototypeExpandedMinistries({ exiting, origin, onClose }
         <ProtoSelectMenu<Audience>
           label={`Who can follow ${space.title}`}
           options={audienceOptions(ministryName)}
+          menuWidth={260}
           value={(space.audience as Audience) ?? 'church'}
           disabled={actions.isPending}
           className="proto-ministries__move"
@@ -354,13 +356,14 @@ export default function PrototypeExpandedMinistries({ exiting, origin, onClose }
             allMinistries={live}
             busy={actions.isPending}
             onClose={() => setSelection(null)}
+            onCreated={(ministryId) => setSelection({ mode: 'edit', ministryId })}
             onAction={(action, done, after) =>
               actions.mutate(action, {
                 onSuccess: (response) => {
                   if (response?.sync && !response.sync.ok) {
                     window.toast?.error('Saved. Leaders will update on the next sync.');
                   } else if (done) window.toast?.success(done);
-                  after?.();
+                  after?.(response);
                 },
                 onError: (error) => window.toast?.error(error instanceof Error ? error.message : 'Could not do that'),
               })
@@ -379,13 +382,16 @@ function MinistryEditorPane({
   busy,
   onClose,
   onAction,
+  onCreated,
 }: {
   ministry: ChurchMinistry | null;
   staff: ChurchStaffMember[];
   allMinistries: ChurchMinistry[];
   busy: boolean;
   onClose: () => void;
-  onAction: (action: MinistryAction, done?: string, after?: () => void) => void;
+  onAction: (action: MinistryAction, done?: string, after?: (response?: ChurchMinistriesResponse) => void) => void;
+  /** A new ministry opens in its editor, where its teachers are picked. */
+  onCreated: (ministryId: string) => void;
 }) {
   const [name, setName] = useState(ministry?.name ?? '');
   const [description, setDescription] = useState(ministry?.description ?? '');
@@ -400,7 +406,11 @@ function MinistryEditorPane({
   function save() {
     if (!trimmed) return;
     if (creating) {
-      onAction({ type: 'create', name: trimmed, description: description.trim() || null }, `${trimmed} created`, onClose);
+      onAction({ type: 'create', name: trimmed, description: description.trim() || null }, `${trimmed} created`, (response) => {
+        const created = response?.ministries.find((m) => !m.archivedAt && m.name === trimmed);
+        if (created) onCreated(created.id);
+        else onClose();
+      });
     } else {
       onAction({ type: 'update', ministryId: ministry.id, name: trimmed, description: description.trim() || null }, 'Saved');
     }
@@ -506,10 +516,12 @@ function MinistryEditorPane({
                   {wide.length === 1 ? 'an admin, pastor or coordinator' : 'admins, pastors or coordinators'}.
                 </p>
               ) : null}
-              <p className="proto-caption proto-church-review-editor__hint">
-                A teacher you tick here leads only the rooms in their ministries. Untick everything and
-                they lead the whole church again.
-              </p>
+              {scopable.length ? (
+                <p className="proto-caption proto-church-review-editor__hint">
+                  A teacher you tick here leads only the rooms in their ministries. Untick everything and
+                  they lead the whole church again.
+                </p>
+              ) : null}
             </>
           ) : null}
         </div>

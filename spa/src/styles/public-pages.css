@@ -2296,7 +2296,7 @@ button.public-join-church__channel:hover:not(:disabled) {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin: 0 0 4px;
+  margin: 6px 0 4px;
 }
 
 .public-join-church__group-name {
