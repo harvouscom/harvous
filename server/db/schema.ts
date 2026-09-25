@@ -131,6 +131,26 @@ export const Spaces = pgTable(
      * server/routes/spaces.ts).
      */
     orgId: text('orgId'),
+    /**
+     * The ministry (`ChurchMinistries.id`) this channel or church group belongs to; null is
+     * church-wide. Written only by the ministries routes and the church space-create paths.
+     *
+     * **Deliberately not in the navigation serializers** (bootstrap, both `/prefetch` branches,
+     * `getSpacesWithCounts`' `mapped` list): the app reads ministries from church endpoints only,
+     * so the "a new Spaces column silently reads its default" trap cannot happen here. Add it to
+     * all four the day anything outside the church surfaces needs it.
+     *
+     * Not a second single pointer of the kind the removed `channelSpaceId` was — that pointed a
+     * service at a room; this records which ministry a room is part of.
+     */
+    ministryId: text('ministryId'),
+    /**
+     * Who may see a ministry channel: 'church' (everyone connected — the default), 'ministry'
+     * (members of that ministry's groups, its leaders, staff) or 'leaders' (leaders of its
+     * spaces, staff). The last two require `ministryId`. Enforced by removing follow rows, not by
+     * patching readers — see `reconcileChannelAudience`. Meaningless on non-channel spaces.
+     */
+    audience: text('audience').notNull().default('church'),
     /** @deprecated v1 sharing — frozen with shareToken/shareTokenCreatedAt; new code keys off `type`. */
     isPublic: boolean('isPublic').notNull().default(false),
     isFeatured: boolean('isFeatured').notNull().default(false),
@@ -152,6 +172,7 @@ export const Spaces = pgTable(
     index('Spaces_userId_updatedAtIndex').on(table.userId, table.updatedAt),
     index('Spaces_userId_typeIndex').on(table.userId, table.type),
     index('Spaces_deletedAt_recoveryUntilIndex').on(table.deletedAt, table.recoveryUntil),
+    index('Spaces_ministryIdIndex').on(table.ministryId),
   ],
 );
 
@@ -832,6 +853,57 @@ export const ChurchMemberships = pgTable('ChurchMemberships', {
   uniqueIndex('ChurchMemberships_church_user_unique').on(table.churchId, table.userId),
   index('ChurchMemberships_userIdIndex').on(table.userId),
   index('ChurchMemberships_churchIdIndex').on(table.churchId),
+]);
+
+// ─── ChurchMinistries (Kids, Youth, Adults… — the units a church teaches through) ─
+
+/**
+ * A ministry: a named part of a church that owns its channels and groups
+ * (`Spaces.ministryId`) and, optionally, the staff scoped to it (`ChurchMinistryStaff`). See
+ * docs/CHURCH_V2_ROADMAP.md §C.
+ *
+ * Optional structure: a church with no ministries works exactly as before, and every space
+ * without one is church-wide. Archived, never deleted — a ministry with spaces in it cannot be
+ * archived without releasing them, and a staffer scoped only to archived ministries leads
+ * nothing rather than everything.
+ *
+ * Row ids: `min_${crypto.randomUUID()}`.
+ */
+export const ChurchMinistries = pgTable('ChurchMinistries', {
+  id: text('id').primaryKey(),
+  orgId: text('orgId').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  sortOrder: integer('sortOrder').notNull().default(0),
+  createdByUserId: text('createdByUserId').notNull(),
+  archivedAt: ts('archivedAt'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('ChurchMinistries_orgIdIndex').on(table.orgId),
+  uniqueIndex('ChurchMinistries_org_name_live_unique')
+    .on(table.orgId, sql`lower(${table.name})`)
+    .where(sql`${table.archivedAt} IS NULL`),
+]);
+
+/**
+ * Which ministries a staffer leads. No rows = church-wide (today's behaviour). Only roles that
+ * can be scoped use it — admin, pastor and coordinator are always church-wide, and changing
+ * someone to one of those clears their rows. Read by the staff sync (`StaffScope`); volunteers
+ * never go here — a staffer removed from Clerk would otherwise keep leading.
+ *
+ * Row ids: `mstf_${crypto.randomUUID()}`.
+ */
+export const ChurchMinistryStaff = pgTable('ChurchMinistryStaff', {
+  id: text('id').primaryKey(),
+  orgId: text('orgId').notNull(),
+  ministryId: text('ministryId').notNull(),
+  userId: text('userId').notNull(),
+  createdByUserId: text('createdByUserId').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('ChurchMinistryStaff_ministry_user_unique').on(table.ministryId, table.userId),
+  index('ChurchMinistryStaff_org_userIndex').on(table.orgId, table.userId),
 ]);
 
 // ─── ChurchJoinLinks (the link and QR a church hands its congregation) ──────────

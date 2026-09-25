@@ -170,6 +170,19 @@ export async function setChannelLink(params: {
     return { ok: false, status: 404, error: 'Channel not found', code: 'CHANNEL_NOT_FOUND' };
   }
 
+  /* A group and the channel it speaks through live in one ministry. Two different ones would
+     leave the pair's leaders, and a restricted channel's audience, split across two ministries.
+     Church-wide on either side is fine: assigning it later moves them together. Checked only
+     here, never at read time — re-verification must not silently un-pair rooms. */
+  if (space.ministryId && channel.ministryId && space.ministryId !== channel.ministryId) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'That channel belongs to a different ministry',
+      code: 'LINK_CROSSES_MINISTRIES',
+    };
+  }
+
   /* One space per channel, the mirror of the unique index on the other side.
      Enforced here rather than by a second index because the honest answer to
      "this channel already speaks for Youth" is an explanation, not a conflict. */

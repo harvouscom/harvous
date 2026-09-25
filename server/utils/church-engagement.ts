@@ -66,6 +66,8 @@ export type ChannelEngagement = {
   title: string;
   /** People following this channel. Never who they are. */
   followerCount: number;
+  /** Its ministry, so the hub can group follows by ministry. A sum of follows, never of people. */
+  ministryId: string | null;
 };
 
 export type ChurchEngagement = {
@@ -105,7 +107,7 @@ async function countConnectedCongregants(churchId: string): Promise<number> {
  */
 async function countFollowersByChannel(orgId: string): Promise<ChannelEngagement[]> {
   const spaces = await db
-    .select({ id: Spaces.id, title: Spaces.title, type: Spaces.type, orgId: Spaces.orgId })
+    .select({ id: Spaces.id, title: Spaces.title, type: Spaces.type, orgId: Spaces.orgId, ministryId: Spaces.ministryId })
     .from(Spaces)
     .where(and(eq(Spaces.orgId, orgId), eq(Spaces.isActive, true), isNull(Spaces.deletedAt)));
 
@@ -134,6 +136,7 @@ async function countFollowersByChannel(orgId: string): Promise<ChannelEngagement
     spaceId: channel.id,
     title: channel.title,
     followerCount: bySpace.get(channel.id) ?? 0,
+    ministryId: channel.ministryId ?? null,
   }));
 }
 

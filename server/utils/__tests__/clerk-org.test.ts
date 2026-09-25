@@ -361,3 +361,83 @@ describe('roster writes evict the memo', () => {
     expect(module).toContain('if (!options?.staff) invalidateClerkOrgMemberships(orgId);');
   });
 });
+
+describe('computeStaffSyncPlan with ministries', () => {
+  const staff = [
+    { userId: 'owner', role: 'org:admin' },
+    { userId: 'pastor', role: 'org:pastor' },
+    { userId: 'youthTeacher', role: 'org:teacher' },
+    { userId: 'kidsTeacher', role: 'org:teacher' },
+    { userId: 'unscoped', role: 'org:member' },
+  ];
+  const scope = {
+    ministryIdsByUser: new Map<string, Set<string>>([
+      ['youthTeacher', new Set(['min_youth'])],
+      ['kidsTeacher', new Set(['min_kids'])],
+    ]),
+  };
+  const plan = (spaceMinistryId: string | null, existing: { userId: string; role: string; grantSource?: string | null }[] = []) =>
+    computeStaffSyncPlan({ spaceOwnerUserId: 'owner', staff, existing, spaceMinistryId, scope });
+
+  it('with no scope, is exactly today’s plan', () => {
+    const before = computeStaffSyncPlan({ spaceOwnerUserId: 'owner', staff, existing: [] });
+    expect(before.toInsertLeaders.sort()).toEqual(['kidsTeacher', 'pastor', 'unscoped', 'youthTeacher']);
+    expect(before.descoped).toEqual([]);
+  });
+
+  it('puts a scoped teacher only in their own ministry’s spaces', () => {
+    expect(plan('min_youth').toInsertLeaders.sort()).toEqual(['pastor', 'unscoped', 'youthTeacher']);
+    expect(plan('min_kids').toInsertLeaders.sort()).toEqual(['kidsTeacher', 'pastor', 'unscoped']);
+  });
+
+  it('keeps scoped teachers out of a space that belongs to no ministry', () => {
+    expect(plan(null).toInsertLeaders.sort()).toEqual(['pastor', 'unscoped']);
+  });
+
+  it('removes a leader row scoped away, and says it was a descoping', () => {
+    const p = plan('min_kids', [{ userId: 'youthTeacher', role: 'leader' }]);
+    expect(p.toRemove).toEqual(['youthTeacher']);
+    expect(p.descoped).toEqual(['youthTeacher']);
+  });
+
+  it('ignores scope rows for church-wide roles', () => {
+    const scoped = {
+      ministryIdsByUser: new Map<string, Set<string>>([['pastor', new Set(['min_kids'])]]),
+    };
+    const p = computeStaffSyncPlan({ spaceOwnerUserId: 'owner', staff, existing: [], spaceMinistryId: 'min_youth', scope: scoped });
+    expect(p.toInsertLeaders).toContain('pastor');
+  });
+
+  it('fails closed when every ministry of theirs is archived', () => {
+    const empty = { ministryIdsByUser: new Map<string, Set<string>>([['youthTeacher', new Set<string>()]]) };
+    const p = computeStaffSyncPlan({ spaceOwnerUserId: 'owner', staff, existing: [], spaceMinistryId: 'min_youth', scope: empty });
+    expect(p.toInsertLeaders).not.toContain('youthTeacher');
+  });
+
+  it('never touches the owner, a follower, or a granted leader, whatever the scope says', () => {
+    const p = plan('min_kids', [
+      { userId: 'owner', role: 'owner' },
+      { userId: 'youthTeacher', role: 'member' },
+      { userId: 'volunteer', role: 'leader', grantSource: 'grant' },
+    ]);
+    expect(p.toRemove).toEqual([]);
+    // A scoped-out staffer who follows the channel stays a follower — never promoted here.
+    expect(p.toPromoteToLeader).toEqual([]);
+    expect(p.healOwnerRow).toBe(false);
+  });
+
+  it('warns about an owner scoped elsewhere, and keeps them the owner', () => {
+    const ownerScoped = {
+      ministryIdsByUser: new Map<string, Set<string>>([['teacherOwner', new Set(['min_kids'])]]),
+    };
+    const p = computeStaffSyncPlan({
+      spaceOwnerUserId: 'teacherOwner',
+      staff: [{ userId: 'teacherOwner', role: 'org:teacher' }],
+      existing: [{ userId: 'teacherOwner', role: 'owner' }],
+      spaceMinistryId: 'min_youth',
+      scope: ownerScoped,
+    });
+    expect(p.toRemove).toEqual([]);
+    expect(p.warnings.join(' ')).toMatch(/keeps ownership/);
+  });
+});

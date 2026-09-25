@@ -19,6 +19,8 @@
  */
 
 export type ClerkOrgSummary = { id: string; name: string; slug: string | null; memberCount?: number };
+import { isMinistryScopableRole } from './church-role-capabilities';
+
 export type ClerkOrgMember = { userId: string; role: string };
 
 /**
@@ -423,8 +425,10 @@ export type StaffSyncPlan = {
   toInsertLeaders: string[];
   /** Staff whose existing row is role 'member' → promote to 'leader'. */
   toPromoteToLeader: string[];
-  /** Existing 'leader' rows for people no longer in the Clerk org → delete. */
+  /** Existing 'leader' rows for people no longer in the Clerk org, or no longer in scope → delete. */
   toRemove: string[];
+  /** The part of `toRemove` still on the roster: scoped away from this space's ministry. */
+  descoped: string[];
   /** The Spaces.userId owner has no membership row → insert role 'owner'. */
   healOwnerRow: boolean;
   warnings: string[];
@@ -436,12 +440,45 @@ export type StaffSyncPlan = {
  * are never touched — they are (future) congregant followers, not staff; and
  * **granted leaders are never reaped** (see `grantSource` below).
  */
+/**
+ * Which ministries each scoped staffer leads (docs/CHURCH_V2_ROADMAP.md §C). Someone with no
+ * entry is church-wide — today's behaviour. An entry with an empty set leads nothing: their
+ * ministries were archived, and failing closed beats silently widening them to everything.
+ */
+export type StaffScope = { ministryIdsByUser: ReadonlyMap<string, ReadonlySet<string>> };
+
+/**
+ * Pure: does this staffer lead a space in this ministry? Church-wide roles and unscoped staff
+ * lead every space; a scoped staffer leads only spaces in their ministries, and never a space
+ * that belongs to none.
+ */
+export function staffLeadsSpace(
+  member: ClerkOrgMember,
+  spaceMinistryId: string | null | undefined,
+  scope?: StaffScope,
+): boolean {
+  if (!scope || !isMinistryScopableRole(member.role)) return true;
+  const set = scope.ministryIdsByUser.get(member.userId);
+  if (!set) return true;
+  return Boolean(spaceMinistryId && set.has(spaceMinistryId));
+}
+
 export function computeStaffSyncPlan(input: {
   spaceOwnerUserId: string;
   staff: ClerkOrgMember[];
   existing: { userId: string; role: string; grantSource?: string | null }[];
+  /** This space's ministry, when ministries exist. */
+  spaceMinistryId?: string | null;
+  /** Absent: every staffer leads every space, exactly as before ministries existed. */
+  scope?: StaffScope;
 }): StaffSyncPlan {
-  const staffIds = new Set(input.staff.map((m) => m.userId));
+  const rosterIds = new Set(input.staff.map((m) => m.userId));
+  // Only those who lead *this* space get or keep a leader row here.
+  const staffIds = new Set(
+    input.staff
+      .filter((member) => staffLeadsSpace(member, input.spaceMinistryId, input.scope))
+      .map((m) => m.userId),
+  );
   const existingByUser = new Map(input.existing.map((row) => [row.userId, row.role]));
   const warnings: string[] = [];
 
@@ -468,11 +505,15 @@ export function computeStaffSyncPlan(input: {
     if (row.grantSource === 'grant') continue;
     if (!staffIds.has(row.userId)) toRemove.push(row.userId);
   }
+  const descoped = toRemove.filter((userId) => rosterIds.has(userId));
 
   const healOwnerRow = !existingByUser.has(input.spaceOwnerUserId);
-  if (!staffIds.has(input.spaceOwnerUserId)) {
+  if (!rosterIds.has(input.spaceOwnerUserId)) {
     warnings.push(`Space owner ${input.spaceOwnerUserId} is not a member of the Clerk org`);
+  } else if (!staffIds.has(input.spaceOwnerUserId)) {
+    // The owner row is never touched; say so rather than leave a scoped owner unexplained.
+    warnings.push(`Space owner ${input.spaceOwnerUserId} is scoped to other ministries but keeps ownership`);
   }
 
-  return { toInsertLeaders, toPromoteToLeader, toRemove, healOwnerRow, warnings };
+  return { toInsertLeaders, toPromoteToLeader, toRemove, descoped, healOwnerRow, warnings };
 }

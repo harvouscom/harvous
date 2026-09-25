@@ -98,7 +98,7 @@ describe('getChurchEngagement', () => {
 
     const result = await getChurchEngagement(CHURCH);
     expect(result.channels).toEqual([
-      { spaceId: 'space_youth', title: 'Youth', followerCount: 12 },
+      { spaceId: 'space_youth', title: 'Youth', followerCount: 12, ministryId: null },
     ]);
   });
 
@@ -111,8 +111,8 @@ describe('getChurchEngagement', () => {
 
     const result = await getChurchEngagement(CHURCH);
     expect(result.channels).toEqual([
-      { spaceId: 'space_youth', title: 'Youth', followerCount: 3 },
-      { spaceId: 'space_new', title: 'Young adults', followerCount: 0 },
+      { spaceId: 'space_youth', title: 'Youth', followerCount: 3, ministryId: null },
+      { spaceId: 'space_new', title: 'Young adults', followerCount: 0, ministryId: null },
     ]);
   });
 

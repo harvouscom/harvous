@@ -15,7 +15,9 @@ import { pathToFileURL } from 'node:url';
 config({ path: resolve(import.meta.dirname || __dirname, '..', '..', '.env') });
 
 export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
-  Spaces: ['deletedAt', 'recoveryUntil'],
+  Spaces: ['deletedAt', 'recoveryUntil', 'ministryId', 'audience'],
+  ChurchMinistries: ['id', 'orgId', 'name', 'description', 'sortOrder', 'createdByUserId', 'archivedAt', 'createdAt', 'updatedAt'],
+  ChurchMinistryStaff: ['id', 'orgId', 'ministryId', 'userId', 'createdByUserId', 'createdAt'],
   // Without these the shared-thread import has nothing to be idempotent on,
   // and a repeat click silently forks a second copy of the whole thread.
   Threads: ['copiedFromThreadId', 'copiedFromAuthorId'],
@@ -315,6 +317,8 @@ async function main() {
     'SpaceInvites',
     'Churches',
     'ChurchJoinLinks',
+    'ChurchMinistries',
+    'ChurchMinistryStaff',
     'ChurchReviewExercises',
     'ReviewItems',
     'ChurchServices',

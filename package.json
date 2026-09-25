@@ -113,6 +113,8 @@
     "church-join:schema:apply": "tsx server/scripts/add-church-join-links-schema.ts --apply",
     "church-review:schema": "tsx server/scripts/add-church-review-schema.ts",
     "church-review:schema:apply": "tsx server/scripts/add-church-review-schema.ts --apply",
+    "church-ministries:schema": "tsx server/scripts/add-church-ministries-schema.ts",
+    "church-ministries:schema:apply": "tsx server/scripts/add-church-ministries-schema.ts --apply",
     "space-suggestions:schema:apply": "tsx server/scripts/add-space-study-suggestions-schema.ts --apply",
     "thread-copy:schema": "tsx server/scripts/add-thread-copy-attribution-schema.ts",
     "thread-copy:schema:apply": "tsx server/scripts/add-thread-copy-attribution-schema.ts --apply",

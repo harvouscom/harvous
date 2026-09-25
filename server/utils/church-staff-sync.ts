@@ -31,6 +31,7 @@ import {
   isWithinClerkOrgStaffCap,
   type ClerkOrgMember,
 } from './clerk-org';
+import { effectiveSpaceMinistry, loadStaffScope } from './church-ministries';
 
 export type StaffSyncSpaceResult = {
   spaceId: string;
@@ -66,7 +67,11 @@ export type StaffSyncResult =
  */
 export async function syncChurchStaffForOrg(
   orgId: string,
-  options?: { staff?: ClerkOrgMember[] },
+  /**
+   * `spaceIds`: reconcile only these spaces — a new space, or the ones a ministry change just
+   * moved. The roster and the scope are still read whole; only the loop narrows.
+   */
+  options?: { staff?: ClerkOrgMember[]; spaceIds?: readonly string[] },
 ): Promise<StaffSyncResult> {
   if (!options?.staff) invalidateClerkOrgMemberships(orgId);
   const staff = options?.staff ?? (await fetchClerkOrgMemberships(orgId));
@@ -80,11 +85,21 @@ export async function syncChurchStaffForOrg(
     };
   }
 
+  /*
+   * Who leads which ministry, read once and before any transaction: a failure here must stop the
+   * sync before it writes, exactly like a Clerk outage — never read as "nobody is scoped", which
+   * would widen every scoped teacher to the whole church. Only a database without the ministry
+   * tables yet reads as no scope (today's behaviour).
+   */
+  const { scope, liveMinistryIds } = await loadStaffScope(orgId);
+
   // Include inactive spaces (membership stays truthful); exclude deleted.
-  const orgSpaces = await db
+  const allOrgSpaces = await db
     .select()
     .from(Spaces)
     .where(and(eq(Spaces.orgId, orgId), isNull(Spaces.deletedAt)));
+  const onlyIds = options?.spaceIds ? new Set(options.spaceIds) : null;
+  const orgSpaces = onlyIds ? allOrgSpaces.filter((space) => onlyIds.has(space.id)) : allOrgSpaces;
 
   if (orgSpaces.length === 0) {
     return { ok: true, staffCount: staff.length, spaces: [], warnings: ['This church has no org spaces yet'] };
@@ -105,7 +120,13 @@ export async function syncChurchStaffForOrg(
       .from(SpaceMemberships)
       .where(eq(SpaceMemberships.spaceId, space.id));
 
-    const plan = computeStaffSyncPlan({ spaceOwnerUserId: space.userId, staff, existing });
+    const plan = computeStaffSyncPlan({
+      spaceOwnerUserId: space.userId,
+      staff,
+      existing,
+      spaceMinistryId: effectiveSpaceMinistry(space.ministryId, liveMinistryIds),
+      scope,
+    });
     warnings.push(...plan.warnings);
 
     await db.transaction(async (tx) => {
