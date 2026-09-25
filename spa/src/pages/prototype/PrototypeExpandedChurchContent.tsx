@@ -28,6 +28,7 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import ProtoSidebarExpandedPanel from './ProtoSidebarExpandedPanel';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
+import PrototypeStaffToolGate from './PrototypeStaffToolGate';
 import type { ExpandedSidebarToolProps } from './PrototypeExpandedSidebarHost';
 
 function relativeDay(iso: string | null): string {
@@ -56,7 +57,8 @@ function submissionMeta(item: ChurchContentSubmission): string {
 export default function PrototypeExpandedChurchContent({ exiting, origin, onClose }: ExpandedSidebarToolProps) {
   const { activeChurchOrgId } = useProtoShell();
   const orgId = activeChurchOrgId ?? null;
-  const { can } = useChurchStaffStatus(orgId);
+  const staffStatus = useChurchStaffStatus(orgId);
+  const { can } = staffStatus;
   const isStaff = can('publish');
   const query = useChurchContent(orgId, { enabled: isStaff });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -117,7 +119,14 @@ export default function PrototypeExpandedChurchContent({ exiting, origin, onClos
     >
       <div className="proto-planner">
         <div className="proto-planner__main">
-          {!isStaff ? null : query.isPending ? (
+          {!isStaff ? (
+            <PrototypeStaffToolGate
+              loading={staffStatus.isLoading}
+              error={staffStatus.isError}
+              onRetry={() => void staffStatus.refetch()}
+              toolName="Content"
+            />
+          ) : query.isPending ? (
             <ProtoSpaceLoading label="Loading content" />
           ) : query.isError || !data ? (
             <div className="proto-church-review__body proto-church-review__body--empty">

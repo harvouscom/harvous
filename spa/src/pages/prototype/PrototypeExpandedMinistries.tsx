@@ -27,6 +27,7 @@ import ProtoSidebarExpandedPanel from './ProtoSidebarExpandedPanel';
 import ProtoSelectMenu, { type ProtoSelectOption } from './ProtoSelectMenu';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
+import PrototypeStaffToolGate from './PrototypeStaffToolGate';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import type { ExpandedSidebarToolProps } from './PrototypeExpandedSidebarHost';
 
@@ -56,7 +57,8 @@ function audienceOptions(ministryName: string): ProtoSelectOption<Audience>[] {
 export default function PrototypeExpandedMinistries({ exiting, origin, onClose }: ExpandedSidebarToolProps) {
   const { activeChurchOrgId } = useProtoShell();
   const orgId = activeChurchOrgId ?? null;
-  const { can } = useChurchStaffStatus(orgId);
+  const staffStatus = useChurchStaffStatus(orgId);
+  const { can } = staffStatus;
   const isStaff = can('publish');
   const query = useChurchMinistries(orgId, { enabled: isStaff });
   const staffQuery = useChurchStaff(orgId, { enabled: isStaff });
@@ -218,7 +220,14 @@ export default function PrototypeExpandedMinistries({ exiting, origin, onClose }
     >
       <div className="proto-planner">
         <div className="proto-planner__main">
-          {!isStaff ? null : query.isPending ? (
+          {!isStaff ? (
+            <PrototypeStaffToolGate
+              loading={staffStatus.isLoading}
+              error={staffStatus.isError}
+              onRetry={() => void staffStatus.refetch()}
+              toolName="Ministries"
+            />
+          ) : query.isPending ? (
             <ProtoSpaceLoading label="Loading ministries" />
           ) : query.isError || !data ? (
             <div className="proto-church-review__body proto-church-review__body--empty">

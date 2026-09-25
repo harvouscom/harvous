@@ -69,5 +69,8 @@ export function useChurchStaffStatus(orgId: string | null | undefined) {
     can: (capability: ChurchCapability) =>
       Array.isArray(query.data?.capabilities) && query.data.capabilities.includes(capability),
     isLoading: Boolean(trimmedOrgId) && (query.isLoading || !clerkOrgsLoaded),
+    /** The role check itself failed — distinct from "not staff", so a tool can offer a retry. */
+    isError: query.isError,
+    refetch: query.refetch,
   };
 }
