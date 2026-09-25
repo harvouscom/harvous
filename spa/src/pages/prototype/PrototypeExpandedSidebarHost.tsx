@@ -15,6 +15,7 @@ import PrototypeExpandedDiscover from './PrototypeExpandedDiscover';
    on every route's first paint, sign-in included. */
 const PrototypeExpandedChurchReview = lazy(() => import('./PrototypeExpandedChurchReview'));
 const PrototypeExpandedMinistries = lazy(() => import('./PrototypeExpandedMinistries'));
+const PrototypeExpandedChurchContent = lazy(() => import('./PrototypeExpandedChurchContent'));
 
 export type ExpandedSidebarToolProps = {
   exiting: boolean;
@@ -50,6 +51,12 @@ export default function PrototypeExpandedSidebarHost({
       return (
         <Suspense fallback={null}>
           <PrototypeExpandedMinistries exiting={exiting} origin={origin} onClose={onClose} />
+        </Suspense>
+      );
+    case 'church-content':
+      return (
+        <Suspense fallback={null}>
+          <PrototypeExpandedChurchContent exiting={exiting} origin={origin} onClose={onClose} />
         </Suspense>
       );
     default:

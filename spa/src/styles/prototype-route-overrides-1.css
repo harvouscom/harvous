@@ -33,6 +33,16 @@ html.harvous-prototype-route [class*='proto-'].proto-ink-on-accent * {
 }
 
 /*
+ * The note menu's schedule clock beside each church channel — quiet until wanted, like the
+ * row's own trailing marks. The blanket rule would draw three full-strength clocks down a menu
+ * of spaces, louder than the ticks that answer "where is this note".
+ */
+html.harvous-prototype-route button.proto-note-destination__schedule:not([aria-expanded='true']):not(:hover),
+html.harvous-prototype-route button.proto-note-destination__schedule:not([aria-expanded='true']):not(:hover) * {
+  color: var(--pds-text-muted) !important;
+}
+
+/*
  * Harvous 3 welcome — white label on the accent button.
  *
  * The blanket rule above matches `button[class*='proto-']` and forces `--pds-text-primary`
