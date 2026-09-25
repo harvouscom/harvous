@@ -437,6 +437,32 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   color: var(--pds-destructive);
 }
 
+/* Match the pairs: each left item, then the place its partner goes. The place is the ordering
+   card's own slot, so a filled, right or wrong partner reads exactly as a placed piece does. */
+.rx-match {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  font-family: var(--pds-font-reading);
+  font-variation-settings: var(--pds-font-reading-variation);
+  font-size: 17px;
+}
+
+.rx-match__row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.rx-match__left {
+  min-width: 0;
+  line-height: 1.35;
+  color: var(--pds-text-primary);
+}
+
 /* What is left to place: loose pieces, centred under the places they go into. */
 .rx-tray {
   display: flex;

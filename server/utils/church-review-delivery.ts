@@ -238,7 +238,8 @@ async function runDelivery(userId: string, now: Date): Promise<number> {
   const [counts, own] = await Promise.all([
     db
       .select({
-        addedToday: sql<number>`count(*) filter (where ${ReviewItems.createdAt} >= ${windowStart})::int`,
+        // An ISO string, cast: postgres.js cannot bind a Date inside a raw `sql` fragment.
+        addedToday: sql<number>`count(*) filter (where ${ReviewItems.createdAt} >= ${windowStart.toISOString()}::timestamptz)::int`,
         outstanding: sql<number>`count(*) filter (where ${ReviewItems.status} = 'active')::int`,
       })
       .from(ReviewItems)

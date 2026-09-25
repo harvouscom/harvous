@@ -10,6 +10,7 @@ import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
 import {
   reviewSampleDayKey,
+  useReviewAccessLevel,
   useReviewInbox,
   useReviewItems,
   useReviewItemsSummary,
@@ -31,6 +32,7 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import {
   PLUS_BADGE_COPY,
   REVIEW_PLUS_META,
+  REVIEW_OWN_STUDY_PLUS_TITLE,
   REVIEW_PLUS_TITLE,
   REVIEW_SEE_ALL_COPY,
   REVIEW_RESUME_COPY,
@@ -100,6 +102,8 @@ export default function PrototypeReviewSection() {
   const { openReviewDock } = useProtoShell();
   const { isGuest } = useHarvousIdentity();
   const review = useHasFeature('review');
+  /* Plus, a church's questions only, or neither — see useReviewAccessLevel. */
+  const accessLevel = useReviewAccessLevel();
   const challengesFeature = useHasFeature('challenges');
   const { dismissed: plusPromptDismissed, dismiss: dismissPlusPrompt } = useDismissiblePlusPrompt();
   const { dismissed: sampleDismissed, dismiss: dismissSample } = useDismissibleReviewSample();
@@ -121,7 +125,7 @@ export default function PrototypeReviewSection() {
     enabled: expanded || nothingActive,
   });
   const challengesQuery = useHomeChallenges();
-  const hasAnyFeature = review.has || challengesFeature.has;
+  const hasAnyFeature = accessLevel === 'full' || challengesFeature.has;
   /*
    * Which verse, in which translation, asked which way — the three things the sample card can
    * change. All three are query inputs rather than card state, because the question is built on
@@ -141,9 +145,11 @@ export default function PrototypeReviewSection() {
 
   if (isGuest) return null;
 
-  const hasAny = review.has || challengesFeature.has;
+  const hasAny = accessLevel !== 'none' || challengesFeature.has;
 
-  if (!hasAny) {
+  /* What someone without their own Review sees: the daily sample and the Plus offer. Also what a
+     church reader sees before their church has given them anything. */
+  const renderOffer = () => {
     if (!review.ready) return null;
     const sample = sampleQuery.data?.sample ?? null;
     if (plusPromptDismissed && !sample) return null;
@@ -191,7 +197,9 @@ export default function PrototypeReviewSection() {
         )}
       </PrototypeHomeSection>
     );
-  }
+  };
+
+  if (!hasAny) return renderOffer();
 
   const inboxItems = inboxQuery.data?.items ?? [];
   const everyItem = allQuery.data?.items ?? null;
@@ -255,6 +263,11 @@ export default function PrototypeReviewSection() {
         />
       </PrototypeHomeSection>
     );
+  }
+
+  // A church reader whose church has not given them anything yet: the ordinary offer.
+  if (accessLevel === 'church' && !hasRows && !doneForToday && !challengeRow) {
+    return inboxQuery.isSettled ? renderOffer() : null;
   }
 
   if (!hasRows && !doneForToday) return null;
@@ -377,6 +390,36 @@ export default function PrototypeReviewSection() {
             />
           ))}
         </>
+      ) : null}
+
+      {/*
+        * A church reader's Review is their church's questions. Their own study coming back on a
+        * schedule is Plus — offered once, quietly, at the foot, and dismissible like the offer a
+        * reader without Review sees.
+        */}
+      {accessLevel === 'church' && !plusPromptDismissed ? (
+        <PrototypeHomeRow
+          icon="arrows-rotate"
+          title={REVIEW_OWN_STUDY_PLUS_TITLE}
+          meta={[REVIEW_PLUS_META]}
+          onClick={() => void navigate({ to: '/upgrade' })}
+          trailing={
+            <span className="proto-review-section__plus">
+              <span className="proto-menu-item__badge">{PLUS_BADGE_COPY}</span>
+              <button
+                type="button"
+                className="proto-side-panel__action-btn"
+                aria-label="Hide this"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  dismissPlusPrompt();
+                }}
+              >
+                <Icon name="xmark" size={12} aria-hidden />
+              </button>
+            </span>
+          }
+        />
       ) : null}
     </PrototypeHomeSection>
   );

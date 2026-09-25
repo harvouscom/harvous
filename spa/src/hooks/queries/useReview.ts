@@ -13,6 +13,7 @@ import { reviewRungIsGraded } from '@/utils/review-prompts';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { useHasFeature } from '../useHasFeature';
+import { useProfile } from './useProfile';
 import { useHarvousIdentity } from '../useHarvousIdentity';
 import { isQuerySettled } from '@/utils/prototype-home-ready';
 import type {
@@ -98,6 +99,8 @@ export interface ReviewRevealResponse {
   /** `bank`: words to place at the gentlest tier, the answers shuffled among a few wrong ones. */
   cloze?: { segments: string[]; blankLengths: number[]; bank?: string[] } | null;
   sequence?: { phrases: string[] } | null;
+  /** A church's matching question: both columns, shuffled — never which goes with which. */
+  match?: { left: string[]; right: string[] } | null;
   /**
    * `leading` / `trailing` say whether there is really more verse either side of the phrase.
    * Both optional: a payload built before they existed renders as it always did, which for
@@ -187,10 +190,29 @@ export const reviewItemsQueryKey = (status?: ReviewItemStatus, view: 'full' | 's
 export const reviewRevealQueryKey = (itemId: string | null | undefined, translation?: string) =>
   ['review', 'reveal', itemId ?? 'none', translation ?? 'default'] as const;
 
-function useReviewAccess(): boolean {
+/**
+ * Which Review this reader has (docs/CHURCH_V2_ROADMAP.md §B):
+ *
+ *   - `full`   — Plus: their own study and their church's questions.
+ *   - `church` — no Plus, but connected to an active church: the church's questions only, free.
+ *   - `none`   — the daily sample and the Plus offer.
+ *
+ * The server decides the same thing independently (`resolveReviewAccess`) and scopes every read,
+ * so this only chooses what to render and when to ask — it grants nothing.
+ */
+export type ReviewAccessLevel = 'full' | 'church' | 'none';
+
+export function useReviewAccessLevel(): ReviewAccessLevel {
   const { has } = useHasFeature('review');
   const { isGuest } = useHarvousIdentity();
-  return has && !isGuest;
+  const { data: profile } = useProfile();
+  if (isGuest) return 'none';
+  if (has) return 'full';
+  return profile?.connectedOrgId && !profile.connectedChurchInactive ? 'church' : 'none';
+}
+
+function useReviewAccess(): boolean {
+  return useReviewAccessLevel() !== 'none';
 }
 
 export function useReviewEnabled(): boolean {
@@ -200,9 +222,11 @@ export function useReviewEnabled(): boolean {
 }
 
 export function useReviewAccessSettled(): boolean {
-  const { ready } = useHasFeature('review');
+  const { ready, has } = useHasFeature('review');
   const { isGuest } = useHarvousIdentity();
-  return isGuest || ready;
+  const { data: profile } = useProfile();
+  // Without Plus the answer also depends on the church connection, which is on the profile.
+  return isGuest || (ready && (has || profile !== undefined));
 }
 
 export function useReviewInbox() {

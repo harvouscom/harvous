@@ -61,6 +61,8 @@ export interface ReviewSubmittedAnswer {
   order?: number[];
   wordIndex?: number;
   text?: string;
+  /** A church matching question: for each left item, the right index chosen. */
+  pairs?: number[];
 }
 
 /**
@@ -75,6 +77,9 @@ export interface ReviewEchoShown {
   word?: string;
   /** The options were first-words rather than whole verses, so the echo trails off as they did. */
   opening?: boolean;
+  /** A matching question's two columns, as shown. */
+  left?: readonly string[];
+  right?: readonly string[];
 }
 
 export interface ReviewAnswerEchoInput {
@@ -136,6 +141,23 @@ export function reviewAnswerEcho(input: ReviewAnswerEchoInput): ReviewAnswerEcho
     // Never echo a bare index at someone. Without the word there is nothing to say.
     if (!word) return null;
     return { layout: 'line', manner: 'picked', parts: [{ text: word, state: whole }], ...correct };
+  }
+
+  // A matching: each left item beside the partner the reader gave it, marked per pair.
+  if (Array.isArray(submitted.pairs)) {
+    const left = input.shown?.left;
+    const right = input.shown?.right;
+    if (!left?.length || !right?.length) return null;
+    const marks = alignedParts(input.parts, submitted.pairs.length);
+    const parts = submitted.pairs
+      .map((partner, index) => {
+        const a = left[index];
+        const b = right[partner];
+        return a && b ? { text: `${a} — ${b}`, state: stateOf(marks, index) } : null;
+      })
+      .filter((part): part is { text: string; state: 'right' | 'wrong' | undefined } => part !== null);
+    if (!parts.length) return null;
+    return { layout: 'rows', manner: 'ordered', parts, ...correct };
   }
 
   // An ordering: display positions, resolved back to the phrases they stand for.

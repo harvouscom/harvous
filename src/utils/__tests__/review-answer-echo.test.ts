@@ -161,3 +161,22 @@ describe('echoMatchesAnswer', () => {
     expect(echoMatchesAnswer(echo, 'I am the vine')).toBe(false);
   });
 });
+
+describe('a church matching question', () => {
+  it('echoes each left item beside the partner given, marked per pair', () => {
+    const echo = reviewAnswerEcho({
+      submitted: { pairs: [1, 0] },
+      shown: { left: ['John 3:16', 'Psalm 23:1'], right: ['The Lord is my shepherd', 'For God so loved'] },
+      parts: [true, false],
+      correct: false,
+    });
+    expect(echo?.parts).toEqual([
+      { text: 'John 3:16 — For God so loved', state: 'right' },
+      { text: 'Psalm 23:1 — The Lord is my shepherd', state: 'wrong' },
+    ]);
+  });
+
+  it('says nothing without the columns — never an index at someone', () => {
+    expect(reviewAnswerEcho({ submitted: { pairs: [0, 1] }, shown: null })).toBeNull();
+  });
+});
