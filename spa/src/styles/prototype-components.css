@@ -12322,12 +12322,21 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   width: min(460px, calc(100vw - 32px));
 }
 
+/* Taller than the shared 520px cap: a question with five options and a preview needs the
+   room, and the header and footer must stay put while the middle scrolls. */
+.proto-church-review-popover .proto-connect-note-sheet--popover {
+  max-height: min(86vh, 760px);
+}
+
+/* The only part that scrolls. `flex: 1 1 auto` + `min-height: 0` because the app reset sets
+   `flex-shrink: 0`, which let this push the footer out of the card instead of scrolling. */
 .proto-church-review-editor {
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 4px 16px 8px;
-  max-height: min(62vh, 560px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -12377,7 +12386,7 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   height: 20px;
   padding: 0;
   border-radius: 999px;
-  border: 1.5px solid var(--pds-border-soft);
+  border: 1.5px solid color-mix(in srgb, var(--pds-text-primary) 28%, transparent);
   background: none;
   color: var(--pds-on-accent);
   cursor: pointer;
@@ -12386,6 +12395,15 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 .proto-church-review-editor__correct--on {
   background: var(--pds-bg-accent-button);
   border-color: transparent;
+}
+
+/* The prototype route's `[class*="proto-"] button path { fill: currentColor !important }` and
+   `button * { color }` reach the tick; matched on the same root so the accent tick is white. */
+html.harvous-prototype-route .proto-church-review-editor__correct--on svg,
+html.harvous-prototype-route .proto-church-review-editor__correct--on svg path,
+html.harvous-prototype-route .proto-church-review-editor__correct--on span {
+  color: var(--pds-on-accent) !important;
+  fill: var(--pds-on-accent) !important;
 }
 
 .proto-church-review-editor__add {

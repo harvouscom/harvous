@@ -156,11 +156,11 @@ export default function PrototypeChurchReviewSection({
                       <span className="pds-list-title proto-church-tools__row-title">{suggestion.reference}</span>
                       <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                         {suggestion.sourceServiceTitle
-                          ? `Taught in ${suggestion.sourceServiceTitle}`
+                          ? `Taught in “${suggestion.sourceServiceTitle}”`
                           : suggestion.citedIn > 1
                             ? `Cited in ${suggestion.citedIn} notes`
                             : suggestion.sourceNoteTitle
-                              ? `Cited in ${suggestion.sourceNoteTitle}`
+                              ? `Cited in “${suggestion.sourceNoteTitle}”`
                               : 'Cited in a note'}
                       </span>
                     </span>
@@ -192,7 +192,7 @@ export default function PrototypeChurchReviewSection({
                               sourceNoteId: suggestion.sourceNoteId,
                               sourceServiceId: suggestion.sourceServiceId,
                             },
-                            `${suggestion.reference} is in ${channel.title}'s Review`,
+                            `${suggestion.reference} added to ${channel.title}`,
                           )
                         }
                       >
