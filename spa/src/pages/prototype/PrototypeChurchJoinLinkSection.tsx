@@ -35,12 +35,24 @@ export default function PrototypeChurchJoinLinkSection({
   /** The church's plan has ended: the link can still be turned off, not made. */
   lapsed: boolean;
 }) {
-  const { data, isPending } = useChurchJoinLink(orgId, { enabled: canView });
+  const { data, isPending, isError, refetch } = useChurchJoinLink(orgId, { enabled: canView });
   const actions = useChurchJoinLinkActions(orgId);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
   const [copied, setCopied] = useState(false);
 
-  if (!data) return canView && isPending ? <ProtoSpaceLoading label="Loading join link" /> : null;
+  if (!data) {
+    if (canView && isError) {
+      return (
+        <div className="proto-home-section proto-church-join">
+          <p className="proto-caption proto-church-join__lede">Couldn&rsquo;t load your join link.</p>
+          <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => void refetch()}>
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return canView && isPending ? <ProtoSpaceLoading label="Loading join link" /> : null;
+  }
 
   const { link, qrSvg, totalJoined, canManage } = data;
   const busy = actions.isPending;
