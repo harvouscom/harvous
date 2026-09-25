@@ -179,6 +179,7 @@ import {
   SharedNoteOrganizationValidationError,
   SHARED_NOTE_ORGANIZATION_MUTATION_KEYS,
 } from '../utils/shared-note-serializer';
+import { CONTENT_APPROVAL_REQUIRED_CODE, contentApprovalRequired } from '../utils/church-content';
 
 const route = new Hono();
 
@@ -2661,6 +2662,18 @@ route.post('/api/spaces/:spaceId/add-note', requireAuth, rateLimit('write'), asy
       if (note.addedBy === 'system') return c.json({ error: 'Cannot add onboarding notes to a space' }, 400);
       await db.update(Notes).set({ spaceId }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
       return c.json({ success: true, message: 'Note added to space', noteId });
+    }
+    /* A church channel with approval on: this person submits (POST /api/church/content/submit)
+       rather than publishing. Checked here so no client can publish around a pastor. */
+    if (
+      accessInfo.space.type === 'public' &&
+      accessInfo.space.orgId &&
+      (await contentApprovalRequired(auth.userId, accessInfo.space.orgId))
+    ) {
+      return c.json(
+        { error: 'Your church reviews channel posts first. Submit it for approval.', code: CONTENT_APPROVAL_REQUIRED_CODE },
+        409,
+      );
     }
     const result = await db.transaction((tx) =>
       associateAuthoredNoteWithSpace(tx, {

@@ -794,6 +794,12 @@ export const Churches = pgTable('Churches', {
    * church's wall time verbatim.
    */
   timezone: text('timezone'),
+  /**
+   * Approval before publish (docs/CHURCH_V2_ROADMAP.md §D). When on, staff without
+   * `review_content` (teachers, plain staff) submit channel material for a pastor to approve
+   * instead of publishing it. Off by default — a small church publishes directly.
+   */
+  contentApproval: boolean('contentApproval').notNull().default(false),
 
   /** Staff user who created the church record (audit anchor); admin roles live in Clerk org roles. */
   createdBy: text('createdBy').notNull(),
@@ -2025,6 +2031,45 @@ export const ChurchReviewExercises = pgTable('ChurchReviewExercises', {
   uniqueIndex('ChurchReviewExercises_channel_suggestion_unique')
     .on(table.channelSpaceId, table.suggestionKey)
     .where(sql`${table.suggestionKey} IS NOT NULL`),
+]);
+
+/**
+ * Channel material that is not live yet: scheduled for a set time, or waiting for approval
+ * (docs/CHURCH_V2_ROADMAP.md §D).
+ *
+ * **A note is live in a channel exactly when it has a `SpaceNotes` row** — some thirty readers
+ * (feed, search, push, Review suggestions, the space itself) rely on that and nothing else. So
+ * nothing here ever writes a `SpaceNotes` row early with a status on it: the note waits in its
+ * author's My Home, and going live is the ordinary publish (`associateAuthoredNoteWithSpace`,
+ * as the author) — immediately, at `publishAt` by the content tick, or on approval.
+ *
+ * status: in_review | scheduled | published | declined | withdrawn | failed.
+ * Row ids: `ccs_${crypto.randomUUID()}`.
+ */
+export const ChurchContentSubmissions = pgTable('ChurchContentSubmissions', {
+  id: text('id').primaryKey(),
+  orgId: text('orgId').notNull(),
+  channelSpaceId: text('channelSpaceId').notNull(),
+  noteId: text('noteId').notNull(),
+  authorUserId: text('authorUserId').notNull(),
+  status: text('status').notNull(),
+  /** When it goes live. Null = as soon as it is approved. */
+  publishAt: ts('publishAt'),
+  reviewedByUserId: text('reviewedByUserId'),
+  reviewedAt: ts('reviewedAt'),
+  /** A reviewer's note on a decline, or why a scheduled publish failed. Plain text, ≤280. */
+  reviewNote: text('reviewNote'),
+  publishedAt: ts('publishedAt'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('ChurchContentSubmissions_org_statusIndex').on(table.orgId, table.status),
+  index('ChurchContentSubmissions_status_publishAtIndex').on(table.status, table.publishAt),
+  index('ChurchContentSubmissions_noteIdIndex').on(table.noteId),
+  // One open submission per note per channel.
+  uniqueIndex('ChurchContentSubmissions_open_unique')
+    .on(table.channelSpaceId, table.noteId)
+    .where(sql`${table.status} IN ('in_review', 'scheduled')`),
 ]);
 
 // ─── ReviewEvents (append-only log of what a review session was answered with) ─
