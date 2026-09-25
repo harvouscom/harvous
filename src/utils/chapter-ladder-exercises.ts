@@ -159,27 +159,56 @@ export function buildChapterMarked(input: {
   seed: string;
 }): ChapterVerseExercise | null {
   const seed = `${input.seed}:marked`;
-  const marked = new Set(input.highlightedNumbers);
-  const candidates = chapterCueCandidates(input.verses);
-  const answers = candidates.filter((verse) => marked.has(verse.number));
-  const rest = candidates.filter((verse) => !marked.has(verse.number));
-  if (!answers.length || rest.length < MIN_MARKED_DISTRACTORS) return null;
-
-  const verse = pickSeeded(answers, seed);
+  const { answers, viable, poolFor } = chapterMarkedDraw(input.verses, input.highlightedNumbers);
+  const verse = pickSeeded(viable, seed);
   if (!verse) return null;
-  const answer = verseCue(verse.text, CHAPTER_CUE_WORDS);
-  const prefix = openingPrefix(answer);
-  const pool = rest
-    .map((other) => verseCue(other.text, CHAPTER_CUE_WORDS))
-    .filter((cue) => cue && openingPrefix(cue) !== prefix);
 
   const choice = buildChoiceExercise({
     // Every marked verse is right; the primitive bars all of them as distractors.
     answers: answers.map((entry) => verseCue(entry.text, CHAPTER_CUE_WORDS)).filter(Boolean),
-    pool,
+    pool: poolFor(verse),
     seed,
   });
   return choice ? { ...choice, verse } : null;
+}
+
+/**
+ * The marked verses this chapter can actually be asked about, and the wrong answers for each.
+ *
+ * Only a marked verse with three unmarked openings unlike its own is *viable*, and the seed draws
+ * among those alone. It used to draw among every marked verse and give up when the one it drew had
+ * too few — so whether the question existed depended on the seed, and the probe, which only
+ * counted highlights, promised questions the builder then could not write.
+ */
+export function chapterMarkedDraw(
+  verses: readonly ChapterVerse[],
+  highlightedNumbers: readonly number[],
+): {
+  answers: ChapterVerse[];
+  viable: ChapterVerse[];
+  poolFor: (verse: ChapterVerse) => string[];
+} {
+  const marked = new Set(highlightedNumbers);
+  const candidates = chapterCueCandidates(verses);
+  const answers = candidates.filter((verse) => marked.has(verse.number));
+  const rest = candidates.filter((verse) => !marked.has(verse.number));
+  const answerCues = new Set(
+    answers.map((entry) => verseCue(entry.text, CHAPTER_CUE_WORDS).trim().toLowerCase()),
+  );
+  const poolFor = (verse: ChapterVerse): string[] => {
+    const prefix = openingPrefix(verseCue(verse.text, CHAPTER_CUE_WORDS));
+    return rest
+      .map((other) => verseCue(other.text, CHAPTER_CUE_WORDS))
+      .filter((cue) => cue && openingPrefix(cue) !== prefix);
+  };
+  const distinctWrong = (verse: ChapterVerse) =>
+    new Set(
+      poolFor(verse)
+        .map((cue) => cue.trim().toLowerCase().replace(/\s+/g, ' '))
+        .filter((cue) => !answerCues.has(cue)),
+    ).size;
+  const viable = answers.filter((verse) => distinctWrong(verse) >= MIN_MARKED_DISTRACTORS);
+  return { answers, viable, poolFor };
 }
 
 /** Three unmarked verses to sit beside the marked one, or the question answers itself. */

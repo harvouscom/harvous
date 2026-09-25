@@ -24,6 +24,7 @@ import {
   verseRungFor,
   reviewTaskFor,
   VERSE_FAMILIES,
+  VERSE_FLOOR_KEY,
   VERSE_MAINTENANCE_FAMILIES,
   CHAPTER_FAMILIES,
   REVIEW_TASKS,
@@ -157,16 +158,16 @@ describe('the note ladder', () => {
   });
 
   it('climbs by rung, not by how many times it has come round', () => {
-    expect(pickPromptKey('note', 0, 0)).toBe('note.recognize');
-    expect(pickPromptKey('note', 0, 1)).toBe('note.passage');
-    expect(pickPromptKey('note', 0, 2)).toBe('note.connect');
+    expect(pickPromptKey('note', 0, 0)).toBe('note.passage');
+    expect(pickPromptKey('note', 0, 1)).toBe('note.connect');
+    expect(pickPromptKey('note', 0, 2)).toBe('note.folder');
     // Review count is irrelevant now — the rung is the question.
-    expect(pickPromptKey('note', 47, 0)).toBe('note.recognize');
+    expect(pickPromptKey('note', 47, 0)).toBe('note.passage');
   });
 
   it('clamps at the top rather than falling off it', () => {
-    expect(pickPromptKey('note', 0, 99)).toBe('note.annotation');
-    expect(pickPromptKey('note', 0, -3)).toBe('note.recognize');
+    expect(pickPromptKey('note', 0, 99)).toBe('note.folder');
+    expect(pickPromptKey('note', 0, -3)).toBe('note.passage');
   });
 
   it('instructs rather than asking about motive', () => {
@@ -178,9 +179,10 @@ describe('the note ladder', () => {
     }
   });
 
-  it('never names the note on the rung whose answer is the note', () => {
-    const named = fillReviewPrompt('note.recognize', { noteTitle: 'Adoption, not slavery' });
-    expect(named).not.toContain('Adoption');
+  it('names the note on every note rung, since none has the note as its answer', () => {
+    for (const key of NOTE_LADDER) {
+      expect(fillReviewPrompt(key, { noteTitle: 'Adoption, not slavery' })).toContain('Adoption');
+    }
   });
 
   it('every rung of every ladder has a prompt behind it', () => {
@@ -385,16 +387,26 @@ describe('rung families', () => {
   it('never asks what the verse has no material for', () => {
     /*
      * A verse no note cites is never asked which note cites it, however the seed falls; a verse
-     * with no themes is never asked for one. The pick falls forward within the family.
+     * with no themes is never asked for one. The pick falls forward within the family — and a
+     * context step with no context at all falls to the floor rather than to a default that needs
+     * a citing note. It used to fall to `verse.connect` anyway: a prompt over an empty card.
      */
     for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) {
       const key = verseRungFor(4, `${id}:4`, bare).key;
-      expect(key).toBe('verse.connect'); // the default, which always builds
+      expect(key).toBe(VERSE_FLOOR_KEY);
     }
+    expect(verseRungFor(4, undefined, bare).key).toBe(VERSE_FLOOR_KEY);
     for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) {
       const key = verseRungFor(4, `${id}:4`, { ...bare, themeCount: 2 }).key;
-      expect(['verse.connect', 'verse.theme']).toContain(key);
+      expect(key).toBe('verse.theme');
     }
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const key = verseRungFor(4, `${id}:4`, { ...bare, citedInNotes: 1 }).key;
+      expect(key).toBe('verse.connect');
+    }
+    // A skip is not missing material: a cited verse whose reader skipped `linked` still falls to it.
+    const skipped = { ...bare, citedInNotes: 1, skip: new Set(['verse.connect' as const]) };
+    expect(verseRungFor(4, 'a:4', skipped).key).toBe('verse.connect');
   });
 
   it('cycles families on maintenance, and never the rung a verse is met on', () => {
@@ -496,7 +508,7 @@ describe('the chapter ladder', () => {
   });
 
   it('is graded on every rung, and never read as a note', () => {
-    // The quiet else-branches: a third kind read as a note gets `note.recognize` and a
+    // The quiet else-branches: a third kind read as a note gets a note question and a
     // question about a note it does not have.
     expect(pickPromptKey('chapter', 0, 0, 'review_1', undefined, full)).toBe('chapter.verse');
     expect(pickPromptKey('chapter', 0, 1, 'review_1', undefined, full)).toBe('chapter.finish');
@@ -612,9 +624,9 @@ describe('openingLadderStep', () => {
     expect(VERSE_OPENING_STEPS).not.toContain(7);
   });
 
-  it('walks new notes across recognize, passage, connect, annotation', () => {
-    expect([0, 1, 2, 3].map((n) => openingLadderStep('note', n))).toEqual([0, 1, 2, 3]);
-    expect(openingLadderStep('note', 4)).toBe(0);
+  it('walks new notes across passage, connect, folder', () => {
+    expect([0, 1, 2].map((n) => openingLadderStep('note', n))).toEqual([0, 1, 2]);
+    expect(openingLadderStep('note', 3)).toBe(0);
   });
 
   it('alternates chapter openings between verse-in-it and finish', () => {

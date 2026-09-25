@@ -23941,9 +23941,8 @@ button.proto-feed-sheet__stat:hover {
 /*
  * Scripture reads in the reading face, as it does everywhere else it is quoted.
  *
- * Only on the quotes that are actually scripture. `note.recognize` puts the reader's own prose
- * in this same slot, and dressing someone's notes as scripture is the one thing this treatment
- * must not do.
+ * Only on the quotes that are actually scripture. The reader's own prose can sit in this same
+ * slot, and dressing someone's notes as scripture is the one thing this treatment must not do.
  *
  * The size is the dock's, not the reader's: `--pds-reader-font-size` is a reading preference
  * that goes up to a size meant for a full column, and a card three lines tall is not that.

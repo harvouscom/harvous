@@ -38,7 +38,7 @@ const LONG_OPTION = 28;
  * changes, so a family can show its answers as the kind of thing they are — a person, a place, a
  * theme, one of the reader's notes — rather than as the same line of text.
  */
-export type ChoiceVariant = 'card' | 'portrait' | 'place' | 'theme' | 'note' | 'reference';
+export type ChoiceVariant = 'card' | 'portrait' | 'place' | 'theme' | 'note' | 'folder' | 'reference';
 
 export interface ChoiceOptionsProps {
   options: readonly string[];
@@ -130,10 +130,11 @@ function OptionFace({ variant, label }: { variant: ChoiceVariant; label: string 
         </>
       );
     case 'place':
+    case 'folder':
       return (
         <>
           <span className="rx-option__glyph" aria-hidden>
-            <Icon name="location-dot" size={14} />
+            <Icon name={variant === 'folder' ? 'folder' : 'location-dot'} size={14} />
           </span>
           <span className="rx-option__label">{label}</span>
         </>

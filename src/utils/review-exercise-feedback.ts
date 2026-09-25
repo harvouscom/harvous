@@ -24,7 +24,7 @@
  * same threshold to decide whether it has earned the right to point at Settings.
  */
 
-import type { ReviewPromptKey } from '@/utils/review-prompts';
+import { REVIEW_PROMPT_KEYS, type ReviewPromptKey } from '@/utils/review-prompts';
 import {
   reviewExerciseFamilyId,
   reviewPromptKeysInFamily,
@@ -73,6 +73,12 @@ export function dislikedItemsByFamily(
   const byFamily = new Map<ReviewExerciseFamilyId, Set<string>>();
   for (const row of rows) {
     if (!row.rungKey) continue;
+    /*
+     * A rung Review no longer asks — "Which note" was retired in Sept 2026 — names no family.
+     * `reviewExerciseFamilyId` would file it under `opening`, and three thumbs-down on a question
+     * that no longer exists would quietly start walking readers past how a verse begins.
+     */
+    if (!REVIEW_PROMPT_KEYS.includes(row.rungKey as ReviewPromptKey)) continue;
     const family = reviewExerciseFamilyId(row.rungKey);
     let items = byFamily.get(family);
     if (!items) {

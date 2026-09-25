@@ -113,8 +113,8 @@ export function useReviewOutcome() {
       await queryClient.cancelQueries({ queryKey: reviewSessionQueryKey });
       const previous = queryClient.getQueryData<{ items: ReviewItemView[] }>(reviewSessionQueryKey);
       if (previous) {
-        /* Spread, not `{ items }`: the session response carries `nextDueAt` and `firstReveal`
-           beside the queue, and rebuilding the object around one field dropped both. */
+        /* Spread, not `{ items }`: the session carries `nextDueAt` beside the queue, and
+           rebuilding the object around one field dropped it. */
         queryClient.setQueryData(reviewSessionQueryKey, {
           ...previous,
           items: previous.items.filter((i) => i.id !== itemId),

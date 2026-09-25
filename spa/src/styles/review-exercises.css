@@ -749,8 +749,8 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
 }
 
 /*
- * Which note: the answers as a fan of small note sheets — a title and the lines of a body — laid
- * over each other a little, as notes on a desk are. Straightened and in a grid on a phone.
+ * What you linked: the answers as a fan of small note sheets — a title and the lines of a body —
+ * laid over each other a little, as notes on a desk are. Straightened and in a grid on a phone.
  */
 .rx-options[data-variant='note'] {
   display: flex;
@@ -933,36 +933,6 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   background: var(--pds-destructive-bg);
   color: var(--pds-destructive);
   -webkit-text-fill-color: var(--pds-destructive);
-}
-
-/* Which note: the reader's line, a strip torn from a page with the highlighter's edge. */
-.rx-notestrip {
-  display: grid;
-  gap: 4px;
-  padding: 14px 18px;
-  border: 1px solid var(--rx-piece-edge);
-  border-left: 3px solid color-mix(in srgb, var(--pds-highlight-warm-amber) 80%, transparent);
-  border-radius: 0 6px 6px 0;
-  background: var(--rx-piece-bg);
-  transform: rotate(-0.6deg);
-}
-
-.rx-notestrip__text {
-  font-family: var(--pds-font-body);
-  font-size: 19px;
-  line-height: 1.45;
-  color: var(--pds-text-primary);
-  text-wrap: pretty;
-}
-
-.rx-notestrip__text p {
-  margin: 0;
-}
-
-/* The span the reader marked keeps its highlighter stroke inside the strip. */
-.rx-notestrip__text strong {
-  font-weight: 650;
-  box-shadow: inset 0 -0.42em color-mix(in srgb, var(--pds-highlight-warm-amber) 45%, transparent);
 }
 
 /*

@@ -8,7 +8,7 @@ function row(id: string, kind: string, promptKey: string) {
 describe('collapsedReviewRows', () => {
   it('prefers one note and one scripture', () => {
     const items = [
-      row('n1', 'note', 'note.recognize'),
+      row('n1', 'note', 'note.folder'),
       row('n2', 'note', 'note.passage'),
       row('v1', 'verse', 'verse.recognize'),
     ];

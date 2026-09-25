@@ -15,6 +15,7 @@ import {
   buildChapterPlace,
   BARRED_PLACE_LABELS,
   buildChapterMarked,
+  chapterMarkedDraw,
   gradeChapterMarked,
 } from '@/utils/chapter-ladder-exercises';
 import { gradeChoiceExercise } from '@/utils/choice-exercise';
@@ -223,6 +224,27 @@ describe('chapter.marked', () => {
 
   it('has no question when the reader marked nothing', () => {
     expect(buildChapterMarked({ verses, highlightedNumbers: [], seed: 's' })).toBeNull();
+  });
+
+  it('builds for every seed exactly when the probe says it can', () => {
+    /*
+     * Whether the question existed used to depend on which marked verse the seed drew: one whose
+     * opening shared its first words with the rest had too few wrong answers, and the probe —
+     * counting highlights — had already promised it. The seed now draws among viable verses only.
+     */
+    const echo = [
+      ...verses.slice(0, 5),
+      // Five verses that open the same way as the marked one below.
+      ...Array.from({ length: 5 }, (_, i) => ({ number: 6 + i, text: `And the Lord said ${i} things.` })),
+      { number: 11, text: 'And the Lord said again a thing worth hearing.' },
+    ];
+    for (const marked of [[11], [2, 11], [1, 2, 3, 4, 5], []]) {
+      const viable = chapterMarkedDraw(echo, marked).viable.length > 0;
+      for (const seed of ['a', 'b', 'c', 'x:1:0', 'y:3:2']) {
+        const built = buildChapterMarked({ verses: echo, highlightedNumbers: marked, seed });
+        expect(built !== null, `${marked} ${seed}`).toBe(viable);
+      }
+    }
   });
 
   it('has no question when almost every verse is marked, because every option would be right', () => {

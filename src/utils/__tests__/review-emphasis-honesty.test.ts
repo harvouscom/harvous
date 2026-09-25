@@ -41,7 +41,7 @@ const verse = {
   readerSpanWords: 5,
 };
 const chapter = { verseCount: 20, finishCandidates: 3, personCount: 2, placeCount: 2, highlightCount: 2 };
-const note = { canRecognize: true, canPassage: true, canConnect: true, canAnnotation: true };
+const note = { canPassage: true, canConnect: true, canFolder: true };
 
 interface Prefs {
   skip?: ReadonlySet<ReviewPromptKey>;
@@ -111,9 +111,9 @@ describe('where Settings offers More and Less', () => {
     }
   });
 
-  it('gives a control to order and note, which share a draw with other families', () => {
-    // `chapter.order` is drawn against who and places; `note.recognize` against cited and linked.
+  it('gives a control to order and folder, which share a draw with other families', () => {
+    // `chapter.order` is drawn against who and places; `note.folder` against cited and linked.
     expect(emphasisIsOfferable('order')).toBe(true);
-    expect(emphasisIsOfferable('note')).toBe(true);
+    expect(emphasisIsOfferable('folder')).toBe(true);
   });
 });

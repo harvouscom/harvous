@@ -254,33 +254,55 @@ export function buildVerseMarked(input: {
   const spanAt = indexOfWords(verseWords, spanWords);
   if (spanAt < 0) return null;
 
-  const windows: string[] = [];
-  const push = (words: readonly string[], from: number) => {
-    const window = words.slice(from, from + spanWords.length);
-    if (window.length !== spanWords.length) return;
-    const text = window.join(' ');
-    // Whole words only, and never a window carrying any part of what they marked.
-    if (overlapsSpan(text, span)) return;
-    if (windows.some((taken) => normalise(taken) === normalise(text))) return;
-    windows.push(text);
+  const taken: string[] = [];
+  const windowsOf = (words: readonly string[], step: number, skip?: (i: number) => boolean) => {
+    const out: string[] = [];
+    for (let i = 0; i + spanWords.length <= words.length; i += step) {
+      if (skip?.(i)) continue;
+      const text = words.slice(i, i + spanWords.length).join(' ');
+      // Whole words only, and never a window carrying any part of what they marked.
+      if (overlapsSpan(text, span)) continue;
+      if (taken.some((seen) => normalise(seen) === normalise(text))) continue;
+      taken.push(text);
+      out.push(text);
+    }
+    return out;
   };
 
-  // The verse's own windows first: a distractor from the same sentence is the fairest one.
-  for (let i = 0; i + spanWords.length <= verseWords.length; i++) {
-    if (i + spanWords.length > spanAt && i < spanAt + spanWords.length) continue;
-    push(verseWords, i);
-  }
-  for (const neighbour of input.neighbourTexts) {
-    const words = neighbour.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-    for (let i = 0; i + spanWords.length <= words.length; i += spanWords.length) push(words, i);
-  }
+  /*
+   * The verse's own windows first, and as a tier of their own: a distractor from the same
+   * sentence is the fairest one, and the card draws the verse with every option findable in it —
+   * pointing at one paints its words where they sit. A window from a neighbouring verse is only
+   * reached for when this verse cannot spare three, and then the card leaves the verse off
+   * (`verseMarkedFitsVerse`), because a line that is not in the verse on screen is a line the
+   * reader can rule out without remembering anything.
+   */
+  const own = windowsOf(verseWords, 1, (i) => i + spanWords.length > spanAt && i < spanAt + spanWords.length);
+  const nearby = input.neighbourTexts.flatMap((neighbour) =>
+    windowsOf(neighbour.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean), spanWords.length),
+  );
 
   return buildChoiceExercise({
     answers: [span],
-    pool: windows,
+    pool: own,
+    fallbackPool: nearby,
     optionCount: MARKED_OPTION_COUNT,
     seed: `${input.seed}:marked`,
   });
+}
+
+/**
+ * Can the verse be shown beside these options without ruling any of them out?
+ *
+ * True when every option is a run of words in the verse itself. Then the verse is not the answer
+ * — the highlighting is, and it is not shown — so the card can draw it and let the reader choose
+ * on it, where they made the mark.
+ */
+export function verseMarkedFitsVerse(verseText: string, options: readonly string[]): boolean {
+  const verseWords = verseText.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  return options.every(
+    (option) => indexOfWords(verseWords, option.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean)) >= 0,
+  );
 }
 
 /** Where `needle` begins inside `haystack`, comparing bare words. -1 when it is not there. */
@@ -878,8 +900,8 @@ export function buildVerseBook(input: {
  * boundary, so the quote opens where the reader would have paused rather than mid-phrase.
  *
  * One function, used by both the locate rung and its easier twin. There were two copies of this
- * — one here, one in the review service for the book rung — and a stem the two surfaces disagree
- * about is the bug the shared `chooseNoteStem` was written to end on the note side.
+ * — one here, one in the review service for the book rung — and a stem two surfaces disagree
+ * about is a question asked one way and marked another.
  */
 export interface VerseStem {
   phrase: string;

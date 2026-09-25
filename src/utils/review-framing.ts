@@ -109,7 +109,8 @@ export function reviewFraming(
   const key = facts.rungKey;
 
   // Leak rules, each the reason a candidate is left out of its group.
-  const themeLeaks = key === 'verse.theme';
+  // A folder is filed under a theme, so a theme line above "pick a folder" could name it.
+  const themeLeaks = key === 'verse.theme' || key === 'note.folder';
   const personLeaks = key === 'verse.person' || key === 'chapter.person';
   const crossrefLeaks = key === 'verse.crossref' || key === 'verse.locate';
   const citedLeaks = key === 'verse.connect';

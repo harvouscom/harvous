@@ -19,8 +19,8 @@
  * the label finishes the sentence "you are about to…" — "how it begins", "which passage", "put in
  * order" all do; "cited" does not.
  *
- * **The label must never be the answer.** Two keys prove the rule: `note.recognize` is "Which
- * note" and not the note's name, and `verse.locate` is "Where" and not the reference. A family
+ * **The label must never be the answer.** `verse.locate` proves the rule: it is "Where" and not
+ * the reference, and `note.folder` is "Folder" and not the folder's name. A family
  * name says what you are about to do, never what the answer will turn out to be.
  *
  * Pure and client-safe. The server sends the resolved family on the item so the client never has
@@ -47,7 +47,8 @@ export type ReviewExerciseIcon =
   | 'scroll'
   | 'link'
   | 'book'
-  | 'compass';
+  | 'compass'
+  | 'folder';
 
 export interface ReviewExerciseFamily {
   /** Stable across renames of the label, because preferences are stored against it. */
@@ -153,18 +154,11 @@ export const REVIEW_EXERCISE_FAMILIES = {
     description: 'Find the words, or the verse, you highlighted while reading.',
     typed: false,
   },
-  note: {
-    id: 'note',
-    label: 'Which note',
-    icon: 'note-sticky',
-    description: 'Pick which of your notes a line is from.',
-    typed: false,
-  },
   cited: {
     id: 'cited',
     label: 'Which passage',
     icon: 'scroll',
-    description: 'Pick a passage you cited in a note, or the one you wrote a highlight on.',
+    description: 'Pick a passage you cited in a note.',
     typed: false,
   },
   linked: {
@@ -172,6 +166,13 @@ export const REVIEW_EXERCISE_FAMILIES = {
     label: 'What you linked',
     icon: 'arrow-right-arrow-left',
     description: 'Pick a note you linked to this one, or the note you cited a verse in.',
+    typed: false,
+  },
+  folder: {
+    id: 'folder',
+    label: 'Folder',
+    icon: 'folder',
+    description: 'Pick a folder one of your notes is in: the theme you filed it under.',
     typed: false,
   },
 } as const satisfies Record<string, ReviewExerciseFamily>;
@@ -186,10 +187,9 @@ export type ReviewExerciseFamilyId = keyof typeof REVIEW_EXERCISE_FAMILIES;
  * be, and the settings page would offer no way to ask for less of it.
  */
 const FAMILY_BY_KEY: Record<ReviewPromptKey, ReviewExerciseFamilyId> = {
-  'note.recognize': 'note',
   'note.passage': 'cited',
-  'note.annotation': 'cited',
   'note.connect': 'linked',
+  'note.folder': 'folder',
   'verse.connect': 'linked',
 
   'verse.recognize': 'opening',
@@ -264,7 +264,7 @@ export const REVIEW_EXERCISE_FAMILY_ORDER: ReviewExerciseFamilyId[] = [
   'theme',
   'crossref',
   'marked',
-  'note',
   'cited',
   'linked',
+  'folder',
 ];
