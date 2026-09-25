@@ -165,6 +165,22 @@ of loose channels.
 restricted channel removes the member rows of people outside its audience. Patching each reader
 would miss one. This narrows church Review delivery too, with no further change.
 
+**Built (Sept 25 2026, branch `claude/church-content-management-1cba4b`):** C1–C3 as above, with
+these specifics:
+- **Screens.** The staff screen is an expanded tool, `PrototypeExpandedMinistries`, beside Team
+  in the hub. The "Leads" row lives in its editor pane, not on the member sheet. The create
+  sheets ask which ministry, and a scoped teacher sees only their own.
+- **Staff in an audience.** "Staff" means whoever leads the channel, which is what the staff sync
+  grants. A teacher scoped to another ministry is outside a restricted channel.
+- **Reconciling.** Member rows are reconciled in three places:
+  - on an audience change, after a dry-run count;
+  - on any assign-space, across the whole church;
+  - lazily on the viewer's own reads: `/channels`, `/feed`, church push, and the church Review
+    refill. That covers someone who leaves a qualifying group.
+- **The join link** offers only `church`-audience channels.
+- **Unfollow** is never gated.
+- **Production.** Needs `npm run church-ministries:schema:apply -- --production` before deploy.
+
 **Later in C:**
 - **Volunteer ministry leads.** A separate `ChurchMinistryGrants` table, never
   `ChurchMinistryStaff`.
