@@ -94,8 +94,6 @@ export interface ReviewInboxResponse {
 }
 
 export interface ReviewRevealResponse {
-  note?: { id: string; title: string | null; content: string } | null;
-  secondaryNote?: { id: string; title: string | null; content: string } | null;
   verseText?: string | null;
   /** `bank`: words to place at the gentlest tier, the answers shuffled among a few wrong ones. */
   cloze?: { segments: string[]; blankLengths: number[]; bank?: string[] } | null;
@@ -148,7 +146,6 @@ export interface ReviewRevealResponse {
   } | null;
   keywords?: { count: number } | null;
   before?: { options: string[] } | null;
-  thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
 }
 
 export const reviewQueryKey = ['review'] as const;

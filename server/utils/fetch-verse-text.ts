@@ -38,11 +38,18 @@ interface DbVerse {
  * then the reveal and the grader each ask for it once more.
  *
  * Scripture does not change inside a request, so a couple of seconds of in-process memory is
- * safe in a way almost no other cache in this codebase is. Mirrors `MATERIAL_TTL_MS` next door,
- * bounded the same way, and holds the *promise* so concurrent callers share one flight rather
- * than racing to fill the same entry.
+ * safe in a way almost no other cache in this codebase is. Bounded like `MATERIAL_TTL_MS` next
+ * door, and holds the *promise* so concurrent callers share one flight rather than racing to fill
+ * the same entry.
  */
-const TEXT_TTL_MS = 3000;
+/*
+ * Ten minutes, not the material's three seconds. The rest of the reasoning above holds for a whole
+ * sitting, not just one request: the text is the same when the reader answers as when the question
+ * was built, and three seconds meant every answer paid a round trip for a passage fetched a minute
+ * earlier. A corpus fix clears `VerseTextCache` in the database; a running process serves the old
+ * text for at most this long, which is the whole cost.
+ */
+const TEXT_TTL_MS = 10 * 60_000;
 const TEXT_CACHE_MAX = 400;
 const textMemo = new Map<string, { at: number; value: Promise<string> }>();
 
@@ -54,12 +61,16 @@ export async function fetchVerseText(reference: string, translation: string = 'N
 
   const pending = fetchVerseTextUncached(reference, translation);
   textMemo.set(memoKey, { at: now, value: pending });
-  // A failed fetch must not be remembered as the answer for the next three seconds.
+  // A failed fetch must not be remembered as the answer.
   void pending.catch(() => textMemo.delete(memoKey));
   if (textMemo.size > TEXT_CACHE_MAX) {
     for (const [key, entry] of textMemo) {
       if (now - entry.at >= TEXT_TTL_MS) textMemo.delete(key);
+    }
+    // Still over with a long window: drop oldest-first, which a Map's insertion order gives.
+    for (const key of textMemo.keys()) {
       if (textMemo.size <= TEXT_CACHE_MAX) break;
+      textMemo.delete(key);
     }
   }
   return pending;

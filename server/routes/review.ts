@@ -122,9 +122,16 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
     const auth = getAuthenticatedAuth(c);
     const now = new Date();
 
-    // Top up from the reader's own study before listing, capped per rolling day. Lazy on
-    // purpose: no cron, no guessed timezone, and nothing accumulates while they are away.
-    await refillReviewQueue(auth.userId, now);
+    /*
+     * Top up from the reader's own study, capped per rolling day. Lazy on purpose: no cron, no
+     * guessed timezone, and nothing accumulates while they are away.
+     *
+     * Beside this read now, not in front of it — as the session read has done since it learned
+     * the same lesson. Home waits for the inbox before it paints, and the engine is capped at a
+     * handful a day, so nine opens in ten it was half a second of work that changed nothing.
+     * What it adds is in the next read.
+     */
+    void refillReviewQueue(auth.userId, now).catch(() => {});
 
     /*
      * Fetch, then drop, then cut — in that order, and only then build. That order lives in
@@ -435,10 +442,13 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
      * `askedRungFor`. The full build cost more than a second of the answer's round trip and
      * every part of it but this was thrown away.
      */
-    const askedKey = await askedRungFor(auth.userId, item);
+    // Marked by kind inside the service, so a new kind can never fall into another's grader. The
+    // two read the same memoised material, so side by side they share one load.
+    const [askedKey, graded] = await Promise.all([
+      askedRungFor(auth.userId, item),
+      answer ? gradeAnswerFor(auth.userId, item, answer) : Promise.resolve(null),
+    ]);
     const maxAttempts = maxAttemptsFor(askedKey);
-    // Marked by kind inside the service, so a new kind can never fall into another's grader.
-    const graded = answer ? await gradeAnswerFor(auth.userId, item, answer) : null;
 
     /*
      * A wrong first answer is not a verdict yet.
@@ -555,6 +565,17 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
       });
     }
 
+    /*
+     * The verse a rung withheld, handed back now that the question is answered. Read from the
+     * item as it was asked, not as it will be — the outcome moves it to the next rung, and the
+     * verse owed is the one just answered about. Started here so it loads while the outcome is
+     * written rather than after.
+     */
+    const truthPending = verseTruthFor(item, auth.userId)
+      .then(async (verse) => verse ?? (await chapterTruthFor(item, auth.userId)))
+      // Never left unhandled if the write below throws first; a missing truth is a card without it.
+      .catch(() => null);
+
     const { item: applied, nextReturnDays, leech, stalled } = await applyReviewOutcome(
       auth.userId,
       item,
@@ -586,13 +607,10 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
      */
     const updated = leech ? (await stepBackReviewItem(auth.userId, applied)) ?? applied : applied;
 
-    /*
-     * The verse a rung withheld, handed back now that the question is answered. Read from the
-     * item as it was asked, not as it now is — the outcome has already moved it to the next
-     * rung, and the verse owed is the one just answered about.
-     */
-    const truth =
-      (await verseTruthFor(item, auth.userId)) ?? (await chapterTruthFor(item, auth.userId));
+    const [truth, [view]] = await Promise.all([
+      truthPending,
+      buildReviewItemViews(auth.userId, [updated]),
+    ]);
 
     return c.json({
       success: true,
@@ -614,7 +632,7 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
       ...(graded?.parts ? { parts: graded.parts } : {}),
       ...(graded?.reached ? { reached: graded.reached } : {}),
       attempts: { used: attemptNumber, total: maxAttempts },
-      item: (await buildReviewItemViews(auth.userId, [updated]))[0],
+      item: view,
       ...(truth ? { truth: { verseText: truth } } : {}),
       ...(leech ? { leech: true, stalled } : {}),
       next: {

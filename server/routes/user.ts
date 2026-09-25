@@ -99,6 +99,7 @@ import {
   serializeReviewExerciseSettings,
   validateReviewExerciseSettingsInput,
 } from '@/utils/review-exercise-settings';
+import { forgetReviewMaterial } from '../utils/review-service';
 import {
   isPushRemindersSchemaMissing,
   isReviewExerciseSettingsColumnMissing,
@@ -1449,6 +1450,8 @@ app.post('/api/user/review-exercise-settings', requireAuth, rateLimit('write'), 
         updatedAt: nowISO(),
       });
     }
+    // Review memoises preferences for a few seconds; the next question must be asked the new way.
+    forgetReviewMaterial(auth.userId);
     return c.json({ success: true, reviewExerciseSettings });
   } catch (error) {
     if (isReviewExerciseSettingsColumnMissing(error)) {
@@ -1646,6 +1649,7 @@ app.post('/api/user/update-translation', requireAuth, rateLimit('write'), async 
       });
     }
 
+    forgetReviewMaterial(auth.userId);
     return c.json({ success: true, defaultTranslation });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/update-translation', action: 'update_default_translation' });

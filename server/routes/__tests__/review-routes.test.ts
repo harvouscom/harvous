@@ -184,13 +184,17 @@ describe('the two graded rungs are marked on the server', () => {
     }
   });
 
-  it('never previews an encrypted note body', () => {
-    // The server holds ciphertext for a locked note; `loadTitles` always guarded this and the
-    // reveal did not, so the encrypted bytes shipped to whatever asked.
+  it('never sends a note body at all, locked or not', () => {
+    /*
+     * The server holds ciphertext for a locked note, and the reveal once shipped those bytes to
+     * whatever asked. Then it guarded them — but nothing on the page ever read the body, so the
+     * reveal carries none now, and there is nothing left to guard.
+     */
     const text = service();
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
-    expect(reveal).toContain('contentEncrypted');
-    expect(reveal).toMatch(/contentEncrypted \? '' :/);
+    const block = reveal.slice(0, reveal.indexOf('\n}\n'));
+    expect(block).not.toContain('Notes.content');
+    expect(block).not.toMatch(/payload\.(note|secondaryNote|thread) =/);
   });
 });
 
@@ -803,7 +807,7 @@ describe('a scheduler that remembers', () => {
     // Resolved once, near the top, and used for both the weight and the attempt budget. It is
     // `askedRungFor` rather than a whole view build now — same resolution, a second less of it.
     const block = outcome();
-    expect(block).toContain('const askedKey = await askedRungFor(auth.userId, item)');
+    expect(block).toMatch(/const \[askedKey, graded\] = await Promise\.all\(\[\s*askedRungFor\(auth\.userId, item\)/);
     expect(block).toMatch(/applyReviewOutcome\([\s\S]*askedKey,/);
     expect(block).not.toMatch(/applyReviewOutcome\([^)]*answer\.promptKey/);
   });

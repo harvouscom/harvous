@@ -79,6 +79,7 @@ import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import {
   useReviewItems,
+  useReviewItemsSummary,
   useReviewReveal,
   usePrefetchReviewReveals,
   useReviewSession,
@@ -609,8 +610,12 @@ export default function PrototypeReviewDock() {
    * copy is stale the instant they clear the last item. The active list is invalidated by every
    * answer and is already in cache from Home, so it is the one that can speak after a sitting.
    * The freshest wins; the weekday is rendered here because it is the reader's.
+   *
+   * The *summary* list — the one Home actually holds. This read the full list, which is a
+   * different cache entry that builds every active item's question (up to two hundred) on the
+   * server, at the end of every sitting, to read one date off it.
    */
-  const scheduledQuery = useReviewItems('active', { enabled: open && !queued });
+  const scheduledQuery = useReviewItemsSummary('active', { enabled: open && !queued });
   const nextDueFromItems = useMemo(() => {
     const now = Date.now();
     const soonest = (scheduledQuery.data?.items ?? [])
@@ -2186,7 +2191,7 @@ export default function PrototypeReviewDock() {
             scene={<p className="proto-review-dock__caption">{REVIEW_REVEAL_FAILED_COPY}</p>}
             primary={{ label: REVIEW_REVEAL_RETRY_COPY, onClick: () => void reveal.refetch() }}
           />
-        ) : isGradedRung && (reveal.isPending || reveal.isFetching) ? (
+        ) : isGradedRung && reveal.isPending ? (
           /*
            * The question, and dots where its exercise will be.
            *
@@ -2195,6 +2200,9 @@ export default function PrototypeReviewDock() {
            * saw a textarea and a "check the verse" button, which then vanished and became four
            * options. Showing the wrong exercise is worse than showing none. On the stage, so the
            * card is already its full size when the exercise lands in it.
+           *
+           * Only while nothing has arrived. It used to be pending *or refetching*, so an exercise
+           * already in hand disappeared under dots whenever its query refreshed in the background.
            */
           <ExerciseStage
             task={item.prompt}
