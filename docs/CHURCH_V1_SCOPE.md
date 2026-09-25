@@ -90,6 +90,9 @@ To run `e2e/church-pilot-loop.spec.ts`, set `TEST_USER_A_EMAIL` and `TEST_USER_B
 
 ## Out of V1
 
+What comes next, and in what order, is in [CHURCH_V2_ROADMAP.md](CHURCH_V2_ROADMAP.md): the
+join link, church review exercises, then ministries.
+
 Self-serve church creation and Polar checkout · native church surfaces · multi-church
 (`ChurchMemberships`, still no writers) and `ChurchConnectionRequests` · "What's next"
 phases 2–4 (slate and vote) · seasonal recall · email invites and invite-as-leader ·

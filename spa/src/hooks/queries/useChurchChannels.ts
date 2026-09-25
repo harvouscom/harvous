@@ -27,6 +27,16 @@ export type ChurchChannel = {
   lastCurriculumAt: string | null;
   cadenceStale: boolean;
   cadenceLabel: string | null;
+  /** The live ministry it belongs to, or null when church-wide. */
+  ministryId?: string | null;
+};
+
+/** A live ministry as the viewer sees it: its channels, and the groups they are in. */
+export type ChurchMinistrySummary = {
+  id: string;
+  name: string;
+  channelIds: string[];
+  myGroupIds: string[];
 };
 
 export type ChurchChannelsResponse = {
@@ -34,6 +44,8 @@ export type ChurchChannelsResponse = {
   church: { id: string; name: string; orgId: string } | null;
   sponsorship?: ChurchSponsorship;
   channels: ChurchChannel[];
+  /** Empty for a church with no ministries — everything is church-wide. */
+  ministries?: ChurchMinistrySummary[];
 };
 
 export function churchChannelsQueryKey(userId: string | null | undefined) {

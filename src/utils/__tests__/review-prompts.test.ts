@@ -346,14 +346,27 @@ describe('the kinds Review no longer asks about', () => {
 
   it('keeps every remaining key in a verse family or on the note ladder', () => {
     // A step is a family now; a key that belongs to none of them can never be reached.
+    // A church question is the exception by design: its one rung is the kind staff wrote,
+    // reached through `pickPromptKey`, never a ladder.
     const reachable = new Set([...NOTE_LADDER, ...VERSE_FAMILIES.flat(), ...CHAPTER_FAMILIES.flat()]);
-    for (const key of REVIEW_PROMPT_KEYS) expect(reachable.has(key)).toBe(true);
+    for (const key of REVIEW_PROMPT_KEYS) {
+      if (key.startsWith('church.')) continue;
+      expect(reachable.has(key)).toBe(true);
+    }
+  });
+
+  it('reaches each church rung from the kind staff wrote, and nothing else', () => {
+    expect(pickPromptKey('church', 0, 0, 'i', undefined, undefined, 'choice')).toBe('church.choice');
+    expect(pickPromptKey('church', 5, 9, 'i', undefined, undefined, 'order')).toBe('church.order');
+    expect(pickPromptKey('church', 0, 0, 'i', undefined, undefined, 'match')).toBe('church.match');
+    // Unknown or missing: the plain question, never a verse rung.
+    expect(pickPromptKey('church', 0, 0, 'i')).toBe('church.choice');
   });
 
   it('still names the retired kinds, because rows for them exist', () => {
     // What may be *created* narrowed; what may be *read* did not, or old rows would break.
     expect(REVIEW_ITEM_KINDS).toContain('thread');
-    expect(REVIEW_ASKABLE_KINDS).toEqual(['note', 'verse', 'chapter']);
+    expect(REVIEW_ASKABLE_KINDS).toEqual(['note', 'verse', 'chapter', 'church']);
     expect(isReviewAskableKind('thread')).toBe(false);
     expect(isReviewAskableKind('verse')).toBe(true);
   });

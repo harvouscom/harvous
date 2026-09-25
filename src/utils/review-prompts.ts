@@ -53,6 +53,10 @@ export const REVIEW_PROMPT_KEYS = [
   'chapter.marked',
   'verse.marked',
   'note.folder',
+  // A church's own questions (docs/CHURCH_V2_ROADMAP.md §B): staff's words, shuffled.
+  'church.choice',
+  'church.order',
+  'church.match',
 ] as const;
 
 export type ReviewPromptKey = (typeof REVIEW_PROMPT_KEYS)[number];
@@ -75,6 +79,8 @@ export interface ReviewPromptContext {
   keywordCount?: number | null;
   /** Which tier the initials rung is at: below the top it is gaps in place, not a blank page. */
   initialsTier?: number | null;
+  /** A church question's own words, as staff wrote them. */
+  authoredPrompt?: string | null;
 
 }
 
@@ -123,6 +129,13 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     named(ctx, (s) => `Pick a note you linked to ${s}.`, 'Pick a note you linked to this one.'),
   'note.folder': (ctx) =>
     named(ctx, (s) => `Pick a folder ${s} is in.`, 'Pick a folder this note is in.'),
+  /*
+   * A church's question is asked in the church's words. The bare forms are only for a row whose
+   * definition could not be read — which is then dropped as unaskable before anyone sees it.
+   */
+  'church.choice': (ctx) => ctx.authoredPrompt?.trim() || 'Pick the right answer.',
+  'church.order': (ctx) => ctx.authoredPrompt?.trim() || 'Put these in order.',
+  'church.match': (ctx) => ctx.authoredPrompt?.trim() || 'Match each pair.',
   /*
    * Recognition, which is what this rung was always named for: the reference is given and the
    * reader picks the words that belong to it. It asked for the verse in full before, which put
@@ -302,6 +315,9 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'chapter.place': 'Pick a place it names',
   'chapter.marked': 'Pick the verse you marked',
   'verse.marked': 'Pick the words you marked',
+  'church.choice': 'Answer your church’s question',
+  'church.order': 'Put them in order',
+  'church.match': 'Match the pairs',
 };
 
 export function reviewTaskFor(key: ReviewPromptKey): string {
@@ -376,6 +392,8 @@ export const NOTE_OPENING_STEPS = [0, 1, 2] as const;
 /** The rungs a new item of this kind may open on. One list, so the stagger and the step-back
  *  out of a stalled item draw from the same set of "ways in". */
 export function openingStepsFor(kind: string): readonly number[] {
+  // A church question has one rung; its step never means anything.
+  if (kind === 'church') return [0];
   if (kind === 'verse') return VERSE_OPENING_STEPS;
   if (kind === 'chapter') return CHAPTER_OPENING_STEPS;
   return NOTE_OPENING_STEPS;
@@ -798,7 +816,8 @@ export function reviewRungIsGraded(item: {
   promptKey?: string | null;
 }): boolean {
   // Every note rung is a multiple choice now, and every chapter rung is keyed to the text.
-  if (item.kind === 'note' || item.kind === 'chapter') return true;
+  // A church question always has staff's key.
+  if (item.kind === 'note' || item.kind === 'chapter' || item.kind === 'church') return true;
   if (item.kind !== 'verse') return false;
   // The rung the server actually resolved wins; a step alone can only name the family default.
   if (item.promptKey && REVIEW_PROMPT_KEYS.includes(item.promptKey as ReviewPromptKey)) {
@@ -840,7 +859,15 @@ export function pickPromptKey(
   itemId?: string | null,
   material?: VerseMaterial,
   chapterMaterial?: ChapterMaterial,
+  /** A `church` item's authored kind — the only thing its rung depends on. */
+  churchKind?: string | null,
 ): ReviewPromptKey {
+  // A church question has one rung: the kind staff wrote. No ladder, no climbing.
+  if (kind === 'church') {
+    if (churchKind === 'order') return 'church.order';
+    if (churchKind === 'match') return 'church.match';
+    return 'church.choice';
+  }
   // Past the top the ladder wraps into maintenance rather than stopping — see `verseRungFor`.
   if (kind === 'verse') {
     return verseRungFor(
@@ -905,6 +932,8 @@ export function reviewPromptFor(
     material?: VerseMaterial;
     /** The same for a chapter. */
     chapterMaterial?: ChapterMaterial;
+    /** A church question's authored kind. */
+    churchKind?: string | null;
   },
   ctx: ReviewPromptContext,
 ): { key: ReviewPromptKey; prompt: string } {
@@ -915,6 +944,7 @@ export function reviewPromptFor(
     item.id ?? null,
     item.material,
     item.chapterMaterial,
+    item.churchKind,
   );
   return { key, prompt: fillReviewPrompt(key, ctx) };
 }

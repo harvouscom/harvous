@@ -27,6 +27,8 @@ export interface RevealExerciseFields {
   locate?: unknown;
   choice?: unknown;
   recall?: unknown;
+  /** A church's matching question: two columns, no key. */
+  match?: unknown;
 }
 
 type Field = keyof RevealExerciseFields | 'always';
@@ -59,6 +61,10 @@ export const REVEAL_EXERCISE_FIELD: Record<ReviewPromptKey, Field> = {
   'chapter.person': 'choice',
   'chapter.place': 'choice',
   'chapter.marked': 'choice',
+  // A church's own questions ride the cards the dock already draws, except matching.
+  'church.choice': 'choice',
+  'church.order': 'sequence',
+  'church.match': 'match',
 };
 
 export function revealCarriesExercise(

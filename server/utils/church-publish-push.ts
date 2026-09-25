@@ -40,6 +40,7 @@ import { isValidIanaTimeZone } from './votd-local-date';
 import { localPartsFor } from './push-reminders';
 import { REMINDER_BADGE, REMINDER_ICON, TITLE_MAX } from './reminder-payload';
 import { isPushConfigured, sendToUser, type ReminderNotificationPayload } from './web-push-client';
+import { reconcileViewerChannelAudience } from './church-channel-audience';
 
 export const CHURCH_PUSH_KIND = 'church';
 export const CHURCH_PUSH_TAG = 'harvous-church';
@@ -127,6 +128,8 @@ async function lastChurchPushAt(userId: string): Promise<Date | null> {
 
 /** What has reached this person's followed channels since `since`-per-channel. */
 async function newsFor(userId: string, orgId: string, lastPushAt: Date | null): Promise<ChannelNews[]> {
+  // Never tell someone about a restricted channel they have since left the audience of.
+  await reconcileViewerChannelAudience(userId, orgId);
   const followed = await db
     .select({
       id: Spaces.id,

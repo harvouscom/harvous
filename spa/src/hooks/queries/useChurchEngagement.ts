@@ -8,6 +8,8 @@ export type ChannelEngagement = {
   spaceId: string;
   title: string;
   followerCount: number;
+  /** Its ministry, or null when church-wide. */
+  ministryId?: string | null;
 };
 
 export type ChurchEngagementResponse = {

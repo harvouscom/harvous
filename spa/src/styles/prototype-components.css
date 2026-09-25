@@ -12185,6 +12185,376 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   line-height: 1.45;
 }
 
+/* The church join link — the QR on a white tile whatever the theme (a code only
+   scans dark-on-light), the link under it, and the actions in a row. */
+.proto-church-join__lede {
+  margin: 0 2px 12px;
+  line-height: 1.45;
+}
+
+.proto-church-join__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+
+.proto-church-join__qr {
+  display: block;
+  width: 176px;
+  height: 176px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.proto-church-join__url {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-church-join__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.proto-church-join__actions .proto-settings-btn {
+  gap: 6px;
+}
+
+.proto-church-join__count {
+  margin: 12px 2px 0;
+  opacity: 0.72;
+  line-height: 1.45;
+}
+
+.proto-church-join__manage {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* The app reset sets `flex-shrink: 0` everywhere and these buttons are full-width,
+   so without this the second one is pushed off the pane. */
+.proto-church-join__manage .proto-settings-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* ── Church review questions (hub pane + editor) ──────────────────────────── */
+.proto-church-review__eyebrow {
+  margin-top: 14px;
+}
+
+.proto-church-review__row-open {
+  appearance: none;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-church-review__row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.proto-church-review__text-btn {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-church-review__text-btn:hover:not(:disabled) {
+  color: var(--pds-text-primary);
+}
+
+/* The list column of the expanded tool: its own scroll, the panel's reading measure. */
+.proto-church-review__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 20px 32px;
+  box-sizing: border-box;
+}
+
+/* Nothing to list: the empty state sits in the middle of the column, not under a heading. */
+.proto-church-review__body--empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.proto-church-review__body .proto-list-empty-state {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+/* Under the suggestions it is the next thing down, not part of the list above it. */
+.proto-church-review__body .proto-church-tools + .proto-list-empty-state {
+  margin-top: 40px;
+}
+
+.proto-church-review__body .proto-list-empty-state__action .proto-settings-btn {
+  width: auto;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+/* The one line about who gets these and what staff see, under the list. */
+.proto-church-review__note {
+  margin: 12px 2px 0;
+  opacity: 0.72;
+  line-height: 1.45;
+}
+
+/* The row being edited, marked the way a selected row is everywhere else. */
+.proto-church-review__row-open[aria-current='true'] .proto-church-tools__row-title {
+  color: var(--pds-text-link, var(--pds-text-primary));
+}
+
+/* Engagement under ministry names: a small caption over each panel. */
+.proto-church-engagement__group + .proto-church-engagement__group {
+  margin-top: 12px;
+}
+
+.proto-church-engagement__group-name {
+  margin: 0 2px 6px;
+  opacity: 0.72;
+}
+
+/* Ministries: each one a heading over its rooms, Church-wide last. */
+.proto-ministries__group + .proto-ministries__group {
+  margin-top: 24px;
+}
+
+.proto-ministries__head {
+  appearance: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
+.proto-ministries__head:disabled,
+.proto-ministries__head--static {
+  cursor: default;
+}
+
+.proto-ministries__head[aria-current='true'] .pds-list-title {
+  color: var(--pds-text-link, var(--pds-text-primary));
+}
+
+.proto-ministries__head-meta {
+  margin-left: auto;
+  opacity: 0.72;
+}
+
+.proto-ministries__empty {
+  margin: 0 2px;
+  opacity: 0.72;
+}
+
+/* The select's trigger is full-width by default; on a row it sits at the end at its own size,
+   so the room's name keeps the space. */
+.proto-church-tools__row .proto-select-menu__trigger.proto-ministries__move {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 45%;
+  min-height: 28px;
+  margin-left: auto;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.proto-church-tools__row .proto-select-menu__trigger.proto-ministries__move + .proto-select-menu__trigger.proto-ministries__move {
+  margin-left: 6px;
+}
+
+/* Wider than the planner's 344px rail: a matching pair is two inputs on one line. */
+.proto-planner-editor.proto-church-review-pane {
+  flex-basis: 420px;
+}
+
+/* The only part that scrolls; the pane's body already sets the side inset. `flex: 1 1 auto`
+   + `min-height: 0` because the app reset sets `flex-shrink: 0`, which pushed the footer
+   out of the card instead of scrolling. */
+.proto-church-review-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.proto-church-review-editor__prompt {
+  resize: none;
+  min-height: 56px;
+}
+
+.proto-church-review-editor__label {
+  margin: 0;
+}
+
+.proto-church-review-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-church-review-editor__list-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The app reset sets `flex-shrink: 0` everywhere; inputs in a row must be told to share. */
+.proto-church-review-editor__input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.proto-church-review-editor__index {
+  flex: 0 0 auto;
+  width: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-church-review-editor__correct {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--pds-text-primary) 28%, transparent);
+  background: none;
+  color: var(--pds-on-accent);
+  cursor: pointer;
+}
+
+.proto-church-review-editor__correct--on {
+  background: var(--pds-bg-accent-button);
+  border-color: transparent;
+}
+
+
+.proto-church-review-editor__add {
+  appearance: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-church-review-editor__hint {
+  margin: 0;
+  opacity: 0.8;
+  line-height: 1.45;
+}
+
+.proto-church-review-editor__footer {
+  display: flex;
+  gap: 8px;
+}
+
+.proto-church-review-editor__footer > * {
+  flex: 1 1 0;
+  min-width: 0;
+  /* "Save draft" broke onto two lines at phone width; a label that wraps reads as two buttons. */
+  white-space: nowrap;
+}
+
+.proto-church-review-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--pds-bg-input);
+}
+
+.proto-church-review-preview__from {
+  margin: 0;
+}
+
+.proto-church-review-preview__prompt {
+  margin: 0;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-church-review-preview__options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-church-review-preview__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.proto-church-review-preview__columns > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-church-review-preview__chip {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--pds-bg-page);
+  font-size: 13px;
+  color: var(--pds-text-primary);
+}
+
 /* Lane head: the section label with its one action beside it, so a lane never
    needs a grey button slab below its content. */
 .proto-church-tools__lane-head {
@@ -13759,6 +14129,14 @@ p.proto-teaching-plan__divider {
   gap: 8px 6px;
   width: 100%;
   margin-top: 2px;
+}
+
+.proto-create-shared-space__ministry {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 .proto-create-shared-space__rhythm-label {

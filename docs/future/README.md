@@ -101,7 +101,7 @@ These were designed here and are now live. The stub files in this folder point t
   - Vision: churches have org accounts for curriculum management; share threads/notes to attendees
   - Two layers: individual shared spaces (current) vs church-org distribution (future)
   - MyChurchPanel evolution: sync with available church organizations (Clerk), user links to church → receives curriculum
-  - How curriculum flows (publish to org → inbox / “From your church” for org members)
+  - How curriculum flows (publish to a ministry channel → “From your church” for followers; the inbox pipe is retired)
   - References CHURCH_CONNECTION_SYSTEM, SHARING_AND_GROUPS_INFRASTRUCTURE
 
 - **`RESOURCE_LIBRARY.md`** - Church (then school) Resource Library vs Planning Center Groups Resources

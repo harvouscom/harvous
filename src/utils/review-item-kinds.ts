@@ -8,7 +8,13 @@
  * reader set by answering it, and disappears only when they say so.
  */
 
-export const REVIEW_ITEM_KINDS = ['note', 'highlight', 'connection', 'thread', 'verse', 'chapter'] as const;
+/**
+ * `church` is a question a church wrote — multiple choice, order, or match — delivered to its
+ * followers (docs/CHURCH_V2_ROADMAP.md §B). A church *passage* is not this kind: it is a `verse`
+ * or `chapter` row with `origin='church'`, asked on the ladders every other passage uses.
+ * Appended: this list's order is its identity on rows already written.
+ */
+export const REVIEW_ITEM_KINDS = ['note', 'highlight', 'connection', 'thread', 'verse', 'chapter', 'church'] as const;
 
 export type ReviewItemKind = (typeof REVIEW_ITEM_KINDS)[number];
 
@@ -16,7 +22,7 @@ export function isReviewItemKind(value: string): value is ReviewItemKind {
   return (REVIEW_ITEM_KINDS as readonly string[]).includes(value);
 }
 
-export const REVIEW_ASKABLE_KINDS = ['note', 'verse', 'chapter'] as const;
+export const REVIEW_ASKABLE_KINDS = ['note', 'verse', 'chapter', 'church'] as const;
 
 export type ReviewAskableKind = (typeof REVIEW_ASKABLE_KINDS)[number];
 
@@ -111,7 +117,8 @@ export const RECALL_STATE_LABELS: Record<RecallState, string> = {
   slipping: 'Give this another look',
 };
 
-export const REVIEW_ITEM_ORIGINS = ['user', 'seed', 'challenge', 'engine'] as const;
+/** `church`: delivered by a church the reader follows — see `ReviewItems.churchExerciseId`. */
+export const REVIEW_ITEM_ORIGINS = ['user', 'seed', 'challenge', 'engine', 'church'] as const;
 
 export type ReviewItemOrigin = (typeof REVIEW_ITEM_ORIGINS)[number];
 
@@ -195,6 +202,8 @@ const CHOICE_RUNGS = new Set<string>([
   'chapter.person',
   'chapter.place',
   'chapter.marked',
+  // A tap among options staff wrote. Ordering and matching are placed piece by piece: three.
+  'church.choice',
 ]);
 
 export function maxAttemptsFor(promptKey: string | null | undefined): number {

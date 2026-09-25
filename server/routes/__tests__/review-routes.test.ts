@@ -41,15 +41,43 @@ describe('every Review route is gated', () => {
     for (const line of all) expect(line).toContain('requireAuth');
   });
 
-  it('requires the paid feature key on every single route but the sample pair', () => {
-    for (const line of lines) expect(line).toContain("requireFeature('review')");
+  /*
+   * Two gates, not one. Plus is review of your own study; a church's questions are free to its
+   * followers (docs/CHURCH_V2_ROADMAP.md §B). So every route but the sample pair takes
+   * `requireReviewAccess()` — Plus, or a church's reader, scoped per item — except making an item
+   * from your own study, which is Plus and nothing else.
+   */
+  const gate = (line: string) =>
+    line.includes("requireFeature('review')") ? 'plus' : line.includes('requireReviewAccess()') ? 'access' : null;
+
+  it('gates every single route but the sample pair', () => {
+    for (const line of lines) expect(gate(line), line).not.toBeNull();
     expect(all.filter(isSample)).toHaveLength(2);
-    expect(all.filter((line) => !line.includes("requireFeature('review')"))).toEqual(all.filter(isSample));
+    expect(all.filter((line) => !gate(line))).toEqual(all.filter(isSample));
   });
 
-  it('puts the feature gate after requireAuth, which it reads from', () => {
+  it('keeps "Add to Review" — an item from your own study — behind Plus alone', () => {
+    const add = lines.find((line) => line.includes("route.post('/api/review/items',"));
+    expect(add).toBeDefined();
+    expect(gate(add!)).toBe('plus');
+    expect(lines.filter((line) => gate(line) === 'plus')).toHaveLength(1);
+  });
+
+  it('puts the gate after requireAuth, which it reads from', () => {
     for (const line of lines) {
-      expect(line.indexOf('requireAuth')).toBeLessThan(line.indexOf('requireFeature'));
+      const at = Math.max(line.indexOf('requireFeature'), line.indexOf('requireReviewAccess'));
+      expect(line.indexOf('requireAuth')).toBeLessThan(at);
+    }
+  });
+
+  it('never lets a church-only reader reach their own rows, or anyone reach a church row they no longer hold', () => {
+    const text = review();
+    // Every item lookup is scoped; a bare lookup would ignore the scope.
+    expect(text).not.toMatch(/getReviewItem\(auth\.userId, c\.req\.param\('id'\) \?\? ''\)/);
+    expect(text.match(/getReviewItem\(auth\.userId, c\.req\.param\('id'\) \?\? '', reviewScopeOf\(c\)\)/g)?.length).toBeGreaterThanOrEqual(5);
+    // The engine fills a reader's *own* study, so only for Plus.
+    for (const match of text.matchAll(/void refillReviewQueue/g)) {
+      expect(text.slice(Math.max(0, match.index! - 60), match.index)).toContain("scope.access === 'full'");
     }
   });
 

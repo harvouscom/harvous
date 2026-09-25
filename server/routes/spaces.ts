@@ -140,6 +140,8 @@ import {
 } from '../utils/purge-onboarding-content';
 import { buildSpaceReferencesIndex } from '../utils/build-space-references-index';
 import { getPublicAppOrigin } from '../utils/public-app-origin';
+import { resolveMinistryForNewSpace } from '../utils/church-ministries';
+import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
 import { mapStudyRow } from './study-threads';
 import { isStudyThreadEntriesTableMissing } from '../utils/pg-undefined-relation';
 import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
@@ -460,6 +462,13 @@ route.post('/api/spaces/create-church-shared', requireAuth, rateLimit('write'), 
     if (!gate.ok) {
       return c.json({ error: gate.error, code: gate.code }, gate.status);
     }
+    // Which ministry it belongs to — see resolveMinistryForNewSpace for the default.
+    const ministry = await resolveMinistryForNewSpace(
+      gate.church.orgId,
+      auth.userId,
+      (body as { ministryId?: unknown }).ministryId,
+    );
+    if (!ministry.ok) return c.json({ error: ministry.error, code: ministry.code }, ministry.status);
 
     const title = (body.title ?? '').trim();
     const color = (body.color ?? 'paper').trim() || 'paper';
@@ -490,6 +499,7 @@ route.post('/api/spaces/create-church-shared', requireAuth, rateLimit('write'), 
         userId: auth.userId,
         type: 'shared',
         orgId: gate.church.orgId,
+        ministryId: ministry.ministryId,
         isPublic: false,
         isActive: true,
         order: 0,
@@ -517,6 +527,15 @@ route.post('/api/spaces/create-church-shared', requireAuth, rateLimit('write'), 
 
     awardCreationBonusXP(auth.userId, 'space').catch(() => {});
     queueAudiencefulProductFlagsForUser(auth.userId, { has_created_space: true });
+
+    /* Its staff leaders now, not on the next Clerk webhook — which is when a new space used to
+       get them. Best-effort: a failed sync leaves the space owned by its creator, and the hub's
+       Sync finishes it. */
+    try {
+      await syncChurchStaffForOrg(gate.church.orgId, { spaceIds: [newSpace.id] });
+    } catch (error) {
+      console.warn('[spaces] staff sync after create failed', error);
+    }
 
     return c.json({ success: 'Church Shared Space created!', space: newSpace });
   } catch (error: any) {
@@ -551,6 +570,13 @@ route.post('/api/spaces/create-ministry-channel', requireAuth, rateLimit('write'
     if (!gate.ok) {
       return c.json({ error: gate.error, code: gate.code }, gate.status);
     }
+    // Which ministry it belongs to — see resolveMinistryForNewSpace for the default.
+    const ministry = await resolveMinistryForNewSpace(
+      gate.church.orgId,
+      auth.userId,
+      (body as { ministryId?: unknown }).ministryId,
+    );
+    if (!ministry.ok) return c.json({ error: ministry.error, code: ministry.code }, ministry.status);
 
     const title = (body.title ?? '').trim();
     const color = (body.color ?? 'paper').trim() || 'paper';
@@ -581,6 +607,7 @@ route.post('/api/spaces/create-ministry-channel', requireAuth, rateLimit('write'
         userId: auth.userId,
         type: 'public',
         orgId: gate.church.orgId,
+        ministryId: ministry.ministryId,
         isPublic: false,
         isActive: true,
         order: 0,
@@ -602,6 +629,15 @@ route.post('/api/spaces/create-ministry-channel', requireAuth, rateLimit('write'
 
     awardCreationBonusXP(auth.userId, 'space').catch(() => {});
     queueAudiencefulProductFlagsForUser(auth.userId, { has_created_space: true });
+
+    /* Its staff leaders now, not on the next Clerk webhook — which is when a new space used to
+       get them. Best-effort: a failed sync leaves the space owned by its creator, and the hub's
+       Sync finishes it. */
+    try {
+      await syncChurchStaffForOrg(gate.church.orgId, { spaceIds: [newSpace.id] });
+    } catch (error) {
+      console.warn('[spaces] staff sync after create failed', error);
+    }
 
     return c.json({ success: 'Ministry channel created!', space: newSpace });
   } catch (error: any) {

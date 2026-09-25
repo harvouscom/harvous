@@ -106,6 +106,21 @@ export function isAssignableChurchRole(role: string): role is AssignableChurchRo
 }
 
 /**
+ * Roles that always lead every space the church has, whatever ministries exist.
+ *
+ * These shape the whole church — its roster, its money, its teaching plan, its library, its
+ * clock — so confining one to the youth rooms would leave someone reshaping the whole plan from
+ * inside one ministry. A youth pastor who should be scoped is given `org:teacher`
+ * (docs/CHURCH_V2_ROADMAP.md §C).
+ */
+export const CHURCH_WIDE_ROLES: readonly string[] = [ROLE_ADMIN, ROLE_PASTOR, ROLE_COORDINATOR];
+
+/** A teacher, plain staff, or a role Harvous has never heard of can be scoped to ministries. */
+export function isMinistryScopableRole(role: string | null | undefined): boolean {
+  return !CHURCH_WIDE_ROLES.includes(role ?? '');
+}
+
+/**
  * Capabilities for a staff member's Clerk org role.
  *
  * Every staff member can publish — that is what being staff means here. Admin
