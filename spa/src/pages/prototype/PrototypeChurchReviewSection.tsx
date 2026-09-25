@@ -124,7 +124,7 @@ export default function PrototypeChurchReviewSection({
               type="button"
               role="tab"
               aria-selected={c.id === channel.id}
-              className={`proto-church-review__channel${c.id === channel.id ? ' proto-church-review__channel--on' : ''}`}
+              className={`proto-church-review__channel${c.id === channel.id ? ' proto-church-review__channel--on proto-ink-on-accent' : ''}`}
               onClick={() => setChannelId(c.id)}
             >
               {c.title}

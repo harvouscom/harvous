@@ -325,7 +325,7 @@ export default function PrototypeChurchReviewEditorSheet({
                   (i) => (
                     <button
                       type="button"
-                      className={`proto-church-review-editor__correct${correctIndex === i ? ' proto-church-review-editor__correct--on' : ''}`}
+                      className={`proto-church-review-editor__correct${correctIndex === i ? ' proto-church-review-editor__correct--on proto-ink-on-accent' : ''}`}
                       aria-pressed={correctIndex === i}
                       aria-label={`Mark option ${i + 1} right`}
                       onClick={() => {

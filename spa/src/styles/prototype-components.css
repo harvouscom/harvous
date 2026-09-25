@@ -12266,10 +12266,10 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   cursor: pointer;
 }
 
-/* Selected is the accent fill with white text — the one "selected" treatment. */
+/* Selected is the accent fill with white text — the one "selected" treatment. The white
+   comes from `proto-ink-on-accent` (prototype-route-overrides-1.css), not from here. */
 .proto-church-review__channel--on {
   background: var(--pds-bg-accent-button);
-  color: var(--pds-on-accent);
 }
 
 .proto-church-review__eyebrow {
@@ -12397,14 +12397,6 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   border-color: transparent;
 }
 
-/* The prototype route's `[class*="proto-"] button path { fill: currentColor !important }` and
-   `button * { color }` reach the tick; matched on the same root so the accent tick is white. */
-html.harvous-prototype-route .proto-church-review-editor__correct--on svg,
-html.harvous-prototype-route .proto-church-review-editor__correct--on svg path,
-html.harvous-prototype-route .proto-church-review-editor__correct--on span {
-  color: var(--pds-on-accent) !important;
-  fill: var(--pds-on-accent) !important;
-}
 
 .proto-church-review-editor__add {
   appearance: none;
