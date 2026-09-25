@@ -137,6 +137,13 @@ import { recordAudiencefulMilestoneOnce } from '@/utils/audienceful-milestones-c
 import type { NoteActivityItem } from '../../lib/shared-note-activity-list';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import { api, APIError } from '../../lib/api';
+import {
+  formatPublishAt,
+  useChurchContentActions,
+  useNoteChurchSubmissions,
+  type ContentActionResponse,
+} from '../../hooks/queries/useChurchContent';
+import type { ChannelPending } from './PrototypeNoteDestinationSheet';
 
 const DRAFT_NOTE_ID = 'note_draft';
 /** Stable identity so the epoch-mismatch fallback doesn't re-render on every pass. */
@@ -858,6 +865,11 @@ export default function PrototypeNotePage() {
      object in there would rebuild the save callback on every render. */
   const associateNoteWithSpaceRef = useRef(associateNoteWithSpace.mutateAsync);
   associateNoteWithSpaceRef.current = associateNoteWithSpace.mutateAsync;
+  /* Church channels: a post can wait for a time or for a pastor (CHURCH_V2_ROADMAP.md §D).
+     Going live is still the ordinary publish; these only hold the promise until then. */
+  const churchContentActions = useChurchContentActions();
+  const churchContentSubmitRef = useRef(churchContentActions.mutateAsync);
+  churchContentSubmitRef.current = churchContentActions.mutateAsync;
   const [pendingDestinationIds, setPendingDestinationIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -1001,6 +1013,11 @@ export default function PrototypeNotePage() {
             },
             onError: (err) => {
               settle();
+              // The church reviews channel posts first — send it for approval rather than fail.
+              if (err instanceof APIError && err.code === 'CONTENT_APPROVAL_REQUIRED') {
+                handleScheduleChannelRef.current(destination, null);
+                return;
+              }
               toastError(err, `Could not add to ${destination.title}`);
             },
           },
@@ -1032,6 +1049,68 @@ export default function PrototypeNotePage() {
       associateNoteWithSpace,
       removeNoteFromSpace,
     ],
+  );
+
+  /* The note on the server, for scheduling — a draft that has not saved yet has none. */
+  const scheduleNoteId = isDraft ? adoptedComposeIdRef.current || persistedDraftIdRef.current || null : noteId;
+  const hasChannelRows = destinationRows.some((row) => row.space?.type === 'public' && Boolean(row.space?.orgId));
+  const noteSubmissions = useNoteChurchSubmissions(scheduleNoteId, {
+    enabled: viewerIsAuthor && hasChannelRows && destinationOpen,
+  });
+  const channelPending = useMemo(() => {
+    const map = new Map<string, ChannelPending>();
+    for (const sub of noteSubmissions.data?.submissions ?? []) {
+      map.set(sub.channelSpaceId, { submissionId: sub.id, status: sub.status, publishAt: sub.publishAt });
+    }
+    return map;
+  }, [noteSubmissions.data]);
+  const approvalSpaceIds = useMemo(() => {
+    const orgs = new Set(noteSubmissions.data?.approvalRequiredOrgIds ?? []);
+    return new Set(
+      destinationRows
+        .filter((row) => row.spaceId && row.space?.orgId && orgs.has(row.space.orgId))
+        .map((row) => row.spaceId as string),
+    );
+  }, [noteSubmissions.data, destinationRows]);
+
+  const handleScheduleChannel = useCallback(
+    (destination: NoteDestination, publishAt: string | null) => {
+      const targetNoteId = adoptedComposeIdRef.current || persistedDraftIdRef.current || (isDraft ? null : noteId);
+      if (!targetNoteId || !destination.spaceId) return;
+      churchContentActions.mutate(
+        { type: 'submit', noteId: targetNoteId, channelSpaceId: destination.spaceId, publishAt },
+        {
+          onSuccess: (response: ContentActionResponse) => {
+            if (response.status === 'published') toast.success(`Added to ${destination.title}`);
+            else if (response.status === 'scheduled')
+              toast.success(`Scheduled for ${destination.title} · ${formatPublishAt(publishAt)}`);
+            else toast.success(`Sent to ${destination.title} for approval`);
+          },
+          onError: (err) => toastError(err, `Could not schedule for ${destination.title}`),
+        },
+      );
+    },
+    [churchContentActions, isDraft, noteId],
+  );
+  const handleScheduleChannelRef = useRef(handleScheduleChannel);
+  handleScheduleChannelRef.current = handleScheduleChannel;
+
+  const handleWithdrawChannel = useCallback(
+    (destination: NoteDestination, pending: ChannelPending) => {
+      churchContentActions.mutate(
+        { type: 'withdraw', submissionId: pending.submissionId },
+        {
+          onSuccess: () =>
+            toast.success(
+              pending.status === 'in_review'
+                ? `Taken back from ${destination.title}`
+                : `Unscheduled from ${destination.title}`,
+            ),
+          onError: (err) => toastError(err, `Could not change ${destination.title}`),
+        },
+      );
+    },
+    [churchContentActions],
   );
 
   const onHighlightOpenRequestConsumed = useCallback(() => {
@@ -2353,6 +2432,13 @@ export default function PrototypeNotePage() {
                   .current({ spaceId: pendingSpaceId, noteId: createdId })
                   // One room refusing the note must not fail the save that already landed.
                   .catch((err: unknown) => {
+                    // A channel whose church reviews posts first: send it for approval instead.
+                    if (err instanceof APIError && err.code === 'CONTENT_APPROVAL_REQUIRED') {
+                      return churchContentSubmitRef
+                        .current({ type: 'submit', noteId: createdId, channelSpaceId: pendingSpaceId })
+                        .then(() => toast.success('Sent for approval'))
+                        .catch((submitErr: unknown) => console.error('Could not submit the new note', submitErr));
+                    }
                     console.error('Could not add the new note to a ticked space', err);
                   }),
               ),
@@ -3085,6 +3171,11 @@ export default function PrototypeNotePage() {
                   loading={destinationsLoading}
                   pendingSpaceIds={pendingDestinationIds}
                   onToggle={handleToggleDestination}
+                  channelPending={channelPending}
+                  approvalSpaceIds={approvalSpaceIds}
+                  canSchedule={Boolean(scheduleNoteId)}
+                  onSchedule={handleScheduleChannel}
+                  onWithdraw={handleWithdrawChannel}
                 />
               ) : null}
               </div>

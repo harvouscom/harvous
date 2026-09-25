@@ -114,6 +114,20 @@ export default function PrototypeChurchSettingsSection({
     );
   };
 
+  /* Like every other setting here, a lapsed plan freezes it (the server agrees). */
+  const toggleApproval = () => {
+    if (!canWrite || busy) return;
+    const next = !data.settings.contentApproval;
+    actions.mutate(
+      { kind: 'contentApproval', contentApproval: next },
+      {
+        onSuccess: () =>
+          toast.success(next ? 'Teachers’ posts now wait for approval' : 'Staff publish directly again'),
+        onError: (e) => fail(e, 'Could not change that'),
+      },
+    );
+  };
+
   return (
     <div className="proto-home-section">
       <div className="proto-shared-space-settings">
@@ -253,6 +267,38 @@ export default function PrototypeChurchSettingsSection({
           Your church&rsquo;s plan has ended, so these can&rsquo;t change.
         </p>
       )}
+
+      {/* Approval before publish (CHURCH_V2_ROADMAP.md §D). Off: anyone on staff publishes. */}
+      <p className="proto-church-settings__section-label">Publishing</p>
+      <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+        <div className="proto-church-tools__row proto-church-tools__row--status">
+          <span className="proto-church-tools__row-text">
+            <span className="pds-list-title proto-church-tools__row-title">Approve teachers&rsquo; posts</span>
+            <span className="proto-caption proto-church-tools__row-meta">
+              Teachers send channel posts to a pastor, admin or coordinator, who approves them before they go out.
+            </span>
+          </span>
+          <span
+            className="proto-fte-switch"
+            data-on={data.settings.contentApproval ? 'true' : 'false'}
+            role="switch"
+            aria-checked={Boolean(data.settings.contentApproval)}
+            aria-disabled={!canWrite || busy}
+            aria-label="Approve teachers’ posts"
+            tabIndex={canWrite ? 0 : -1}
+            style={!canWrite ? { opacity: 0.4 } : undefined}
+            onClick={() => toggleApproval()}
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                toggleApproval();
+              }
+            }}
+          >
+            <span className="proto-fte-switch__thumb" />
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

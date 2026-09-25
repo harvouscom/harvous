@@ -29,6 +29,7 @@ import ProtoSidebarExpandedPanel from './ProtoSidebarExpandedPanel';
 import ProtoChipBar from './components/ProtoChipBar';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
+import PrototypeStaffToolGate from './PrototypeStaffToolGate';
 import type { ExpandedSidebarToolProps } from './PrototypeExpandedSidebarHost';
 
 const KIND_LABEL: Record<string, string> = {
@@ -65,7 +66,8 @@ type Selection = { mode: 'create' } | { mode: 'edit'; exerciseId: string } | nul
 export default function PrototypeExpandedChurchReview({ exiting, origin, onClose }: ExpandedSidebarToolProps) {
   const { activeChurchOrgId } = useProtoShell();
   const orgId = activeChurchOrgId ?? null;
-  const { can } = useChurchStaffStatus(orgId);
+  const staffStatus = useChurchStaffStatus(orgId);
+  const { can } = staffStatus;
   // Any staff member: writing a channel's questions is publishing to it.
   const canView = can('publish');
   /* Lapsed gates writes only — read off the channels payload the hub already loads. */
@@ -138,7 +140,14 @@ export default function PrototypeExpandedChurchReview({ exiting, origin, onClose
     >
       <div className="proto-planner">
         <div className="proto-planner__main proto-church-review">
-          {!canView ? null : channels.isPending ? (
+          {!canView ? (
+            <PrototypeStaffToolGate
+              loading={staffStatus.isLoading}
+              error={staffStatus.isError}
+              onRetry={() => void staffStatus.refetch()}
+              toolName="Review questions"
+            />
+          ) : channels.isPending ? (
             <ProtoSpaceLoading label="Loading review questions" />
           ) : channels.isError ? (
             <div className="proto-church-review__body proto-church-review__body--empty">

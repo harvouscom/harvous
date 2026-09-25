@@ -52,6 +52,13 @@ export const CHURCH_CAPABILITIES = [
    * space lane's widened gate instead.
    */
   'manage_library',
+  /**
+   * Approve what others submit to the church's channels, and publish without approval when the
+   * church requires it (`Churches.contentApproval`). Only ever meaningful with approval on; with
+   * it off, `publish` alone publishes. Church-wide roles only — a reviewer answers for the whole
+   * church, so a ministry-scoped teacher never holds it.
+   */
+  'review_content',
 ] as const;
 
 export type ChurchCapability = (typeof CHURCH_CAPABILITIES)[number];
@@ -164,6 +171,7 @@ export function capabilitiesForChurchRole(role: string | null | undefined): Chur
     /* Same reasoning as templates: what the church studies from is a
        pastor/admin decision. Widening to teachers later is one line. */
     capabilities.add('manage_library');
+    capabilities.add('review_content');
   }
 
   return [...capabilities];

@@ -54,6 +54,7 @@ import { useChurchTeachingPlan } from '../../hooks/queries/useChurchTeachingPlan
 import PrototypeChurchSettingsSection from './PrototypeChurchSettingsSection';
 import { useProtoHomeViewClassName, useProtoSpaceLoaderState } from './useProtoHomeViewEnter';
 import PrototypeChannelPairingSection from './PrototypeChannelPairingSection';
+import { useChurchContent } from '../../hooks/queries/useChurchContent';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
@@ -236,6 +237,9 @@ export default function PrototypeChurchHub() {
       }),
     [nav, orgId, profile?.connectedOrgId, profile?.isHomeChurchStaff, isOrgStaff],
   );
+  /* Loaded with the hub, not on open (the tool reads the same cache): the row's meta names a
+     reviewer's queue. */
+  const contentQuery = useChurchContent(orgId, { enabled: canCreateChurchContent });
   const { sharedSpaces, ministryChannels } = useMemo(() => {
     const all = [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])];
     const hubSpaces = churchHubSpacesForOrg(all, orgId);
@@ -355,6 +359,21 @@ export default function PrototypeChurchHub() {
         onSelect: () => openExpandedSidebar('ministries'),
       });
     }
+    /* Any staff member: what is scheduled, waiting for approval, or recently out. The meta
+       carries the one number that asks for action — a reviewer's queue. */
+    if (canCreateChurchContent) {
+      const toReview = contentQuery.data?.canReview
+        ? contentQuery.data.submissions.filter((s) => s.status === 'in_review').length
+        : 0;
+      rows.push({
+        key: 'content',
+        icon: 'newspaper',
+        title: 'Content',
+        meta: toReview ? `${toReview} waiting for your approval` : 'Scheduled and published posts',
+        chevron: 'expand',
+        onSelect: () => openExpandedSidebar('church-content'),
+      });
+    }
     /* Any staff member: handing out the link is the job, and whoever prints the
        bulletin is rarely the admin. Making and replacing it is admin-only, and
        that verdict comes back from the server inside the pane. */
@@ -435,6 +454,7 @@ export default function PrototypeChurchHub() {
     }
     return rows;
   }, [
+    contentQuery.data,
     canViewTeachingPlan,
     canCreateChurchContent,
     canManageChurchTemplates,
