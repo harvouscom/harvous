@@ -2179,3 +2179,77 @@
   line-height: 1.45;
   color: var(--site-ink-soft);
 }
+
+/* ─── Church join link (`/churches/join/:token`) ─────────────────────────────
+   One list of the church's channels, each a toggle. Selected wears the accent
+   gradient fill with a white check — the one "selected" treatment — and nothing
+   is preselected: connecting never follows everything. */
+
+.public-join-church__lede {
+  margin: 0;
+  padding: 4px 22px 12px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--site-ink-soft);
+}
+
+.public-join-church__item {
+  padding: 0;
+}
+
+.public-join-church__channel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 22px;
+  background: none;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.public-join-church__channel:disabled {
+  cursor: default;
+}
+
+.public-join-church__channel-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.public-join-church__channel-title {
+  font-weight: 600;
+  color: var(--site-ink);
+}
+
+.public-join-church__channel-meta {
+  font-size: 0.8125rem;
+  color: var(--site-ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-join-church__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1.5px solid var(--site-rule);
+  color: #fff;
+  box-sizing: border-box;
+}
+
+.public-join-church__check--on {
+  background: var(--pds-bg-accent-button);
+  border-color: transparent;
+}

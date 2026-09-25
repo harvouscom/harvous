@@ -118,6 +118,13 @@ const discoverListingRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/public/PublicDiscoverListingPage')),
 });
 
+// A church's join link — usually a QR on a bulletin. Lazy: most visitors never see it.
+const churchJoinRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/churches/join/$token',
+  component: lazyRouteComponent(() => import('./pages/public/PublicJoinChurchPage')),
+});
+
 const invitationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/invitations/$token',
@@ -298,6 +305,7 @@ function buildRouteTree() {
     sharedNoteRoute,
     sharedThreadRoute,
     discoverListingRoute,
+    churchJoinRoute,
     invitationRoute,
     statusRoute,
     ...(designSystemGalleryRoute ? [designSystemGalleryRoute] : []),

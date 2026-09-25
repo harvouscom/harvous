@@ -44,6 +44,7 @@ import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
 import PrototypeChurchStaffSection from './PrototypeChurchStaffSection';
 import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSection';
 import PrototypeChurchEngagementSection from './PrototypeChurchEngagementSection';
+import PrototypeChurchJoinLinkSection from './PrototypeChurchJoinLinkSection';
 import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
 import PrototypeChurchSetupCard from './PrototypeChurchSetupCard';
 import { churchSetupSteps, type ChurchSetupStepId } from '../../lib/church-setup-steps';
@@ -281,6 +282,7 @@ export default function PrototypeChurchHub() {
     | 'starters'
     | 'settings'
     | 'engagement'
+    | 'join-link'
   >('catalog');
   const pendingFollowId = followChannel.isPending
     ? followChannel.variables?.spaceId ?? null
@@ -314,6 +316,18 @@ export default function PrototypeChurchHub() {
         title: 'Team',
         meta: 'Staff and volunteers',
         onSelect: () => setToolsView('team'),
+      });
+    }
+    /* Any staff member: handing out the link is the job, and whoever prints the
+       bulletin is rarely the admin. Making and replacing it is admin-only, and
+       that verdict comes back from the server inside the pane. */
+    if (canCreateChurchContent) {
+      rows.push({
+        key: 'join-link',
+        icon: 'link',
+        title: 'Invite link',
+        meta: 'A link and QR for your congregation',
+        onSelect: () => setToolsView('join-link'),
       });
     }
     /* Gated on `manage_templates`, not publish rights: a teacher writes
@@ -491,7 +505,9 @@ export default function PrototypeChurchHub() {
             ? 'Church settings'
             : toolsView === 'engagement'
               ? 'Engagement'
-              : churchName;
+              : toolsView === 'join-link'
+                ? 'Invite link'
+                : churchName;
 
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
@@ -609,6 +625,13 @@ export default function PrototypeChurchHub() {
             />
           ) : toolsView === 'engagement' ? (
             <PrototypeChurchEngagementSection orgId={orgId} canView={canViewEngagement} />
+          ) : toolsView === 'join-link' ? (
+            <PrototypeChurchJoinLinkSection
+              orgId={orgId}
+              churchName={churchName}
+              canView={canCreateChurchContent}
+              lapsed={churchPlanLapsed}
+            />
           ) : toolsView === 'settings' ? (
             <PrototypeChurchSettingsSection
               orgId={orgId}

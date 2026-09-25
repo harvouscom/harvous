@@ -77,6 +77,16 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'anchorDetachedAt',
     'actorDisplayNameSnapshot',
   ],
+  ChurchJoinLinks: [
+    'id',
+    'churchId',
+    'token',
+    'createdBy',
+    'useCount',
+    'revokedAt',
+    'revokedReason',
+    'createdAt',
+  ],
   Churches: [
     'id',
     'orgId',
@@ -227,6 +237,8 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   /** Both halves required — one index per plan scope, neither optional. */
   ChurchSeries: ['ChurchSeries_church_title_run_unique', 'ChurchSeries_space_title_run_unique'],
   UserMetadata: ['UserMetadata_connectedChurchIdIndex', 'UserMetadata_hmcChurchIdIndex'],
+  // The partial unique index is the "one live link per church" rule, not just a lookup.
+  ChurchJoinLinks: ['ChurchJoinLinks_token_unique', 'ChurchJoinLinks_church_live_unique'],
   // The endpoint unique index is what the subscribe upsert targets.
   PushSubscriptions: ['PushSubscriptions_endpoint_unique', 'PushSubscriptions_userIdIndex'],
   ReminderDeliveries: ['ReminderDeliveries_userId_sentAtIndex', 'ReminderDeliveries_outcome_sentAtIndex'],
@@ -272,6 +284,7 @@ async function main() {
     'SpaceMemberships',
     'SpaceInvites',
     'Churches',
+    'ChurchJoinLinks',
     'ChurchServices',
     'ChurchSeries',
     'UserMetadata',

@@ -80,6 +80,7 @@ export {
   SpaceStudySuggestions,
   ChurchServiceLibraryItems,
   ChurchSpaceChannelLinks,
+  ChurchJoinLinks,
   InboxItems,
   InboxItemNotes,
   UserInboxItems,

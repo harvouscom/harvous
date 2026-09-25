@@ -12185,6 +12185,59 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   line-height: 1.45;
 }
 
+/* The church join link — the QR on a white tile whatever the theme (a code only
+   scans dark-on-light), the link under it, and the actions in a row. */
+.proto-church-join__lede {
+  margin: 0 2px 12px;
+  line-height: 1.45;
+}
+
+.proto-church-join__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+
+.proto-church-join__qr {
+  display: block;
+  width: 176px;
+  height: 176px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.proto-church-join__url {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-church-join__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.proto-church-join__actions .proto-settings-btn {
+  gap: 6px;
+}
+
+.proto-church-join__count {
+  margin: 12px 2px 0;
+  opacity: 0.72;
+  line-height: 1.45;
+}
+
+.proto-church-join__manage {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 /* Lane head: the section label with its one action beside it, so a lane never
    needs a grey button slab below its content. */
 .proto-church-tools__lane-head {

@@ -298,7 +298,18 @@ export default function PrototypeChurchPage() {
             <SettingsRow
               label={name || 'Church'}
               sublabel={
-                [location, hmcChurchId ? 'Directory' : null].filter(Boolean).join(' · ') || undefined
+                /* "Connected" when a registered church is linked — including one joined by its
+                   link, which has no directory id to show and otherwise read as typed by hand. */
+                [
+                  location,
+                  profile?.connectedChurchId && !profile?.connectedChurchInactive
+                    ? 'Connected'
+                    : hmcChurchId
+                      ? 'Directory'
+                      : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || undefined
               }
               leadingIcon="church"
               trailing="none"

@@ -834,6 +834,53 @@ export const ChurchMemberships = pgTable('ChurchMemberships', {
   index('ChurchMemberships_churchIdIndex').on(table.churchId),
 ]);
 
+// ─── ChurchJoinLinks (the link and QR a church hands its congregation) ──────────
+
+/**
+ * One live join link per church: a page that shows the church, carries a visitor
+ * through sign-up, connects them (`UserMetadata.connected*`) and lets them pick
+ * channels. Written by server/routes/church-join.ts; see docs/CHURCH_V2_ROADMAP.md §A.
+ *
+ * **A token, never a slug.** The list of churches on Harvous is deliberately not
+ * public (docs/future/CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md), and a slug would
+ * be a directory anyone could walk. The token is what gets printed on a bulletin.
+ *
+ * **Its own table, not a `Churches` column.** A new column on `Churches` would make
+ * every full-row read of it fail until the migration landed; a new table can only
+ * break the routes that read it.
+ *
+ * **No expiry.** A bulletin or a slide lives for months, and an expired QR on a
+ * printed card is a dead end with no one to ask. Rotate or revoke covers a leak.
+ * The partial unique index is the "one live link" rule: rotating revokes the old
+ * row and inserts a new one in the same transaction.
+ *
+ * `useCount` counts genuinely new connections made through the link — a count
+ * for the church, never a list of who.
+ *
+ * Deliberately **not** a writer of `ChurchMemberships`: `update-church` does not
+ * write it either, and a ledger only one of two connect paths fills is worse than
+ * none. Multi-church can backfill it from `connected*`.
+ *
+ * Row ids: `cjl_${crypto.randomUUID()}`.
+ */
+export const ChurchJoinLinks = pgTable('ChurchJoinLinks', {
+  id: text('id').primaryKey(),
+  churchId: text('churchId').notNull(),
+  /** `generateShareToken()` — 12 base62 characters. */
+  token: text('token').notNull(),
+  createdBy: text('createdBy').notNull(),
+  useCount: integer('useCount').notNull().default(0),
+  revokedAt: ts('revokedAt'),
+  /** 'rotated' | 'revoked' — why this link stopped working. */
+  revokedReason: text('revokedReason'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('ChurchJoinLinks_token_unique').on(table.token),
+  uniqueIndex('ChurchJoinLinks_church_live_unique')
+    .on(table.churchId)
+    .where(sql`${table.revokedAt} IS NULL`),
+]);
+
 // ─── ChurchServiceTimes (when the church gathers — recurring, stable) ─────────
 
 /**
