@@ -75,7 +75,12 @@ export default function PublicJoinChurchPage() {
   const data = preview.data;
   const church = data?.church;
   const viewer = data?.viewer;
-  const following = useMemo(() => new Set(viewer?.followingIds ?? []), [viewer?.followingIds]);
+  /* Channels already theirs — followed, or led as staff — show as done and can't be toggled. */
+  const following = useMemo(
+    () => new Set([...(viewer?.followingIds ?? []), ...(viewer?.leadingIds ?? [])]),
+    [viewer?.followingIds, viewer?.leadingIds],
+  );
+  const leading = useMemo(() => new Set(viewer?.leadingIds ?? []), [viewer?.leadingIds]);
   const connection = viewer?.connection ?? 'none';
   const newPicks = [...picked].filter((id) => !following.has(id));
 
@@ -242,7 +247,9 @@ export default function PublicJoinChurchPage() {
                                 <span className="public-join-church__channel-text">
                                   <span className="public-join-church__channel-title">{channel.title}</span>
                                   {isFollowing ? (
-                                    <span className="public-join-church__channel-meta">Following</span>
+                                    <span className="public-join-church__channel-meta">
+                                      {leading.has(channel.id) ? 'You lead this' : 'Following'}
+                                    </span>
                                   ) : channel.description ? (
                                     <span className="public-join-church__channel-meta">{channel.description}</span>
                                   ) : null}

@@ -12238,6 +12238,13 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   margin-top: 12px;
 }
 
+/* The app reset sets `flex-shrink: 0` everywhere and these buttons are full-width,
+   so without this the second one is pushed off the pane. */
+.proto-church-join__manage .proto-settings-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 /* Lane head: the section label with its one action beside it, so a lane never
    needs a grey button slab below its content. */
 .proto-church-tools__lane-head {

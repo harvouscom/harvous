@@ -143,7 +143,7 @@ export default function PrototypeChurchJoinLinkSection({
             <div className="proto-church-join__manage">
               <button
                 type="button"
-                className="proto-side-panel__action-btn"
+                className="proto-settings-btn proto-settings-btn--secondary"
                 disabled={busy || lapsed}
                 title={lapsed ? 'Your church’s plan has ended' : undefined}
                 onClick={(event) => setConfirm({ action: 'rotate', rect: event.currentTarget.getBoundingClientRect() })}
@@ -152,7 +152,7 @@ export default function PrototypeChurchJoinLinkSection({
               </button>
               <button
                 type="button"
-                className="proto-side-panel__action-btn proto-side-panel__action-btn--danger"
+                className="proto-settings-btn proto-settings-btn--secondary"
                 disabled={busy}
                 onClick={(event) => setConfirm({ action: 'revoke', rect: event.currentTarget.getBoundingClientRect() })}
               >

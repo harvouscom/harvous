@@ -16,6 +16,8 @@ export type ChurchJoinPreview = {
     /** Their current church's name, when it is a different one. */
     elsewhereName: string | null;
     followingIds: string[];
+    /** Channels they already lead as staff or a granted leader — nothing to follow. */
+    leadingIds?: string[];
   };
 };
 

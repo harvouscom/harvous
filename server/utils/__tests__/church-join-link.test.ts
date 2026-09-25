@@ -105,3 +105,15 @@ describe('viewerChurchConnection', () => {
     expect(viewerChurchConnection('chur_b', 'chur_a')).toBe('elsewhere');
   });
 });
+
+describe('generateChurchJoinToken', () => {
+  it('never uses characters people misread off a bulletin', async () => {
+    const { generateChurchJoinToken, JOIN_TOKEN_LENGTH } = await import('../church-join-link');
+    for (let i = 0; i < 200; i++) {
+      const token = generateChurchJoinToken();
+      expect(token).toHaveLength(JOIN_TOKEN_LENGTH);
+      expect(token).toMatch(/^[A-Za-z2-9]+$/);
+      expect(token).not.toMatch(/[0O1Il]/);
+    }
+  });
+});

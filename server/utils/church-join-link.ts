@@ -80,6 +80,23 @@ export function assertCanRevokeChurchJoinLink(userId: string, orgId: string): Pr
 
 export type ChurchJoinLinkRow = typeof ChurchJoinLinks.$inferSelect;
 
+/**
+ * Join tokens avoid look-alike characters (0/O, 1/I/l). A share link is clicked; a join
+ * link is also *typed*, off a bulletin or a slide, and "8JjSauUkLmQl" ending in a lower-case
+ * L is the kind of thing a congregation retypes as a capital i. 12 characters from 57
+ * is still ~70 bits.
+ */
+const JOIN_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+export const JOIN_TOKEN_LENGTH = 12;
+
+export function generateChurchJoinToken(): string {
+  const bytes = new Uint8Array(JOIN_TOKEN_LENGTH);
+  crypto.getRandomValues(bytes);
+  // 256 is not a multiple of the alphabet size; rejection-free modulo bias here is
+  // under 2% per character and irrelevant for an unguessable, rate-limited token.
+  return Array.from(bytes, (b) => JOIN_TOKEN_ALPHABET[b % JOIN_TOKEN_ALPHABET.length]).join('');
+}
+
 export function churchJoinUrl(origin: string, token: string): string {
   return `${origin.replace(/\/+$/, '')}${CHURCH_JOIN_PATH_PREFIX}${token}`;
 }

@@ -24,7 +24,6 @@ import { nowISO } from '../db/dates';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
-import { generateShareToken } from '@/utils/ids';
 import { getPublicAppOrigin } from '../utils/public-app-origin';
 import { isUniqueViolation } from '../utils/db-unique-violation';
 import { churchIsSponsored } from '../utils/church-entitlement';
@@ -38,6 +37,7 @@ import {
   churchJoinUrl,
   findLiveJoinLink,
   followableChannelsForChurch,
+  generateChurchJoinToken,
   pickChannelsToFollow,
   planJoinRedeem,
   renderChurchJoinQrSvg,
@@ -94,7 +94,7 @@ async function insertLiveLink(churchId: string, userId: string): Promise<ChurchJ
         .values({
           id: `cjl_${crypto.randomUUID()}`,
           churchId,
-          token: generateShareToken(),
+          token: generateChurchJoinToken(),
           createdBy: userId,
           useCount: 0,
           createdAt: nowISO(),
@@ -182,7 +182,7 @@ app.post('/api/church/join-link/rotate', requireAuth, rateLimit('write'), async 
           .values({
             id: `cjl_${crypto.randomUUID()}`,
             churchId: gate.church.id,
-            token: generateShareToken(),
+            token: generateChurchJoinToken(),
             createdBy: auth.userId,
             useCount: 0,
             createdAt: now,
@@ -237,6 +237,7 @@ app.get('/api/church/join-preview/:token', rateLimit('read'), async (c) => {
     let connection: 'here' | 'elsewhere' | 'none' = 'none';
     let elsewhereName: string | null = null;
     let followingIds: string[] = [];
+    let leadingIds: string[] = [];
     if (auth.userId) {
       const meta = first(
         await db
@@ -249,7 +250,7 @@ app.get('/api/church/join-preview/:token', rateLimit('read'), async (c) => {
       elsewhereName = connection === 'elsewhere' ? meta?.churchName ?? null : null;
       if (channels.length > 0) {
         const rows = await db
-          .select({ spaceId: SpaceMemberships.spaceId })
+          .select({ spaceId: SpaceMemberships.spaceId, role: SpaceMemberships.role })
           .from(SpaceMemberships)
           .where(
             and(
@@ -260,14 +261,17 @@ app.get('/api/church/join-preview/:token', rateLimit('read'), async (c) => {
               ),
             ),
           );
-        followingIds = rows.map((row) => row.spaceId);
+        // A follow is a `member` row; staff hold owner/leader rows on the same channels
+        // and are told they lead it, not that they follow it.
+        followingIds = rows.filter((row) => row.role === 'member').map((row) => row.spaceId);
+        leadingIds = rows.filter((row) => row.role === 'owner' || row.role === 'leader').map((row) => row.spaceId);
       }
     }
 
     return c.json({
       church: { name: church.name, city: church.city, state: church.state },
       channels: channels.map(({ id, title, description, color }) => ({ id, title, description, color })),
-      viewer: { signedIn: Boolean(auth.userId), connection, elsewhereName, followingIds },
+      viewer: { signedIn: Boolean(auth.userId), connection, elsewhereName, followingIds, leadingIds },
     });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/church/join-preview/[token]', action: 'church_join_preview' });

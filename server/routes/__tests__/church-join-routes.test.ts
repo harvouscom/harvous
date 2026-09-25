@@ -84,6 +84,11 @@ describe('church join link — public preview', () => {
     }
   });
 
+  it('tells staff they lead a channel rather than follow it', () => {
+    expect(preview()).toContain("row.role === 'member'");
+    expect(preview()).toContain('leadingIds');
+  });
+
   it('reads only the viewer’s own row, never anyone else’s', () => {
     const body = preview();
     expect(body).toContain('eq(UserMetadata.userId, auth.userId)');
