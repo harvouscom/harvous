@@ -20,7 +20,13 @@ export type ChurchSettingsResponse = {
   church: { id: string; name: string; orgId: string };
   /** Raw, null intact — the form must be able to show "not set". */
   /** `country`/`state` are read-only context for the time-zone picker, not editable here. */
-  settings: { timezone: string | null; country: string | null; state: string | null };
+  settings: {
+    timezone: string | null;
+    country: string | null;
+    state: string | null;
+    /** Teachers' channel posts need a pastor's approval. */
+    contentApproval?: boolean;
+  };
   serviceTimes: ChurchServiceTime[];
 };
 
@@ -55,6 +61,7 @@ export function useChurchSettings(orgId: string | null | undefined, options?: { 
 
 type SettingsAction =
   | { kind: 'timezone'; timezone: string | null }
+  | { kind: 'contentApproval'; contentApproval: boolean }
   | { kind: 'addServiceTime'; dayOfWeek: number; startTime: string; label?: string | null }
   | { kind: 'removeServiceTime'; serviceTimeId: string };
 
@@ -70,6 +77,7 @@ export function useChurchSettingsActions(orgId: string | null | undefined) {
       const body = { orgId: trimmedOrgId, ...rest };
       switch (kind) {
         case 'timezone':
+        case 'contentApproval':
           return api.post('/api/church/settings/update', body);
         case 'addServiceTime':
           return api.post('/api/church/settings/service-times/create', body);
@@ -92,6 +100,8 @@ export function useChurchSettingsActions(orgId: string | null | undefined) {
         congregation's "This Sunday" card says.
       */
       void queryClient.invalidateQueries({ queryKey: churchSermonsQueryKey(userId) });
+      // The Content tool says whether approval is on.
+      void queryClient.invalidateQueries({ queryKey: ['church-content'] });
     },
   });
 }
