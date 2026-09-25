@@ -60,7 +60,7 @@ both create buttons under that empty state.
 | Empty state explaining both lanes | Both | **Built** | Teach Groups vs Resources before content exists |
 | Soft “Home church” cue | Both | Later (multi-church) | Redundant while home = sole connected church |
 | Pinned or “this series” channel | Both | Later — unblocked by design | Sermon/series companions without a bulletin. Waited on series being a row rather than a repeated string; that is now decided as `ChurchSeries` ([CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md](./CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md) §9), so a channel can point at one. |
-| Followed vs not-yet-followed channels | Congregant | Later | If opted tracks win over auto-follow-all |
+| Followed vs not-yet-followed channels | Congregant | Later | Opted tracks won: connect never auto-follows, and the ministry picker is where a person chooses. The sidebar can split the two lanes when a church has enough channels to need it. |
 | Pending connect / “your church is on Harvous” | Congregant | Connect era | Banner when HMC matches but membership isn’t accepted |
 | Per-space teaching plans + service times | Staff author; congregants see a card per ministry they joined | **Built** (Aug 2026) | A ministry channel or church Shared Space may carry its own plan (Youth meets Wednesdays), plus church-level timezone and default meeting time. The church card is unchanged; each joined ministry with a plan gets **its own** card showing **one** next gathering — never a list. The anti-goal below is amended accordingly (the line is now *services per card*, not *cards*). |
 | Teaching plan (collapsed) | **Staff only** | **Built** (v2.19.0; read `sermon_tools` / write `manage_teaching_plan` from v2.21.0) | A staff door into planning what the church teaches — the same “administration, not the daily job” shape as the roster. **Congregants get no plan lane here**; they get one card on Home. |
@@ -105,7 +105,7 @@ Prefer **Home**, **Settings**, or a **staff surface** unless one-line and option
 
 Same two lanes; different chrome only:
 
-- **Congregant:** browse + open; badges for new (later); no create; empty without staff CTAs
+- **Congregant:** browse + open; new badges (built); no create; empty without staff CTAs
 - **Staff:** same catalog + create; optional cadence health; optional quiet “Church tools” entry
 
 ## Suggested “done enough” shapes
@@ -118,5 +118,5 @@ Same two lanes; different chrome only:
 ## Open product questions
 
 - Should Home “From your church” ever duplicate into the sidebar, or stay Home-only forever?
-- Channels: auto-follow all vs opted ministry tracks (changes whether the sidebar needs follow sections)
+- ~~Channels: auto-follow all vs opted ministry tracks~~ Decided: opted tracks. Connect never auto-follows; the ministry picker and the join link are where a person chooses.
 - Empty hub: congregant waiting room vs staff launchpad first (pilot blends both — fine until connect ships)

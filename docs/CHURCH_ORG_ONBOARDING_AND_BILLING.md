@@ -118,7 +118,7 @@ left a paying church reading "pilot" forever.
 
 ## Watch: pilot expiry
 
-**"New Hope Assembly of God" is on a pilot through 2026-09-02.** When a pilot lapses:
+**"New Hope Assembly of God" is on a pilot through 2026-10-18** (extended from 2026-09-02). When a pilot lapses:
 
 - Staff **writes** are refused with `402 CHURCH_NOT_SPONSORED` — no new channels, church
   shared spaces, or staff invites.

@@ -1877,10 +1877,11 @@ export const ReviewEvents = pgTable('ReviewEvents', {
   /**
    * Whether the rung had an answer key, rather than the reader's own verdict.
    *
-   * Two verse rungs are marked by the server; every other rung is an open question judged by
-   * the person who wrote the note. Averaging the two into one recall rate compares a test score
-   * with a self-assessment, so the distinction has to survive into the log. Null on rows
-   * written before this column, which is not the same as false.
+   * Every rung is marked by the server now (`reviewRungIsGraded` in src/utils/review-prompts.ts).
+   * When this column was added only two verse rungs were, and the rest were open questions the
+   * reader judged — averaging those into one recall rate compared a test score with a
+   * self-assessment, which is why the distinction survives into the log. Null on rows written
+   * before this column, which is not the same as false.
    */
   graded: boolean('graded'),
   createdAt: ts('createdAt').notNull(),
