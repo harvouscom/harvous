@@ -14,6 +14,7 @@
  *   POST /api/church/ministries/restore       { orgId, ministryId }
  *   POST /api/church/ministries/assign-space  { orgId, spaceId, ministryId | null, movePair? }
  *   POST /api/church/ministries/set-staff     { orgId, userId, ministryIds[] }  — [] = church-wide
+ *   POST /api/church/ministries/set-channel-audience { orgId, spaceId, audience, dryRun? }
  */
 
 import { Hono } from 'hono';
@@ -47,6 +48,11 @@ import {
   planAssignSpace,
   spacesInMinistry,
 } from '../utils/church-ministries';
+import {
+  isChannelAudience,
+  reconcileChannelAudience,
+  reconcileOrgChannelAudiences,
+} from '../utils/church-channel-audience';
 
 const app = new Hono();
 
@@ -64,6 +70,10 @@ const WRITE: ChurchOrgAccessRule = {
   roleError: 'A church admin arranges ministries',
   sponsorshipGated: true,
 };
+
+/* Who may see a channel is privacy, not a paid feature: a lapsed church can still narrow a
+   channel (or open it back up) — the same reasoning as revoking a join link. */
+const AUDIENCE: ChurchOrgAccessRule = { ...WRITE, sponsorshipGated: false };
 
 type Body = Record<string, unknown>;
 const str = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
@@ -344,6 +354,9 @@ app.post('/api/church/ministries/assign-space', requireAuth, rateLimit('write'),
     if (plan.action === 'refuse') return c.json({ error: plan.error, code: plan.code }, 409);
 
     await db.update(Spaces).set({ ministryId: targetMinistryId }).where(inArray(Spaces.id, plan.spaceIds));
+    /* A group moving changes who is in its old and new ministry, and a restricted channel moving
+       changes which ministry its audience is — either way, re-check the church's restricted follows. */
+    await reconcileOrgChannelAudiences(orgId);
     const sync = await syncAfter(orgId, plan.spaceIds);
     return c.json({ success: true, sync, ...(await payload(orgId, true)) });
   } catch (error) {
@@ -402,6 +415,60 @@ app.post('/api/church/ministries/set-staff', requireAuth, rateLimit('write'), as
     return c.json({ success: true, sync, ...(await payload(orgId, true)) });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/church/ministries/set-staff', action: 'church_ministry_staff' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── POST /api/church/ministries/set-channel-audience ────────────────────────
+/**
+ * Who may follow a channel: the whole church, its ministry, or its ministry's group leaders.
+ * Narrowing removes the follows of everyone outside — `dryRun` answers "how many" first so the
+ * editor can say so before anyone confirms. A count, never who.
+ */
+app.post('/api/church/ministries/set-channel-audience', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await readBody(c);
+    const gate = await resolveChurchOrgAccess(auth.userId, str(body.orgId), AUDIENCE);
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+    const orgId = gate.church.orgId;
+
+    const audience = body.audience;
+    if (!isChannelAudience(audience)) {
+      return c.json({ error: 'Choose church, ministry or leaders', code: 'INVALID_AUDIENCE' }, 400);
+    }
+    const space = first(
+      await db
+        .select({ id: Spaces.id, orgId: Spaces.orgId, type: Spaces.type, ministryId: Spaces.ministryId, deletedAt: Spaces.deletedAt })
+        .from(Spaces)
+        .where(eq(Spaces.id, str(body.spaceId)))
+        .limit(1),
+    );
+    if (!space || space.deletedAt || space.orgId !== orgId || space.type !== 'public') {
+      return c.json({ error: 'Channel not found', code: 'NOT_FOUND' }, 404);
+    }
+    if (audience !== 'church') {
+      const ministry = space.ministryId ? await loadMinistry(orgId, space.ministryId) : null;
+      if (!ministry || ministry.archivedAt) {
+        return c.json(
+          { error: 'Put this channel in a ministry before restricting it', code: 'AUDIENCE_REQUIRES_MINISTRY' },
+          409,
+        );
+      }
+    }
+
+    const channel = { id: space.id, audience, ministryId: space.ministryId };
+    if (body.dryRun === true) {
+      return c.json({ success: true, affectedFollowCount: await reconcileChannelAudience(orgId, [channel], { dryRun: true }) });
+    }
+    await db.update(Spaces).set({ audience }).where(eq(Spaces.id, space.id));
+    const affectedFollowCount = await reconcileChannelAudience(orgId, [channel]);
+    return c.json({ success: true, affectedFollowCount, ...(await payload(orgId, true)) });
+  } catch (error) {
+    const e = handleAPIError(error, {
+      endpoint: '/api/church/ministries/set-channel-audience',
+      action: 'church_channel_audience',
+    });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

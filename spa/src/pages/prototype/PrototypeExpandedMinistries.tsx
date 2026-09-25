@@ -35,8 +35,21 @@ const CHURCH_WIDE_ROLES = new Set(['org:admin', 'org:pastor', 'org:coordinator']
 
 type Selection = { mode: 'create' } | { mode: 'edit'; ministryId: string } | null;
 
-function spaceMeta(space: MinistrySpace): string {
-  return space.kind === 'channel' ? 'Channel' : 'Group';
+function spaceMeta(space: MinistrySpace, ministryName: string | null): string {
+  if (space.kind !== 'channel') return 'Group';
+  if (space.audience === 'ministry' && ministryName) return `Channel · ${ministryName} groups only`;
+  if (space.audience === 'leaders' && ministryName) return `Channel · ${ministryName} leaders only`;
+  return 'Channel';
+}
+
+type Audience = 'church' | 'ministry' | 'leaders';
+
+function audienceOptions(ministryName: string): ProtoSelectOption<Audience>[] {
+  return [
+    { value: 'church', label: 'Whole church', triggerLabel: 'Whole church' },
+    { value: 'ministry', label: `People in ${ministryName} groups`, triggerLabel: `${ministryName} groups` },
+    { value: 'leaders', label: `${ministryName} group leaders`, triggerLabel: 'Leaders' },
+  ];
 }
 
 export default function PrototypeExpandedMinistries({ exiting, origin, onClose }: ExpandedSidebarToolProps) {
@@ -49,6 +62,13 @@ export default function PrototypeExpandedMinistries({ exiting, origin, onClose }
   const actions = useChurchMinistryActions(orgId);
   const [selection, setSelection] = useState<Selection>(null);
   const [showArchived, setShowArchived] = useState(false);
+  /* Narrowing a channel removes follows, so it asks first — with the count, never names. */
+  const [audienceConfirm, setAudienceConfirm] = useState<{
+    space: MinistrySpace;
+    audience: Audience;
+    count: number;
+    anchor: HTMLElement | null;
+  } | null>(null);
 
   const data = query.data;
   const canManage = Boolean(data?.canManage);
@@ -98,15 +118,64 @@ export default function PrototypeExpandedMinistries({ exiting, origin, onClose }
     );
   }
 
-  const spaceRow = (space: MinistrySpace, current: string) => (
-    <div key={space.id} className="proto-church-tools__row proto-church-tools__row--status">
+  function applyAudience(space: MinistrySpace, audience: Audience) {
+    actions.mutate(
+      { type: 'set-channel-audience', spaceId: space.id, audience },
+      {
+        onSuccess: () =>
+          window.toast?.success(audience === 'church' ? `${space.title} is open to the whole church` : `${space.title} restricted`),
+        onError: (error) => window.toast?.error(error instanceof Error ? error.message : 'Could not change that'),
+      },
+    );
+  }
+
+  function changeAudience(space: MinistrySpace, audience: Audience) {
+    if (audience === space.audience) return;
+    // Opening up removes nothing; narrowing may, so count first.
+    if (audience === 'church') {
+      applyAudience(space, audience);
+      return;
+    }
+    actions.mutate(
+      { type: 'set-channel-audience', spaceId: space.id, audience, dryRun: true },
+      {
+        onSuccess: (response) => {
+          const count = response?.affectedFollowCount ?? 0;
+          if (count === 0) {
+            applyAudience(space, audience);
+            return;
+          }
+          const anchor = document.querySelector<HTMLElement>(`[data-ministry-space-row="${space.id}"]`);
+          setAudienceConfirm({ space, audience, count, anchor });
+        },
+        onError: (error) => window.toast?.error(error instanceof Error ? error.message : 'Could not change that'),
+      },
+    );
+  }
+
+  const spaceRow = (space: MinistrySpace, current: string, ministryName: string | null = null) => (
+    <div
+      key={space.id}
+      className="proto-church-tools__row proto-church-tools__row--status"
+      data-ministry-space-row={space.id}
+    >
       <span className="proto-church-tools__row-icon" aria-hidden>
         <Icon name={space.kind === 'channel' ? 'rss' : 'user-group'} size={13} />
       </span>
       <span className="proto-church-tools__row-text">
         <span className="pds-list-title proto-church-tools__row-title">{space.title}</span>
-        <span className="proto-caption proto-church-tools__row-meta">{spaceMeta(space)}</span>
+        <span className="proto-caption proto-church-tools__row-meta">{spaceMeta(space, ministryName)}</span>
       </span>
+      {canManage && ministryName && space.kind === 'channel' ? (
+        <ProtoSelectMenu<Audience>
+          label={`Who can follow ${space.title}`}
+          options={audienceOptions(ministryName)}
+          value={(space.audience as Audience) ?? 'church'}
+          disabled={actions.isPending}
+          className="proto-ministries__move"
+          onChange={(value) => changeAudience(space, value)}
+        />
+      ) : null}
       {canManage && moveOptions.length > 1 ? (
         <ProtoSelectMenu<string>
           label={`Ministry for ${space.title}`}
@@ -196,7 +265,7 @@ export default function PrototypeExpandedMinistries({ exiting, origin, onClose }
                   </button>
                   {ministry.spaces.length ? (
                     <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
-                      {ministry.spaces.map((space) => spaceRow(space, ministry.id))}
+                      {ministry.spaces.map((space) => spaceRow(space, ministry.id, ministry.name))}
                     </div>
                   ) : (
                     <p className="proto-caption proto-ministries__empty">
@@ -256,6 +325,26 @@ export default function PrototypeExpandedMinistries({ exiting, origin, onClose }
             </div>
           )}
         </div>
+
+        {audienceConfirm ? (
+          <ProtoConfirmDialog
+            anchorEl={audienceConfirm.anchor}
+            alignRight
+            title={`Restrict ${audienceConfirm.space.title}?`}
+            description={`${
+              audienceConfirm.count === 1 ? '1 person follows' : `${audienceConfirm.count} people follow`
+            } it from outside the new audience. They stop following, and its notes and Review questions stop reaching them.`}
+            confirmLabel="Restrict"
+            cancelLabel="Keep it open"
+            busy={actions.isPending}
+            onConfirm={() => {
+              const { space, audience } = audienceConfirm;
+              setAudienceConfirm(null);
+              applyAudience(space, audience);
+            }}
+            onCancel={() => setAudienceConfirm(null)}
+          />
+        ) : null}
 
         {selection && canManage ? (
           <MinistryEditorPane

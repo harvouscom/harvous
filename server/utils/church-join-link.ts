@@ -195,12 +195,14 @@ export async function followableChannelsForChurch(orgId: string): Promise<Follow
       description: Spaces.description,
       color: Spaces.color,
       ministryId: Spaces.ministryId,
+      audience: Spaces.audience,
       isActive: Spaces.isActive,
     })
     .from(Spaces)
     .where(and(eq(Spaces.orgId, orgId), eq(Spaces.type, 'public'), isNull(Spaces.deletedAt)));
   return rows
-    .filter((row) => row.isActive)
+    // A link reaches newcomers: restricted channels are followed from inside, never offered here.
+    .filter((row) => row.isActive && row.audience === 'church')
     .map(({ id, title, description, color, ministryId }) => ({ id, title, description, color, ministryId }))
     .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
     .slice(0, JOIN_FOLLOW_CAP);

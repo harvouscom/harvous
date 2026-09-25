@@ -12,6 +12,8 @@ import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import { assertCanManageChannelLinks } from '../utils/church-staff';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
+import { db, first, Spaces, eq } from '../db';
+import { channelAudienceAllows, loadAudienceViewer } from '../utils/church-channel-audience';
 import {
   listCompanionLinks,
   resolveCompanionChannel,
@@ -62,10 +64,29 @@ app.get('/api/spaces/:spaceId/companion', requireAuth, async (c) => {
 
     if (!space.orgId) return c.json({ companionChannel: null, companionOfSpace: null });
 
-    const [companionChannel, companionOfSpace] = await Promise.all([
+    const [pairedChannel, companionOfSpace] = await Promise.all([
       space.type === 'shared' ? resolveCompanionChannel(space.id) : Promise.resolve(null),
       space.type === 'public' ? resolveCompanionOf(space.id) : Promise.resolve(null),
     ]);
+    /* A room's channel restricted to its leaders is not offered to the room's members: the chip
+       would be a Follow that 404s. Leaders, and anyone else in its audience, still see it. */
+    let companionChannel = pairedChannel;
+    if (pairedChannel) {
+      const channel = first(
+        await db
+          .select({ id: Spaces.id, audience: Spaces.audience, ministryId: Spaces.ministryId })
+          .from(Spaces)
+          .where(eq(Spaces.id, pairedChannel.id))
+          .limit(1),
+      );
+      if (
+        channel &&
+        channel.audience !== 'church' &&
+        !channelAudienceAllows(channel, await loadAudienceViewer(auth.userId, space.orgId))
+      ) {
+        companionChannel = null;
+      }
+    }
 
     return c.json({ companionChannel, companionOfSpace });
   } catch (error) {

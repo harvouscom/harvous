@@ -33,6 +33,7 @@ import {
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
 import { churchIsSponsored } from './church-entitlement';
+import { reconcileViewerChannelAudience } from './church-channel-audience';
 
 export const CHURCH_REVIEW_DAILY_CAP = 3;
 export const CHURCH_REVIEW_MAX_OUTSTANDING = 8;
@@ -151,6 +152,16 @@ export function refillChurchReviewQueue(userId: string, now: Date = new Date()):
 }
 
 async function runDelivery(userId: string, now: Date): Promise<number> {
+  // A restricted channel they no longer qualify for stops delivering (its items pause with it).
+  const orgRows = await db
+    .selectDistinct({ orgId: Spaces.orgId })
+    .from(SpaceMemberships)
+    .innerJoin(Spaces, eq(Spaces.id, SpaceMemberships.spaceId))
+    .where(and(eq(SpaceMemberships.userId, userId), eq(SpaceMemberships.role, 'member'), eq(Spaces.type, 'public')));
+  for (const { orgId } of orgRows) {
+    if (orgId) await reconcileViewerChannelAudience(userId, orgId);
+  }
+
   // Channels this reader follows, with their church, so a lapsed church adds nothing new.
   const followed = await db
     .select({

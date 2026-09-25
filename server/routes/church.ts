@@ -91,6 +91,11 @@ import {
 } from '../utils/church-teaching-plan';
 import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
 import {
+  channelAudienceAllows,
+  loadAudienceViewer,
+  reconcileViewerChannelAudience,
+} from '../utils/church-channel-audience';
+import {
   churchClockNow,
   listServiceTimesForChurch,
   serviceTimeIdsByService,
@@ -197,6 +202,7 @@ async function listOrgChannels(orgId: string) {
       publishCadence: Spaces.publishCadence,
       isActive: Spaces.isActive,
       ministryId: Spaces.ministryId,
+      audience: Spaces.audience,
     })
     .from(Spaces)
     .where(and(eq(Spaces.orgId, orgId), eq(Spaces.type, 'public'), isNull(Spaces.deletedAt)));
@@ -261,7 +267,15 @@ app.get('/api/church/channels', requireAuth, async (c) => {
     }
 
     const sponsorship = churchSponsorship(church);
-    const channels = (await listOrgChannels(church.orgId)).filter((space) => space.isActive);
+    // A follow they no longer qualify for goes before the list reads follows back.
+    await reconcileViewerChannelAudience(auth.userId, church.orgId);
+    const active = (await listOrgChannels(church.orgId)).filter((space) => space.isActive);
+    /* Restricted channels are listed only to their audience — never "this exists, but not for
+       you". The viewer is loaded only when the church restricts anything. */
+    const viewer = active.some((space) => space.audience !== 'church')
+      ? await loadAudienceViewer(auth.userId, church.orgId)
+      : null;
+    const channels = viewer ? active.filter((space) => channelAudienceAllows(space, viewer)) : active;
 
     if (channels.length === 0) {
       return c.json({
@@ -332,7 +346,7 @@ app.get('/api/church/channels', requireAuth, async (c) => {
  * the caller's *own* connected church. Without that check any signed-in user
  * could follow any church's channel by guessing a space id.
  */
-async function resolveFollowTarget(userId: string, spaceId: string) {
+async function resolveFollowTarget(userId: string, spaceId: string, intent: 'follow' | 'unfollow') {
   const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
   if (!space || space.deletedAt || !isMinistryBroadcastSpaceRow(space)) {
     return { ok: false as const, status: 404 as const, code: 'CHANNEL_NOT_FOUND', error: 'Ministry channel not found' };
@@ -345,13 +359,19 @@ async function resolveFollowTarget(userId: string, spaceId: string) {
     return { ok: false as const, status: 404 as const, code: 'CHANNEL_NOT_FOUND', error: 'Ministry channel not found' };
   }
 
+  /* Outside a restricted channel's audience reads exactly like a channel that doesn't exist.
+     Follow only: leaving must always work. */
+  if (intent === 'follow' && space.audience !== 'church' && !channelAudienceAllows(space, await loadAudienceViewer(userId, church.orgId))) {
+    return { ok: false as const, status: 404 as const, code: 'CHANNEL_NOT_FOUND', error: 'Ministry channel not found' };
+  }
+
   return { ok: true as const, space, church };
 }
 
 app.post('/api/church/channels/:spaceId/follow', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const target = await resolveFollowTarget(auth.userId, c.req.param('spaceId') ?? '');
+    const target = await resolveFollowTarget(auth.userId, c.req.param('spaceId') ?? '', 'follow');
     if (!target.ok) return c.json({ error: target.error, code: target.code }, target.status);
 
     // New follows require a sponsored church; existing follows keep reading.
@@ -379,7 +399,7 @@ app.post('/api/church/channels/:spaceId/follow', requireAuth, rateLimit('write')
 app.post('/api/church/channels/:spaceId/unfollow', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const target = await resolveFollowTarget(auth.userId, c.req.param('spaceId') ?? '');
+    const target = await resolveFollowTarget(auth.userId, c.req.param('spaceId') ?? '', 'unfollow');
     if (!target.ok) return c.json({ error: target.error, code: target.code }, target.status);
 
     // No sponsorship check: leaving must always work, even for a lapsed church.
@@ -417,6 +437,7 @@ app.get('/api/church/feed', requireAuth, rateLimit('read'), async (c) => {
 
     const church = await getConnectedChurch(auth.userId);
     if (!church) return c.json({ connected: false, items: [] });
+    await reconcileViewerChannelAudience(auth.userId, church.orgId);
 
     // Followed channels only — a 'member' row on a ministry space of this church.
     const followed = await db
