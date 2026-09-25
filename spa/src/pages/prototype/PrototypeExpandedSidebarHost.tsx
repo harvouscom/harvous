@@ -14,6 +14,7 @@ import PrototypeExpandedDiscover from './PrototypeExpandedDiscover';
 /* Lazy: only church staff ever open it, and its editor and exercise rules would otherwise ride
    on every route's first paint, sign-in included. */
 const PrototypeExpandedChurchReview = lazy(() => import('./PrototypeExpandedChurchReview'));
+const PrototypeExpandedMinistries = lazy(() => import('./PrototypeExpandedMinistries'));
 
 export type ExpandedSidebarToolProps = {
   exiting: boolean;
@@ -43,6 +44,12 @@ export default function PrototypeExpandedSidebarHost({
       return (
         <Suspense fallback={null}>
           <PrototypeExpandedChurchReview exiting={exiting} origin={origin} onClose={onClose} />
+        </Suspense>
+      );
+    case 'ministries':
+      return (
+        <Suspense fallback={null}>
+          <PrototypeExpandedMinistries exiting={exiting} origin={origin} onClose={onClose} />
         </Suspense>
       );
     default:

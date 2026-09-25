@@ -318,6 +318,19 @@ export default function PrototypeChurchHub() {
         onSelect: () => setToolsView('team'),
       });
     }
+    /* Beside Team, because a ministry is mostly an answer to "who leads what". Admin-only
+       (`manage_staff`): scoping a teacher to Youth changes which rooms they lead. Expanded,
+       like Review questions — a list of ministries with their rooms beside an editor. */
+    if (canViewEngagement) {
+      rows.push({
+        key: 'ministries',
+        icon: 'layer-group',
+        title: 'Ministries',
+        meta: 'Kids, youth, adults — who leads what',
+        chevron: 'expand',
+        onSelect: () => openExpandedSidebar('ministries'),
+      });
+    }
     /* Any staff member: handing out the link is the job, and whoever prints the
        bulletin is rarely the admin. Making and replacing it is admin-only, and
        that verdict comes back from the server inside the pane. */

@@ -12334,6 +12334,51 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-link, var(--pds-text-primary));
 }
 
+/* Ministries: each one a heading over its rooms, Church-wide last. */
+.proto-ministries__group + .proto-ministries__group {
+  margin-top: 24px;
+}
+
+.proto-ministries__head {
+  appearance: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
+.proto-ministries__head:disabled,
+.proto-ministries__head--static {
+  cursor: default;
+}
+
+.proto-ministries__head[aria-current='true'] .pds-list-title {
+  color: var(--pds-text-link, var(--pds-text-primary));
+}
+
+.proto-ministries__head-meta {
+  margin-left: auto;
+  opacity: 0.72;
+}
+
+.proto-ministries__empty {
+  margin: 0 2px;
+  opacity: 0.72;
+}
+
+.proto-ministries__move {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 /* Wider than the planner's 344px rail: a matching pair is two inputs on one line. */
 .proto-planner-editor.proto-church-review-pane {
   flex-basis: 420px;
