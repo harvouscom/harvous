@@ -14807,7 +14807,8 @@ html.harvous-prototype-route
 }
 
 .proto-note-destination__picker input {
-  flex: 1 1 150px;
+  /* Its own line: a date and time do not fit beside the button at menu width. */
+  flex: 1 1 100%;
   min-width: 0;
   padding: 5px 8px;
   border-radius: 8px;
@@ -14825,6 +14826,7 @@ html.harvous-prototype-route
 
 .proto-share-popover__primary.proto-note-destination__picker-go {
   flex: 0 0 auto;
+  margin-left: auto;
   width: auto;
   padding: 5px 12px;
   font-size: 12px;

@@ -88,21 +88,24 @@ export default function PrototypeExpandedChurchContent({ exiting, origin, onClos
         </div>
         <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
           {items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="proto-church-tools__row proto-church-review__row-open"
-              aria-current={selectedId === item.id ? 'true' : undefined}
-              onClick={() => setSelectedId(item.id)}
-            >
+            /* The Review questions list's shape: the row is the frame, the button inside it opens
+               the item — a bare button row loses the row's padding to the button reset. */
+            <div key={item.id} className="proto-church-tools__row proto-church-tools__row--status">
               <span className="proto-church-tools__row-icon" aria-hidden>
                 <Icon name={icon} size={13} />
               </span>
-              <span className="proto-church-tools__row-text">
-                <span className="pds-list-title proto-church-tools__row-title">{item.title}</span>
-                <span className="proto-caption proto-church-tools__row-meta">{submissionMeta(item)}</span>
-              </span>
-            </button>
+              <button
+                type="button"
+                className="proto-church-review__row-open"
+                aria-current={selectedId === item.id ? 'true' : undefined}
+                onClick={() => setSelectedId(item.id)}
+              >
+                <span className="proto-church-tools__row-text">
+                  <span className="pds-list-title proto-church-tools__row-title">{item.title}</span>
+                  <span className="proto-caption proto-church-tools__row-meta">{submissionMeta(item)}</span>
+                </span>
+              </button>
+            </div>
           ))}
         </div>
       </section>
@@ -273,7 +276,7 @@ function SubmissionPane({
             </p>
           ) : null}
 
-          {reviewing || scheduled || ownWaiting ? (
+          {(reviewing && !declining) || scheduled || ownWaiting ? (
             <label className="proto-settings-field">
               <span className="proto-settings-field__label">
                 {reviewing ? 'Goes out' : scheduled ? 'Scheduled for' : 'Asked for'}
