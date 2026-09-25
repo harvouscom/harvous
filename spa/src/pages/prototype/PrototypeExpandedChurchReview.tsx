@@ -28,6 +28,7 @@ import PrototypeChurchReviewEditorPane from './PrototypeChurchReviewEditorPane';
 import ProtoSidebarExpandedPanel from './ProtoSidebarExpandedPanel';
 import ProtoChipBar from './components/ProtoChipBar';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
 import type { ExpandedSidebarToolProps } from './PrototypeExpandedSidebarHost';
 
 const KIND_LABEL: Record<string, string> = {
@@ -140,28 +141,42 @@ export default function PrototypeExpandedChurchReview({ exiting, origin, onClose
           {!canView ? null : channels.isPending ? (
             <ProtoSpaceLoading label="Loading review questions" />
           ) : channels.isError ? (
-            <div className="proto-church-review__body">
-              <p className="proto-caption proto-church-join__lede">Couldn&rsquo;t load review questions.</p>
-              <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => void channels.refetch()}>
-                Try again
-              </button>
+            <div className="proto-church-review__body proto-church-review__body--empty">
+              <PrototypeListEmptyState
+                iconName="circle-exclamation"
+                title="Couldn’t load review questions"
+                action={
+                  <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => void channels.refetch()}>
+                    Try again
+                  </button>
+                }
+              />
             </div>
           ) : !channel ? (
-            <div className="proto-church-review__body">
-              <p className="proto-caption proto-church-join__lede">
-                Review questions belong to a channel. Make a ministry channel first, and its followers
-                get its questions in their Review.
-              </p>
+            <div className="proto-church-review__body proto-church-review__body--empty">
+              <PrototypeListEmptyState
+                iconName="rss"
+                title="No channels yet"
+                description="Questions belong to a ministry channel, and its followers get them in their Review. Make a channel from the hub first."
+              />
             </div>
           ) : (
-            <div className="proto-church-review__body">
-              <p className="proto-caption proto-church-join__lede">
-                Questions your people answer in their Review. Anyone who follows {channel.title} gets
-                them, free. You only ever see how many answered, never who.
-              </p>
+            <div
+              className={`proto-church-review__body${
+                data && data.exercises.length === 0 && data.suggestions.length === 0 ? ' proto-church-review__body--empty' : ''
+              }`}
+            >
       {!data ? (
         exercises.isError ? (
-          <p className="proto-caption proto-church-join__count">Couldn&rsquo;t load this channel&rsquo;s questions.</p>
+          <PrototypeListEmptyState
+            iconName="circle-exclamation"
+            title="Couldn’t load these questions"
+            action={
+              <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => void exercises.refetch()}>
+                Try again
+              </button>
+            }
+          />
         ) : (
           <ProtoSpaceLoading label="Loading questions" />
         )
@@ -231,10 +246,11 @@ export default function PrototypeExpandedChurchReview({ exiting, origin, onClose
             </>
           ) : null}
 
-          <div className="proto-church-tools__lane-head proto-church-review__eyebrow">
-            <p className="proto-caption proto-home-section__eyebrow">Questions</p>
-          </div>
           {data.exercises.length > 0 ? (
+            <>
+            <div className="proto-church-tools__lane-head proto-church-review__eyebrow">
+              <p className="proto-caption proto-home-section__eyebrow">Questions</p>
+            </div>
             <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
               {data.exercises.map((exercise) => (
                 <div key={exercise.id} className="proto-church-tools__row proto-church-tools__row--status">
@@ -279,10 +295,36 @@ export default function PrototypeExpandedChurchReview({ exiting, origin, onClose
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="proto-caption proto-church-join__count">
-              No questions for {channel.title} yet.
+            {/* The promise, said once, under the list rather than as a paragraph above it. */}
+            <p className="proto-caption proto-church-review__note">
+              Anyone who follows {channel.title} gets these in their Review, free. You only ever see how
+              many answered, never who.
             </p>
+            </>
+          ) : (
+            /*
+             * Empty, said the way the library and Discover say it: one centred block, what this is
+             * for, and the one thing to do. With suggestions above it points at them instead.
+             */
+            <PrototypeListEmptyState
+              iconName="list-check"
+              title={data.suggestions.length > 0 ? 'No questions yet' : `No questions for ${channel.title} yet`}
+              description={
+                data.suggestions.length > 0
+                  ? 'Keep a suggestion above, or write your own.'
+                  : `Anyone who follows ${channel.title} gets it in their Review, free. You'll see how many answered — never who.`
+              }
+              action={
+                <button
+                  type="button"
+                  className="proto-settings-btn"
+                  disabled={lapsed}
+                  onClick={() => setSelection({ mode: 'create' })}
+                >
+                  Write a question
+                </button>
+              }
+            />
           )}
 
         </>

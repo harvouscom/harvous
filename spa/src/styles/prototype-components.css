@@ -12299,6 +12299,36 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   box-sizing: border-box;
 }
 
+/* Nothing to list: the empty state sits in the middle of the column, not under a heading. */
+.proto-church-review__body--empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.proto-church-review__body .proto-list-empty-state {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+/* Under the suggestions it is the next thing down, not part of the list above it. */
+.proto-church-review__body .proto-church-tools + .proto-list-empty-state {
+  margin-top: 40px;
+}
+
+.proto-church-review__body .proto-list-empty-state__action .proto-settings-btn {
+  width: auto;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+/* The one line about who gets these and what staff see, under the list. */
+.proto-church-review__note {
+  margin: 12px 2px 0;
+  opacity: 0.72;
+  line-height: 1.45;
+}
+
 /* The row being edited, marked the way a selected row is everywhere else. */
 .proto-church-review__row-open[aria-current='true'] .proto-church-tools__row-title {
   color: var(--pds-text-link, var(--pds-text-primary));
