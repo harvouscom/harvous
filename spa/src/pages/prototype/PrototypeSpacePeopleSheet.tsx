@@ -515,6 +515,18 @@ export default function PrototypeSpacePeopleSheet({
             </div>
           );
         })}
+        {/*
+          A channel follower is sent the room's leaders and their own row, not the
+          other followers ("how many, never who"). Say so, so the short list does
+          not read as a room of three.
+        */}
+        {membersQuery.data?.rosterRestricted ? (
+          <p className="proto-shared-people-capacity__limit">
+            {membersQuery.data.memberCount === 1
+              ? '1 follower. Followers aren’t listed.'
+              : `${membersQuery.data.memberCount} followers. Followers aren’t listed.`}
+          </p>
+        ) : null}
       </div>
     );
 

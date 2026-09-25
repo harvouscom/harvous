@@ -23,6 +23,7 @@ import {
   lt,
 } from '../db';
 import { buildSpaceNoteAssociation } from './space-note-associations';
+import { isMinistryBroadcastSpaceRow } from './channel-publish-cadence';
 
 type Executor = any;
 
@@ -833,6 +834,55 @@ export async function runBoundedExpiredSpaceMaintenance(now = new Date()): Promi
     console.warn('[space-maintenance] expired space purge failed', error);
     return [];
   }
+}
+
+/**
+ * Which rows of a space's roster this viewer may see at all.
+ *
+ * A ministry channel is a broadcast to a congregation, and the church layer's
+ * rule is "how many, never who": a follower of the women's or recovery channel
+ * must not be able to list the other followers. So a plain `member` of a
+ * channel gets the room's authors (owner and leaders, whose names are already
+ * on every note they publish) and their own row — nothing else. The count
+ * stays whole; it is the "how many".
+ *
+ * Owner and leaders keep the full roster, as does church staff holding only a
+ * follower row: they moderate followers and hand out leadership ("Make
+ * leader"), and you cannot promote someone you cannot see.
+ *
+ * Personal and Shared Spaces are untouched — a small group seeing each other is
+ * the point of one.
+ */
+export function scopeSpaceRosterForViewer<T extends { userId: string; role: string | null }>(
+  members: T[],
+  options: {
+    space: { type?: string | null; orgId?: string | null };
+    viewerUserId: string;
+    viewerRole: string;
+    viewerIsChurchStaff: boolean;
+  },
+): { members: T[]; rosterRestricted: boolean } {
+  if (!spaceRosterIsRestrictedForViewer(options)) return { members, rosterRestricted: false };
+  return {
+    members: members.filter(
+      (m) => m.userId === options.viewerUserId || m.role === 'owner' || m.role === 'leader',
+    ),
+    rosterRestricted: true,
+  };
+}
+
+/** The predicate alone, so the route can skip the staff lookup when it cannot matter. */
+export function spaceRosterIsRestrictedForViewer(options: {
+  space: { type?: string | null; orgId?: string | null };
+  viewerRole: string;
+  viewerIsChurchStaff?: boolean;
+}): boolean {
+  return (
+    isMinistryBroadcastSpaceRow(options.space) &&
+    options.viewerRole !== 'owner' &&
+    options.viewerRole !== 'leader' &&
+    !options.viewerIsChurchStaff
+  );
 }
 
 export function serializeSpaceMemberForViewer<T extends Record<string, unknown>>(
