@@ -25,6 +25,7 @@ import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 import { useChurchJoinPreview, useRedeemChurchJoinLink } from '../../hooks/queries/useChurchJoin';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
+import { getThreadColorCSS } from '@/utils/colors';
 import { PublicTopBar, PublicErrorState } from './public-shared';
 
 const PENDING_KEY = 'pendingChurchJoin';
@@ -215,97 +216,116 @@ export default function PublicJoinChurchPage() {
               />
             ) : (
               <>
-                <p className="public-creator">Your church is on Harvous</p>
+                {/* Where the viewer stands goes in the kicker, once, rather than as a coloured
+                    status line floating over the button. */}
+                <p className="public-creator">
+                  {connection === 'here' ? 'You’re connected' : 'Your church is on Harvous'}
+                </p>
 
                 <div className="public-card public-join-church">
-                  <div className="public-card__header">
-                    <h1 className="public-card__title">{church.name}</h1>
-                    {place ? <p className="public-card__meta">{place}</p> : null}
+                  <div className="public-join-church__head">
+                    <span className="public-join-church__glyph" aria-hidden>
+                      <Icon name="church" size={20} />
+                    </span>
+                    <div className="public-join-church__head-text">
+                      <h1 className="public-card__title">{church.name}</h1>
+                      {place ? <p className="public-card__meta">{place}</p> : null}
+                    </div>
                   </div>
 
-                  <div className="public-card__scroll">
-                    <p className="public-join-church__lede">
-                      {data.channels.length > 0
-                        ? 'Choose what you want to follow. What they publish shows up on your Home, beside your own study.'
-                        : 'Connect now, and what your church publishes will show up on your Home, beside your own study.'}
-                    </p>
+                  <p className="public-join-church__lede">
+                    {data.channels.length === 0
+                      ? 'Connect, and what your church publishes shows up on your Home beside your own study.'
+                      : connection === 'here'
+                        ? 'What these channels publish shows up on your Home, beside your own study.'
+                        : 'Pick what to follow. What they publish shows up on your Home, beside your own study.'}
+                  </p>
 
-                    {data.channels.length > 0 ? (
-                      <ul className="public-card__list public-join-church__channels">
-                        {data.channels.map((channel) => {
-                          const isFollowing = following.has(channel.id);
-                          const isPicked = isFollowing || picked.has(channel.id);
-                          return (
-                            <li key={channel.id} className="public-card__list-item public-join-church__item">
+                  {data.channels.length > 0 ? (
+                    <ul className="public-join-church__channels">
+                      {data.channels.map((channel) => {
+                        const isYours = following.has(channel.id);
+                        const isPicked = picked.has(channel.id);
+                        const tile = (
+                          <span
+                            className="public-join-church__tile"
+                            style={{ background: getThreadColorCSS(channel.color) }}
+                            aria-hidden
+                          >
+                            <Icon name="rss" size={13} />
+                          </span>
+                        );
+                        const text = (
+                          <span className="public-join-church__channel-text">
+                            <span className="public-join-church__channel-title">{channel.title}</span>
+                            {channel.description ? (
+                              <span className="public-join-church__channel-meta">{channel.description}</span>
+                            ) : null}
+                          </span>
+                        );
+                        return (
+                          <li key={channel.id}>
+                            {isYours ? (
+                              /* Already theirs: a row with a quiet tag, not a disabled toggle. */
+                              <div className="public-join-church__channel public-join-church__channel--static">
+                                {tile}
+                                {text}
+                                <span className="public-join-church__tag">
+                                  {leading.has(channel.id) ? 'Leading' : 'Following'}
+                                </span>
+                              </div>
+                            ) : (
                               <button
                                 type="button"
                                 className="public-join-church__channel"
                                 aria-pressed={isPicked}
-                                disabled={isFollowing || busy}
+                                disabled={busy}
                                 onClick={() => toggle(channel.id)}
                               >
-                                <span className="public-join-church__channel-text">
-                                  <span className="public-join-church__channel-title">{channel.title}</span>
-                                  {isFollowing ? (
-                                    <span className="public-join-church__channel-meta">
-                                      {leading.has(channel.id) ? 'You lead this' : 'Following'}
-                                    </span>
-                                  ) : channel.description ? (
-                                    <span className="public-join-church__channel-meta">{channel.description}</span>
-                                  ) : null}
-                                </span>
+                                {tile}
+                                {text}
                                 <span
                                   className={`public-join-church__check${isPicked ? ' public-join-church__check--on' : ''}`}
                                   aria-hidden
                                 >
-                                  {isPicked ? <Icon name="check" size={12} /> : null}
+                                  {isPicked ? <Icon name="check" size={11} /> : null}
                                 </span>
                               </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
-                  </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
 
-                  <div className="public-card__cta">
+                  <div className="public-join-church__foot">
                     {switching || needsSwitchConfirm ? (
-                      <div className="public-invite-message" role="status">
+                      <p className="public-join-church__notice" role="status">
                         {viewer?.elsewhereName
-                          ? `You're connected to ${viewer.elsewhereName}. Switching drops its channels from your Home.`
-                          : `You're connected to another church. Switching drops its channels from your Home.`}
-                      </div>
-                    ) : connection === 'here' ? (
-                      <div className="public-already-member" role="status">
-                        You're connected to {church.name}.
-                      </div>
+                          ? `You’re connected to ${viewer.elsewhereName}. Switching removes its channels from your Home.`
+                          : 'You’re connected to another church. Switching removes its channels from your Home.'}
+                      </p>
                     ) : null}
                     {message ? (
-                      <div className="public-invite-message" role="alert">
+                      <p className="public-join-church__notice public-join-church__notice--error" role="alert">
                         {message}
-                      </div>
+                      </p>
                     ) : null}
-                    <div className="public-card__cta-row">
-                      <button type="button" className="public-cta-btn" disabled={busy} onClick={handlePrimary}>
-                        {primaryLabel}
+                    <button type="button" className="public-cta-btn" disabled={busy} onClick={handlePrimary}>
+                      {primaryLabel}
+                    </button>
+                    {!isSignedIn ? (
+                      <button type="button" className="public-join-church__text-btn" onClick={() => goToSignUp(true)}>
+                        I already have an account
                       </button>
-                      {!isSignedIn ? (
-                        <button
-                          type="button"
-                          className="public-cta-btn public-cta-btn--secondary"
-                          onClick={() => goToSignUp(true)}
-                        >
-                          I have an account
-                        </button>
-                      ) : null}
-                    </div>
+                    ) : null}
                   </div>
                 </div>
 
                 <div className="public-footer public-footer--rich">
                   <span className="public-footer__tag">
-                    Harvous is a free place for your own Bible study. Your notes stay yours: your
-                    church shares its study with you, and never sees what you write.
+                    Your notes stay yours. Your church shares its study with you, and never
+                    sees what you write.
                   </span>
                 </div>
               </>

@@ -2181,19 +2181,53 @@
 }
 
 /* ─── Church join link (`/churches/join/:token`) ─────────────────────────────
-   One list of the church's channels, each a toggle. Selected wears the accent
-   gradient fill with a white check — the one "selected" treatment — and nothing
-   is preselected: connecting never follows everything. */
+   A short card, so it sizes to its content: the shared `.public-card` fills the
+   viewport and floats its CTA over a fade, which is right for a long note and
+   left a dead band under three channels. Selected wears the accent fill with a
+   white check; a channel already yours carries a quiet tag instead of a toggle. */
+
+.public-card.public-join-church {
+  flex: 0 0 auto;
+  padding: 24px 22px 22px;
+}
+
+.public-join-church__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.public-join-church__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--site-warm);
+  color: var(--site-ink);
+}
+
+.public-join-church__head-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.public-join-church__head .public-card__meta {
+  margin-top: 2px;
+}
 
 .public-join-church__lede {
-  margin: 0;
-  padding: 4px 22px 12px;
+  margin: 18px 0 10px;
   font-size: 0.9375rem;
   line-height: 1.5;
   color: var(--site-ink-soft);
 }
 
-.public-join-church__item {
+.public-join-church__channels {
+  list-style: none;
+  margin: 0 -10px;
   padding: 0;
 }
 
@@ -2202,23 +2236,40 @@
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 14px 22px;
-  background: none;
+  padding: 10px;
   border: 0;
+  border-radius: 12px;
+  background: none;
   text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
+  transition: background 0.12s ease;
 }
 
-.public-join-church__channel:disabled {
+button.public-join-church__channel:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--site-ink) 4%, transparent);
+}
+
+.public-join-church__channel--static {
   cursor: default;
+}
+
+.public-join-church__tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--site-ink);
 }
 
 .public-join-church__channel-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -2236,6 +2287,13 @@
   white-space: nowrap;
 }
 
+.public-join-church__tag {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--site-ink-faint);
+}
+
 .public-join-church__check {
   display: inline-flex;
   align-items: center;
@@ -2244,12 +2302,68 @@
   width: 22px;
   height: 22px;
   border-radius: 999px;
-  border: 1.5px solid var(--site-rule);
-  color: #fff;
+  border: 1.5px solid color-mix(in srgb, var(--site-ink) 22%, transparent);
   box-sizing: border-box;
 }
 
 .public-join-church__check--on {
   background: var(--pds-bg-accent-button);
   border-color: transparent;
+}
+
+/* The Icon renders `fill="currentColor"`, and a broader public-page rule sets
+   the svg's colour; `!important` is the same fix `.public-addon-letter__check` uses. */
+.public-join-church__check--on svg,
+.public-join-church__check--on svg path {
+  color: #fff !important;
+  fill: #fff !important;
+}
+
+.public-join-church__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.public-join-church__notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--site-warm);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--site-ink);
+}
+
+.public-join-church__notice--error {
+  background: color-mix(in srgb, #d42828 8%, #ffffff);
+  color: #9b1c1c;
+}
+
+.public-join-church__text-btn {
+  align-self: center;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--site-ink-soft);
+  cursor: pointer;
+}
+
+.public-join-church__text-btn:hover {
+  color: var(--site-ink);
+}
+
+/* A church name is often long ("New Hope Assembly of God Church"), and on a phone
+   the shared one-line title clipped it mid-word. Here it wraps. */
+.public-join-church .public-card__title {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  font-size: 1.5rem;
+  line-height: 1.2;
 }
