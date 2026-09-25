@@ -45,6 +45,7 @@ import PrototypeChurchStaffSection from './PrototypeChurchStaffSection';
 import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSection';
 import PrototypeChurchEngagementSection from './PrototypeChurchEngagementSection';
 import PrototypeChurchJoinLinkSection from './PrototypeChurchJoinLinkSection';
+import PrototypeChurchReviewSection from './PrototypeChurchReviewSection';
 import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
 import PrototypeChurchSetupCard from './PrototypeChurchSetupCard';
 import { churchSetupSteps, type ChurchSetupStepId } from '../../lib/church-setup-steps';
@@ -283,6 +284,7 @@ export default function PrototypeChurchHub() {
     | 'settings'
     | 'engagement'
     | 'join-link'
+    | 'review'
   >('catalog');
   const pendingFollowId = followChannel.isPending
     ? followChannel.variables?.spaceId ?? null
@@ -328,6 +330,17 @@ export default function PrototypeChurchHub() {
         title: 'Invite link',
         meta: 'A link and QR for your congregation',
         onSelect: () => setToolsView('join-link'),
+      });
+    }
+    /* Any staff member: writing a channel's questions is publishing to it. What the pane
+       shows back is a count of people who answered, from five up — never who. */
+    if (canCreateChurchContent) {
+      rows.push({
+        key: 'review',
+        icon: 'list-check',
+        title: 'Review questions',
+        meta: 'What your people practise',
+        onSelect: () => setToolsView('review'),
       });
     }
     /* Gated on `manage_templates`, not publish rights: a teacher writes
@@ -507,7 +520,9 @@ export default function PrototypeChurchHub() {
               ? 'Engagement'
               : toolsView === 'join-link'
                 ? 'Invite link'
-                : churchName;
+                : toolsView === 'review'
+                  ? 'Review questions'
+                  : churchName;
 
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
@@ -625,6 +640,8 @@ export default function PrototypeChurchHub() {
             />
           ) : toolsView === 'engagement' ? (
             <PrototypeChurchEngagementSection orgId={orgId} canView={canViewEngagement} />
+          ) : toolsView === 'review' ? (
+            <PrototypeChurchReviewSection orgId={orgId} canView={canCreateChurchContent} lapsed={churchPlanLapsed} />
           ) : toolsView === 'join-link' ? (
             <PrototypeChurchJoinLinkSection
               orgId={orgId}

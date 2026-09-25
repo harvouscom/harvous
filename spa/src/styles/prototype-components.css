@@ -12245,6 +12245,226 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   min-width: 0;
 }
 
+/* ── Church review questions (hub pane + editor) ──────────────────────────── */
+.proto-church-review__channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.proto-church-review__channel {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: var(--pds-bg-input);
+  color: var(--pds-text-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Selected is the accent fill with white text — the one "selected" treatment. */
+.proto-church-review__channel--on {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+}
+
+.proto-church-review__eyebrow {
+  margin-top: 14px;
+}
+
+.proto-church-review__row-open {
+  appearance: none;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-church-review__row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.proto-church-review__text-btn {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-church-review__text-btn:hover:not(:disabled) {
+  color: var(--pds-text-primary);
+}
+
+.proto-church-review__new {
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.proto-church-review-popover {
+  width: min(460px, calc(100vw - 32px));
+}
+
+.proto-church-review-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 16px 8px;
+  max-height: min(62vh, 560px);
+  overflow-y: auto;
+}
+
+.proto-church-review-editor__prompt {
+  resize: none;
+  min-height: 56px;
+}
+
+.proto-church-review-editor__label {
+  margin: 0;
+}
+
+.proto-church-review-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-church-review-editor__list-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The app reset sets `flex-shrink: 0` everywhere; inputs in a row must be told to share. */
+.proto-church-review-editor__input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.proto-church-review-editor__index {
+  flex: 0 0 auto;
+  width: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-church-review-editor__correct {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--pds-border-soft);
+  background: none;
+  color: var(--pds-on-accent);
+  cursor: pointer;
+}
+
+.proto-church-review-editor__correct--on {
+  background: var(--pds-bg-accent-button);
+  border-color: transparent;
+}
+
+.proto-church-review-editor__add {
+  appearance: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-church-review-editor__hint {
+  margin: 0;
+  opacity: 0.8;
+  line-height: 1.45;
+}
+
+.proto-church-review-editor__footer {
+  display: flex;
+  gap: 8px;
+}
+
+.proto-church-review-editor__footer > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.proto-church-review-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--pds-bg-input);
+}
+
+.proto-church-review-preview__from {
+  margin: 0;
+}
+
+.proto-church-review-preview__prompt {
+  margin: 0;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-church-review-preview__options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-church-review-preview__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.proto-church-review-preview__columns > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-church-review-preview__chip {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--pds-bg-page);
+  font-size: 13px;
+  color: var(--pds-text-primary);
+}
+
 /* Lane head: the section label with its one action beside it, so a lane never
    needs a grey button slab below its content. */
 .proto-church-tools__lane-head {
