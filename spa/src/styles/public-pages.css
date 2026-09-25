@@ -2287,6 +2287,41 @@ button.public-join-church__channel:hover:not(:disabled) {
   white-space: nowrap;
 }
 
+.public-join-church__group + .public-join-church__group {
+  margin-top: 14px;
+}
+
+.public-join-church__group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 4px;
+}
+
+.public-join-church__group-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--site-ink-faint);
+}
+
+.public-join-church__group-all {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--site-ink-faint);
+  cursor: pointer;
+}
+
+.public-join-church__group-all:hover:not(:disabled) {
+  color: var(--site-ink);
+}
+
 .public-join-church__tag {
   flex: 0 0 auto;
   font-size: 0.75rem;

@@ -30,6 +30,8 @@ import { churchIsSponsored } from '../utils/church-entitlement';
 import { getActiveChurchByOrgId } from '../utils/church-staff';
 import { followMinistryChannel } from '../utils/ministry-channel-follow';
 import { connectUserToChurch } from '../utils/church-selection-write';
+import { listMinistriesForOrg } from '../utils/church-ministries';
+import { isPgUndefinedRelation } from '../utils/pg-undefined-relation';
 import {
   assertCanManageChurchJoinLink,
   assertCanRevokeChurchJoinLink,
@@ -231,6 +233,16 @@ app.get('/api/church/join-preview/:token', rateLimit('read'), async (c) => {
     const { church } = resolved;
 
     const channels = await followableChannelsForChurch(church.orgId);
+    // Headings for the page: live ministries that have a channel to offer, in the church's order.
+    const ministries = (
+      await listMinistriesForOrg(church.orgId).catch((error) => {
+        if (isPgUndefinedRelation(error, 'ChurchMinistries')) return [];
+        throw error;
+      })
+    )
+      .filter((m) => !m.archivedAt && channels.some((channel) => channel.ministryId === m.id))
+      .map((m) => ({ id: m.id, name: m.name }));
+    const liveMinistryIds = new Set(ministries.map((m) => m.id));
 
     // Viewer state (optional auth) — only ever the viewer's own facts.
     const auth = getAuth(c);
@@ -270,7 +282,14 @@ app.get('/api/church/join-preview/:token', rateLimit('read'), async (c) => {
 
     return c.json({
       church: { name: church.name, city: church.city, state: church.state },
-      channels: channels.map(({ id, title, description, color }) => ({ id, title, description, color })),
+      ministries,
+      channels: channels.map(({ id, title, description, color, ministryId }) => ({
+        id,
+        title,
+        description,
+        color,
+        ministryId: ministryId && liveMinistryIds.has(ministryId) ? ministryId : null,
+      })),
       viewer: { signedIn: Boolean(auth.userId), connection, elsewhereName, followingIds, leadingIds },
     });
   } catch (error) {

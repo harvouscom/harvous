@@ -9,7 +9,15 @@ import { churchFeedQueryKey } from './useChurchFeed';
 /** What the join page shows a visitor — only what the church printed, plus their own facts. */
 export type ChurchJoinPreview = {
   church: { name: string; city: string | null; state: string | null };
-  channels: Array<{ id: string; title: string; description: string | null; color: string | null }>;
+  /** Live ministries with a channel on offer — headings for the list. Empty: one flat list. */
+  ministries?: Array<{ id: string; name: string }>;
+  channels: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    color: string | null;
+    ministryId?: string | null;
+  }>;
   viewer: {
     signedIn: boolean;
     connection: 'here' | 'elsewhere' | 'none';

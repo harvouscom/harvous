@@ -14,7 +14,8 @@
  * Admin-only (`manage_staff`), the narrowest audience that makes it useful.
  */
 import Icon from '@/components/react/Icon';
-import { useChurchEngagement } from '../../hooks/queries/useChurchEngagement';
+import { useChurchEngagement, type ChannelEngagement } from '../../hooks/queries/useChurchEngagement';
+import { useChurchMinistries } from '../../hooks/queries/useChurchMinistries';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 
 export default function PrototypeChurchEngagementSection({
@@ -26,6 +27,8 @@ export default function PrototypeChurchEngagementSection({
   canView: boolean;
 }) {
   const { data, isPending } = useChurchEngagement(orgId, { enabled: canView });
+  /* Names for the ministry headings — the same read the Ministries tool makes, usually cached. */
+  const ministriesQuery = useChurchMinistries(orgId, { enabled: canView });
 
   /*
     Gated on `canView` because a disabled query stays `isPending` forever in
@@ -53,26 +56,31 @@ export default function PrototypeChurchEngagementSection({
       ) : null}
 
       {channels.length > 0 ? (
-        <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
-          {channels.map((channel) => (
-            /*
-              A row, not a bar chart. A church with 9 followers and one with 900
-              both want to read a number; a bar would invite comparing ministries
-              against each other, which is not what this is for.
-            */
-            <div key={channel.spaceId} className="proto-church-tools__row proto-church-tools__row--status">
-              <span className="proto-church-tools__row-icon" aria-hidden>
-                <Icon name="rss" size={13} />
-              </span>
-              <span className="proto-church-tools__row-text">
-                <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={channel.title}><span>{channel.title}</span></span>
-                <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
-                  {channel.followerCount === 1 ? '1 follower' : `${channel.followerCount} followers`}
-                </span>
-              </span>
+        groupByMinistry(channels, ministriesQuery.data?.ministries ?? []).map((group) => (
+          <div key={group.id ?? 'church-wide'} className="proto-church-engagement__group">
+            {group.name ? <p className="proto-caption proto-church-engagement__group-name">{group.name}</p> : null}
+            <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+              {group.channels.map((channel) => (
+                /*
+                  A row, not a bar chart. A church with 9 followers and one with 900
+                  both want to read a number; a bar would invite comparing ministries
+                  against each other, which is not what this is for.
+                */
+                <div key={channel.spaceId} className="proto-church-tools__row proto-church-tools__row--status">
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="rss" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    <span className="pds-list-title proto-church-tools__row-title proto-marquee" title={channel.title}><span>{channel.title}</span></span>
+                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
+                      {channel.followerCount === 1 ? '1 follower' : `${channel.followerCount} followers`}
+                    </span>
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))
       ) : (
         <p className="proto-caption proto-teaching-plan__empty">
           No channels yet. Once you have one, its reach shows here.
@@ -91,4 +99,22 @@ export default function PrototypeChurchEngagementSection({
       </p>
     </div>
   );
+}
+
+/**
+ * Channels under their ministry's name, church-wide last. With no ministries, one unheaded
+ * group — the list it always was. Grouped, never ranked: the order within each stays the server's.
+ */
+function groupByMinistry(
+  channels: ChannelEngagement[],
+  ministries: ReadonlyArray<{ id: string; name: string; archivedAt: string | null }>,
+) {
+  const live = ministries.filter((m) => !m.archivedAt);
+  const groups = live
+    .map((m) => ({ id: m.id as string | null, name: m.name as string | null, channels: channels.filter((c) => c.ministryId === m.id) }))
+    .filter((group) => group.channels.length > 0);
+  const placed = new Set(groups.flatMap((group) => group.channels.map((c) => c.spaceId)));
+  const rest = channels.filter((c) => !placed.has(c.spaceId));
+  if (rest.length) groups.push({ id: null, name: groups.length ? 'Church-wide' : null, channels: rest });
+  return groups;
 }

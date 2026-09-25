@@ -12334,6 +12334,16 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-link, var(--pds-text-primary));
 }
 
+/* Engagement under ministry names: a small caption over each panel. */
+.proto-church-engagement__group + .proto-church-engagement__group {
+  margin-top: 12px;
+}
+
+.proto-church-engagement__group-name {
+  margin: 0 2px 6px;
+  opacity: 0.72;
+}
+
 /* Ministries: each one a heading over its rooms, Church-wide last. */
 .proto-ministries__group + .proto-ministries__group {
   margin-top: 24px;
@@ -14108,6 +14118,14 @@ p.proto-teaching-plan__divider {
   gap: 8px 6px;
   width: 100%;
   margin-top: 2px;
+}
+
+.proto-create-shared-space__ministry {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 .proto-create-shared-space__rhythm-label {

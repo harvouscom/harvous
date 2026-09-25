@@ -85,6 +85,40 @@ export default function PublicJoinChurchPage() {
   const connection = viewer?.connection ?? 'none';
   const newPicks = [...picked].filter((id) => !following.has(id));
 
+  /*
+    A church with ministries lists its channels under them — "Youth", "Kids" — with church-wide
+    ones last and unheaded; one with none keeps the single flat list.
+  */
+  const channelGroups = useMemo(() => {
+    const channels = data?.channels ?? [];
+    const ministries = data?.ministries ?? [];
+    const groups = ministries.map((ministry) => ({
+      id: ministry.id as string | null,
+      name: ministry.name as string | null,
+      channels: channels.filter((channel) => channel.ministryId === ministry.id),
+    }));
+    const headed = new Set(groups.flatMap((group) => group.channels.map((channel) => channel.id)));
+    const rest = channels.filter((channel) => !headed.has(channel.id));
+    if (rest.length) {
+      groups.push({ id: null, name: groups.length ? 'Church-wide' : null, channels: rest });
+    }
+    return groups
+      .filter((group) => group.channels.length > 0)
+      .map((group) => ({ ...group, pickable: group.channels.map((c) => c.id).filter((id) => !following.has(id)) }));
+  }, [data?.channels, data?.ministries, following]);
+
+  function pickGroup(ids: string[]) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      const all = ids.every((id) => next.has(id));
+      for (const id of ids) {
+        if (all) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }
+
   function toggle(id: string) {
     if (following.has(id)) return;
     setPicked((prev) => {
@@ -241,62 +275,79 @@ export default function PublicJoinChurchPage() {
                         : 'Pick what to follow. What they publish shows up on your Home, beside your own study.'}
                   </p>
 
-                  {data.channels.length > 0 ? (
-                    <ul className="public-join-church__channels">
-                      {data.channels.map((channel) => {
-                        const isYours = following.has(channel.id);
-                        const isPicked = picked.has(channel.id);
-                        const tile = (
-                          <span
-                            className="public-join-church__tile"
-                            style={{ background: getThreadColorCSS(channel.color) }}
-                            aria-hidden
-                          >
-                            <Icon name="rss" size={13} />
-                          </span>
-                        );
-                        const text = (
-                          <span className="public-join-church__channel-text">
-                            <span className="public-join-church__channel-title">{channel.title}</span>
-                            {channel.description ? (
-                              <span className="public-join-church__channel-meta">{channel.description}</span>
-                            ) : null}
-                          </span>
-                        );
-                        return (
-                          <li key={channel.id}>
-                            {isYours ? (
-                              /* Already theirs: a row with a quiet tag, not a disabled toggle. */
-                              <div className="public-join-church__channel public-join-church__channel--static">
-                                {tile}
-                                {text}
-                                <span className="public-join-church__tag">
-                                  {leading.has(channel.id) ? 'Leading' : 'Following'}
-                                </span>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className="public-join-church__channel"
-                                aria-pressed={isPicked}
-                                disabled={busy}
-                                onClick={() => toggle(channel.id)}
-                              >
-                                {tile}
-                                {text}
-                                <span
-                                  className={`public-join-church__check${isPicked ? ' public-join-church__check--on' : ''}`}
-                                  aria-hidden
+                  {channelGroups.map((group) => (
+                    <div key={group.id ?? 'church-wide'} className="public-join-church__group">
+                      {group.name ? (
+                        <div className="public-join-church__group-head">
+                          <span className="public-join-church__group-name">{group.name}</span>
+                          {group.pickable.length > 1 ? (
+                            <button
+                              type="button"
+                              className="public-join-church__group-all"
+                              disabled={busy}
+                              onClick={() => pickGroup(group.pickable)}
+                            >
+                              {group.pickable.every((id) => picked.has(id)) ? 'Clear' : 'Pick all'}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      <ul className="public-join-church__channels">
+                        {group.channels.map((channel) => {
+                          const isYours = following.has(channel.id);
+                          const isPicked = picked.has(channel.id);
+                          const tile = (
+                            <span
+                              className="public-join-church__tile"
+                              style={{ background: getThreadColorCSS(channel.color) }}
+                              aria-hidden
+                            >
+                              <Icon name="rss" size={13} />
+                            </span>
+                          );
+                          const text = (
+                            <span className="public-join-church__channel-text">
+                              <span className="public-join-church__channel-title">{channel.title}</span>
+                              {channel.description ? (
+                                <span className="public-join-church__channel-meta">{channel.description}</span>
+                              ) : null}
+                            </span>
+                          );
+                          return (
+                            <li key={channel.id}>
+                              {isYours ? (
+                                /* Already theirs: a row with a quiet tag, not a disabled toggle. */
+                                <div className="public-join-church__channel public-join-church__channel--static">
+                                  {tile}
+                                  {text}
+                                  <span className="public-join-church__tag">
+                                    {leading.has(channel.id) ? 'Leading' : 'Following'}
+                                  </span>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="public-join-church__channel"
+                                  aria-pressed={isPicked}
+                                  disabled={busy}
+                                  onClick={() => toggle(channel.id)}
                                 >
-                                  {isPicked ? <Icon name="check" size={11} /> : null}
-                                </span>
-                              </button>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : null}
+                                  {tile}
+                                  {text}
+                                  <span
+                                    className={`public-join-church__check${isPicked ? ' public-join-church__check--on' : ''}`}
+                                    aria-hidden
+                                  >
+                                    {isPicked ? <Icon name="check" size={11} /> : null}
+                                  </span>
+                                </button>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ))}
 
                   <div className="public-join-church__foot">
                     {switching || needsSwitchConfirm ? (

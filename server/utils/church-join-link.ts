@@ -175,6 +175,8 @@ export type FollowableChannel = {
   title: string;
   description: string | null;
   color: string | null;
+  /** Its ministry, or null when church-wide. Archived ministries read as null at the preview. */
+  ministryId: string | null;
 };
 
 /**
@@ -192,13 +194,14 @@ export async function followableChannelsForChurch(orgId: string): Promise<Follow
       title: Spaces.title,
       description: Spaces.description,
       color: Spaces.color,
+      ministryId: Spaces.ministryId,
       isActive: Spaces.isActive,
     })
     .from(Spaces)
     .where(and(eq(Spaces.orgId, orgId), eq(Spaces.type, 'public'), isNull(Spaces.deletedAt)));
   return rows
     .filter((row) => row.isActive)
-    .map(({ id, title, description, color }) => ({ id, title, description, color }))
+    .map(({ id, title, description, color, ministryId }) => ({ id, title, description, color, ministryId }))
     .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
     .slice(0, JOIN_FOLLOW_CAP);
 }

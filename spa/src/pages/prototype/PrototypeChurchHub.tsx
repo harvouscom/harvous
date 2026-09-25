@@ -263,6 +263,30 @@ export default function PrototypeChurchHub() {
    */
   const churchPlanLapsed = channelsData?.sponsorship?.state === 'lapsed';
   /**
+   * A church with ministries shows each one first — its groups, then its channels — and what
+   * belongs to none stays in the two lanes below. The nav payload deliberately carries no
+   * ministry, so membership comes from the channels read the hub already makes.
+   */
+  const { ministrySections, laneSharedSpaces, laneChannels } = useMemo(() => {
+    const ministries = channelsData?.ministries ?? [];
+    const placed = new Set<string>();
+    const sections = ministries
+      .map((ministry) => {
+        const channelIds = new Set(ministry.channelIds);
+        const groupIds = new Set(ministry.myGroupIds);
+        const groups = sharedSpaces.filter((space) => groupIds.has(space.id));
+        const channels = ministryChannels.filter((space) => channelIds.has(space.id));
+        for (const space of [...groups, ...channels]) placed.add(space.id);
+        return { id: ministry.id, name: ministry.name, groups, channels };
+      })
+      .filter((section) => section.groups.length + section.channels.length > 0);
+    return {
+      ministrySections: sections,
+      laneSharedSpaces: sharedSpaces.filter((space) => !placed.has(space.id)),
+      laneChannels: ministryChannels.filter((space) => !placed.has(space.id)),
+    };
+  }, [channelsData?.ministries, sharedSpaces, ministryChannels]);
+  /**
    * Why the plan is read-only, when it is — derived once in the shared hook so
    * the compact pane and the expanded planner cannot disagree.
    */
@@ -702,12 +726,32 @@ export default function PrototypeChurchHub() {
               </div>
             ) : (
               <>
+                {ministrySections.map((section) => (
+                  <div key={section.id} className="proto-home-section">
+                    <p className="proto-caption proto-home-section__eyebrow">{section.name}</p>
+                    <ul className="proto-church-hub__list proto-home-cascade">
+                      {section.groups.map((space) => (
+                        <li key={space.id}>
+                          <ChurchHubSpaceButton space={space} ministry={false} onOpen={openSpace} />
+                        </li>
+                      ))}
+                      {section.channels.map((space) => (
+                        <li key={space.id}>
+                          <ChurchHubSpaceButton space={space} ministry onOpen={openSpace} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+
                 <div className="proto-home-section">
-                  <p className="proto-caption proto-home-section__eyebrow">Shared spaces</p>
-                  {sharedSpaces.length > 0 ? (
+                  <p className="proto-caption proto-home-section__eyebrow">
+                    {ministrySections.length ? 'Church-wide spaces' : 'Shared spaces'}
+                  </p>
+                  {laneSharedSpaces.length > 0 ? (
                     <>
                       <ul className="proto-church-hub__list proto-home-cascade">
-                        {sharedSpaces.map((space) => (
+                        {laneSharedSpaces.map((space) => (
                           <li key={space.id}>
                             <ChurchHubSpaceButton space={space} ministry={false} onOpen={openSpace} />
                           </li>
@@ -752,11 +796,13 @@ export default function PrototypeChurchHub() {
                 ) : null}
 
                 <div className="proto-home-section">
-                  <p className="proto-caption proto-home-section__eyebrow">Channels</p>
-                  {ministryChannels.length > 0 ? (
+                  <p className="proto-caption proto-home-section__eyebrow">
+                    {ministrySections.length ? 'Church-wide channels' : 'Channels'}
+                  </p>
+                  {laneChannels.length > 0 ? (
                     <>
                       <ul className="proto-church-hub__list proto-home-cascade">
-                        {ministryChannels.map((space) => (
+                        {laneChannels.map((space) => (
                           <li key={space.id}>
                             <ChurchHubSpaceButton space={space} ministry onOpen={openSpace} />
                           </li>
