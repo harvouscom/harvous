@@ -687,8 +687,9 @@ export const SpaceMemberships = pgTable('SpaceMemberships', {
   /**
    * 'owner' | 'leader' | 'member'. The owner has a membership row too (the v1
    * model derived owner solely from Spaces.userId, which stays the
-   * creator/billing anchor). 'leader' is schema-ready but dormant in the
-   * foundation UI; it activates with Group Leader / church org.
+   * creator/billing anchor). 'leader' is written by the church staff sync (every staffer leads
+   * the rooms their ministry scope covers) and by granted leadership (`grantSource = 'grant'`,
+   * server/routes/church-space-leaders.ts).
    */
   role: text('role').notNull().default('member'),
   /** userId of the inviter; null on the owner row. */
@@ -1271,10 +1272,11 @@ export const ChurchServices = pgTable('ChurchServices', {
    * `isMinistryBroadcastSpaceRow` decides it. A client that could name its own
    * kind could escape the one-per-date rule by claiming to be content.
    *
-   * Not a publish state. There is no pipeline from a planned entry to a
-   * published note yet (see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md for
-   * why the pointer that tried was removed) — a content entry is still only a
-   * plan, and nothing congregant-facing reads it.
+   * Not a publish state. A content entry is a plan, not material: the note written for it goes
+   * live through the ordinary publish (see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md for
+   * why a pointer from here to a note was tried and removed). Followers of the channel do see
+   * its dated entries on Home — following a channel is membership, so
+   * `listViewerPlanSources` includes it — as a card that reads "This Wednesday: …".
    */
   kind: text('kind').notNull().default('gathering'),
   createdBy: text('createdBy').notNull(),

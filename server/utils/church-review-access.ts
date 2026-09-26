@@ -3,13 +3,17 @@
  *
  * Composes `resolveChurchOrgAccess`, so staff are proven before anyone learns whether the church
  * has lapsed. Gated on `publish`: writing a question for a channel is publishing to it, and
- * every staff role holds that. When ministries scope staff (docs/CHURCH_V2_ROADMAP.md §C) this is
- * the one place that narrows to the channels a staffer leads.
+ * every staff role holds that.
+ *
+ * Writing and taking down also need the staffer to *lead the channel* — an owner or leader row,
+ * the rule publishing a note uses (`canPublishNoteIntoSpace`). The staff sync grants those rows
+ * by ministry scope (docs/CHURCH_V2_ROADMAP.md §C), so a teacher scoped to Youth writes Youth's
+ * questions and not Kids'. Reading stays church-wide, like the Content list.
  *
  * Reads are never sponsorship-gated — a lapsed church's staff still see what they wrote.
  * Archiving isn't either: taking a question down must always work.
  */
-import { db, first, Spaces, eq } from '../db';
+import { db, first, Spaces, SpaceMemberships, and, eq, inArray } from '../db';
 import { resolveChurchOrgAccess, type ChurchOrgAccessRule } from './church-org-access';
 import type { ChurchRow } from './church-staff';
 
@@ -77,7 +81,50 @@ export async function assertChurchReviewChannel(
   if (!channel || channel.deletedAt || channel.type !== 'public' || channel.orgId !== gate.church.orgId) {
     return { ok: false, status: 404, code: 'CHANNEL_NOT_FOUND', error: 'Channel not found' };
   }
+  // Same 404 for a channel they don't lead: never "exists, but not yours".
+  if (mode !== 'read' && !(await staffLeadsChannel(userId, channel.id))) {
+    return { ok: false, status: 404, code: 'CHANNEL_NOT_FOUND', error: 'Channel not found' };
+  }
   return { ok: true, church: gate.church, channel: { id: channel.id, title: channel.title } };
+}
+
+const LEAD_ROLES = ['owner', 'leader'];
+
+/** Whether this person leads the channel: its owner, or an owner/leader membership row. */
+export async function staffLeadsChannel(userId: string, channelSpaceId: string): Promise<boolean> {
+  const row = first(
+    await db
+      .select({ ownerId: Spaces.userId, role: SpaceMemberships.role })
+      .from(Spaces)
+      .leftJoin(
+        SpaceMemberships,
+        and(eq(SpaceMemberships.spaceId, Spaces.id), eq(SpaceMemberships.userId, userId)),
+      )
+      .where(eq(Spaces.id, channelSpaceId))
+      .limit(1),
+  );
+  return Boolean(row && (row.ownerId === userId || (row.role && LEAD_ROLES.includes(row.role))));
+}
+
+/** Of these channels, the ones this person leads. */
+export async function channelsLedBy(userId: string, channels: readonly { id: string; ownerId: string }[]): Promise<Set<string>> {
+  if (channels.length === 0) return new Set();
+  const rows = await db
+    .select({ spaceId: SpaceMemberships.spaceId })
+    .from(SpaceMemberships)
+    .where(
+      and(
+        eq(SpaceMemberships.userId, userId),
+        inArray(SpaceMemberships.role, LEAD_ROLES),
+        inArray(
+          SpaceMemberships.spaceId,
+          channels.map((channel) => channel.id),
+        ),
+      ),
+    );
+  const led = new Set(rows.map((row) => row.spaceId));
+  for (const channel of channels) if (channel.ownerId === userId) led.add(channel.id);
+  return led;
 }
 
 /** "Answered by N", floored: below five it could name the people in a small group. */
