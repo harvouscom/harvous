@@ -140,6 +140,153 @@ export function orderedCopySteps<T extends { id: string }>(
   return ordered;
 }
 
+
+type VisibleSourceStep = {
+  id: string;
+  title: string | null;
+  content: string | null;
+  noteType: string | null;
+  userId: string;
+  currentVersionId: string | null;
+};
+
+/**
+ * A source plan's steps as a follower sees them, in plan order: live in the channel and not
+ * locked. What a copy copies, and what "your church updated this plan" compares against.
+ */
+export async function loadVisibleSourceSteps(
+  sequenceNoteIds: string | null,
+  channelSpaceId: string,
+): Promise<VisibleSourceStep[]> {
+  const sequence = parseSequenceNoteIds(sequenceNoteIds);
+  if (sequence.length === 0) return [];
+  const visible = await db
+    .select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      noteType: Notes.noteType,
+      userId: Notes.userId,
+      currentVersionId: Notes.currentVersionId,
+    })
+    .from(Notes)
+    .innerJoin(
+      SpaceNotes,
+      and(eq(SpaceNotes.noteId, Notes.id), eq(SpaceNotes.spaceId, channelSpaceId), isNull(SpaceNotes.removedAt)),
+    )
+    .where(and(inArray(Notes.id, sequence), eq(Notes.contentEncrypted, false)));
+  return orderedCopySteps(sequence, visible);
+}
+
+export type CopiedStepRow = ReturnType<typeof buildCopiedStepRows>[number];
+
+/** The copier's own note rows for these source steps, attributed to the source. */
+export function buildCopiedStepRows(input: {
+  steps: readonly VisibleSourceStep[];
+  threadId: string;
+  homeSpaceId: string;
+  actorId: string;
+  base: number;
+}) {
+  const { steps, threadId, homeSpaceId, actorId, base } = input;
+  return steps.map((step, index) => {
+    const id = generateNoteId();
+    return {
+      id,
+      title: step.title || null,
+      content: transformCanonicalScriptureContent({
+        noteId: id,
+        content: step.content ?? '',
+        translation: 'NET',
+        pillsOnly: step.noteType !== 'scripture',
+      }).updatedContent,
+      threadId,
+      // The copier's home, not the group — the group is the SpaceNotes row below,
+      // the same split `publishSeriesAsStudyPlan` uses.
+      spaceId: homeSpaceId,
+      simpleNoteId: 0,
+      noteType: step.noteType || 'default',
+      userId: actorId,
+      isPublic: false,
+      contentEncrypted: false,
+      createdAt: new Date(base + index),
+      updatedAt: new Date(base + index),
+      lastVisited: null,
+      ...buildIndependentCopyAttribution({
+        sourceNoteId: step.id,
+        sourceVersionId: step.currentVersionId,
+        sourceAuthorId: step.userId,
+        sourceAuthorDisplayName: null,
+      }),
+    };
+  });
+}
+
+/**
+ * Write copied steps inside the caller's transaction, which must already hold the copier's
+ * UserMetadata row `FOR UPDATE`: notes with simple ids, first versions, the thread links, and —
+ * for a group — the room's SpaceNotes rows. Returns the first simple id used.
+ */
+export async function insertCopiedStepsInTx(
+  tx: any,
+  input: {
+    noteRows: CopiedStepRow[];
+    actorId: string;
+    threadId: string;
+    targetSpaceId: string | null;
+    now: Date;
+    highestSimpleNoteId: number;
+  },
+): Promise<number> {
+  const { noteRows, actorId, threadId, targetSpaceId, now } = input;
+  const firstSimple = input.highestSimpleNoteId + 1;
+  noteRows.forEach((row, index) => {
+    row.simpleNoteId = firstSimple + index;
+  });
+  if (noteRows.length > 0) await tx.insert(Notes).values(noteRows);
+  for (const row of noteRows) {
+    await createInitialNoteVersion(tx, {
+      noteId: row.id,
+      noteAuthorId: actorId,
+      content: { title: row.title, content: row.content, contentEncrypted: false },
+      createdAt: row.createdAt,
+      source: 'study-plan-copy',
+    });
+  }
+  if (noteRows.length > 0) {
+    await tx.insert(NoteThreads).values(
+      noteRows.map((row) => ({ id: `nt_${crypto.randomUUID()}`, noteId: row.id, threadId, createdAt: now })),
+    );
+  }
+  if (targetSpaceId && noteRows.length > 0) {
+    await tx.insert(SpaceNotes).values(
+      noteRows.map((row) => ({
+        id: `sn_${crypto.randomUUID()}`,
+        spaceId: targetSpaceId,
+        noteId: row.id,
+        addedBy: actorId,
+        addedAt: now,
+      })),
+    );
+  }
+  return firstSimple;
+}
+
+/** Scripture pills and references for newly copied steps — after the transaction, best effort. */
+export async function postProcessCopiedSteps(noteRows: readonly CopiedStepRow[], actorId: string, threadId: string) {
+  for (const row of noteRows) {
+    if (!row.content) continue;
+    try {
+      await processScriptureReferences(row.id, actorId, threadId, row.content, 'NET', {
+        pillsOnly: row.noteType !== 'scripture',
+        persistParentContent: false,
+      });
+    } catch (error) {
+      console.warn('[study-plan-copy] copy landed; scripture postprocessing failed', { noteId: row.id, error });
+    }
+  }
+}
+
 export type StudyPlanCopyResult = {
   threadId: string;
   /** Where the copy lives: a Shared Space id, or null for the caller's Home. */
@@ -210,26 +357,7 @@ export async function copyStudyPlanThread(input: {
     return { threadId: existing.id, spaceId: existing.spaceId, noteCount: 0, alreadyCopied: true, pinned: false, kit: NO_KIT };
   }
 
-  const sequence = parseSequenceNoteIds(source.sequenceNoteIds);
-  const visible =
-    sequence.length > 0
-      ? await db
-          .select({
-            id: Notes.id,
-            title: Notes.title,
-            content: Notes.content,
-            noteType: Notes.noteType,
-            userId: Notes.userId,
-            currentVersionId: Notes.currentVersionId,
-          })
-          .from(Notes)
-          .innerJoin(
-            SpaceNotes,
-            and(eq(SpaceNotes.noteId, Notes.id), eq(SpaceNotes.spaceId, source.spaceId), isNull(SpaceNotes.removedAt)),
-          )
-          .where(and(inArray(Notes.id, sequence), eq(Notes.contentEncrypted, false)))
-      : [];
-  const steps = orderedCopySteps(sequence, visible);
+  const steps = await loadVisibleSourceSteps(source.sequenceNoteIds, source.spaceId);
 
   await ensureUserMetadata(actorId);
   const homeSpaceId = await ensurePersonalHomeSpace(actorId);
@@ -238,37 +366,7 @@ export async function copyStudyPlanThread(input: {
   const threadId = generateThreadId();
   const now = nowISO();
   const base = Date.now();
-  const noteRows = steps.map((step, index) => {
-    const id = generateNoteId();
-    return {
-      id,
-      title: step.title || null,
-      content: transformCanonicalScriptureContent({
-        noteId: id,
-        content: step.content ?? '',
-        translation: 'NET',
-        pillsOnly: step.noteType !== 'scripture',
-      }).updatedContent,
-      threadId,
-      // The copier's home, not the group — the group is the SpaceNotes row below,
-      // the same split `publishSeriesAsStudyPlan` uses.
-      spaceId: homeSpaceId,
-      simpleNoteId: 0,
-      noteType: step.noteType || 'default',
-      userId: actorId,
-      isPublic: false,
-      contentEncrypted: false,
-      createdAt: new Date(base + index),
-      updatedAt: new Date(base + index),
-      lastVisited: null,
-      ...buildIndependentCopyAttribution({
-        sourceNoteId: step.id,
-        sourceVersionId: step.currentVersionId,
-        sourceAuthorId: step.userId,
-        sourceAuthorDisplayName: null,
-      }),
-    };
-  });
+  const noteRows = buildCopiedStepRows({ steps, threadId, homeSpaceId, actorId, base });
   const newIds = noteRows.map((row) => row.id);
   /* The kit, read before the transaction and remapped onto the copy's own step ids. The
      baseline — what each copied step said — is written for every copy, so "your church updated
@@ -340,36 +438,14 @@ export async function copyStudyPlanThread(input: {
         copiedFromAuthorId: source.userId,
       });
 
-      const firstSimple = Math.max(effectiveHighest, locked.highestSimpleNoteId ?? 0) + 1;
-      noteRows.forEach((row, index) => {
-        row.simpleNoteId = firstSimple + index;
+      const firstSimple = await insertCopiedStepsInTx(tx, {
+        noteRows,
+        actorId,
+        threadId,
+        targetSpaceId,
+        now,
+        highestSimpleNoteId: Math.max(effectiveHighest, locked.highestSimpleNoteId ?? 0),
       });
-      if (noteRows.length > 0) await tx.insert(Notes).values(noteRows);
-      for (const row of noteRows) {
-        await createInitialNoteVersion(tx, {
-          noteId: row.id,
-          noteAuthorId: actorId,
-          content: { title: row.title, content: row.content, contentEncrypted: false },
-          createdAt: row.createdAt,
-          source: 'study-plan-copy',
-        });
-      }
-      if (noteRows.length > 0) {
-        await tx.insert(NoteThreads).values(
-          noteRows.map((row) => ({ id: `nt_${crypto.randomUUID()}`, noteId: row.id, threadId, createdAt: now })),
-        );
-      }
-      if (targetSpaceId && noteRows.length > 0) {
-        await tx.insert(SpaceNotes).values(
-          noteRows.map((row) => ({
-            id: `sn_${crypto.randomUUID()}`,
-            spaceId: targetSpaceId,
-            noteId: row.id,
-            addedBy: actorId,
-            addedAt: now,
-          })),
-        );
-      }
       await tx.insert(StudyPlanCopyBaselines).values(baseline);
       if (guideRows.length > 0) await tx.insert(StudyPlanStepGuides).values(guideRows);
       if (resourceCarry.rows.length > 0) await tx.insert(StudyPlanLibraryItems).values(resourceCarry.rows);
@@ -404,17 +480,7 @@ export async function copyStudyPlanThread(input: {
     return { threadId: raced.id, spaceId: raced.spaceId, noteCount: 0, alreadyCopied: true, pinned: false, kit: NO_KIT };
   }
 
-  for (const row of noteRows) {
-    if (!row.content) continue;
-    try {
-      await processScriptureReferences(row.id, actorId, threadId, row.content, 'NET', {
-        pillsOnly: row.noteType !== 'scripture',
-        persistParentContent: false,
-      });
-    } catch (error) {
-      console.warn('[study-plan-copy] copy landed; scripture postprocessing failed', { noteId: row.id, error });
-    }
-  }
+  await postProcessCopiedSteps(noteRows, actorId, threadId);
 
   return {
     threadId,
