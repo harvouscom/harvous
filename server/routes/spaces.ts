@@ -112,6 +112,7 @@ import { assertCanCreateSpaceInvite } from '../utils/space-invite-gate';
 import {
   assertCanCreateChurchSharedSpace,
   assertCanCreateMinistryChannel,
+  isChurchStaffForOrg,
 } from '../utils/church-staff';
 import { getThreadGradientCSS } from '@/utils/colors';
 import {
@@ -154,6 +155,8 @@ import {
   canRestoreDeletedSpace,
   removeMemberPreservingResponses,
   serializeSpaceMemberForViewer,
+  scopeSpaceRosterForViewer,
+  spaceRosterIsRestrictedForViewer,
   serializeInvitePreview,
   safeMemberDisplayName,
   runBoundedExpiredSpaceMaintenance,
@@ -3629,8 +3632,25 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
     const space = accessInfo.space;
 
     // Non-owner memberships (the owner entry is built from Spaces.userId below)
-    const members = (await db.select().from(SpaceMemberships).where(eq(SpaceMemberships.spaceId, spaceId)))
+    const allMembers = (await db.select().from(SpaceMemberships).where(eq(SpaceMemberships.spaceId, spaceId)))
       .filter(m => m.userId !== space.userId);
+
+    /*
+      A ministry channel follower sees the channel's authors and themselves,
+      never the other followers — "how many, never who". Church staff who only
+      follow the room still need the roster to moderate and to "Make leader",
+      so they are asked about, but only when the answer could change anything.
+    */
+    const viewerIsChurchStaff =
+      spaceRosterIsRestrictedForViewer({ space, viewerRole: accessInfo.role }) && space.orgId
+        ? await isChurchStaffForOrg(auth.userId, space.orgId)
+        : false;
+    const { members, rosterRestricted } = scopeSpaceRosterForViewer(allMembers, {
+      space,
+      viewerUserId: auth.userId,
+      viewerRole: accessInfo.role,
+      viewerIsChurchStaff,
+    });
     const memberUserIds = members.map(m => m.userId);
     const allUserIds = [space.userId, ...memberUserIds];
 
@@ -3699,7 +3719,9 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
     return c.json(
       {
         members: memberList.map((member) => serializeSpaceMemberForViewer(member, isOwner)),
-        memberCount: memberList.length,
+        // The whole room, restricted or not: the count is the "how many".
+        memberCount: allMembers.length + 1,
+        rosterRestricted,
         isOwner,
         limits: isOwner ? {
           membersPerSpace: MEMBERS_PER_SPACE_CAP,

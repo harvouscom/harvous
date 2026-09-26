@@ -368,6 +368,12 @@ export interface SpaceMemberRow {
 export interface SpaceMembersResponse {
   members: SpaceMemberRow[];
   memberCount: number;
+  /**
+   * True for a ministry channel follower: `members` holds only the channel's
+   * owner, its leaders, and the viewer — never the other followers. The count
+   * is still the whole room.
+   */
+  rosterRestricted?: boolean;
   isOwner: boolean;
   limits?: { membersPerSpace: number; ownedSharedSpaces: number };
 }
