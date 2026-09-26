@@ -2,7 +2,7 @@
 
 Current numbers, how each was measured, and how to reproduce them. Owned by `/engineer`.
 
-**Last measured:** 2026-08-13 (payload table) · 2026-09-04 (request count) · 2026-09-18 (payload 1073.8 KB gz, `perf:check`)
+**Last measured:** 2026-09-26 (payload table, opening the app) · 2026-09-04 (request count)
 
 > Two older documents used to live here and now sit in `docs/archive/`:
 > `PERFORMANCE_OPTIMIZATION_LESSONS.md` and `PWA_INITIAL_LOAD_OPTIMIZATIONS.md`. Both instruct the
@@ -17,17 +17,16 @@ Everything `dist-spa/index.html` declares before it can paint: the entry script,
 `modulepreload` siblings, and the stylesheet. This is what a user waits for on **every** route,
 including sign-in.
 
-**1078.4 KB gzipped across 7 assets.**
+**850.3 KB gzipped across 6 assets** (2026-09-26). TipTap left the entry on 2026-09-18.
 
 | Asset | gzip | raw |
 |---|---|---|
-| `index.js` | 703.7 KB | 2570.0 KB |
-| `index.css` | 127.7 KB | 845.7 KB |
-| `tiptap.js` | 117.8 KB | 372.0 KB |
+| `index.js` | 578.3 KB | 2104.9 KB |
+| `index.css` | 142.0 KB | 929.8 KB |
 | `react-vendor.js` | 59.5 KB | 190.4 KB |
-| `clerk.js` | 27.9 KB | 100.1 KB |
 | `router.js` | 28.4 KB | 87.4 KB |
-| `query.js` | 13.4 KB | 45.2 KB |
+| `clerk.js` | 27.9 KB | 100.1 KB |
+| `query.js` | 14.1 KB | 47.7 KB |
 
 **Reproduce:**
 
@@ -46,6 +45,56 @@ improvement, or alongside a stated reason in the commit message.
 shrink it. Nothing enforced the number. It reached **2.57 MB**. In the single week between the
 Aug 6 build and the Aug 13 rebuild, the initial payload grew **94 KB gzipped** (1009.7 → 1080.5 KB)
 with no one intending it to.
+
+---
+
+## Opening the app
+
+What a returning reader waits for: navigation start to the first frame Home presents its content.
+The mark is `home:presented` (`useHomeSettleTrace.ts`), on the page's own timeline, so it counts the
+bundle, Clerk and the queries — not just the part after Home mounts, which is all the older
+`[home] settled in` log measured. Readable in any build:
+
+```js
+performance.getEntriesByName('home:presented')[0].startTime
+```
+
+| Reload of `/`, signed in | Home presented | How it settled |
+|---|---|---|
+| Before (2026-09-26, 5 runs) | 2876–3014 ms | the 2.5 s deadline, every run |
+| After, cache restored (6 runs) | 397–436 ms | the gate, from restored data |
+| After, mobile preset | 430 ms | the gate |
+
+Measured on the built SPA (`initial-load-built` launch config: `vite preview` on 4392 over a
+worktree API at `DB_POOL_MAX=6`), Browser pane hidden, same account and data throughout. The
+"before" column is pessimistic in the way `DB_POOL_MAX` always makes this sandbox pessimistic
+(see the dev-sandbox note in the engineer context), but the after column does not touch the API
+at all before it presents, so the gap is not an artifact of the pool.
+
+**What changed.** The React Query cache now persists to IndexedDB
+(`src/utils/query-cache-persistence.ts`) and is restored before the first render; an inline
+script in `spa/index.html` starts the read while the bundle downloads. Home's gate accepts a
+restored cache in place of `authReady`/`clerkLoaded` (`prototype-home-ready.ts`), so it presents
+last-known data and every stale query revalidates once the session JWT lands. Snapshots belong to
+one Clerk user (matched against the `__session` JWT `sub` before Clerk loads, reconciled after),
+are discarded on a different build, expire after 7 days, and are deleted on sign-out.
+
+**What it does not cover.**
+
+- **The first load after a deploy is uncached.** The build id is part of the snapshot key, on
+  purpose: response shapes change between deploys and cached data renders before the refetch can
+  correct it. Because the service worker serves the previous shell once, in practice this is the
+  second load after a deploy.
+- **A first visit, or a new device.** Nothing to restore; this is the old path, unchanged.
+- **The ~400 ms that remains** is the bundle (850 KB gz) parsing and evaluating. The next lever
+  is the payload, not the data.
+
+**Cost.** A save is ~1.3 ms of main thread for ~47 queries (~180 KB), debounced 1.5 s after any
+query succeeds, plus one on page hide. Capped at the 200 most recently updated queries.
+
+**Guards.** `query-cache-persistence.test.ts` (whose snapshot is restored, the index.html names
+matching the module), `prototype-home-ready.test.ts` (the gate presents from a restored cache and
+still waits for notes without one), and this payload budget.
 
 ---
 
@@ -77,8 +126,8 @@ highlights. Route CSS out of the entry stylesheet is still open:
    the serialisation.
 6. **Flipping days in Activity refetches `fingerprints`, `crossref-gaps` and
    `connect-suggestions`** — three requests per flip, none of which depend on the day.
-7. **`SpotlightSearch` + `cmdk` ship in the entry bundle for the classic host only.** On 2.0
-   routes Mod+K opens the Library panel instead; the component still mounts in `App.tsx`.
+7. ~~`SpotlightSearch` + `cmdk` in the entry bundle~~ — done 2026-09-26, mounted on first open
+   (−9.0 KB gz JS, −2.3 KB gz CSS from every load).
 8. **`/scripts/*` revalidate on every load.** Not the `_headers` fix it looks like: `sw.js`
    fetches them `cache: 'no-cache'`, which ignores HTTP caching. Needs a SW strategy that
    survives a deploy without script/bundle skew.

@@ -87,7 +87,11 @@ const CloseIcon = () => (
   </svg>
 );
 
-export default function SpotlightSearch() {
+/**
+ * `openOnMount`: the event that asked for Spotlight fired before this chunk had loaded (App mounts
+ * it on demand), so the first open is replayed here rather than lost.
+ */
+export default function SpotlightSearch({ openOnMount = false }: { openOnMount?: boolean }) {
   const { portalTarget } = useDesktopMainModalPortal();
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -189,6 +193,14 @@ export default function SpotlightSearch() {
     const timer = setTimeout(() => inputRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [isOpen]);
+
+  // Once, on mount — `open` is stable until `refreshRecents` changes, and re-running would reopen.
+  const openedOnMountRef = useRef(false);
+  useEffect(() => {
+    if (!openOnMount || openedOnMountRef.current) return;
+    openedOnMountRef.current = true;
+    open();
+  }, [openOnMount, open]);
 
   // Listen for open/close events
   useEffect(() => {

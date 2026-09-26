@@ -55,6 +55,18 @@ export interface PrototypeHomePresentationReadyInput {
    * `isEnabled === false` can only mean the query's own condition said no.
    */
   authReady: boolean;
+  /**
+   * This document's first render was hydrated from last visit's query cache for this account
+   * (`wasQueryCacheRestored`, src/utils/query-cache-persistence.ts).
+   *
+   * Stands in for `authReady` and `clerkLoaded`, and only for them. Waiting on auth exists so a
+   * query disabled *because auth has not answered* is not mistaken for one that will never run;
+   * with the last visit's answers already in the cache there is nothing to mistake — each flag
+   * below reads `hasData` first. What it gives up: a section whose query was never cached may
+   * arrive after the first paint instead of with it. That is the trade a document app makes on
+   * open, and the alternative measured 2.9s of dots on every reload.
+   */
+  restoredFromCache: boolean;
   /** Notes list/empty. */
   notesReady: boolean;
   /** Clerk `useUser().isLoaded` — enough for the hello first name. */
@@ -130,7 +142,8 @@ export interface PrototypeHomePresentationReadyInput {
  * anyway. `npm run typecheck:ratchet` now catches it.
  */
 export function isPrototypeHomePresentationReady(input: PrototypeHomePresentationReadyInput): boolean {
-  if (!input.authReady || !input.notesReady || !input.clerkLoaded) return false;
+  if (!input.notesReady) return false;
+  if (!input.restoredFromCache && (!input.authReady || !input.clerkLoaded)) return false;
   return (
     input.fingerprintsSettled &&
     input.tagsSettled &&

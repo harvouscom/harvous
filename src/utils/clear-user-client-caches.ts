@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { clearCachedProfileData } from '@/utils/profile-cache';
+import { deletePersistedQueryCache } from '@/utils/query-cache-persistence';
 import {
   HARVOUS_FEATURED_DISMISSED_CACHE_KEY,
   HARVOUS_NAV_CACHE_KEY,
@@ -18,6 +19,8 @@ import {
 export function clearUserClientStorageCaches() {
   if (typeof window === 'undefined') return;
   clearCachedProfileData();
+  // Last visit's React Query cache on disk: every note, list and profile the account had open.
+  void deletePersistedQueryCache();
   try {
     sessionStorage.removeItem('userProfileData');
   } catch {
