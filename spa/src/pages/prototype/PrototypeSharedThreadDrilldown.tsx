@@ -40,6 +40,8 @@ import {
   threadPlanStatusClause,
 } from './PrototypeThreadPlanProgress';
 import PrototypeStudyPlanCopyButton, { StudyPlanCopyMenu } from './PrototypeStudyPlanCopyAction';
+import PrototypeStepLeaderGuideSheet from './PrototypeStepLeaderGuideSheet';
+import { useStudyPlanLeaderKit } from '../../hooks/queries/useStudyPlanLeaderKit';
 import PrototypeSidebarRowMenuPopover, {
   TRIGGER_ANCHOR_MIN_WIDTH,
 } from './PrototypeSidebarRowMenuPopover';
@@ -195,6 +197,10 @@ export default function PrototypeSharedThreadDrilldown({
   */
   const orderedNoteIds = useMemo(() => notes.map((note) => note.id), [notes]);
   const canManageSequence = canManageStructure ?? isOwner;
+  /* The leader kit — asked for only by someone who can manage the plan; the server refuses
+     everyone else, and a member's session never sends the request. */
+  const leaderKit = useStudyPlanLeaderKit(thread.id, { enabled: canManageSequence && isSequence });
+  const [guideStep, setGuideStep] = useState<{ id: string; title: string } | null>(null);
   const sequenceLabel = isSequence && sequenceInfo && sequenceInfo.total > 0
     ? sequenceInfo.currentIndex > 0
       ? `Step ${sequenceInfo.currentIndex} of ${sequenceInfo.total}`
@@ -816,19 +822,35 @@ export default function PrototypeSharedThreadDrilldown({
                         <Icon name="bars" size={12} />
                       </span>
                     ) : null}
-                    {isSequence && canManageSequence && !isCurrentStep ? (
+                    {isSequence && canManageSequence ? (
                       <div className="proto-shared-thread-step__controls">
+                        {/* Leaders only: notes and questions for leading this step. Filled when
+                            the step has a guide, so a leader can see at a glance which do. */}
                         <button
                           type="button"
-                          className="proto-toolbar-icon-btn"
-                          aria-label={`Make ${noteTitle(note)} the current step`}
-                          disabled={updateSequence.isPending}
-                          /* The row carries the drag listeners. */
+                          className={`proto-toolbar-icon-btn${
+                            leaderKit.data?.guides[note.id] ? ' proto-shared-thread-step__guide--set' : ''
+                          }`}
+                          aria-label={`${leaderKit.data?.guides[note.id] ? 'Leader guide for' : 'Add a leader guide to'} ${noteTitle(note)}`}
+                          title={leaderKit.data?.guides[note.id] ? 'Leader guide' : 'Add a leader guide'}
                           onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => void applySequence({ currentNoteId: note.id })}
+                          onClick={() => setGuideStep({ id: note.id, title: noteTitle(note) })}
                         >
-                          <Icon name="thumbtack" size={11} />
+                          <Icon name="compass" size={11} />
                         </button>
+                        {!isCurrentStep ? (
+                          <button
+                            type="button"
+                            className="proto-toolbar-icon-btn"
+                            aria-label={`Make ${noteTitle(note)} the current step`}
+                            disabled={updateSequence.isPending}
+                            /* The row carries the drag listeners. */
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={() => void applySequence({ currentNoteId: note.id })}
+                          >
+                            <Icon name="thumbtack" size={11} />
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                     </div>
@@ -884,6 +906,17 @@ export default function PrototypeSharedThreadDrilldown({
       viewerIsSpaceOwner={isOwner}
       onAdded={() => void notesQuery.refetch()}
     />
+    {canManageSequence ? (
+      <PrototypeStepLeaderGuideSheet
+        open={guideStep != null}
+        threadId={thread.id}
+        step={guideStep}
+        guide={guideStep ? leaderKit.data?.guides[guideStep.id] ?? null : null}
+        onOpenChange={(next) => {
+          if (!next) setGuideStep(null);
+        }}
+      />
+    ) : null}
     </>
   );
 }

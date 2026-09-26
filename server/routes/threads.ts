@@ -67,6 +67,7 @@ import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { broadcastInvalidation } from '../utils/realtime';
 import { queueAudiencefulProductFlagsForUser } from '../utils/audienceful-product-flags';
+import { deleteLeaderKitForThreads } from '../utils/study-plan-leader-kit';
 
 const route = new Hono();
 
@@ -670,6 +671,7 @@ route.delete('/api/threads/erase-with-notes', requireAuth, rateLimit('write'), a
 
     const deleted = await deleteNotesCascadeForUser(auth.userId, ownedNoteIds);
     await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
+    await deleteLeaderKitForThreads(db, [threadId]);
     await recordDeletedEntities(auth.userId, 'note', deleted.deletedNoteIds);
     await recordDeletedEntities(auth.userId, 'studyThread', deleted.deletedStudyThreadIds);
 

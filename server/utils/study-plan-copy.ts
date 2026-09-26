@@ -24,6 +24,8 @@ import {
   Notes,
   NoteThreads,
   SpaceNotes,
+  StudyPlanCopyBaselines,
+  StudyPlanStepGuides,
   Threads,
   UserMetadata,
   and,
@@ -46,6 +48,9 @@ import {
   transformCanonicalScriptureContent,
 } from './process-scripture-references';
 import { parseSequenceNoteIds, serializeSequenceNoteIds } from './thread-sequence';
+import { baselineRowFor, remapGuidesForCopy, sourceGuidesFor } from './study-plan-leader-kit';
+
+const NO_KIT = { carried: false, guides: 0 } as const;
 
 export type StudyPlanCopyDecision =
   | { ok: true }
@@ -134,6 +139,8 @@ export type StudyPlanCopyResult = {
   noteCount: number;
   alreadyCopied: boolean;
   pinned: boolean;
+  /** What of the leader kit came along — nothing unless the copy went to one of the church's rooms. */
+  kit: { carried: boolean; guides: number };
 };
 
 async function findExistingCopy(userId: string, sourceThreadId: string) {
@@ -184,12 +191,15 @@ export async function copyStudyPlanThread(input: {
   };
   actorId: string;
   targetSpaceId: string | null;
+  /** From `decideKitCarry`: only a church room of the channel's own church gets the leader kit. */
+  carryKit?: boolean;
 }): Promise<StudyPlanCopyResult> {
   const { source, actorId, targetSpaceId } = input;
+  const carryKit = input.carryKit === true;
 
   const existing = await findExistingCopy(actorId, source.id);
   if (existing) {
-    return { threadId: existing.id, spaceId: existing.spaceId, noteCount: 0, alreadyCopied: true, pinned: false };
+    return { threadId: existing.id, spaceId: existing.spaceId, noteCount: 0, alreadyCopied: true, pinned: false, kit: NO_KIT };
   }
 
   const sequence = parseSequenceNoteIds(source.sequenceNoteIds);
@@ -252,6 +262,20 @@ export async function copyStudyPlanThread(input: {
     };
   });
   const newIds = noteRows.map((row) => row.id);
+  /* The kit, read before the transaction and remapped onto the copy's own step ids. The
+     baseline — what each copied step said — is written for every copy, so "your church updated
+     this plan" works later without a backfill. */
+  const stepIdMap = new Map(steps.map((step, index) => [step.id, noteRows[index].id]));
+  const guideRows = carryKit
+    ? remapGuidesForCopy({
+        guides: await sourceGuidesFor(source.id),
+        stepIdMap,
+        copyThreadId: threadId,
+        actorId,
+        now: new Date(now),
+      })
+    : [];
+  const baseline = baselineRowFor({ copyThreadId: threadId, sourceThreadId: source.id, steps, now: new Date(now) });
 
   let pinned = false;
   try {
@@ -325,6 +349,8 @@ export async function copyStudyPlanThread(input: {
           })),
         );
       }
+      await tx.insert(StudyPlanCopyBaselines).values(baseline);
+      if (guideRows.length > 0) await tx.insert(StudyPlanStepGuides).values(guideRows);
       if (noteRows.length > 0) {
         await tx
           .update(UserMetadata)
@@ -338,7 +364,7 @@ export async function copyStudyPlanThread(input: {
     if (!isUniqueViolationError(error)) throw error;
     const raced = await findExistingCopy(actorId, source.id);
     if (!raced) throw error;
-    return { threadId: raced.id, spaceId: raced.spaceId, noteCount: 0, alreadyCopied: true, pinned: false };
+    return { threadId: raced.id, spaceId: raced.spaceId, noteCount: 0, alreadyCopied: true, pinned: false, kit: NO_KIT };
   }
 
   for (const row of noteRows) {
@@ -353,5 +379,12 @@ export async function copyStudyPlanThread(input: {
     }
   }
 
-  return { threadId, spaceId: targetSpaceId, noteCount: noteRows.length, alreadyCopied: false, pinned };
+  return {
+    threadId,
+    spaceId: targetSpaceId,
+    noteCount: noteRows.length,
+    alreadyCopied: false,
+    pinned,
+    kit: { carried: carryKit, guides: guideRows.length },
+  };
 }

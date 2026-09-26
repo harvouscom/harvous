@@ -12334,6 +12334,47 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   color: var(--pds-text-link, var(--pds-text-primary));
 }
 
+/* Leader guide on a study-plan step. */
+.proto-shared-thread-step__guide--set {
+  color: var(--pds-accent);
+}
+
+.proto-step-guide__who {
+  margin: 0 0 10px;
+  opacity: 0.72;
+}
+
+.proto-step-guide__notes {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.proto-step-guide__questions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.proto-step-guide__question {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.proto-step-guide__question input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-step-guide__add {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding-left: 0;
+}
+
 /* Content: the note under review, read in the pane before deciding. */
 .proto-church-content__byline {
   margin: 0;

@@ -2072,6 +2072,95 @@ export const ChurchContentSubmissions = pgTable('ChurchContentSubmissions', {
     .where(sql`${table.status} IN ('in_review', 'scheduled')`),
 ]);
 
+/*
+ * ─── Group leader kit (docs/CHURCH_V2_ROADMAP.md §E) ──────────────────────────
+ *
+ * What a church hands the people who lead its groups, alongside a study plan: notes and
+ * discussion questions per step, an agenda per gathering, resources that travel with the plan,
+ * and a notice when the church changes a plan a group already copied.
+ *
+ * All four are separate tables, never columns on `Notes`, `Threads` or `ChurchServices`: every
+ * note and plan read path goes to members, and these are for leaders only
+ * (`canManageSpaceThreadStructure`). Keyed by the *copy's* thread, not the group — the copy
+ * guard is per person (`Threads_copiedFromThread_unique`), not per group.
+ */
+
+/** A step's leader notes and discussion questions. Row ids: `spg_…`. */
+export const StudyPlanStepGuides = pgTable('StudyPlanStepGuides', {
+  id: text('id').primaryKey(),
+  threadId: text('threadId').notNull(),
+  /** The step (a `Notes` row in the thread's sequence). */
+  noteId: text('noteId').notNull(),
+  /** Plain text, ≤4000. */
+  leaderNotes: text('leaderNotes'),
+  /** JSON string[]: ≤12 questions, ≤300 characters each. Plain text. */
+  questions: text('questions').notNull().default('[]'),
+  /** The church's guide this was carried from, when a group copied the plan. */
+  copiedFromGuideId: text('copiedFromGuideId'),
+  updatedByUserId: text('updatedByUserId').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('StudyPlanStepGuides_thread_note_unique').on(table.threadId, table.noteId),
+  index('StudyPlanStepGuides_threadIdIndex').on(table.threadId),
+]);
+
+/** A gathering's agenda — one per `ChurchServices` row with `kind='gathering'`. Row ids: `agenda_…`. */
+export const GatheringAgendas = pgTable('GatheringAgendas', {
+  id: text('id').primaryKey(),
+  serviceId: text('serviceId').notNull(),
+  /** JSON [{id, text ≤200, minutes int 0–240 | null}], ≤20 items. */
+  items: text('items').notNull().default('[]'),
+  /** The plan step this gathering covers, if the leader chose one. */
+  stepThreadId: text('stepThreadId'),
+  stepNoteId: text('stepNoteId'),
+  updatedByUserId: text('updatedByUserId').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('GatheringAgendas_serviceId_unique').on(table.serviceId),
+]);
+
+/** Library items attached to a plan (noteId null) or one step. Row ids: `splib_…`. */
+export const StudyPlanLibraryItems = pgTable('StudyPlanLibraryItems', {
+  id: text('id').primaryKey(),
+  threadId: text('threadId').notNull(),
+  noteId: text('noteId'),
+  libraryItemId: text('libraryItemId').notNull(),
+  sortOrder: integer('sortOrder').notNull().default(0),
+  attachedByUserId: text('attachedByUserId').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  // NULLs are distinct in a unique index, so each grain gets its own partial one.
+  uniqueIndex('StudyPlanLibraryItems_plan_item_unique')
+    .on(table.threadId, table.libraryItemId)
+    .where(sql`${table.noteId} IS NULL`),
+  uniqueIndex('StudyPlanLibraryItems_step_item_unique')
+    .on(table.threadId, table.noteId, table.libraryItemId)
+    .where(sql`${table.noteId} IS NOT NULL`),
+  index('StudyPlanLibraryItems_threadIdIndex').on(table.threadId),
+  index('StudyPlanLibraryItems_libraryItemIdIndex').on(table.libraryItemId),
+]);
+
+/**
+ * What a copied plan has seen of its source: each source step's content fingerprint when it was
+ * copied (or last marked seen). `currentVersionId` can't answer "did the church change this" —
+ * it moves without the text changing — so the notice compares fingerprints. Row ids: `spcb_…`.
+ */
+export const StudyPlanCopyBaselines = pgTable('StudyPlanCopyBaselines', {
+  id: text('id').primaryKey(),
+  /** The copy. */
+  threadId: text('threadId').notNull(),
+  sourceThreadId: text('sourceThreadId').notNull(),
+  /** JSON {sourceNoteId: sha256(title + "\n" + content)}. */
+  stepFingerprints: text('stepFingerprints').notNull().default('{}'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('StudyPlanCopyBaselines_threadId_unique').on(table.threadId),
+  index('StudyPlanCopyBaselines_sourceThreadIdIndex').on(table.sourceThreadId),
+]);
+
 // ─── ReviewEvents (append-only log of what a review session was answered with) ─
 // Separate from ReviewItems for the same reason RecallEvents is separate from
 // NoteFingerprints: the item holds the current state, this holds how it got there. A
