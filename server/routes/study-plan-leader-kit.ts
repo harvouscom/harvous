@@ -7,6 +7,7 @@
  *
  *   GET  /api/threads/:threadId/leader-kit                 { guides: {noteId: {leaderNotes, questions}} }
  *   POST /api/threads/:threadId/leader-kit/steps/:noteId   { leaderNotes?, questions? } — empty deletes
+ *   POST /api/threads/:threadId/leader-kit/resources/set   { noteId: string | null, itemIds } — church plans
  *   GET  /api/spaces/:spaceId/gatherings/:serviceId/agenda
  *   POST /api/spaces/:spaceId/gatherings/:serviceId/agenda/set   { items, stepThreadId?, stepNoteId? }
  *
@@ -22,12 +23,15 @@ import { loadLiveThreadNoteIds } from '../utils/thread-sequence';
 import {
   canUseLeaderKit,
   loadGuides,
+  loadPlanResources,
+  setPlanResources,
   normalizeAgendaItems,
   normalizeGuideInput,
   parseAgendaItems,
   resolveLeaderKitAccess,
 } from '../utils/study-plan-leader-kit';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
+import { getActiveChurchByOrgId } from '../utils/church-staff';
 
 /** The room and the gathering, when the viewer leads the room and the gathering is its own. */
 async function resolveAgendaAccess(userId: string, spaceId: string, serviceId: string) {
@@ -71,8 +75,21 @@ app.get('/api/threads/:threadId/leader-kit', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
     const access = await resolveLeaderKitAccess(requireParam(c, 'threadId'), auth.userId);
     if (!access.ok) return c.json({ error: access.error, code: access.code }, access.status);
-    const guides = await loadGuides(access.thread.id, access.thread.spaceId);
-    return c.json({ guides }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
+    const [guides, live] = await Promise.all([
+      loadGuides(access.thread.id, access.thread.spaceId),
+      loadLiveThreadNoteIds(access.thread.id, access.thread.spaceId),
+    ]);
+    const resources = await loadPlanResources(access.thread.id, live);
+    return c.json(
+      {
+        guides,
+        resources,
+        // Resources are attached on the church's own plan and travel from there; a copy reads them.
+        canAttachResources: access.space.type === 'public' && Boolean(access.space.orgId),
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/threads/[threadId]/leader-kit', action: 'leader_kit_read' });
     return c.json({ error: e.message, code: e.code }, 500);
@@ -117,6 +134,40 @@ app.post('/api/threads/:threadId/leader-kit/steps/:noteId', requireAuth, rateLim
     return c.json({ success: true, guides: await loadGuides(access.thread.id, access.thread.spaceId) });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/threads/[threadId]/leader-kit/steps/[noteId]', action: 'leader_kit_guide' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+app.post('/api/threads/:threadId/leader-kit/resources/set', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const access = await resolveLeaderKitAccess(requireParam(c, 'threadId'), auth.userId);
+    if (!access.ok) return c.json({ error: access.error, code: access.code }, access.status);
+    if (access.space.type !== 'public' || !access.space.orgId) {
+      return c.json({ error: 'Resources are attached on your church’s plan', code: 'CHURCH_PLAN_ONLY' }, 403);
+    }
+    const church = await getActiveChurchByOrgId(access.space.orgId);
+    if (!church) return c.json({ error: 'Church not found', code: 'NOT_FOUND' }, 404);
+
+    const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { noteId?: unknown; itemIds?: unknown };
+    const noteId = typeof body.noteId === 'string' && body.noteId.trim() ? body.noteId.trim() : null;
+    if (!Array.isArray(body.itemIds) || body.itemIds.some((id) => typeof id !== 'string')) {
+      return c.json({ error: 'itemIds must be a list', code: 'BAD_REQUEST' }, 400);
+    }
+    const live = await loadLiveThreadNoteIds(access.thread.id, access.thread.spaceId);
+    if (noteId && !live.includes(noteId)) return c.json({ error: 'That step isn’t in this plan', code: 'STEP_NOT_FOUND' }, 404);
+
+    const result = await setPlanResources({
+      threadId: access.thread.id,
+      noteId,
+      itemIds: body.itemIds as string[],
+      churchId: church.id,
+      userId: auth.userId,
+    });
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status);
+    return c.json({ success: true, resources: await loadPlanResources(access.thread.id, live) });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/threads/[threadId]/leader-kit/resources/set', action: 'leader_kit_resources' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

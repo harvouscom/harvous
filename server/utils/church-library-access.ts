@@ -468,10 +468,49 @@ export async function resolveVisibleItem(
   )?.item;
   if (!candidate) return null;
 
-  if (candidate.access === 'leaders' && !viewer.seesLeaderOnly) return null;
-
   const scopes = (await scopesByItemIds([candidate.id])).get(candidate.id) ?? [];
+
+  /* Leaders-only: staff, or a granted leader of a room the item shows in. The room shelf already
+     showed those leaders the item (church-space-library.ts); opening it used to 404 for them. */
+  if (candidate.access === 'leaders' && !viewer.seesLeaderOnly) {
+    return (await grantedLeaderSeesItem(userId, viewer.church.orgId, scopes)) ? candidate : null;
+  }
+
   if (!scopesAdmitViewer(scopes, viewer.memberSpaceIds, viewer.seesLeaderOnly)) return null;
 
   return candidate;
+}
+
+/**
+ * Whether this person is a granted leader of a room where an item with these scopes shows: an
+ * org-wide item shows in every room, a space-scoped one in its room, a ministry-scoped one in
+ * every room of that ministry.
+ */
+async function grantedLeaderSeesItem(
+  userId: string,
+  orgId: string,
+  scopes: readonly LibraryItemScopeRow[],
+): Promise<boolean> {
+  const rooms = await db
+    .select({ spaceId: Spaces.id, ministryId: Spaces.ministryId })
+    .from(SpaceMemberships)
+    .innerJoin(Spaces, eq(Spaces.id, SpaceMemberships.spaceId))
+    .where(
+      and(
+        eq(SpaceMemberships.userId, userId),
+        eq(SpaceMemberships.role, 'leader'),
+        eq(SpaceMemberships.grantSource, 'grant'),
+        eq(Spaces.orgId, orgId),
+        isNull(Spaces.deletedAt),
+      ),
+    );
+  if (rooms.length === 0) return false;
+  if (scopes.length === 0 || scopes.some((s) => s.scopeKind === 'org')) return true;
+  return rooms.some((room) =>
+    scopes.some(
+      (s) =>
+        (s.scopeKind === 'space' && s.spaceId === room.spaceId) ||
+        (s.scopeKind === 'ministry' && room.ministryId != null && s.ministryKey === room.ministryId),
+    ),
+  );
 }

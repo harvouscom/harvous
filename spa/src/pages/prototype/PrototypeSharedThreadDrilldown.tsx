@@ -142,7 +142,7 @@ export default function PrototypeSharedThreadDrilldown({
   onThreadUpdated?: (patch: Pick<SharedThreadDrillTarget, 'title' | 'color'>) => void;
 }) {
   const navigate = useNavigate();
-  const { isMobileSidebar, closeDrawer } = useProtoShell();
+  const { isMobileSidebar, closeDrawer, activeChurchOrgId } = useProtoShell();
   const notesQuery = useThreadNotes(thread.id, spaceId);
   const candidateNotesQuery = useSpaceNotes(spaceId, 100);
   const updateThread = useUpdateSharedThread();
@@ -200,7 +200,7 @@ export default function PrototypeSharedThreadDrilldown({
   /* The leader kit — asked for only by someone who can manage the plan; the server refuses
      everyone else, and a member's session never sends the request. */
   const leaderKit = useStudyPlanLeaderKit(thread.id, { enabled: canManageSequence && isSequence });
-  const [guideStep, setGuideStep] = useState<{ id: string; title: string } | null>(null);
+  const [guideStep, setGuideStep] = useState<{ id: string; title: string } | 'plan' | null>(null);
   const sequenceLabel = isSequence && sequenceInfo && sequenceInfo.total > 0
     ? sequenceInfo.currentIndex > 0
       ? `Step ${sequenceInfo.currentIndex} of ${sequenceInfo.total}`
@@ -462,6 +462,17 @@ export default function PrototypeSharedThreadDrilldown({
               {/* Your own standing, as one more clause — it used to be a row of its own
                   with a pill, competing with the actions below. */}
               {planStatus ? ` · ${planStatus}` : ''}
+              {/* Leaders only: what goes with the whole plan. Shown on the church's plan (where
+                  resources are attached) and on a copy that arrived with some. */}
+              {isSequence && canManageSequence &&
+              (leaderKit.data?.canAttachResources || (leaderKit.data?.resources?.plan.length ?? 0) > 0) ? (
+                <>
+                  {' · '}
+                  <button type="button" className="proto-church-review__text-btn proto-shared-thread-drilldown__kit" onClick={() => setGuideStep('plan')}>
+                    Leader kit
+                  </button>
+                </>
+              ) : null}
             </p>
           </div>
           {showOwnerMenu ? (
@@ -911,7 +922,9 @@ export default function PrototypeSharedThreadDrilldown({
         open={guideStep != null}
         threadId={thread.id}
         step={guideStep}
-        guide={guideStep ? leaderKit.data?.guides[guideStep.id] ?? null : null}
+        guide={guideStep && guideStep !== 'plan' ? leaderKit.data?.guides[guideStep.id] ?? null : null}
+        kit={leaderKit.data}
+        orgId={activeChurchOrgId ?? null}
         onOpenChange={(next) => {
           if (!next) setGuideStep(null);
         }}

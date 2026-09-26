@@ -6,9 +6,23 @@ import { useAuthReady } from '../useAuthReady';
 /** A step's leader notes and discussion questions. Leaders only. */
 export type StepGuide = { leaderNotes: string | null; questions: string[] };
 
+export type PlanResource = {
+  itemId: string;
+  title: string;
+  kind: string;
+  access: string;
+  sourceDomain: string | null;
+  sourceUrl: string | null;
+  fileName: string | null;
+};
+
 export type StudyPlanLeaderKit = {
   /** By step note id. A step with no guide is absent. */
   guides: Record<string, StepGuide>;
+  /** Library items attached to the whole plan, and to each step. */
+  resources?: { plan: PlanResource[]; byNoteId: Record<string, PlanResource[]> };
+  /** True on a church channel's plan — where resources are attached; a copy only reads them. */
+  canAttachResources?: boolean;
 };
 
 export function studyPlanLeaderKitQueryKey(userId: string | null | undefined, threadId: string | null | undefined) {
@@ -32,6 +46,25 @@ export function useStudyPlanLeaderKit(threadId: string | null | undefined, optio
   });
 }
 
+/** Replace the resources on the whole plan (noteId null) or one step. Church plans only. */
+export function useSetPlanResources(threadId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  const { userId } = useAuth();
+  const id = threadId?.trim() || null;
+  return useMutation({
+    mutationFn: (input: { noteId: string | null; itemIds: string[] }) =>
+      api.post<{ success: boolean; resources: NonNullable<StudyPlanLeaderKit['resources']> }>(
+        `/api/threads/${encodeURIComponent(id!)}/leader-kit/resources/set`,
+        input,
+      ),
+    onSuccess: (data) => {
+      queryClient.setQueryData<StudyPlanLeaderKit>(studyPlanLeaderKitQueryKey(userId, id), (prev) =>
+        prev ? { ...prev, resources: data.resources } : prev,
+      );
+    },
+  });
+}
+
 /** Save (or, when empty, remove) one step's guide. */
 export function useSaveStepGuide(threadId: string | null | undefined) {
   const queryClient = useQueryClient();
@@ -44,7 +77,12 @@ export function useSaveStepGuide(threadId: string | null | undefined) {
         { leaderNotes: input.leaderNotes, questions: input.questions },
       ),
     onSuccess: (data) => {
-      if (data?.guides) queryClient.setQueryData(studyPlanLeaderKitQueryKey(userId, id), { guides: data.guides });
+      if (data?.guides) {
+        queryClient.setQueryData<StudyPlanLeaderKit>(studyPlanLeaderKitQueryKey(userId, id), (prev) => ({
+          ...(prev ?? {}),
+          guides: data.guides,
+        }));
+      }
     },
   });
 }

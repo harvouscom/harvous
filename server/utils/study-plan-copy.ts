@@ -24,7 +24,9 @@ import {
   Notes,
   NoteThreads,
   SpaceNotes,
+  LibraryItemScopes,
   StudyPlanCopyBaselines,
+  StudyPlanLibraryItems,
   StudyPlanStepGuides,
   Threads,
   UserMetadata,
@@ -48,9 +50,15 @@ import {
   transformCanonicalScriptureContent,
 } from './process-scripture-references';
 import { parseSequenceNoteIds, serializeSequenceNoteIds } from './thread-sequence';
-import { baselineRowFor, remapGuidesForCopy, sourceGuidesFor } from './study-plan-leader-kit';
+import {
+  baselineRowFor,
+  planResourceCarry,
+  remapGuidesForCopy,
+  sourceGuidesFor,
+  sourceResourcesFor,
+} from './study-plan-leader-kit';
 
-const NO_KIT = { carried: false, guides: 0 } as const;
+const NO_KIT = { carried: false, guides: 0, resources: 0 } as const;
 
 export type StudyPlanCopyDecision =
   | { ok: true }
@@ -140,7 +148,7 @@ export type StudyPlanCopyResult = {
   alreadyCopied: boolean;
   pinned: boolean;
   /** What of the leader kit came along — nothing unless the copy went to one of the church's rooms. */
-  kit: { carried: boolean; guides: number };
+  kit: { carried: boolean; guides: number; resources: number };
 };
 
 async function findExistingCopy(userId: string, sourceThreadId: string) {
@@ -276,6 +284,19 @@ export async function copyStudyPlanThread(input: {
       })
     : [];
   const baseline = baselineRowFor({ copyThreadId: threadId, sourceThreadId: source.id, steps, now: new Date(now) });
+  /* Resources travel into a group only (a Home copy has no shelf to put them on), re-keyed onto
+     the copy's steps; a scoped item gains a scope for the group, an org-wide one never does. */
+  const resourceCarry =
+    carryKit && targetSpaceId
+      ? planResourceCarry({
+          ...(await sourceResourcesFor(source.id)),
+          stepIdMap,
+          copyThreadId: threadId,
+          targetSpaceId,
+          actorId,
+          now: new Date(now),
+        })
+      : { rows: [], scopeItemIds: [] };
 
   let pinned = false;
   try {
@@ -351,6 +372,22 @@ export async function copyStudyPlanThread(input: {
       }
       await tx.insert(StudyPlanCopyBaselines).values(baseline);
       if (guideRows.length > 0) await tx.insert(StudyPlanStepGuides).values(guideRows);
+      if (resourceCarry.rows.length > 0) await tx.insert(StudyPlanLibraryItems).values(resourceCarry.rows);
+      if (targetSpaceId && resourceCarry.scopeItemIds.length > 0) {
+        await tx
+          .insert(LibraryItemScopes)
+          .values(
+            resourceCarry.scopeItemIds.map((libraryItemId) => ({
+              id: `libsc_${crypto.randomUUID()}`,
+              libraryItemId,
+              scopeKind: 'space',
+              spaceId: targetSpaceId,
+              ministryKey: null,
+              createdAt: new Date(now),
+            })),
+          )
+          .onConflictDoNothing();
+      }
       if (noteRows.length > 0) {
         await tx
           .update(UserMetadata)
@@ -385,6 +422,6 @@ export async function copyStudyPlanThread(input: {
     noteCount: noteRows.length,
     alreadyCopied: false,
     pinned,
-    kit: { carried: carryKit, guides: guideRows.length },
+    kit: { carried: carryKit, guides: guideRows.length, resources: resourceCarry.rows.length },
   };
 }

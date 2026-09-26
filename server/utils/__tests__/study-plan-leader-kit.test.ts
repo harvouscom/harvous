@@ -9,6 +9,7 @@ import {
   normalizeGuideInput,
   parseAgendaItems,
   parseQuestions,
+  planResourceCarry,
   remapGuidesForCopy,
   stepFingerprint,
 } from '../study-plan-leader-kit';
@@ -191,5 +192,82 @@ describe('agenda — wiring', () => {
   });
   it('deleting a gathering deletes its agenda', () => {
     expect(src('server/routes/church-space-plan.ts')).toContain('await deleteAgendaForService(serviceId)');
+  });
+});
+
+describe('planResourceCarry', () => {
+  const now = new Date('2026-09-26T12:00:00Z');
+  const base = {
+    stepIdMap: new Map([['src_a', 'copy_a']]),
+    copyThreadId: 'thr_copy',
+    targetSpaceId: 'space_group',
+    actorId: 'u_lead',
+    now,
+  };
+  it('re-keys plan and step rows onto the copy, dropping steps it didn’t copy', () => {
+    const { rows } = planResourceCarry({
+      ...base,
+      rows: [
+        { noteId: null, libraryItemId: 'libi_plan', sortOrder: 0 },
+        { noteId: 'src_a', libraryItemId: 'libi_step', sortOrder: 0 },
+        { noteId: 'src_gone', libraryItemId: 'libi_lost', sortOrder: 1 },
+      ],
+      scopes: [],
+    });
+    expect(rows.map((r) => [r.noteId, r.libraryItemId, r.threadId])).toEqual([
+      [null, 'libi_plan', 'thr_copy'],
+      ['copy_a', 'libi_step', 'thr_copy'],
+    ]);
+  });
+  it('never narrows an org-wide item; scoped items gain the group', () => {
+    const { scopeItemIds } = planResourceCarry({
+      ...base,
+      rows: [
+        { noteId: null, libraryItemId: 'libi_unscoped', sortOrder: 0 },
+        { noteId: null, libraryItemId: 'libi_org', sortOrder: 1 },
+        { noteId: null, libraryItemId: 'libi_space', sortOrder: 2 },
+        { noteId: null, libraryItemId: 'libi_mixed', sortOrder: 3 },
+      ],
+      scopes: [
+        { libraryItemId: 'libi_org', scopeKind: 'org' },
+        { libraryItemId: 'libi_space', scopeKind: 'space' },
+        { libraryItemId: 'libi_mixed', scopeKind: 'space' },
+        { libraryItemId: 'libi_mixed', scopeKind: 'org' },
+      ],
+    });
+    expect(scopeItemIds).toEqual(['libi_space']);
+  });
+});
+
+describe('resources — wiring', () => {
+  const src = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
+  it('are attached only on a church channel’s plan, after the leader gate', () => {
+    const routes = src('server/routes/study-plan-leader-kit.ts');
+    const body = routes.slice(routes.indexOf("app.post('/api/threads/:threadId/leader-kit/resources/set'"));
+    const gate = body.indexOf('resolveLeaderKitAccess(');
+    const churchOnly = body.indexOf("'CHURCH_PLAN_ONLY'");
+    expect(gate).toBeGreaterThan(-1);
+    expect(churchOnly).toBeGreaterThan(gate);
+    expect(body.indexOf('setPlanResources(')).toBeGreaterThan(churchOnly);
+  });
+  it('only from the church’s own library', () => {
+    const text = src('server/utils/study-plan-leader-kit.ts');
+    const fn = text.slice(text.indexOf('export async function setPlanResources'));
+    expect(fn).toContain("eq(ResourceLibraries.ownerKind, 'church')");
+    expect(fn).toContain('eq(ResourceLibraries.ownerId, input.churchId)');
+  });
+  it('travel into a group only, inside the copy transaction', () => {
+    const text = src('server/utils/study-plan-copy.ts');
+    expect(text).toContain('carryKit && targetSpaceId');
+    const tx = text.slice(text.indexOf('await db.transaction('));
+    expect(tx.indexOf('tx.insert(StudyPlanLibraryItems)')).toBeGreaterThan(tx.indexOf('tx.insert(Threads)'));
+  });
+  it('a granted leader can open a leaders-only item their room shows', () => {
+    const text = src('server/utils/church-library-access.ts');
+    const fn = text.slice(text.indexOf('export async function resolveVisibleItem'));
+    expect(fn).toContain('grantedLeaderSeesItem(userId, viewer.church.orgId, scopes)');
+    const helper = text.slice(text.indexOf('async function grantedLeaderSeesItem'));
+    expect(helper).toContain("eq(SpaceMemberships.grantSource, 'grant')");
+    expect(helper).toContain("eq(SpaceMemberships.role, 'leader')");
   });
 });

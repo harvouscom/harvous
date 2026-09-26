@@ -10,7 +10,13 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
-import { useSaveStepGuide, type StepGuide } from '../../hooks/queries/useStudyPlanLeaderKit';
+import {
+  useSaveStepGuide,
+  useSetPlanResources,
+  type StepGuide,
+  type StudyPlanLeaderKit,
+} from '../../hooks/queries/useStudyPlanLeaderKit';
+import PrototypePlannerResourcesField from './planner/PrototypePlannerResourcesField';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
@@ -25,15 +31,25 @@ export default function PrototypeStepLeaderGuideSheet({
   threadId,
   step,
   guide,
+  kit,
+  orgId,
   onOpenChange,
 }: {
   open: boolean;
   threadId: string;
-  step: { id: string; title: string } | null;
+  /** A step, or `'plan'` for what goes with the whole plan (resources only). */
+  step: { id: string; title: string } | 'plan' | null;
   guide: StepGuide | null;
+  kit: StudyPlanLeaderKit | undefined;
+  orgId: string | null;
   onOpenChange: (open: boolean) => void;
 }) {
   const save = useSaveStepGuide(threadId);
+  const setResources = useSetPlanResources(threadId);
+  const isPlan = step === 'plan';
+  const stepRow = step && step !== 'plan' ? step : null;
+  const attached = (isPlan ? kit?.resources?.plan : stepRow ? kit?.resources?.byNoteId[stepRow.id] : undefined) ?? [];
+  const canAttach = kit?.canAttachResources === true;
   const [notes, setNotes] = useState('');
   const [questions, setQuestions] = useState<string[]>(['']);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +59,7 @@ export default function PrototypeStepLeaderGuideSheet({
     setNotes(guide?.leaderNotes ?? '');
     setQuestions(guide?.questions.length ? [...guide.questions] : ['']);
     setError(null);
-  }, [open, step?.id, guide]);
+  }, [open, stepRow?.id, guide]);
 
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -53,19 +69,21 @@ export default function PrototypeStepLeaderGuideSheet({
     cardRef,
     {},
     { enabled: showPopover, strategy: 'centered', topVhFraction: 0.12, fallbackWidth: 440, fallbackHeight: 480 },
-    [step?.id, questions.length, error],
+    [stepRow?.id, isPlan, questions.length, error, attached.length],
   );
   useDismissOnOutside(cardRef, () => onOpenChange(false), open && !asSheet && !save.isPending);
 
   if (!step) return null;
+  const title = isPlan ? 'Whole plan' : stepRow!.title;
 
   const setQuestion = (index: number, value: string) =>
     setQuestions((list) => list.map((q, i) => (i === index ? value : q)));
 
   const submit = () => {
     setError(null);
+    if (!stepRow) return;
     save.mutate(
-      { noteId: step.id, leaderNotes: notes, questions: questions.map((q) => q.trim()).filter(Boolean) },
+      { noteId: stepRow.id, leaderNotes: notes, questions: questions.map((q) => q.trim()).filter(Boolean) },
       {
         onSuccess: () => {
           window.toast?.success('Guide saved');
@@ -81,7 +99,7 @@ export default function PrototypeStepLeaderGuideSheet({
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
           <Icon name="compass" size={13} aria-hidden />
-          <span className="proto-study-thread-popover__title">Leader guide · {step.title}</span>
+          <span className="proto-study-thread-popover__title">Leader kit · {title}</span>
         </div>
         <button type="button" className="proto-side-panel__action-btn" onClick={() => onOpenChange(false)} aria-label="Close" title="Close">
           <Icon name="xmark" size={12} />
@@ -89,7 +107,11 @@ export default function PrototypeStepLeaderGuideSheet({
       </div>
 
       <div className="proto-service-editor proto-step-guide">
-        <p className="proto-caption proto-step-guide__who">Only leaders see this. Members see the step as it is.</p>
+        <p className="proto-caption proto-step-guide__who">
+          {isPlan ? 'Resources for leading the whole plan. Only leaders see this.' : 'Only leaders see this. Members see the step as it is.'}
+        </p>
+        {!isPlan ? (
+          <>
 
         <label className="proto-inspector-section-title proto-create-folder-sheet__field-label" htmlFor="proto-step-guide-notes">
           <span>Notes for leading it</span>
@@ -143,6 +165,48 @@ export default function PrototypeStepLeaderGuideSheet({
           </button>
         ) : null}
 
+          </>
+        ) : null}
+
+        {/* Resources: attached on the church's plan, where they travel to groups from; on a
+            group's copy they arrive with it and read as a list. */}
+        {canAttach ? (
+          <>
+            <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+              <span>Resources for leaders</span>
+              <span className="proto-service-editor__optional">travel with the plan</span>
+            </label>
+            <PrototypePlannerResourcesField
+              orgId={orgId}
+              attached={attached}
+              canWrite
+              pending={setResources.isPending}
+              onChange={(itemIds) =>
+                setResources.mutate(
+                  { noteId: stepRow?.id ?? null, itemIds },
+                  { onError: (err) => setError(err instanceof Error ? err.message : 'Could not change the resources') },
+                )
+              }
+            />
+          </>
+        ) : attached.length ? (
+          <>
+            <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+              <span>Resources from your church</span>
+            </label>
+            <ul className="proto-step-guide__resources">
+              {attached.map((resource) => (
+                <li key={resource.itemId} className="proto-caption">
+                  {resource.title}
+                  {resource.access === 'leaders' ? ' · leaders only' : ''}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : isPlan ? (
+          <p className="proto-caption">Nothing attached to this plan.</p>
+        ) : null}
+
         {error ? (
           <p className="proto-connect-note-sheet__error" role="alert">
             {error}
@@ -150,11 +214,13 @@ export default function PrototypeStepLeaderGuideSheet({
         ) : null}
       </div>
 
-      <div className="proto-add-notes-sheet__footer">
-        <button type="button" className="proto-share-popover__primary" disabled={save.isPending} onClick={submit}>
-          {save.isPending ? 'Saving…' : 'Save guide'}
-        </button>
-      </div>
+      {!isPlan ? (
+        <div className="proto-add-notes-sheet__footer">
+          <button type="button" className="proto-share-popover__primary" disabled={save.isPending} onClick={submit}>
+            {save.isPending ? 'Saving…' : 'Save guide'}
+          </button>
+        </div>
+      ) : null}
     </>
   );
 
@@ -165,7 +231,7 @@ export default function PrototypeStepLeaderGuideSheet({
         <ProtoPopoverShell
           ref={cardRef}
           role="dialog"
-          aria-label={`Leader guide for ${step.title}`}
+          aria-label={`Leader kit for ${title}`}
           className={portaledDialogShellClassName('proto-connect-note-popover proto-step-guide-popover', exiting)}
           style={{ position: 'fixed', top: position?.top ?? -9999, left: position?.left ?? -9999, zIndex: 6000 }}
         >

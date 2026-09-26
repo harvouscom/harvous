@@ -16,6 +16,9 @@ import {
   db,
   first,
   GatheringAgendas,
+  LibraryItems,
+  LibraryItemScopes,
+  ResourceLibraries,
   StudyPlanCopyBaselines,
   StudyPlanLibraryItems,
   StudyPlanStepGuides,
@@ -23,6 +26,7 @@ import {
   and,
   eq,
   inArray,
+  isNull,
 } from '../db';
 import { canManageSpaceThreadStructure, loadLiveThreadNoteIds } from './thread-sequence';
 import { requireSpaceAccess, SpaceAccessError, type SpaceRole, type SpaceRow } from './space-access';
@@ -271,4 +275,168 @@ export function parseAgendaItems(raw: string | null | undefined): AgendaItem[] {
 /** Delete a gathering's agenda with the gathering. Nothing cascades here. */
 export async function deleteAgendaForService(serviceId: string): Promise<void> {
   await db.delete(GatheringAgendas).where(eq(GatheringAgendas.serviceId, serviceId));
+}
+
+// ─── Resources that travel with a plan (E3) ──────────────────────────────────
+
+export const PLAN_RESOURCES_MAX = 10;
+
+export type PlanResource = {
+  itemId: string;
+  title: string;
+  kind: string;
+  access: string;
+  sourceDomain: string | null;
+  sourceUrl: string | null;
+  fileName: string | null;
+};
+
+/** A plan's attached resources: plan-wide, and per live step. */
+export async function loadPlanResources(
+  threadId: string,
+  liveNoteIds: readonly string[],
+): Promise<{ plan: PlanResource[]; byNoteId: Record<string, PlanResource[]> }> {
+  const rows = await db
+    .select({
+      noteId: StudyPlanLibraryItems.noteId,
+      sortOrder: StudyPlanLibraryItems.sortOrder,
+      itemId: LibraryItems.id,
+      title: LibraryItems.title,
+      kind: LibraryItems.kind,
+      access: LibraryItems.access,
+      sourceDomain: LibraryItems.sourceDomain,
+      sourceUrl: LibraryItems.sourceUrl,
+      fileName: LibraryItems.fileName,
+      archivedAt: LibraryItems.archivedAt,
+    })
+    .from(StudyPlanLibraryItems)
+    .innerJoin(LibraryItems, eq(LibraryItems.id, StudyPlanLibraryItems.libraryItemId))
+    .where(eq(StudyPlanLibraryItems.threadId, threadId));
+  const live = new Set(liveNoteIds);
+  const out = { plan: [] as PlanResource[], byNoteId: {} as Record<string, PlanResource[]> };
+  for (const row of rows.sort((a, b) => a.sortOrder - b.sortOrder)) {
+    if (row.archivedAt) continue;
+    const resource: PlanResource = {
+      itemId: row.itemId,
+      title: row.title,
+      kind: row.kind,
+      access: row.access,
+      sourceDomain: row.sourceDomain,
+      sourceUrl: row.sourceUrl,
+      fileName: row.fileName,
+    };
+    if (!row.noteId) out.plan.push(resource);
+    else if (live.has(row.noteId)) (out.byNoteId[row.noteId] ??= []).push(resource);
+  }
+  return out;
+}
+
+/**
+ * Replace the resources on a plan (noteId null) or one step. Only on a church channel's plan —
+ * that is where the church hands them out — and only items from that church's own library.
+ */
+export async function setPlanResources(input: {
+  threadId: string;
+  noteId: string | null;
+  itemIds: readonly string[];
+  churchId: string;
+  userId: string;
+}): Promise<{ ok: true } | { ok: false; status: 400; error: string; code: string }> {
+  const unique = [...new Set(input.itemIds)];
+  if (unique.length > PLAN_RESOURCES_MAX) {
+    return { ok: false, status: 400, error: `At most ${PLAN_RESOURCES_MAX} resources`, code: 'TOO_MANY_RESOURCES' };
+  }
+  if (unique.length) {
+    const owned = await db
+      .select({ id: LibraryItems.id })
+      .from(LibraryItems)
+      .innerJoin(ResourceLibraries, eq(LibraryItems.libraryId, ResourceLibraries.id))
+      .where(
+        and(
+          inArray(LibraryItems.id, unique),
+          eq(ResourceLibraries.ownerKind, 'church'),
+          eq(ResourceLibraries.ownerId, input.churchId),
+        ),
+      );
+    if (owned.length !== unique.length) {
+      return { ok: false, status: 400, error: 'Those resources are not in your church’s library', code: 'ITEM_NOT_FOUND' };
+    }
+  }
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(StudyPlanLibraryItems)
+      .where(
+        and(
+          eq(StudyPlanLibraryItems.threadId, input.threadId),
+          input.noteId ? eq(StudyPlanLibraryItems.noteId, input.noteId) : isNull(StudyPlanLibraryItems.noteId),
+        ),
+      );
+    if (unique.length === 0) return;
+    await tx.insert(StudyPlanLibraryItems).values(
+      unique.map((libraryItemId, index) => ({
+        id: `splib_${crypto.randomUUID()}`,
+        threadId: input.threadId,
+        noteId: input.noteId,
+        libraryItemId,
+        sortOrder: index,
+        attachedByUserId: input.userId,
+        createdAt: now,
+      })),
+    );
+  });
+  return { ok: true };
+}
+
+type PlanResourceRow = typeof StudyPlanLibraryItems.$inferSelect;
+
+/** The source plan's resource rows and each item's scopes, read before a copy's transaction. */
+export async function sourceResourcesFor(threadId: string) {
+  const rows = await db.select().from(StudyPlanLibraryItems).where(eq(StudyPlanLibraryItems.threadId, threadId));
+  const itemIds = [...new Set(rows.map((r) => r.libraryItemId))];
+  const scopes = itemIds.length
+    ? await db
+        .select({ libraryItemId: LibraryItemScopes.libraryItemId, scopeKind: LibraryItemScopes.scopeKind })
+        .from(LibraryItemScopes)
+        .where(inArray(LibraryItemScopes.libraryItemId, itemIds))
+    : [];
+  return { rows, scopes };
+}
+
+/**
+ * Pure: what a kit-carrying copy writes for resources — the plan's rows re-keyed onto the copy,
+ * and a `space` scope for the group on every item that is already scoped somewhere. An org-wide
+ * item (no scopes, or an `org` one) gets **no** scope row: its first `space` row would narrow it
+ * from the whole church to this one group.
+ */
+export function planResourceCarry(input: {
+  rows: readonly Pick<PlanResourceRow, 'noteId' | 'libraryItemId' | 'sortOrder'>[];
+  scopes: readonly { libraryItemId: string; scopeKind: string }[];
+  stepIdMap: ReadonlyMap<string, string>;
+  copyThreadId: string;
+  targetSpaceId: string;
+  actorId: string;
+  now: Date;
+}): { rows: (typeof StudyPlanLibraryItems.$inferInsert)[]; scopeItemIds: string[] } {
+  const rows = input.rows.flatMap((row) => {
+    const noteId = row.noteId ? input.stepIdMap.get(row.noteId) : null;
+    if (row.noteId && !noteId) return [];
+    return [
+      {
+        id: `splib_${crypto.randomUUID()}`,
+        threadId: input.copyThreadId,
+        noteId: noteId ?? null,
+        libraryItemId: row.libraryItemId,
+        sortOrder: row.sortOrder,
+        attachedByUserId: input.actorId,
+        createdAt: input.now,
+      },
+    ];
+  });
+  const itemIds = [...new Set(rows.map((r) => r.libraryItemId))];
+  const scopeItemIds = itemIds.filter((id) => {
+    const kinds = input.scopes.filter((s) => s.libraryItemId === id).map((s) => s.scopeKind);
+    return kinds.length > 0 && !kinds.includes('org');
+  });
+  return { rows, scopeItemIds };
 }

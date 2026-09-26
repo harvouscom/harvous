@@ -24569,3 +24569,13 @@ button.proto-feed-sheet__stat:hover {
   max-height: min(78vh, 720px);
   overflow-y: auto;
 }
+
+.proto-step-guide__resources {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.proto-church-review__text-btn.proto-shared-thread-drilldown__kit {
+  padding: 0;
+  font-size: inherit;
+}
