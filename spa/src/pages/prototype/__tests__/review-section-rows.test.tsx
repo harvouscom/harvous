@@ -16,6 +16,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 const identity = { isGuest: false };
+/** Connected to an active church — Review is free for its questions (roadmap §B). */
+const church = { connected: false };
 const features: Record<string, { has: boolean; ready: boolean }> = {
   review: { has: true, ready: true },
   challenges: { has: true, ready: true },
@@ -62,6 +64,15 @@ const allItems = { data: undefined as undefined | { items: unknown[] } };
  */
 const summaryItems = { data: undefined as undefined | { items: unknown[] } };
 vi.mock('../../../hooks/queries/useReview', () => ({
+  // Plus from the feature flag; these tests do not connect anyone to a church.
+  useReviewAccessLevel: () =>
+    identity.isGuest
+      ? 'none'
+      : (features.review ?? { has: false }).has
+        ? 'full'
+        : church.connected
+          ? 'church'
+          : 'none',
   useReviewInbox: () => inbox,
   // Fetched only once the reader unfolds the section.
   useReviewItems: () => allItems,
@@ -140,6 +151,8 @@ beforeEach(() => {
   navigate.mockClear();
   openReviewDock.mockClear();
   identity.isGuest = false;
+  church.connected = false;
+  (inbox as { isSettled?: boolean }).isSettled = true;
   features.review = { has: true, ready: true };
   features.challenges = { has: true, ready: true };
   inbox.data = { items: [], hasMore: false };
@@ -550,5 +563,41 @@ describe('what a free account is offered', () => {
     sample.data = { sample: sampleView };
     const { container } = render(<PrototypeReviewSection />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('a church reader without Plus', () => {
+  beforeEach(() => {
+    features.review = { has: false, ready: true };
+    features.challenges = { has: false, ready: true };
+    church.connected = true;
+  });
+
+  it('sees their church’s questions, and one quiet offer for their own study', () => {
+    inbox.data = {
+      items: [
+        {
+          ...reviewItem('r1', 'Who did Jesus call first?', 'Answer your church’s question'),
+          kind: 'church',
+          promptKey: 'church.choice',
+          origin: 'church',
+          noteId: null,
+          noteTitle: null,
+          scriptureReference: null,
+        },
+      ],
+      hasMore: false,
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText(/Answer your church’s question/)).toBeInTheDocument();
+    expect(screen.getByText('Review your own study too')).toBeInTheDocument();
+    expect(screen.getByText('Plus')).toBeInTheDocument();
+  });
+
+  it('before their church has given them anything, sees what any free reader sees', () => {
+    inbox.data = { items: [], hasMore: false };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText(/Return to your study/)).toBeInTheDocument();
+    expect(screen.queryByText('Review your own study too')).not.toBeInTheDocument();
   });
 });

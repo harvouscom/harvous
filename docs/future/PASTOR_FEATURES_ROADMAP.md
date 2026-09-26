@@ -132,14 +132,14 @@ Assigned by role under the church org — never shown to general users.
      `Threads` row — thread creation in a non-personal space requires the literal space
      owner and non-owners only see the pinned thread, so a series would have been
      invisible to the congregation and orphaned when its author left staff.
-     **Superseded by design (Aug 2026, not yet built):** the string becomes its own
+     **Superseded (Aug 2026, built):** the string became its own
      plan-scoped row, `ChurchSeries`, with `seriesId` replacing the column outright — the
      rejection above was of `Threads` as the substrate, not of series as an entity, and
      attaching material at series grain needs the entity. See
      [CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md](./CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md) §9.
    - One service per church per date (unique index) — that is what makes "This Sunday"
-     have exactly one answer. **Superseded by design (Aug 2026, not yet built):** the
-     plan moves down to the space level, so a ministry channel or church Shared Space
+     have exactly one answer. **Superseded (Aug 2026, built):** the
+     plan moved down to the space level, so a ministry channel or church Shared Space
      may carry its own plan (Youth meets Wednesdays). The single index becomes two
      partial ones — one per plan scope — preserving the one-answer guarantee *per plan*
      rather than per church, and Home keeps exactly one card by picking the soonest
@@ -192,8 +192,9 @@ Assigned by role under the church org — never shown to general users.
 
 ## Congregant-side surfaces
 
-General users, but only appear once connected to a church. Dark until connect
-is decided (v0 is staff-only).
+General users, but only appear once connected to a church. Connect shipped in
+v2.18.0, so these are live for anyone connected; they render nothing without
+`UserMetadata.connectedOrgId`.
 
 13. **"From your church"** *(shipped v2.18.0)* — Home-level **study feed** from followed ministry
     education channels + sermon-calendar starters +

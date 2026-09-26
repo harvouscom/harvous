@@ -52,6 +52,13 @@ export const CHURCH_CAPABILITIES = [
    * space lane's widened gate instead.
    */
   'manage_library',
+  /**
+   * Approve what others submit to the church's channels, and publish without approval when the
+   * church requires it (`Churches.contentApproval`). Only ever meaningful with approval on; with
+   * it off, `publish` alone publishes. Church-wide roles only — a reviewer answers for the whole
+   * church, so a ministry-scoped teacher never holds it.
+   */
+  'review_content',
 ] as const;
 
 export type ChurchCapability = (typeof CHURCH_CAPABILITIES)[number];
@@ -106,6 +113,21 @@ export function isAssignableChurchRole(role: string): role is AssignableChurchRo
 }
 
 /**
+ * Roles that always lead every space the church has, whatever ministries exist.
+ *
+ * These shape the whole church — its roster, its money, its teaching plan, its library, its
+ * clock — so confining one to the youth rooms would leave someone reshaping the whole plan from
+ * inside one ministry. A youth pastor who should be scoped is given `org:teacher`
+ * (docs/CHURCH_V2_ROADMAP.md §C).
+ */
+export const CHURCH_WIDE_ROLES: readonly string[] = [ROLE_ADMIN, ROLE_PASTOR, ROLE_COORDINATOR];
+
+/** A teacher, plain staff, or a role Harvous has never heard of can be scoped to ministries. */
+export function isMinistryScopableRole(role: string | null | undefined): boolean {
+  return !CHURCH_WIDE_ROLES.includes(role ?? '');
+}
+
+/**
  * Capabilities for a staff member's Clerk org role.
  *
  * Every staff member can publish — that is what being staff means here. Admin
@@ -149,6 +171,7 @@ export function capabilitiesForChurchRole(role: string | null | undefined): Chur
     /* Same reasoning as templates: what the church studies from is a
        pastor/admin decision. Widening to teachers later is one line. */
     capabilities.add('manage_library');
+    capabilities.add('review_content');
   }
 
   return [...capabilities];

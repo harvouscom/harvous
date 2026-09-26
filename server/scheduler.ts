@@ -20,6 +20,8 @@ import { runAudiencefulActivitySync } from './netlify-audienceful-activity-sync'
 import { createPurgeSharedSpacesHandler } from './netlify-purge-shared-spaces';
 import { runReminderTick } from './utils/push-reminders';
 import { runChurchPublishTick } from './utils/church-publish-push';
+import { runChurchContentTick } from './utils/church-content';
+import { runChurchReviewNudgeTick } from './utils/church-content-push';
 
 /** Netlify ran both at 00:00 UTC (`schedule = "@daily"`). Keep that. */
 const DAILY_UTC_HOUR = 0;
@@ -59,7 +61,28 @@ const HOURLY_JOBS: Job[] = [
     name: 'church-updates',
     run: () => runChurchPublishTick(),
   },
+  {
+    // Staff: posts waiting for approval. At most one a day per reviewer, daytime only.
+    name: 'church-review-nudge',
+    run: () => runChurchReviewNudgeTick(),
+  },
 ];
+
+/**
+ * Every five minutes: scheduled church material. A pastor who sets "Sunday 8:00" means 8:00, and
+ * the hourly tick would make it 9:05. Cheap when idle — one indexed read of due rows.
+ */
+const FREQUENT_INTERVAL_MS = 5 * 60_000;
+
+/** Quiet unless it did something: 288 "ok" lines a day would bury the hourly ones. */
+async function runFrequent(): Promise<void> {
+  try {
+    const { published, failed } = await runChurchContentTick();
+    if (published || failed) console.log(`[scheduler] church-content published ${published}, failed ${failed}`);
+  } catch (error) {
+    console.error('[scheduler] church-content failed:', error instanceof Error ? error.message : String(error));
+  }
+}
 
 export function msUntilNextRun(now = new Date()): number {
   const next = new Date(now);
@@ -127,12 +150,23 @@ export function startScheduler(): () => void {
     console.log(`[scheduler] next hourly run in ${Math.round(delay / 60_000)}m`);
   };
 
+  let frequentTimer: NodeJS.Timeout;
+  const armFrequent = () => {
+    if (stopped) return;
+    frequentTimer = setTimeout(() => {
+      void runFrequent().finally(armFrequent);
+    }, FREQUENT_INTERVAL_MS);
+    frequentTimer.unref();
+  };
+
   armDaily();
   armHourly();
+  armFrequent();
 
   return () => {
     stopped = true;
     clearTimeout(dailyTimer);
     clearTimeout(hourlyTimer);
+    clearTimeout(frequentTimer);
   };
 }

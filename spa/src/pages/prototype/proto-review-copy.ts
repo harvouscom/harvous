@@ -445,4 +445,6 @@ export const REVIEW_SAMPLE_SEE_PLUS = 'See Plus';
 export const REVIEW_SAMPLE_NOT_NOW = 'Not now';
 export const REVIEW_PLUS_TITLE = 'Return to your study with Review';
 export const REVIEW_PLUS_META = 'Come back to your own notes on a schedule';
+/** For a reader whose Review is their church's questions: Plus is the rest of it. */
+export const REVIEW_OWN_STUDY_PLUS_TITLE = 'Review your own study too';
 export const PLUS_BADGE_COPY = 'Plus';

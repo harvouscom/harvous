@@ -2,6 +2,8 @@
 
 > **Status:** thinking-out-loud, not a ship date. Written so the four products stay in one picture before any of them get built in isolation.
 >
+> **Sept 2026:** Church is no longer only an idea here — a Church plan exists (unlisted, $30/mo or $216/yr, concierge pilots; [../CHURCH_V1_SCOPE.md](../CHURCH_V1_SCOPE.md)), and church-authored Review exercises are planned in [../CHURCH_V2_ROADMAP.md](../CHURCH_V2_ROADMAP.md) §B. Challenges is still withheld.
+>
 > **Related:** [REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md](./REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md) (canonical Review / Challenges / Season Pass thesis), [CHALLENGES_AS_SUGGESTIONS.md](./CHALLENGES_AS_SUGGESTIONS.md) (why personal Challenges was withheld), [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md), [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md), [STUDY_PLANS.md](./STUDY_PLANS.md), [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md).
 
 Four plans. One home for Bible study that remembers.

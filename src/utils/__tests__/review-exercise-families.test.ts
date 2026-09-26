@@ -3,6 +3,7 @@ import { REVIEW_PROMPT_KEYS, REVIEW_TASKS, type ReviewPromptKey } from '@/utils/
 import {
   REVIEW_EXERCISE_FAMILIES,
   REVIEW_EXERCISE_FAMILY_ORDER,
+  CHURCH_EXERCISE_FAMILY_IDS,
   reviewExerciseFamily,
   reviewExerciseFamilyId,
   reviewPromptKeysInFamily,
@@ -40,14 +41,19 @@ describe('review exercise families', () => {
     }
   });
 
-  it('lists every family on the settings page, each exactly once', () => {
-    const ids = Object.keys(REVIEW_EXERCISE_FAMILIES).sort();
+  it('lists every family on the settings page, each exactly once — except a church’s own', () => {
+    const ids = Object.keys(REVIEW_EXERCISE_FAMILIES)
+      .filter((id) => !CHURCH_EXERCISE_FAMILY_IDS.includes(id as never))
+      .sort();
     expect([...REVIEW_EXERCISE_FAMILY_ORDER].sort()).toEqual(ids);
+    for (const id of CHURCH_EXERCISE_FAMILY_IDS) expect(REVIEW_EXERCISE_FAMILY_ORDER).not.toContain(id);
     expect(new Set(REVIEW_EXERCISE_FAMILY_ORDER).size).toBe(REVIEW_EXERCISE_FAMILY_ORDER.length);
   });
 
   it('puts every rung in exactly one family', () => {
-    const seen = REVIEW_EXERCISE_FAMILY_ORDER.flatMap((id) => reviewPromptKeysInFamily(id));
+    const seen = [...REVIEW_EXERCISE_FAMILY_ORDER, ...CHURCH_EXERCISE_FAMILY_IDS].flatMap((id) =>
+      reviewPromptKeysInFamily(id),
+    );
     expect(seen.sort()).toEqual([...REVIEW_PROMPT_KEYS].sort());
     expect(new Set(seen).size).toBe(seen.length);
   });

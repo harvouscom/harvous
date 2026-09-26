@@ -14,6 +14,35 @@ html.harvous-prototype-route [class*='proto-'] button * {
 }
 
 /*
+ * Ink on a fill — the one way out of the rule above.
+ *
+ * That rule pins every prototype button *and every descendant* to text-primary with
+ * `!important`, so anything drawn on the accent or destructive fill — a selected chip, a
+ * checked circle, a primary pill — came out dark on blue unless someone wrote an exception
+ * for it here. The exceptions below are that history: one per component, each found after it
+ * shipped. This replaces the need for another.
+ *
+ * Put `proto-ink-on-accent` on the element that owns the fill, only while it is filled (the
+ * selected state, not the resting one). Its label and glyphs go white; the icon's
+ * `fill: currentColor` rule then follows. At (0,3,1) it outranks the blanket (0,2,2) whether
+ * the element is the button, a span inside one, or a button inside a proto container.
+ */
+html.harvous-prototype-route [class*='proto-'].proto-ink-on-accent,
+html.harvous-prototype-route [class*='proto-'].proto-ink-on-accent * {
+  color: var(--pds-on-accent) !important;
+}
+
+/*
+ * The note menu's schedule clock beside each church channel — quiet until wanted, like the
+ * row's own trailing marks. The blanket rule would draw three full-strength clocks down a menu
+ * of spaces, louder than the ticks that answer "where is this note".
+ */
+html.harvous-prototype-route button.proto-note-destination__schedule:not([aria-expanded='true']):not(:hover),
+html.harvous-prototype-route button.proto-note-destination__schedule:not([aria-expanded='true']):not(:hover) * {
+  color: var(--pds-text-muted) !important;
+}
+
+/*
  * Harvous 3 welcome — white label on the accent button.
  *
  * The blanket rule above matches `button[class*='proto-']` and forces `--pds-text-primary`

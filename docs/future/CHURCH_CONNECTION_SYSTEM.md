@@ -28,9 +28,12 @@
 > **Operational prerequisite:** the Clerk instance must have the
 > **Organizations feature enabled** (Clerk dashboard → Organizations). Until
 > then, org lookups return 403 and the admin endpoints answer
-> `CLERK_ORGS_NOT_ENABLED`. Connect endpoints, matching code, and congregant UI
-> in this doc are design sketches, not shipped code. Code samples are in the
-> Hono `server/routes/*` + Drizzle idiom of the current server.
+> `CLERK_ORGS_NOT_ENABLED`. Congregant connect shipped in v2.18.0
+> (`POST /api/user/update-church`, `server/utils/church-connection.ts`); the
+> matching algorithm, connection requests and code samples below are still
+> design sketches, in the Hono `server/routes/*` + Drizzle idiom of the current
+> server. The church join link is planned in
+> [../CHURCH_V2_ROADMAP.md](../CHURCH_V2_ROADMAP.md) §A.
 
 ## Overview
 
@@ -77,7 +80,7 @@ Clerk’s standard Organizations allowance: **20 members per org** and **~100 Mo
 
 Why optional rather than required: forcing a choice from someone who wanted to connect to their church trades a real friction for a cold start they can fix in two taps from the hub. The empty "From your church" state should also offer the channels, so the prompt exists where the consequence is visible.
 
-**Billing model:** paid **Church base** ($39/mo draft) creates the Clerk org; optional church add-ons (curriculum, church Shared Spaces, analytics, unlimited staff). There is **no public free Connect org** — congregant HMC “My church” does not create an org or burn an MRO. Staff seats above 20 require the **Unlimited staff** add-on and Clerk’s **Enhanced** B2B add-on (~$100/mo app-wide). Canonical prices: [MONETIZATION_AND_PRICING.md §7](./MONETIZATION_AND_PRICING.md). Sync-staff refuses Clerk rosters over 20 (`CLERK_ORG_MEMBER_LIMIT`) until unlimited staff ships.
+**Billing model:** paid **Church** plan ($30/mo or $216/yr in `src/lib/billing-plans.ts`, unlisted) backs the Clerk org; optional church add-ons (curriculum, church Shared Spaces, analytics, unlimited staff). There is **no public free Connect org** — congregant HMC “My church” does not create an org or burn an MRO. Staff seats above 20 require the **Unlimited staff** add-on and Clerk’s **Enhanced** B2B add-on (~$100/mo app-wide). Canonical prices: [MONETIZATION_AND_PRICING.md §7](./MONETIZATION_AND_PRICING.md). Sync-staff refuses Clerk rosters over 20 (`CLERK_ORG_MEMBER_LIMIT`) until unlimited staff ships.
 
 ## Database Schema
 
@@ -111,7 +114,7 @@ export const Churches = pgTable('Churches', {
 connectedChurchId: text('connectedChurchId'),   // Churches.id home
 connectedOrgId: text('connectedOrgId'),         // denormalized Clerk org id
 connectedChurchAt: ts('connectedChurchAt'),
-// get-profile exposes these; no congregant accept writer yet
+// get-profile exposes these; written by POST /api/user/update-church (v2.18.0)
 
 // ChurchMemberships — stub landed (no writers yet); chmem_<uuid>
 // churchId, userId, role='member', joinedAt — unique(churchId, userId)
@@ -247,7 +250,7 @@ Decided with the staff pilot; do not reopen casually. **No schema/UI in v0** —
 | **Home church** | Exactly **one** home church among those memberships. |
 | **Home UI** | **"From your church" = home church only.** Other churches appear in Settings — not on the Home feed. |
 | **Shell modes** | Top-level **My Home** vs **My Church**. My Church is always the **home church** (A). An in-mode church picker (**B**) is a later enhancement — do not build yet. |
-| **My Church catalog** | Two lanes: **Shared Spaces** (church-scoped; same name/styling as personal) and **ministry channels** (staff followable feeds). Full comparison: [CHURCH_ORG_AND_CURRICULUM — distinction](./CHURCH_ORG_AND_CURRICULUM.md#church-shared-spaces-vs-ministry-channels-locked-distinction). Sidebar scope (core vs later vs anti-goals): [MY_CHURCH_SIDEBAR.md](./MY_CHURCH_SIDEBAR.md). |
+| **My Church catalog** | Two lanes: **Shared Spaces** (church-scoped; same name/styling as personal) and **ministry channels** (staff followable feeds). Full comparison: [CHURCH_ORG_AND_CURRICULUM — distinction](./MY_CHURCH_SIDEBAR.md). Sidebar scope (core vs later vs anti-goals): [MY_CHURCH_SIDEBAR.md](./MY_CHURCH_SIDEBAR.md). |
 | **Shared under both** | Personal Shared Spaces under My Home (`orgId` null, owner-pays). Church Shared Spaces under My Church (`orgId` set) — **create-at-church or migrate** from a member (UI later). Church-sponsored; leave personal owned-count on migrate. Collaborative compose; 30-person cap. |
 | **Ministry channels** | Followable church feed (`type='public'` + `orgId`) — curriculum and other staff-authored study info. Staff write; followers read + copy. Distinct UI/icon (RSS preferred); never called Shared Spaces. |
 | **First connect** | First accepted membership becomes home automatically. |

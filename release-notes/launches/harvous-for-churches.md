@@ -1,7 +1,7 @@
 # Harvous for churches
 
 **Launched:** August 2026
-**Shipped across:** v2.14.0–v2.33.0
+**Shipped across:** v2.14.0–v2.33.0, with invite links, review questions, ministries and scheduling in v3.14.0 (September 2026)
 
 Churches teach every week. What they teach mostly disappears — into a slide deck nobody reopens, a bulletin in a recycling bin, or a photo of a sermon point on someone's camera roll.
 
@@ -69,6 +69,38 @@ A church sets its time zone and lists the services it actually holds, like 9:00 
 
 ---
 
+### Invite people with a link
+
+Every church gets one invite link and a matching QR code. Put the code on a slide or in the bulletin, and anyone who scans it sees your church and its channels before they sign up. They create a free account, land back on your church, choose what to follow, and they are connected.
+
+- Copy the link, or download the QR code as an image for print or slides
+- The hub shows how many people joined through the link, as a number only
+- Replace the link if an old bulletin is still going around, or turn it off
+
+### Give people something to practise
+
+Your church can write review questions for the people who follow a channel. They show up in each person's Review, free, whether or not they have Harvous Plus.
+
+- Harvous suggests passages from what the channel has published; keep the ones you want
+- Write your own multiple choice, put-in-order, and matching questions
+- Preview a question exactly as someone in your church will see it
+
+Staff see how many people have answered a question once it is five or more. Never who, and never how anyone did.
+
+### Organize by ministry
+
+Group your channels and groups into ministries such as Kids, Youth and Adults, and give a teacher just the ministry they lead. A teacher scoped to Youth leads Youth's rooms and writes Youth's review questions, and nothing else.
+
+A channel can also be limited to its own ministry: open to the whole church, only to people in that ministry's groups, or only to the people who lead them. Narrowing a channel tells you how many followers it will remove before you confirm.
+
+### Schedule and approve what goes out
+
+- Schedule a post for a channel from the note itself, with the clock beside the channel
+- Turn on approval in Church settings, and teachers' posts wait for a pastor, admin or coordinator before they go out
+- The Content list shows what needs your approval, what is scheduled, what came back with a note, and what went out recently
+
+---
+
 ## What it looks like from a pew
 
 If you have picked your church in Settings, Home shows what your church is teaching next — what it is called, and the series it belongs to.
@@ -88,6 +120,8 @@ This is the part worth being explicit about, because it is the part people are r
 Harvous never tells your church what you read, what you wrote, or whether you opened anything at all. There is no per-person reporting, and there is no way to ask for it.
 
 What a church does get is an Engagement pane with counts only: how many people are connected, and how many follow each channel. Enough to know whether a ministry is reaching people. Not enough to know anything about you.
+
+Review questions work the same way. Your church sees how many people answered a question, and only once that is five or more. It never sees who answered, what they answered, or anything about your own Review.
 
 The single exception is a suggestion. Suggestions carry your name, because you chose to send one and a pastor cannot reply to it without knowing who it came from. That is the whole of it.
 

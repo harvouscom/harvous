@@ -21,6 +21,8 @@ export interface CreateChurchSharedSpaceBody {
   meetingKind?: MeetingKind | null;
   /** https only, and only on an online or hybrid room. */
   meetingUrl?: string | null;
+  /** The ministry it belongs to; null is church-wide. Omitted, the server picks for a scoped teacher. */
+  ministryId?: string | null;
 }
 
 interface CreateChurchSharedSpaceResponse {

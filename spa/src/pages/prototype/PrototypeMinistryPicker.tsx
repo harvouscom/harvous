@@ -42,16 +42,57 @@ export default function PrototypeMinistryPicker() {
     theirs, and anything already followed is not a choice to offer again — this
     prompt is about the ones they have not answered for.
   */
-  const offerable = (data?.channels ?? [])
-    .filter((channel) => !channel.isStaff && !channel.isFollowing)
-    .slice(0, MAX_OFFERED);
+  const open = (data?.channels ?? []).filter((channel) => !channel.isStaff && !channel.isFollowing);
+  const openIds = new Set(open.map((channel) => channel.id));
+
+  /*
+    A church with ministries is answered a ministry at a time — "I'm in Youth" is the question
+    a congregant can actually answer — and one tap follows that ministry's open channels. Channels
+    in no ministry are still offered one by one.
+  */
+  const ministryRows = (data?.ministries ?? [])
+    .map((ministry) => ({ ...ministry, openIds: ministry.channelIds.filter((id) => openIds.has(id)) }))
+    .filter((ministry) => ministry.openIds.length > 0);
+  const inMinistry = new Set((data?.ministries ?? []).flatMap((ministry) => ministry.channelIds));
+  const channelRows = open.filter((channel) => !inMinistry.has(channel.id));
+  const offeredMinistries = ministryRows.slice(0, MAX_OFFERED);
+  const offeredChannels = channelRows.slice(0, Math.max(0, MAX_OFFERED - offeredMinistries.length));
 
   // Nothing to ask about — a church with no channels, or one already answered for.
-  if (!data?.connected || offerable.length === 0) return null;
+  if (!data?.connected || offeredMinistries.length + offeredChannels.length === 0) return null;
+
+  async function followAll(ids: string[]) {
+    for (const spaceId of ids) {
+      await followChannel.mutateAsync({ spaceId, follow: true }).catch(() => undefined);
+    }
+  }
 
   return (
     <>
-      {offerable.map((channel) => (
+      {offeredMinistries.map((ministry) => (
+        <PrototypeHomeRow
+          key={ministry.id}
+          icon="layer-group"
+          title={ministry.name}
+          meta={[
+            'From your church',
+            ministry.openIds.length === 1 ? '1 channel' : `${ministry.openIds.length} channels`,
+          ]}
+          chevron={false}
+          trailing={
+            <button
+              type="button"
+              className="proto-side-panel__action-btn"
+              aria-label={`Follow ${ministry.name}`}
+              disabled={followChannel.isPending}
+              onClick={() => void followAll(ministry.openIds)}
+            >
+              <Icon name="plus" size={12} aria-hidden />
+            </button>
+          }
+        />
+      ))}
+      {offeredChannels.map((channel) => (
         <PrototypeHomeRow
           key={channel.id}
           icon="rss"

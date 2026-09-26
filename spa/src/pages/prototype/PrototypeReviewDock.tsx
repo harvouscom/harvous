@@ -68,6 +68,7 @@ import { ChoiceOptions } from './review-exercises/ChoiceOptions';
 import { GapLine } from './review-exercises/GapLine';
 import { nextOpenGap, WordBankLine, WordTray } from './review-exercises/WordBank';
 import { OrderSlots, OrderTray } from './review-exercises/OrderPieces';
+import { MatchRows, placeMatch } from './review-exercises/MatchRows';
 import { OpeningLine, PairRail, Rail, slotFill } from './review-exercises/RailSlot';
 import { InitialsTiles, MarkedExercise, plainVerse, WordTicks } from './review-exercises/VerseSurface';
 import { BookShelf, shelfCanHold, SpeakerScene, TagSlotScene } from './review-exercises/IllustratedScenes';
@@ -75,8 +76,8 @@ import { UnbuildableQuestion } from './review-exercises/UnbuildableQuestion';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { isSubmitKey, isTypingTarget } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
-import { useHasFeature } from '../../hooks/useHasFeature';
 import {
+  useReviewAccessLevel,
   useReviewItems,
   useReviewItemsSummary,
   useReviewReveal,
@@ -203,7 +204,8 @@ export default function PrototypeReviewDock() {
     setReviewDockResult,
   } = useProtoShell();
   const { isGuest } = useHarvousIdentity();
-  const review = useHasFeature('review');
+  /* Plus, or a church's reader — the server scopes what either can reach. */
+  const reviewAccess = useReviewAccessLevel();
   const navigate = useNavigate();
 
   const open = Boolean(reviewDock);
@@ -265,6 +267,8 @@ export default function PrototypeReviewDock() {
   attemptNumberRef.current = attemptNumber;
   /** Display indices the reader has placed, in the order they placed them. */
   const [placed, setPlaced] = useState<number[]>([]);
+  /** A church matching question: for each left row, the right index placed beside it. */
+  const [matchPicks, setMatchPicks] = useState<(number | null)[]>([]);
   /*
    * What this sitting came to, counted only as it happens.
    *
@@ -595,6 +599,7 @@ export default function PrototypeReviewDock() {
   useEffect(() => {
     setAttempt('');
     setPlaced([]);
+    setMatchPicks([]);
     setBlanks([]);
     setAttemptNumber(1);
     setMissed([]);
@@ -718,6 +723,7 @@ export default function PrototypeReviewDock() {
         wordIndex?: number;
         words?: string[];
         text?: string;
+        pairs?: number[];
       },
       /**
        * What the reader tapped, for colouring it once the server has marked it. Defaults to
@@ -930,6 +936,7 @@ export default function PrototypeReviewDock() {
    * afterwards. No payload carries its answer; the server marks the tap.
    */
   const sequenceExercise = reveal.data?.sequence ?? null;
+  const matchExercise = reveal.data?.match ?? null;
   const locateExercise = reveal.data?.locate ?? null;
   const noteChoice = reveal.data?.noteChoice ?? null;
   const nextExercise = reveal.data?.next ?? null;
@@ -941,7 +948,7 @@ export default function PrototypeReviewDock() {
   const beforeExercise = reveal.data?.before ?? null;
   const clozeExercise = reveal.data?.cloze ?? null;
 
-  if (!reviewDock || isGuest || !review.has) return null;
+  if (!reviewDock || isGuest || reviewAccess === 'none') return null;
 
   // `reviewRowSubtitle` suppresses itself on a graded rung — see its docblock.
   // What this is to the reader, else which thing is being asked about.
@@ -1536,6 +1543,55 @@ export default function PrototypeReviewDock() {
               onClick: () => submitGaps(clozeExercise.blankLengths.length),
             }}
           />
+        ) : matchExercise ? (
+          /* A church's matching question — the ordering card's hands, one place per left item. */
+          (() => {
+            const picks = matchExercise.left.map((_, row) => matchPicks[row] ?? null);
+            const placedRight = picks.filter((pick): pick is number => pick != null);
+            return (
+              <ExerciseStage
+                task={item.prompt}
+                scene={
+                  <MatchRows
+                    left={matchExercise.left}
+                    right={matchExercise.right}
+                    picks={picks}
+                    partState={partState}
+                    disabled={outcome.isPending}
+                    onClear={(row) =>
+                      setMatchPicks((current) => {
+                        const next = matchExercise.left.map((_, r) => current[r] ?? null);
+                        next[row] = null;
+                        return next;
+                      })
+                    }
+                  />
+                }
+                say={say}
+                missed={missedNow}
+                primary={{
+                  label: REVIEW_CHECK_COPY,
+                  disabled: outcome.isPending || placedRight.length !== matchExercise.left.length,
+                  onClick: () =>
+                    answer('almost', { pairs: picks as number[] }, null, {
+                      left: matchExercise.left,
+                      right: matchExercise.right,
+                    }),
+                }}
+              >
+                {placedRight.length < matchExercise.left.length ? (
+                  <OrderTray
+                    phrases={matchExercise.right}
+                    placed={placedRight}
+                    disabled={outcome.isPending}
+                    onPlace={(index) =>
+                      setMatchPicks((current) => placeMatch(matchExercise.left.map((_, r) => current[r] ?? null), index))
+                    }
+                  />
+                ) : null}
+              </ExerciseStage>
+            );
+          })()
         ) : sequenceExercise ? (
           /* Put the phrases back in order — see `OrderPieces`. */
           <ExerciseStage

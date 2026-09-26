@@ -105,6 +105,44 @@ describe('public app paths', () => {
   it('does not claim a bare /discover, which no page serves', () => {
     expect(isPublicAppPath('/discover')).toBe(false);
   });
+
+  /*
+   * A church's join link is the first page a congregant sees, usually from a QR on a
+   * bulletin — it must load as a public page on the dedicated host, not inside the
+   * app shell the visitor has no account for yet.
+   */
+  it('treats a church join link as a public route, and reserves the bare segment', () => {
+    expect(isPublicAppPath('/churches/join/AbCdEf123456')).toBe(true);
+    expect(isPrototypeShellPath('/churches/join/AbCdEf123456')).toBe(false);
+    expect(isPublicAppPath('/churches')).toBe(false);
+    expect(isReservedPrototypeSegment('churches')).toBe(true);
+    expect(isPrototypeNotePath('/churches')).toBe(false);
+  });
+});
+
+describe('boot-script mirror (public/scripts/prototype-shell-path.js)', () => {
+  /*
+   * The pre-React boot script and the service worker read their own copy. A path the
+   * TypeScript side calls public but the mirror calls shell loads a first paint in the
+   * wrong chrome, which is the Discover bug over again.
+   */
+  it('agrees with prototype-path.ts on the church join link', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const code = readFileSync(resolve(process.cwd(), 'public/scripts/prototype-shell-path.js'), 'utf8');
+    // The script installs itself on `window`; hand it a stand-in so the test reads
+    // this copy, not whatever an earlier import left on the real global.
+    const holder: Record<string, unknown> = {};
+    new Function('window', 'self', code)(holder, holder);
+    const mirror = holder.__harvousPrototypeShellPath as {
+      isPrototypeShellPath: (p: string, h: string) => boolean;
+      isPublicAppPath: (p: string) => boolean;
+      isPrototypeNotePath: (p: string, h: string) => boolean;
+    };
+    expect(mirror.isPublicAppPath('/churches/join/AbCdEf123456')).toBe(true);
+    expect(mirror.isPrototypeShellPath('/churches/join/AbCdEf123456', 'localhost')).toBe(false);
+    expect(mirror.isPrototypeNotePath('/churches', 'localhost')).toBe(false);
+  });
 });
 
 describe('public route html class synchronization', () => {

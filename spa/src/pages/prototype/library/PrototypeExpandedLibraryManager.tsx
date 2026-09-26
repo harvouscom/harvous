@@ -30,6 +30,7 @@ import {
 import PrototypeLibraryManagerItems from './PrototypeLibraryManagerItems';
 import PrototypeLibraryItemEditorPane from './PrototypeLibraryItemEditorPane';
 import PrototypeLibrarySuggestionQueue from './PrototypeLibrarySuggestionQueue';
+import { useChurchMinistries } from '../../../hooks/queries/useChurchMinistries';
 
 export type LibraryManagerView = 'items' | 'suggestions';
 export type LibrarySelection =
@@ -60,6 +61,8 @@ export default function PrototypeExpandedLibraryManager({
   const [selection, setSelection] = useState<LibrarySelection>(null);
 
   const manage = useChurchLibraryManage(orgId, { enabled: canBrowse });
+  const ministriesQuery = useChurchMinistries(orgId, { enabled: canBrowse });
+  const liveMinistries = (ministriesQuery.data?.ministries ?? []).filter((m) => !m.archivedAt);
   const items = useMemo(() => manage.data?.items ?? [], [manage.data]);
 
   const editingItem = useMemo<ChurchLibraryStaffItem | null>(() => {
@@ -166,6 +169,7 @@ export default function PrototypeExpandedLibraryManager({
                 items={items}
                 canCurate={canCurate}
                 plannableSpaces={plannableSpaces}
+                ministries={liveMinistries}
                 selection={selection}
                 onSelect={setSelection}
               />

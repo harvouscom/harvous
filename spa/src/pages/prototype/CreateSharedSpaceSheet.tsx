@@ -44,6 +44,8 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useSheetPresentation } from './design-system/useSheetPresentation';
 import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
 import ProtoSpaceMeetingFields from './ProtoSpaceMeetingFields';
+import ProtoSelectMenu, { type ProtoSelectOption } from './ProtoSelectMenu';
+import { useChurchMinistries } from '../../hooks/queries/useChurchMinistries';
 
 type CoverPickerMode = 'none' | 'color' | 'image';
 
@@ -106,6 +108,24 @@ export default function CreateSharedSpaceSheet({
     createMinistryChannel.isPending;
   const churchScoped = Boolean(orgId?.trim());
   const ministryChannel = churchScoped && kind === 'ministry';
+  /*
+    Which ministry it belongs to — only once the church has any. A teacher scoped to ministries
+    picks among theirs (the server refuses the rest); anyone else can also leave it church-wide.
+    Empty string is church-wide, because a select value has to be a string.
+  */
+  const ministriesQuery = useChurchMinistries(orgId, { enabled: open && churchScoped });
+  const ministryOptions: ProtoSelectOption<string>[] = (() => {
+    const live = (ministriesQuery.data?.ministries ?? []).filter((m) => !m.archivedAt);
+    if (!live.length) return [];
+    const mine = userId ? live.filter((m) => m.staffUserIds.includes(userId)) : [];
+    const offered = mine.length ? mine : live;
+    return [
+      ...offered.map((m) => ({ value: m.id, label: m.name })),
+      ...(mine.length ? [] : [{ value: '', label: 'Church-wide' }]),
+    ];
+  })();
+  const [ministryChoice, setMinistryChoice] = useState<string | null>(null);
+  const ministryValue = ministryChoice ?? ministryOptions[0]?.value ?? '';
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
 
   useEffect(() => {
@@ -121,6 +141,7 @@ export default function CreateSharedSpaceSheet({
     setMeetingTime('');
     setMeetingKind(null);
     setMeetingUrl('');
+    setMinistryChoice(null);
   }, [open, orgId, kind]);
 
   const cover = spaceCoverFromThreadColor(color, coverVariant);
@@ -197,10 +218,15 @@ export default function CreateSharedSpaceSheet({
             }),
       };
 
+      const churchPayload = {
+        ...payload,
+        orgId: orgId!.trim(),
+        ...(ministryOptions.length ? { ministryId: ministryValue || null } : {}),
+      };
       const result = ministryChannel
-        ? await createMinistryChannel.mutateAsync({ ...payload, orgId: orgId!.trim() })
+        ? await createMinistryChannel.mutateAsync(churchPayload)
         : churchScoped
-          ? await createChurchSharedSpace.mutateAsync({ ...payload, orgId: orgId!.trim() })
+          ? await createChurchSharedSpace.mutateAsync(churchPayload)
           : await createSharedSpace.mutateAsync(payload);
 
       if (!result.space?.id) {
@@ -336,6 +362,18 @@ export default function CreateSharedSpaceSheet({
               aria-label="Description"
               onChange={(e) => setDescription(e.target.value)}
             />
+
+            {ministryOptions.length > 1 ? (
+              <div className="proto-create-shared-space__ministry">
+                <span className="proto-caption proto-create-shared-space__rhythm-label">Ministry</span>
+                <ProtoSelectMenu<string>
+                  label="Ministry"
+                  options={ministryOptions}
+                  value={ministryValue}
+                  onChange={setMinistryChoice}
+                />
+              </div>
+            ) : null}
 
             {/* A channel publishes rather than gathers, so it is never asked. */}
             {!ministryChannel ? (

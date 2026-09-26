@@ -6,10 +6,16 @@
  * handling come free. Each tool renders its own `ProtoSidebarExpandedPanel` so
  * it can fill the header's title, view switcher, and action slots itself.
  */
+import { lazy, Suspense } from 'react';
 import type { ProtoExpandRect } from '../../layouts/proto-shell-context';
 import PrototypeExpandedPlanner from './planner/PrototypeExpandedPlanner';
 import PrototypeExpandedLibraryManager from './library/PrototypeExpandedLibraryManager';
 import PrototypeExpandedDiscover from './PrototypeExpandedDiscover';
+/* Lazy: only church staff ever open it, and its editor and exercise rules would otherwise ride
+   on every route's first paint, sign-in included. */
+const PrototypeExpandedChurchReview = lazy(() => import('./PrototypeExpandedChurchReview'));
+const PrototypeExpandedMinistries = lazy(() => import('./PrototypeExpandedMinistries'));
+const PrototypeExpandedChurchContent = lazy(() => import('./PrototypeExpandedChurchContent'));
 
 export type ExpandedSidebarToolProps = {
   exiting: boolean;
@@ -35,6 +41,24 @@ export default function PrototypeExpandedSidebarHost({
       return <PrototypeExpandedLibraryManager exiting={exiting} origin={origin} onClose={onClose} />;
     case 'discover':
       return <PrototypeExpandedDiscover exiting={exiting} origin={origin} onClose={onClose} />;
+    case 'church-review':
+      return (
+        <Suspense fallback={null}>
+          <PrototypeExpandedChurchReview exiting={exiting} origin={origin} onClose={onClose} />
+        </Suspense>
+      );
+    case 'ministries':
+      return (
+        <Suspense fallback={null}>
+          <PrototypeExpandedMinistries exiting={exiting} origin={origin} onClose={onClose} />
+        </Suspense>
+      );
+    case 'church-content':
+      return (
+        <Suspense fallback={null}>
+          <PrototypeExpandedChurchContent exiting={exiting} origin={origin} onClose={onClose} />
+        </Suspense>
+      );
     default:
       return null;
   }

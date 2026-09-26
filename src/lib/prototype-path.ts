@@ -82,6 +82,9 @@ const NON_PROTOTYPE_PREFIXES = [
   // catalog is an expanded-sidebar tool — and claiming the prefix would reserve a
   // route nothing serves.
   '/discover/',
+  // A church's join link, `/churches/join/{token}`. Trailing slash on purpose, for
+  // the reason `/discover/` gives: there is no `/churches` page to claim.
+  '/churches/join/',
   '/api/',
   // The public listing page, `/discover/{slug}` — the install action only; the
   // in-app catalog is an expanded-sidebar tool with no route of its own. Without
@@ -115,6 +118,7 @@ export function isPublicAppPath(pathname: string): boolean {
       logical.startsWith('/discover/') ||
       logical.startsWith('/invitations/') ||
       logical.startsWith('/discover/') ||
+      logical.startsWith('/churches/join/') ||
       logical === '/upgrade' ||
       logical.startsWith('/upgrade/') ||
       logical === '/addon' ||
@@ -164,6 +168,9 @@ export const RESERVED_PROTOTYPE_SEGMENTS = new Set([
   // expanded-sidebar tool with no slug of its own, but this segment still must
   // not resolve as a note id.
   'discover',
+  // The public church join page — `/churches/join/{token}`. The bare segment has
+  // no page, but it still must not resolve as a note id.
+  'churches',
 ]);
 
 export function isReservedPrototypeSegment(segment: string): boolean {

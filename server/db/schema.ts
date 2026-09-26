@@ -131,6 +131,26 @@ export const Spaces = pgTable(
      * server/routes/spaces.ts).
      */
     orgId: text('orgId'),
+    /**
+     * The ministry (`ChurchMinistries.id`) this channel or church group belongs to; null is
+     * church-wide. Written only by the ministries routes and the church space-create paths.
+     *
+     * **Deliberately not in the navigation serializers** (bootstrap, both `/prefetch` branches,
+     * `getSpacesWithCounts`' `mapped` list): the app reads ministries from church endpoints only,
+     * so the "a new Spaces column silently reads its default" trap cannot happen here. Add it to
+     * all four the day anything outside the church surfaces needs it.
+     *
+     * Not a second single pointer of the kind the removed `channelSpaceId` was — that pointed a
+     * service at a room; this records which ministry a room is part of.
+     */
+    ministryId: text('ministryId'),
+    /**
+     * Who may see a ministry channel: 'church' (everyone connected — the default), 'ministry'
+     * (members of that ministry's groups, its leaders, staff) or 'leaders' (leaders of its
+     * spaces, staff). The last two require `ministryId`. Enforced by removing follow rows, not by
+     * patching readers — see `reconcileChannelAudience`. Meaningless on non-channel spaces.
+     */
+    audience: text('audience').notNull().default('church'),
     /** @deprecated v1 sharing — frozen with shareToken/shareTokenCreatedAt; new code keys off `type`. */
     isPublic: boolean('isPublic').notNull().default(false),
     isFeatured: boolean('isFeatured').notNull().default(false),
@@ -152,6 +172,7 @@ export const Spaces = pgTable(
     index('Spaces_userId_updatedAtIndex').on(table.userId, table.updatedAt),
     index('Spaces_userId_typeIndex').on(table.userId, table.type),
     index('Spaces_deletedAt_recoveryUntilIndex').on(table.deletedAt, table.recoveryUntil),
+    index('Spaces_ministryIdIndex').on(table.ministryId),
   ],
 );
 
@@ -666,8 +687,9 @@ export const SpaceMemberships = pgTable('SpaceMemberships', {
   /**
    * 'owner' | 'leader' | 'member'. The owner has a membership row too (the v1
    * model derived owner solely from Spaces.userId, which stays the
-   * creator/billing anchor). 'leader' is schema-ready but dormant in the
-   * foundation UI; it activates with Group Leader / church org.
+   * creator/billing anchor). 'leader' is written by the church staff sync (every staffer leads
+   * the rooms their ministry scope covers) and by granted leadership (`grantSource = 'grant'`,
+   * server/routes/church-space-leaders.ts).
    */
   role: text('role').notNull().default('member'),
   /** userId of the inviter; null on the owner row. */
@@ -773,6 +795,12 @@ export const Churches = pgTable('Churches', {
    * church's wall time verbatim.
    */
   timezone: text('timezone'),
+  /**
+   * Approval before publish (docs/CHURCH_V2_ROADMAP.md §D). When on, staff without
+   * `review_content` (teachers, plain staff) submit channel material for a pastor to approve
+   * instead of publishing it. Off by default — a small church publishes directly.
+   */
+  contentApproval: boolean('contentApproval').notNull().default(false),
 
   /** Staff user who created the church record (audit anchor); admin roles live in Clerk org roles. */
   createdBy: text('createdBy').notNull(),
@@ -832,6 +860,104 @@ export const ChurchMemberships = pgTable('ChurchMemberships', {
   uniqueIndex('ChurchMemberships_church_user_unique').on(table.churchId, table.userId),
   index('ChurchMemberships_userIdIndex').on(table.userId),
   index('ChurchMemberships_churchIdIndex').on(table.churchId),
+]);
+
+// ─── ChurchMinistries (Kids, Youth, Adults… — the units a church teaches through) ─
+
+/**
+ * A ministry: a named part of a church that owns its channels and groups
+ * (`Spaces.ministryId`) and, optionally, the staff scoped to it (`ChurchMinistryStaff`). See
+ * docs/CHURCH_V2_ROADMAP.md §C.
+ *
+ * Optional structure: a church with no ministries works exactly as before, and every space
+ * without one is church-wide. Archived, never deleted — a ministry with spaces in it cannot be
+ * archived without releasing them, and a staffer scoped only to archived ministries leads
+ * nothing rather than everything.
+ *
+ * Row ids: `min_${crypto.randomUUID()}`.
+ */
+export const ChurchMinistries = pgTable('ChurchMinistries', {
+  id: text('id').primaryKey(),
+  orgId: text('orgId').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  sortOrder: integer('sortOrder').notNull().default(0),
+  createdByUserId: text('createdByUserId').notNull(),
+  archivedAt: ts('archivedAt'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('ChurchMinistries_orgIdIndex').on(table.orgId),
+  uniqueIndex('ChurchMinistries_org_name_live_unique')
+    .on(table.orgId, sql`lower(${table.name})`)
+    .where(sql`${table.archivedAt} IS NULL`),
+]);
+
+/**
+ * Which ministries a staffer leads. No rows = church-wide (today's behaviour). Only roles that
+ * can be scoped use it — admin, pastor and coordinator are always church-wide, and changing
+ * someone to one of those clears their rows. Read by the staff sync (`StaffScope`); volunteers
+ * never go here — a staffer removed from Clerk would otherwise keep leading.
+ *
+ * Row ids: `mstf_${crypto.randomUUID()}`.
+ */
+export const ChurchMinistryStaff = pgTable('ChurchMinistryStaff', {
+  id: text('id').primaryKey(),
+  orgId: text('orgId').notNull(),
+  ministryId: text('ministryId').notNull(),
+  userId: text('userId').notNull(),
+  createdByUserId: text('createdByUserId').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('ChurchMinistryStaff_ministry_user_unique').on(table.ministryId, table.userId),
+  index('ChurchMinistryStaff_org_userIndex').on(table.orgId, table.userId),
+]);
+
+// ─── ChurchJoinLinks (the link and QR a church hands its congregation) ──────────
+
+/**
+ * One live join link per church: a page that shows the church, carries a visitor
+ * through sign-up, connects them (`UserMetadata.connected*`) and lets them pick
+ * channels. Written by server/routes/church-join.ts; see docs/CHURCH_V2_ROADMAP.md §A.
+ *
+ * **A token, never a slug.** The list of churches on Harvous is deliberately not
+ * public (docs/future/CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md), and a slug would
+ * be a directory anyone could walk. The token is what gets printed on a bulletin.
+ *
+ * **Its own table, not a `Churches` column.** A new column on `Churches` would make
+ * every full-row read of it fail until the migration landed; a new table can only
+ * break the routes that read it.
+ *
+ * **No expiry.** A bulletin or a slide lives for months, and an expired QR on a
+ * printed card is a dead end with no one to ask. Rotate or revoke covers a leak.
+ * The partial unique index is the "one live link" rule: rotating revokes the old
+ * row and inserts a new one in the same transaction.
+ *
+ * `useCount` counts genuinely new connections made through the link — a count
+ * for the church, never a list of who.
+ *
+ * Deliberately **not** a writer of `ChurchMemberships`: `update-church` does not
+ * write it either, and a ledger only one of two connect paths fills is worse than
+ * none. Multi-church can backfill it from `connected*`.
+ *
+ * Row ids: `cjl_${crypto.randomUUID()}`.
+ */
+export const ChurchJoinLinks = pgTable('ChurchJoinLinks', {
+  id: text('id').primaryKey(),
+  churchId: text('churchId').notNull(),
+  /** `generateShareToken()` — 12 base62 characters. */
+  token: text('token').notNull(),
+  createdBy: text('createdBy').notNull(),
+  useCount: integer('useCount').notNull().default(0),
+  revokedAt: ts('revokedAt'),
+  /** 'rotated' | 'revoked' — why this link stopped working. */
+  revokedReason: text('revokedReason'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('ChurchJoinLinks_token_unique').on(table.token),
+  uniqueIndex('ChurchJoinLinks_church_live_unique')
+    .on(table.churchId)
+    .where(sql`${table.revokedAt} IS NULL`),
 ]);
 
 // ─── ChurchServiceTimes (when the church gathers — recurring, stable) ─────────
@@ -1146,10 +1272,11 @@ export const ChurchServices = pgTable('ChurchServices', {
    * `isMinistryBroadcastSpaceRow` decides it. A client that could name its own
    * kind could escape the one-per-date rule by claiming to be content.
    *
-   * Not a publish state. There is no pipeline from a planned entry to a
-   * published note yet (see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md for
-   * why the pointer that tried was removed) — a content entry is still only a
-   * plan, and nothing congregant-facing reads it.
+   * Not a publish state. A content entry is a plan, not material: the note written for it goes
+   * live through the ordinary publish (see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md for
+   * why a pointer from here to a note was tried and removed). Followers of the channel do see
+   * its dated entries on Home — following a channel is membership, so
+   * `listViewerPlanSources` includes it — as a card that reads "This Wednesday: …".
    */
   kind: text('kind').notNull().default('gathering'),
   createdBy: text('createdBy').notNull(),
@@ -1816,10 +1943,25 @@ export const ReviewItems = pgTable('ReviewItems', {
   sourceAt: ts('sourceAt'),
   /** Set when a challenge created this item, so completing the challenge can advance it. */
   challengeId: text('challengeId'),
+  /**
+   * A church's exercise this row is this reader's copy of (`ChurchReviewExercises.id`), with
+   * `origin='church'` and `sourceKey='church:<id>'`. The definition is the church's; everything
+   * else on the row — schedule, answers, ladder — is the reader's own, and no church read ever
+   * reaches it. Never paired with `noteId`: `delete-note-cascade.ts` deletes `ReviewEvents` by
+   * `noteId` with no user filter, so a staff note there would erase congregants' history.
+   */
+  churchExerciseId: text('churchExerciseId'),
+  /**
+   * The definition's `version` this row was last reset against. When staff edit a published
+   * exercise the version moves, and the reader's own refill resets the row to the new question
+   * — staff never write into anyone's rows.
+   */
+  churchExerciseVersion: integer('churchExerciseVersion'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [
   uniqueIndex('ReviewItems_userId_sourceKeyIndex').on(table.userId, table.sourceKey),
+  index('ReviewItems_churchExerciseIdIndex').on(table.churchExerciseId),
   // The inbox read: due, active, oldest first.
   index('ReviewItems_userId_status_dueAtIndex').on(table.userId, table.status, table.dueAt),
   // The three cascade filters. NoteVisitEvents_noteIdIndex's docblock calls the missing
@@ -1827,6 +1969,109 @@ export const ReviewItems = pgTable('ReviewItems', {
   index('ReviewItems_noteIdIndex').on(table.noteId),
   index('ReviewItems_secondaryNoteIdIndex').on(table.secondaryNoteId),
   index('ReviewItems_studyThreadEntryIdIndex').on(table.studyThreadEntryId),
+]);
+
+// ─── ChurchReviewExercises (a church's review questions, and the passages it suggests) ─
+/**
+ * What a church puts into its people's Review: a passage from what it taught (asked on the
+ * existing verse and chapter ladders), or a question staff wrote — multiple choice, put in
+ * order, or match the pairs. Part of the Church plan; free to anyone connected who follows the
+ * channel it is published in. Plus stays review of your *own* study. See
+ * docs/CHURCH_V2_ROADMAP.md §B.
+ *
+ * **A definition, not a delivery.** Nothing fans out on publish. Each follower's own lazy
+ * refill (`refillChurchReviewQueue`) creates their `ReviewItems` row, with
+ * `churchExerciseId` pointing here, so the schedule and every answer stay the reader's.
+ *
+ * **The answer key lives in `content`, and `content` never leaves the server** except to the
+ * staff who wrote it. Builders shuffle it into options, phrases or columns with no key attached.
+ *
+ * **No generative AI.** A suggestion is a passage the church itself cited, found by a fixed
+ * rule; a question is staff's own words. Every answer is Scripture or the church's own key.
+ *
+ * `status`: `dismissed` (a suggestion staff said no to — a row, so it is never suggested
+ * again), `draft`, `published`, `archived`. `answeredCount` is the only thing a church ever
+ * learns back, and only above a floor of five.
+ *
+ * Row ids: `crx_${crypto.randomUUID()}`.
+ */
+export const ChurchReviewExercises = pgTable('ChurchReviewExercises', {
+  id: text('id').primaryKey(),
+  churchId: text('churchId').notNull(),
+  orgId: text('orgId').notNull(),
+  /** The ministry channel it is published in; its followers are its audience. */
+  channelSpaceId: text('channelSpaceId').notNull(),
+  /** verse | chapter | choice | order | match — see src/utils/church-exercise.ts. */
+  kind: text('kind').notNull(),
+  /** Staff's question, for choice/order/match. Null on a passage exercise. */
+  prompt: text('prompt'),
+  /** JSON answer key for choice/order/match. Server-only; never in a congregant payload. */
+  content: text('content'),
+  /** verse/chapter: the passage. Normalized reference, e.g. "John 15:5" or "John 15". */
+  scriptureReference: text('scriptureReference'),
+  translation: text('translation'),
+  /** suggested | authored. */
+  origin: text('origin').notNull(),
+  /** The canonical reference a suggestion was made for — its dedupe key within the channel. */
+  suggestionKey: text('suggestionKey'),
+  sourceNoteId: text('sourceNoteId'),
+  sourceServiceId: text('sourceServiceId'),
+  sourceSeriesId: text('sourceSeriesId'),
+  status: text('status').notNull().default('draft'),
+  /** Bumped on every edit of a published exercise; readers' rows reset to catch up. */
+  version: integer('version').notNull().default(1),
+  /** People who have answered it at least once. A count, never who. */
+  answeredCount: integer('answeredCount').notNull().default(0),
+  createdBy: text('createdBy').notNull(),
+  updatedBy: text('updatedBy'),
+  publishedAt: ts('publishedAt'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('ChurchReviewExercises_channel_statusIndex').on(table.channelSpaceId, table.status),
+  index('ChurchReviewExercises_orgIdIndex').on(table.orgId),
+  uniqueIndex('ChurchReviewExercises_channel_suggestion_unique')
+    .on(table.channelSpaceId, table.suggestionKey)
+    .where(sql`${table.suggestionKey} IS NOT NULL`),
+]);
+
+/**
+ * Channel material that is not live yet: scheduled for a set time, or waiting for approval
+ * (docs/CHURCH_V2_ROADMAP.md §D).
+ *
+ * **A note is live in a channel exactly when it has a `SpaceNotes` row** — some thirty readers
+ * (feed, search, push, Review suggestions, the space itself) rely on that and nothing else. So
+ * nothing here ever writes a `SpaceNotes` row early with a status on it: the note waits in its
+ * author's My Home, and going live is the ordinary publish (`associateAuthoredNoteWithSpace`,
+ * as the author) — immediately, at `publishAt` by the content tick, or on approval.
+ *
+ * status: in_review | scheduled | published | declined | withdrawn | failed.
+ * Row ids: `ccs_${crypto.randomUUID()}`.
+ */
+export const ChurchContentSubmissions = pgTable('ChurchContentSubmissions', {
+  id: text('id').primaryKey(),
+  orgId: text('orgId').notNull(),
+  channelSpaceId: text('channelSpaceId').notNull(),
+  noteId: text('noteId').notNull(),
+  authorUserId: text('authorUserId').notNull(),
+  status: text('status').notNull(),
+  /** When it goes live. Null = as soon as it is approved. */
+  publishAt: ts('publishAt'),
+  reviewedByUserId: text('reviewedByUserId'),
+  reviewedAt: ts('reviewedAt'),
+  /** A reviewer's note on a decline, or why a scheduled publish failed. Plain text, ≤280. */
+  reviewNote: text('reviewNote'),
+  publishedAt: ts('publishedAt'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('ChurchContentSubmissions_org_statusIndex').on(table.orgId, table.status),
+  index('ChurchContentSubmissions_status_publishAtIndex').on(table.status, table.publishAt),
+  index('ChurchContentSubmissions_noteIdIndex').on(table.noteId),
+  // One open submission per note per channel.
+  uniqueIndex('ChurchContentSubmissions_open_unique')
+    .on(table.channelSpaceId, table.noteId)
+    .where(sql`${table.status} IN ('in_review', 'scheduled')`),
 ]);
 
 // ─── ReviewEvents (append-only log of what a review session was answered with) ─
@@ -1877,10 +2122,11 @@ export const ReviewEvents = pgTable('ReviewEvents', {
   /**
    * Whether the rung had an answer key, rather than the reader's own verdict.
    *
-   * Two verse rungs are marked by the server; every other rung is an open question judged by
-   * the person who wrote the note. Averaging the two into one recall rate compares a test score
-   * with a self-assessment, so the distinction has to survive into the log. Null on rows
-   * written before this column, which is not the same as false.
+   * Every rung is marked by the server now (`reviewRungIsGraded` in src/utils/review-prompts.ts).
+   * When this column was added only two verse rungs were, and the rest were open questions the
+   * reader judged — averaging those into one recall rate compared a test score with a
+   * self-assessment, which is why the distinction survives into the log. Null on rows written
+   * before this column, which is not the same as false.
    */
   graded: boolean('graded'),
   createdAt: ts('createdAt').notNull(),
@@ -2361,10 +2607,10 @@ export const LibraryItems = pgTable(
  * `scopeKind`:
  *   - `'org'`      — the whole church. `spaceId` and `ministryKey` null.
  *   - `'space'`    — one Shared Space or channel. `spaceId` set.
- *   - `'ministry'` — reserved. The column exists so the table never needs a
- *     migration, but **the write routes refuse it**: there is no ministry
- *     entity or key vocabulary anywhere in the app yet, so a free-text
- *     `ministryKey` written today would be data no read path could group by.
+ *   - `'ministry'` — one ministry. `ministryKey` holds a `ChurchMinistries.id`, validated as
+ *     a live ministry of this church on write. It reaches everyone in one of the ministry's
+ *     groups or following one of its channels, and every room in the ministry shows it on its
+ *     shelf like an org-wide default. An archived ministry reaches nobody but staff.
  *
  * Row ids: `libsc_${crypto.randomUUID()}`.
  */

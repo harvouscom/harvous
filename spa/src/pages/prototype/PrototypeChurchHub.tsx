@@ -44,6 +44,7 @@ import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
 import PrototypeChurchStaffSection from './PrototypeChurchStaffSection';
 import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSection';
 import PrototypeChurchEngagementSection from './PrototypeChurchEngagementSection';
+import PrototypeChurchJoinLinkSection from './PrototypeChurchJoinLinkSection';
 import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
 import PrototypeChurchSetupCard from './PrototypeChurchSetupCard';
 import { churchSetupSteps, type ChurchSetupStepId } from '../../lib/church-setup-steps';
@@ -53,6 +54,7 @@ import { useChurchTeachingPlan } from '../../hooks/queries/useChurchTeachingPlan
 import PrototypeChurchSettingsSection from './PrototypeChurchSettingsSection';
 import { useProtoHomeViewClassName, useProtoSpaceLoaderState } from './useProtoHomeViewEnter';
 import PrototypeChannelPairingSection from './PrototypeChannelPairingSection';
+import { useChurchContent } from '../../hooks/queries/useChurchContent';
 
 function normalizeSpaceId(id: string): string {
   return id.startsWith('space_') ? id : `space_${id}`;
@@ -235,6 +237,9 @@ export default function PrototypeChurchHub() {
       }),
     [nav, orgId, profile?.connectedOrgId, profile?.isHomeChurchStaff, isOrgStaff],
   );
+  /* Loaded with the hub, not on open (the tool reads the same cache): the row's meta names a
+     reviewer's queue. */
+  const contentQuery = useChurchContent(orgId, { enabled: canCreateChurchContent });
   const { sharedSpaces, ministryChannels } = useMemo(() => {
     const all = [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])];
     const hubSpaces = churchHubSpacesForOrg(all, orgId);
@@ -262,6 +267,30 @@ export default function PrototypeChurchHub() {
    */
   const churchPlanLapsed = channelsData?.sponsorship?.state === 'lapsed';
   /**
+   * A church with ministries shows each one first — its groups, then its channels — and what
+   * belongs to none stays in the two lanes below. The nav payload deliberately carries no
+   * ministry, so membership comes from the channels read the hub already makes.
+   */
+  const { ministrySections, laneSharedSpaces, laneChannels } = useMemo(() => {
+    const ministries = channelsData?.ministries ?? [];
+    const placed = new Set<string>();
+    const sections = ministries
+      .map((ministry) => {
+        const channelIds = new Set(ministry.channelIds);
+        const groupIds = new Set(ministry.myGroupIds);
+        const groups = sharedSpaces.filter((space) => groupIds.has(space.id));
+        const channels = ministryChannels.filter((space) => channelIds.has(space.id));
+        for (const space of [...groups, ...channels]) placed.add(space.id);
+        return { id: ministry.id, name: ministry.name, groups, channels };
+      })
+      .filter((section) => section.groups.length + section.channels.length > 0);
+    return {
+      ministrySections: sections,
+      laneSharedSpaces: sharedSpaces.filter((space) => !placed.has(space.id)),
+      laneChannels: ministryChannels.filter((space) => !placed.has(space.id)),
+    };
+  }, [channelsData?.ministries, sharedSpaces, ministryChannels]);
+  /**
    * Why the plan is read-only, when it is — derived once in the shared hook so
    * the compact pane and the expanded planner cannot disagree.
    */
@@ -281,6 +310,7 @@ export default function PrototypeChurchHub() {
     | 'starters'
     | 'settings'
     | 'engagement'
+    | 'join-link'
   >('catalog');
   const pendingFollowId = followChannel.isPending
     ? followChannel.variables?.spaceId ?? null
@@ -314,6 +344,60 @@ export default function PrototypeChurchHub() {
         title: 'Team',
         meta: 'Staff and volunteers',
         onSelect: () => setToolsView('team'),
+      });
+    }
+    /* Beside Team, because a ministry is mostly an answer to "who leads what". Admin-only
+       (`manage_staff`): scoping a teacher to Youth changes which rooms they lead. Expanded,
+       like Review questions — a list of ministries with their rooms beside an editor. */
+    if (canViewEngagement) {
+      rows.push({
+        key: 'ministries',
+        icon: 'layer-group',
+        title: 'Ministries',
+        meta: 'Kids, youth, adults — who leads what',
+        chevron: 'expand',
+        onSelect: () => openExpandedSidebar('ministries'),
+      });
+    }
+    /* Any staff member: what is scheduled, waiting for approval, or recently out. The meta
+       carries the one number that asks for action — a reviewer's queue. */
+    if (canCreateChurchContent) {
+      const toReview = contentQuery.data?.canReview
+        ? contentQuery.data.submissions.filter((s) => s.status === 'in_review').length
+        : 0;
+      rows.push({
+        key: 'content',
+        icon: 'newspaper',
+        title: 'Content',
+        meta: toReview ? `${toReview} waiting for your approval` : 'Scheduled and published posts',
+        chevron: 'expand',
+        onSelect: () => openExpandedSidebar('church-content'),
+      });
+    }
+    /* Any staff member: handing out the link is the job, and whoever prints the
+       bulletin is rarely the admin. Making and replacing it is admin-only, and
+       that verdict comes back from the server inside the pane. */
+    if (canCreateChurchContent) {
+      rows.push({
+        key: 'join-link',
+        icon: 'link',
+        title: 'Invite link',
+        meta: 'A link and QR for your congregation',
+        onSelect: () => setToolsView('join-link'),
+      });
+    }
+    /* Any staff member: writing a channel's questions is publishing to it. Straight into the
+       expanded surface, like the library: writing a question beside the list needs the room,
+       and a hub-width pane with a modal on top had none. What it shows back is a count of
+       people who answered, from five up — never who. */
+    if (canCreateChurchContent) {
+      rows.push({
+        key: 'review',
+        icon: 'list-check',
+        title: 'Review questions',
+        meta: 'What your people practise',
+        chevron: 'expand',
+        onSelect: () => openExpandedSidebar('church-review'),
       });
     }
     /* Gated on `manage_templates`, not publish rights: a teacher writes
@@ -370,6 +454,7 @@ export default function PrototypeChurchHub() {
     }
     return rows;
   }, [
+    contentQuery.data,
     canViewTeachingPlan,
     canCreateChurchContent,
     canManageChurchTemplates,
@@ -491,7 +576,9 @@ export default function PrototypeChurchHub() {
             ? 'Church settings'
             : toolsView === 'engagement'
               ? 'Engagement'
-              : churchName;
+              : toolsView === 'join-link'
+                ? 'Invite link'
+                : churchName;
 
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
@@ -609,6 +696,13 @@ export default function PrototypeChurchHub() {
             />
           ) : toolsView === 'engagement' ? (
             <PrototypeChurchEngagementSection orgId={orgId} canView={canViewEngagement} />
+          ) : toolsView === 'join-link' ? (
+            <PrototypeChurchJoinLinkSection
+              orgId={orgId}
+              churchName={churchName}
+              canView={canCreateChurchContent}
+              lapsed={churchPlanLapsed}
+            />
           ) : toolsView === 'settings' ? (
             <PrototypeChurchSettingsSection
               orgId={orgId}
@@ -652,12 +746,32 @@ export default function PrototypeChurchHub() {
               </div>
             ) : (
               <>
+                {ministrySections.map((section) => (
+                  <div key={section.id} className="proto-home-section">
+                    <p className="proto-caption proto-home-section__eyebrow">{section.name}</p>
+                    <ul className="proto-church-hub__list proto-home-cascade">
+                      {section.groups.map((space) => (
+                        <li key={space.id}>
+                          <ChurchHubSpaceButton space={space} ministry={false} onOpen={openSpace} />
+                        </li>
+                      ))}
+                      {section.channels.map((space) => (
+                        <li key={space.id}>
+                          <ChurchHubSpaceButton space={space} ministry onOpen={openSpace} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+
                 <div className="proto-home-section">
-                  <p className="proto-caption proto-home-section__eyebrow">Shared spaces</p>
-                  {sharedSpaces.length > 0 ? (
+                  <p className="proto-caption proto-home-section__eyebrow">
+                    {ministrySections.length ? 'Church-wide spaces' : 'Shared spaces'}
+                  </p>
+                  {laneSharedSpaces.length > 0 ? (
                     <>
                       <ul className="proto-church-hub__list proto-home-cascade">
-                        {sharedSpaces.map((space) => (
+                        {laneSharedSpaces.map((space) => (
                           <li key={space.id}>
                             <ChurchHubSpaceButton space={space} ministry={false} onOpen={openSpace} />
                           </li>
@@ -702,11 +816,13 @@ export default function PrototypeChurchHub() {
                 ) : null}
 
                 <div className="proto-home-section">
-                  <p className="proto-caption proto-home-section__eyebrow">Channels</p>
-                  {ministryChannels.length > 0 ? (
+                  <p className="proto-caption proto-home-section__eyebrow">
+                    {ministrySections.length ? 'Church-wide channels' : 'Channels'}
+                  </p>
+                  {laneChannels.length > 0 ? (
                     <>
                       <ul className="proto-church-hub__list proto-home-cascade">
-                        {ministryChannels.map((space) => (
+                        {laneChannels.map((space) => (
                           <li key={space.id}>
                             <ChurchHubSpaceButton space={space} ministry onOpen={openSpace} />
                           </li>

@@ -71,6 +71,7 @@ async function settingsPayload(church: {
   timezone: string | null;
   country: string | null;
   state: string | null;
+  contentApproval?: boolean | null;
 }) {
   const serviceTimes = await listServiceTimesForChurch(church.id);
   return {
@@ -86,6 +87,8 @@ async function settingsPayload(church: {
       timezone: church.timezone,
       country: church.country,
       state: church.state,
+      /** Teachers' channel material needs a pastor's approval (CHURCH_V2_ROADMAP.md §D). */
+      contentApproval: church.contentApproval === true,
     },
     serviceTimes: serviceTimes.map(serializeServiceTime),
   };
@@ -114,26 +117,39 @@ app.get('/api/church/settings', requireAuth, async (c) => {
 app.post('/api/church/settings/update', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const body = (await c.req.json().catch(() => ({}))) as { orgId?: string; timezone?: string | null };
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      timezone?: string | null;
+      contentApproval?: boolean;
+    };
 
     const gate = await assertCanManageChurchSettings(auth.userId, (body.orgId ?? '').trim());
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
 
     /*
-      Only the time zone is assignable here. This handler is the one self-serve
-      door into a table that also holds billing state, the HMC denorm cache, and
-      the active kill-switch — none of which a church may set about itself.
+      Only the time zone and the approval switch are assignable here. This handler is the one
+      self-serve door into a table that also holds billing state, the HMC denorm cache, and the
+      active kill-switch — none of which a church may set about itself.
     */
-    if (body.timezone === undefined) {
+    const patch: { timezone?: string | null; contentApproval?: boolean } = {};
+    if (body.timezone !== undefined) {
+      const tz = normalizeChurchTimezone(body.timezone);
+      if (!tz.ok) return c.json({ error: tz.reason, code: 'BAD_REQUEST' }, 400);
+      patch.timezone = tz.value;
+    }
+    if (body.contentApproval !== undefined) {
+      if (typeof body.contentApproval !== 'boolean') {
+        return c.json({ error: 'contentApproval must be true or false', code: 'BAD_REQUEST' }, 400);
+      }
+      patch.contentApproval = body.contentApproval;
+    }
+    if (Object.keys(patch).length === 0) {
       return c.json(await settingsPayload(gate.church));
     }
 
-    const tz = normalizeChurchTimezone(body.timezone);
-    if (!tz.ok) return c.json({ error: tz.reason, code: 'BAD_REQUEST' }, 400);
-
     const saved = await db
       .update(Churches)
-      .set({ timezone: tz.value, updatedAt: new Date() })
+      .set({ ...patch, updatedAt: new Date() })
       .where(eq(Churches.id, gate.church.id))
       .returning();
 

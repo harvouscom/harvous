@@ -80,6 +80,7 @@ import {
   type ChapterMaterial,
   chapterRungFor,
   fillReviewPrompt,
+  pickPromptKey,
   reviewPromptFor,
   reviewSeed,
   reviewTaskFor,
@@ -173,7 +174,28 @@ import { getKnowledgeForChapter, getKnowledgeForReference } from './scripture-kn
 import { normalizePlaceName } from '@/utils/bible-place-name';
 import { curatedTopicLabelForDisplay } from '@/utils/prototype-home-trends';
 import { gradeChoiceExercise } from '@/utils/choice-exercise';
-import { reviewFraming, type ReviewFramingSpec } from '@/utils/review-framing';
+import { churchFraming, reviewFraming, type ReviewFramingSpec } from '@/utils/review-framing';
+import {
+  buildChurchChoice,
+  buildChurchMatch,
+  buildChurchOrder,
+  churchExerciseTruth,
+  gradeChurchChoice,
+  markChurchMatch,
+  markChurchOrder,
+  parseChurchMatchAnswer,
+} from '@/utils/church-exercise';
+import {
+  capChurchShare,
+  countChurchAnswer,
+  reviewScopeSql,
+  type ReviewScope,
+} from './church-review-delivery';
+import {
+  churchQuestionIsAskable,
+  loadChurchExerciseDefinitions,
+  type ChurchExerciseDefinition,
+} from './church-review-definitions';
 import { rungIdentityIsTheAnswer } from '@/utils/review-row-subtitle';
 import { nodeKey as studyNodeKey } from '@/utils/study-bible-nodes';
 import { fetchVerseText } from './fetch-verse-text';
@@ -244,6 +266,9 @@ export interface ReviewItemRow {
   lastRungKey?: string | null;
   origin: string;
   challengeId: string | null;
+  /** A church's exercise this row is the reader's copy of — see `ReviewItems.churchExerciseId`. */
+  churchExerciseId?: string | null;
+  churchExerciseVersion?: number | null;
   sourceLabel: string | null;
   sourceAt: Date | null;
   createdAt: Date;
@@ -871,6 +896,12 @@ export async function filterAskableReviewRows(
     options.dropUnaskable && noteIds.length
       ? loadNoteMaterial(userId, noteIds)
       : Promise.resolve(new Map<string, NoteMaterial>());
+  // A church question is askable when its definition is published and readable.
+  const churchIds = rows.filter((r) => r.kind === 'church').map((r) => r.churchExerciseId);
+  const churchPending =
+    options.dropUnaskable && churchIds.some(Boolean)
+      ? loadChurchExerciseDefinitions(churchIds)
+      : Promise.resolve(new Map<string, ChurchExerciseDefinition>());
 
   /*
    * Chapters need their text before we can say whether they are askable, because every rung of a
@@ -907,8 +938,9 @@ export async function filterAskableReviewRows(
       ]
     : [];
   const chapterHasVerses = new Map<string, boolean>();
-  const [material] = await Promise.all([
+  const [material, churchDefinitions] = await Promise.all([
     materialPending,
+    churchPending,
     ...chapterRefs.map(async (key) => {
       const [reference, translation] = key.split('|');
       const parts = chapterKeyPartsFromReference(reference);
@@ -923,6 +955,13 @@ export async function filterAskableReviewRows(
     const kind = row.kind as ReviewItemKind;
     if (!isReviewAskableKind(kind)) return false;
     if (kind === 'note' && options.dropUnaskable && !noteRungFor(row, material)) return false;
+    if (
+      kind === 'church' &&
+      options.dropUnaskable &&
+      !churchQuestionIsAskable(row.churchExerciseId ? churchDefinitions.get(row.churchExerciseId) : undefined)
+    ) {
+      return false;
+    }
     if (kind === 'chapter' && options.dropUnaskable) {
       const key = `${row.scriptureReference}|${askedTranslation(row, defaultTranslation)}`;
       if (!chapterHasVerses.get(key)) return false;
@@ -1033,7 +1072,7 @@ export async function buildReviewItemViews(
    * trip whose answer the next did not need. Only note items need the note material, and only
    * they pay for it.
    */
-  const [defaultTranslation, titles, material, [nodes, marks]] = await Promise.all([
+  const [defaultTranslation, titles, material, [nodes, marks], churchDefinitions] = await Promise.all([
     loadDefaultTranslation(userId),
     loadTitles(
       userId,
@@ -1044,6 +1083,8 @@ export async function buildReviewItemViews(
       rows.filter((r) => r.kind === 'note').map((r) => r.noteId).filter((id): id is string => Boolean(id)),
     ),
     loadFramingFacts(userId, rows),
+    // A church's questions, and the passages it taught: one query for whichever rows are either.
+    loadChurchExerciseDefinitions(rows.map((r) => r.churchExerciseId)),
   ]);
 
   const nodeByKey = new Map(nodes.map((n) => [n.nodeKey, n]));
@@ -1113,6 +1154,10 @@ export async function buildReviewItemViews(
      * query on its way to being thrown away.
      */
     if (!isReviewAskableKind(kind)) continue;
+
+    const churchDefinition = row.churchExerciseId ? churchDefinitions.get(row.churchExerciseId) : undefined;
+    // A church question whose definition is gone, unpublished or unreadable has nothing to ask.
+    if (kind === 'church' && options.dropUnaskable && !churchQuestionIsAskable(churchDefinition)) continue;
 
     /*
      * A note is asked the rung it can answer, not the rung it has climbed to. The stored step
@@ -1186,8 +1231,10 @@ export async function buildReviewItemViews(
         id: row.id,
         material: verseMaterial,
         chapterMaterial,
+        churchKind: churchDefinition?.kind ?? null,
       },
       {
+        authoredPrompt: churchDefinition?.prompt ?? null,
         reference: row.scriptureReference,
         noteTitle,
         secondaryNoteTitle,
@@ -1224,7 +1271,14 @@ export async function buildReviewItemViews(
         : kind === 'chapter'
           ? chapterRungFor(row.ladderStep, seed, chapterMaterial).pass
           : 0;
-    const framing = reviewFraming(
+    /*
+     * Anything a church put here says so, and says nothing else: "From Youth." A reader fact
+     * ("you keep coming back to this") would be true of the passage but would hide whose
+     * question it is, which is the thing the reader needs to know.
+     */
+    const framing = kind === 'church' || row.origin === 'church'
+      ? churchFraming(churchDefinition?.channelTitle)
+      : reviewFraming(
       {
         kind: kind === 'note' ? 'note' : kind === 'chapter' ? 'chapter' : 'verse',
         rungKey: resolvedKey,
@@ -1440,10 +1494,18 @@ export function stripHtml(html: string): string {
     .trim();
 }
 
+/**
+ * Every list here takes a `ReviewScope`: a reader with Plus sees everything they hold, and a
+ * reader Review is free to through their church sees church rows only. Both only ever see a
+ * church row they still hold — see `churchItemHeldSql`.
+ */
+const FULL_SCOPE: ReviewScope = { access: 'full' };
+
 export async function listDueReviewItems(
   userId: string,
   limit: number,
   now: Date = new Date(),
+  scope: ReviewScope = FULL_SCOPE,
 ): Promise<ReviewItemRow[]> {
   return (await db
     .select()
@@ -1453,6 +1515,7 @@ export async function listDueReviewItems(
         eq(ReviewItems.userId, userId),
         eq(ReviewItems.status, 'active'),
         lte(ReviewItems.dueAt, now),
+        reviewScopeSql(scope),
       ),
     )
     .orderBy(ReviewItems.dueAt)
@@ -1464,6 +1527,7 @@ export async function listUpcomingReviewItems(
   userId: string,
   limit: number,
   now: Date = new Date(),
+  scope: ReviewScope = FULL_SCOPE,
 ): Promise<ReviewItemRow[]> {
   return (await db
     .select()
@@ -1473,6 +1537,7 @@ export async function listUpcomingReviewItems(
         eq(ReviewItems.userId, userId),
         eq(ReviewItems.status, 'active'),
         gt(ReviewItems.dueAt, now),
+        reviewScopeSql(scope),
       ),
     )
     .orderBy(ReviewItems.dueAt)
@@ -1522,7 +1587,7 @@ export async function countReviewedSince(userId: string, since: Date): Promise<n
  */
 export async function composeTodaySittingFor(
   userId: string,
-  options: { since: Date | null; cap: number; slack: number; now: Date },
+  options: { since: Date | null; cap: number; slack: number; now: Date; scope?: ReviewScope },
 ): Promise<{
   rows: ReviewItemRow[];
   answered: number;
@@ -1532,16 +1597,18 @@ export async function composeTodaySittingFor(
   dueHitLimit: boolean;
 }> {
   const { since, cap, slack, now } = options;
+  const scope = options.scope ?? FULL_SCOPE;
   const dueLimit = cap + 1 + slack;
   // Three independent reads, side by side; the count used to go first, alone.
   const [answered, due, upcoming] = await Promise.all([
     since ? countReviewedSince(userId, since) : Promise.resolve(0),
-    listDueReviewItems(userId, dueLimit, now),
-    listUpcomingReviewItems(userId, cap, now),
+    listDueReviewItems(userId, dueLimit, now, scope),
+    listUpcomingReviewItems(userId, cap, now, scope),
   ]);
+  /* A church's questions never crowd a Plus reader's own study: at most a few per sitting. */
   const [askableDue, askableUpcoming] = await Promise.all([
-    filterAskableReviewRows(userId, due, { dropUnaskable: true }),
-    filterAskableReviewRows(userId, upcoming, { dropUnaskable: true }),
+    filterAskableReviewRows(userId, due, { dropUnaskable: true }).then((rows) => capChurchShare(rows, scope)),
+    filterAskableReviewRows(userId, upcoming, { dropUnaskable: true }).then((rows) => capChurchShare(rows, scope)),
   ]);
   const withKey = (row: ReviewItemRow) => ({ ...row, groupKey: sessionGroupKeyFor(row) });
   const common = { answered, askableDue, dueHitLimit: due.length >= dueLimit };
@@ -1570,10 +1637,11 @@ export async function composeTodaySittingFor(
 export async function listReviewItems(
   userId: string,
   status?: ReviewItemStatus,
+  scope: ReviewScope = FULL_SCOPE,
 ): Promise<ReviewItemRow[]> {
   const where = status
-    ? and(eq(ReviewItems.userId, userId), eq(ReviewItems.status, status))
-    : eq(ReviewItems.userId, userId);
+    ? and(eq(ReviewItems.userId, userId), eq(ReviewItems.status, status), reviewScopeSql(scope))
+    : and(eq(ReviewItems.userId, userId), reviewScopeSql(scope));
   return (await db
     .select()
     .from(ReviewItems)
@@ -1590,13 +1658,22 @@ export async function listReviewItems(
  * down. Only ever read when there is nothing due, so a normal sitting pays nothing for it, and
  * it runs straight down the index the inbox already uses.
  */
-export async function nextScheduledReviewAt(userId: string, now: Date = new Date()): Promise<Date | null> {
+export async function nextScheduledReviewAt(
+  userId: string,
+  now: Date = new Date(),
+  scope: ReviewScope = FULL_SCOPE,
+): Promise<Date | null> {
   const row = first(
     await db
       .select({ dueAt: ReviewItems.dueAt })
       .from(ReviewItems)
       .where(
-        and(eq(ReviewItems.userId, userId), eq(ReviewItems.status, 'active'), gt(ReviewItems.dueAt, now)),
+        and(
+          eq(ReviewItems.userId, userId),
+          eq(ReviewItems.status, 'active'),
+          gt(ReviewItems.dueAt, now),
+          reviewScopeSql(scope),
+        ),
       )
       .orderBy(ReviewItems.dueAt)
       .limit(1),
@@ -1604,12 +1681,21 @@ export async function nextScheduledReviewAt(userId: string, now: Date = new Date
   return row?.dueAt ? new Date(row.dueAt) : null;
 }
 
-export async function getReviewItem(userId: string, id: string): Promise<ReviewItemRow | null> {
+/**
+ * One item, if this reader may act on it in this scope. A church-only reader cannot reach their
+ * own (Plus) rows through here — otherwise a lapsed subscriber connected to a church would keep
+ * reviewing their own study for free — and nobody reaches a church row they no longer hold.
+ */
+export async function getReviewItem(
+  userId: string,
+  id: string,
+  scope: ReviewScope = FULL_SCOPE,
+): Promise<ReviewItemRow | null> {
   const row = first(
     await db
       .select()
       .from(ReviewItems)
-      .where(and(eq(ReviewItems.id, id), eq(ReviewItems.userId, userId)))
+      .where(and(eq(ReviewItems.id, id), eq(ReviewItems.userId, userId), reviewScopeSql(scope)))
       .limit(1),
   );
   return (row as ReviewItemRow | undefined) ?? null;
@@ -1640,8 +1726,18 @@ export function reviewSourceKey(input: {
   secondaryNoteId?: string | null;
   studyThreadEntryId?: string | null;
   scriptureReference?: string | null;
+  /** A church exercise's id. Wins over every other field, whatever the kind. */
+  churchExerciseId?: string | null;
 }): string | null {
+  /*
+   * A church item is keyed by the church's exercise, never by the passage: `church:<id>` sits
+   * beside the reader's own `verse:john 3:16`, so a church asking about a verse the reader
+   * already reviews neither collides with nor takes over the reader's own row.
+   */
+  if (input.churchExerciseId) return `church:${input.churchExerciseId}`;
   switch (input.kind) {
+    case 'church':
+      return null;
     case 'note':
     case 'thread':
       return input.noteId ? `${input.kind}:${input.noteId}` : null;
@@ -2005,6 +2101,11 @@ export async function applyReviewOutcome(
     graded: answered.graded ?? null,
   }, now);
 
+  // "Answered by N" — once per person, on their first finalized answer. A count, never who.
+  if (item.churchExerciseId) {
+    void countChurchAnswer(item).catch((error) => console.warn('[church-review] answered count', error));
+  }
+
   if (outcome === 'recalled') {
     for (const id of [item.noteId, item.secondaryNoteId]) {
       if (id) await recordNoteRecallEngaged(userId, id);
@@ -2247,6 +2348,8 @@ export interface ReviewRevealPayload {
    * client holding a record of exactly which word was falsified.
    */
   altered?: { tokens: string[] } | null;
+  /** A church's matching question: both columns, shuffled. Never which goes with which. */
+  match?: { left: string[]; right: string[] } | null;
 }
 
 /**
@@ -3812,6 +3915,11 @@ export async function askedRungFor(
   const kind = item.kind as ReviewItemKind;
   if (!isReviewAskableKind(kind)) return null;
 
+  if (kind === 'church') {
+    const definition = await loadChurchQuestion(item);
+    return definition ? pickPromptKey('church', item.reviewCount, 0, item.id, undefined, undefined, definition.kind) : null;
+  }
+
   if (kind === 'note') {
     if (!item.noteId) return null;
     const material = (await loadNoteMaterial(userId, [item.noteId])).get(item.noteId);
@@ -3836,7 +3944,7 @@ export async function askedRungFor(
 export async function gradeAnswerFor(
   userId: string,
   item: ReviewItemRow,
-  answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[]; text?: string; promptKey?: string },
+  answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[]; text?: string; promptKey?: string; pairs?: number[] },
 ): Promise<GradedAnswer | null> {
   switch (item.kind) {
     case 'note':
@@ -3845,9 +3953,69 @@ export async function gradeAnswerFor(
       return gradeVerseAnswer(userId, item, answer);
     case 'chapter':
       return gradeChapterAnswer(userId, item, answer);
+    case 'church':
+      return gradeChurchAnswer(item, answer);
     default:
       return null;
   }
+}
+
+/** The definition behind a `church` item, if it can still be asked. */
+async function loadChurchQuestion(item: ReviewItemRow): Promise<ChurchExerciseDefinition | null> {
+  if (item.kind !== 'church' || !item.churchExerciseId) return null;
+  const definition = (await loadChurchExerciseDefinitions([item.churchExerciseId])).get(item.churchExerciseId);
+  return churchQuestionIsAskable(definition) ? definition! : null;
+}
+
+/**
+ * The church question as this reader is shown it, rebuilt from the item's seed — so the list,
+ * the reveal and the grader agree on which option is where without anything being stored.
+ */
+function buildChurchQuestion(definition: ChurchExerciseDefinition, item: ReviewItemRow) {
+  const seed = reviewSeed(item);
+  const content = definition.content;
+  if (!content) return null;
+  if (definition.kind === 'choice' && 'correctIndex' in content) {
+    return { kind: 'choice' as const, exercise: buildChurchChoice(content, seed), content };
+  }
+  if (definition.kind === 'order' && 'items' in content) {
+    return { kind: 'order' as const, exercise: buildChurchOrder(content, seed), content };
+  }
+  if (definition.kind === 'match' && 'pairs' in content) {
+    return { kind: 'match' as const, exercise: buildChurchMatch(content, seed), content };
+  }
+  return null;
+}
+
+/**
+ * Marked against the church's own key. The right answer is named only for a wrong final
+ * answer, the way every other rung does it; for ordering and matching it is spelled out.
+ */
+export async function gradeChurchAnswer(
+  item: ReviewItemRow,
+  answer: { order?: number[]; option?: string; pairs?: number[] },
+): Promise<GradedAnswer | null> {
+  const definition = await loadChurchQuestion(item);
+  if (!definition) return null;
+  const built = buildChurchQuestion(definition, item);
+  if (!built) return null;
+  if (built.kind === 'choice' && typeof answer.option === 'string') {
+    return {
+      correct: gradeChurchChoice(built.exercise, answer.option),
+      correctAnswer: built.exercise.options[built.exercise.answerIndex] ?? null,
+    };
+  }
+  if (built.kind === 'order' && Array.isArray(answer.order)) {
+    const marked = markChurchOrder(built.exercise, answer.order);
+    return { correct: marked.correct, correctAnswer: churchExerciseTruth(built.content), parts: marked.parts };
+  }
+  if (built.kind === 'match') {
+    const pairs = parseChurchMatchAnswer(answer.pairs, built.exercise.right.length);
+    if (!pairs) return null;
+    const marked = markChurchMatch(built.exercise, pairs);
+    return { correct: marked.correct, correctAnswer: churchExerciseTruth(built.content), parts: marked.parts };
+  }
+  return null;
 }
 
 /** What the reader sees after they answer, or after they give up and open it. */
@@ -4116,6 +4284,19 @@ export async function buildReviewReveal(
     const built = await buildNoteExercise(userId, item);
     // The options, and never `answerIndex`.
     payload.noteChoice = built ? { options: built.exercise.options } : null;
+  }
+
+  /*
+   * A church's question, on the cards the dock already has: options on the choice card, pieces
+   * on the ordering card, two columns on the matching card. Never `answerIndex`, `order` or
+   * `key` — the church's answer stays on the server like every other.
+   */
+  if (item.kind === 'church') {
+    const definition = await loadChurchQuestion(item);
+    const built = definition ? buildChurchQuestion(definition, item) : null;
+    if (built?.kind === 'choice') payload.choice = { options: built.exercise.options, opening: false };
+    if (built?.kind === 'order') payload.sequence = { phrases: built.exercise.phrases };
+    if (built?.kind === 'match') payload.match = { left: built.exercise.left, right: built.exercise.right };
   }
 
   /*

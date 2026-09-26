@@ -25,6 +25,8 @@ const ALLOWED_PENDING_PATHS = [
    * installable and this is the path most new readers arrive by.
    */
   /^\/discover\/[A-Za-z0-9_-]+\/?$/,
+  /** A church's join link → sign-up → back, to connect to the church they scanned. */
+  /^\/churches\/join\/[A-Za-z0-9_-]+\/?$/,
   /** Marketing / pricing → Harvous Plus checkout after sign-in or sign-up. */
   /^\/upgrade\/?$/,
   /** Legacy upgrade alias. */

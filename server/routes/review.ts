@@ -21,6 +21,8 @@ import {
 import { Hono, type Context } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { requireFeature } from '../middleware/require-feature';
+import { requireReviewAccess, reviewScopeOf } from '../utils/review-access';
+import { refillChurchReviewQueue } from '../utils/church-review-delivery';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import { isReviewTableMissing } from '../utils/pg-undefined-relation';
@@ -117,7 +119,7 @@ function readerDayStart(c: Context, now: Date): Date | null {
  * mode is an escalating "27 due" badge, and the honest way to avoid it is not to send the
  * number to the client at all: a count that exists in the payload eventually gets rendered.
  */
-route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('review'), async (c) => {
+route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireReviewAccess(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const now = new Date();
@@ -131,7 +133,12 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
      * handful a day, so nine opens in ten it was half a second of work that changed nothing.
      * What it adds is in the next read.
      */
-    void refillReviewQueue(auth.userId, now).catch(() => {});
+    const scope = reviewScopeOf(c);
+    // The engine tops up a reader's *own* study, which a church-only reader does not have here.
+    if (scope.access === 'full') void refillReviewQueue(auth.userId, now).catch(() => {});
+    /* Awaited, unlike the engine: a follower's first open would otherwise be empty until the next
+       read. Bounded (a few indexed reads, once a minute per reader) and it never throws. */
+    await refillChurchReviewQueue(auth.userId, now);
 
     /*
      * Fetch, then drop, then cut — in that order, and only then build. That order lives in
@@ -144,6 +151,7 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
       cap: REVIEW_INBOX_MAX_ROWS,
       slack: REVIEW_INBOX_UNASKABLE_SLACK,
       now,
+      scope,
     });
     const built = await buildReviewItemViews(auth.userId, sitting.rows, { dropUnaskable: true });
     const items = built.slice(0, REVIEW_INBOX_MAX_ROWS);
@@ -169,10 +177,13 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
      * how it was reported, three times, by someone who could see the feature existed and had
      * never been shown a single item.
      */
-    const coldStart = items.length === 0 ? await engineColdStartFor(auth.userId, now) : null;
+    const coldStart = items.length === 0 && scope.access === 'full' ? await engineColdStartFor(auth.userId, now) : null;
 
     return c.json({
       success: true,
+      /* Which Review this is: everything (Plus), or a church's questions only. The client never
+         derives it — a church-only reader has no Plus flag, and the section must still show. */
+      access: scope.access,
       items,
       /* `built`, not `askable`: the build applies one drop rule the filter cannot, so the count
          that answers "is there more" has to be the built one. See the note above the cut. */
@@ -204,7 +215,7 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
  *
  * Additive: no parameter means the old payload, so every existing consumer is untouched.
  */
-route.get('/api/review/items', requireAuth, rateLimit('read'), requireFeature('review'), async (c) => {
+route.get('/api/review/items', requireAuth, rateLimit('read'), requireReviewAccess(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const statusParam = c.req.query('status');
@@ -220,6 +231,7 @@ route.get('/api/review/items', requireAuth, rateLimit('read'), requireFeature('r
     const rows = await listReviewItems(
       auth.userId,
       statusParam && isReviewItemStatus(statusParam) ? statusParam : undefined,
+      reviewScopeOf(c),
     );
     if (viewParam === 'summary') {
       const items = await buildReviewItemSummaries(auth.userId, rows, { dropUnaskable: true });
@@ -241,7 +253,7 @@ route.get('/api/review/items', requireAuth, rateLimit('read'), requireFeature('r
  * the backlog anxiety the doc rules out wearing a different hat. Whatever is left is still
  * there tomorrow, and tomorrow is when it should be asked about.
  */
-route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature('review'), async (c) => {
+route.get('/api/review/session', requireAuth, rateLimit('read'), requireReviewAccess(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const now = new Date();
@@ -255,7 +267,9 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
      * read is in the next sitting. A sitting is a fixed set on purpose; one composed a beat before
      * the engine finished is the same thing it always was.
      */
-    void refillReviewQueue(auth.userId, now).catch(() => {});
+    const scope = reviewScopeOf(c);
+    if (scope.access === 'full') void refillReviewQueue(auth.userId, now).catch(() => {});
+    await refillChurchReviewQueue(auth.userId, now);
     /*
      * Composed exactly as the inbox is, through the same function — including the day's budget,
      * which is what makes a sitting able to end. Without it the dock refilled from the same pool
@@ -268,6 +282,7 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
       cap: REVIEW_SESSION_CAP,
       slack: REVIEW_INBOX_UNASKABLE_SLACK,
       now,
+      scope,
     });
     const rows = sitting.rows;
     /*
@@ -304,10 +319,11 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
      * rather than leaving the reader to wonder whether it broke. Only on the empty path: a
      * sitting with work in it pays nothing for a line it will not show.
      */
-    const nextDueAt = items.length === 0 ? await nextScheduledReviewAt(auth.userId) : null;
+    const nextDueAt = items.length === 0 ? await nextScheduledReviewAt(auth.userId, now, scope) : null;
 
     return c.json({
       success: true,
+      access: scope.access,
       items,
       reveals,
       ...(firstReveal ? { firstReveal } : {}),
@@ -328,10 +344,10 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
  * More to the point, the request itself is the signal: fetching this is what "I need to see
  * it" means, and the outcome recorded afterwards depends on whether it happened first.
  */
-route.get('/api/review/items/:id/reveal', requireAuth, rateLimit('read'), requireFeature('review'), async (c) => {
+route.get('/api/review/items/:id/reveal', requireAuth, rateLimit('read'), requireReviewAccess(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '');
+    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '', reviewScopeOf(c));
     if (!item) return c.json({ error: 'Review item not found', code: 'REVIEW_ITEM_NOT_FOUND' }, 404);
     const reveal = await buildReviewReveal(auth.userId, item);
     return c.json({ success: true, ...reveal });
@@ -376,10 +392,10 @@ route.post('/api/review/items', requireAuth, rateLimit('write'), requireFeature(
   }
 });
 
-route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), requireFeature('review'), async (c) => {
+route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), requireReviewAccess(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '');
+    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '', reviewScopeOf(c));
     if (!item) return c.json({ error: 'Review item not found', code: 'REVIEW_ITEM_NOT_FOUND' }, 404);
 
     const body = await c.req.json();
@@ -414,6 +430,11 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
               ? body.answer.order.filter((v: unknown) => Number.isInteger(v)).slice(0, 12)
               : undefined,
             option: typeof body.answer.option === 'string' ? body.answer.option : undefined,
+            // A church matching question: for each left row, the right index chosen. Validated
+            // against the exercise's size by the grader.
+            pairs: Array.isArray(body.answer.pairs)
+              ? body.answer.pairs.filter((v: unknown) => Number.isInteger(v)).slice(0, 6)
+              : undefined,
             // Which word the reader pointed at. Sanitised to an integer here rather than
             // trusted: it indexes a token array on the server.
             wordIndex: Number.isInteger(body.answer.wordIndex)
@@ -650,10 +671,10 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
   }
 });
 
-route.post('/api/review/items/:id/defer', requireAuth, rateLimit('write'), requireFeature('review'), async (c) => {
+route.post('/api/review/items/:id/defer', requireAuth, rateLimit('write'), requireReviewAccess(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '');
+    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '', reviewScopeOf(c));
     if (!item) return c.json({ error: 'Review item not found', code: 'REVIEW_ITEM_NOT_FOUND' }, 404);
     const updated = await deferReviewItem(auth.userId, item);
     return c.json({ success: true, dueAt: updated.dueAt.toISOString() });
@@ -675,10 +696,10 @@ route.post('/api/review/items/:id/defer', requireAuth, rateLimit('write'), requi
  * Nothing here invalidates a query. The sitting is a fixed set of questions on purpose, and
  * quieting takes effect the next time one is composed.
  */
-route.post('/api/review/items/:id/feedback', requireAuth, rateLimit('write'), requireFeature('review'), async (c) => {
+route.post('/api/review/items/:id/feedback', requireAuth, rateLimit('write'), requireReviewAccess(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '');
+    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '', reviewScopeOf(c));
     if (!item) return c.json({ error: 'Review item not found', code: 'REVIEW_ITEM_NOT_FOUND' }, 404);
 
     const body = await c.req.json();
@@ -710,10 +731,10 @@ route.post('/api/review/items/:id/feedback', requireAuth, rateLimit('write'), re
   }
 });
 
-route.post('/api/review/items/:id/status', requireAuth, rateLimit('write'), requireFeature('review'), async (c) => {
+route.post('/api/review/items/:id/status', requireAuth, rateLimit('write'), requireReviewAccess(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '');
+    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '', reviewScopeOf(c));
     if (!item) return c.json({ error: 'Review item not found', code: 'REVIEW_ITEM_NOT_FOUND' }, 404);
 
     const body = await c.req.json();

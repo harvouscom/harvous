@@ -12,6 +12,8 @@ export interface CreateMinistryChannelBody {
   color?: string;
   description?: string | null;
   coverVariant?: number;
+  /** The ministry it belongs to; null is church-wide. Omitted, the server picks for a scoped teacher. */
+  ministryId?: string | null;
 }
 
 interface CreateMinistryChannelResponse {

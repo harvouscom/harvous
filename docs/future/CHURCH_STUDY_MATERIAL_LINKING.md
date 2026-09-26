@@ -45,8 +45,8 @@ because a claim can target any plan row (Youth's Wednesday, not only the church'
 **`channelSpaceId` is gone** (removed Aug 2026, ahead of the timeline this doc
 originally set). It was surfacing an orphaned "Study material in <channel>" line under
 the This Sunday card, and once a channel could carry its own teaching plan the pointer
-was competing with the real thing. Column, staff picker, and congregant link all deleted;
-nothing has replaced it yet, and the inversion below is what will.
+was competing with the real thing. Column, staff picker, and congregant link all deleted,
+and the inversion below replaced them (`ChurchServicePublishedNotes`, built Aug 2026).
 
 ---
 

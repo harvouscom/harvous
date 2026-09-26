@@ -183,6 +183,7 @@ import {
   NOTE_EXPANDED_SOURCE,
   THREAD_NAMED_SOURCE,
 } from '@/utils/study-bible-source-copy';
+import { CONTENT_APPROVAL_REQUIRED_CODE, contentApprovalRequired } from '../utils/church-content';
 const route = new Hono();
 
 /**
@@ -514,6 +515,17 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       }
       if (contentEncrypted && targetSpaceAccess.space.type !== 'personal') {
         return c.json({ error: "Locked notes can't be created in shared spaces", code: 'LOCKED_NOTE_IN_SHARED_SPACE' }, 400);
+      }
+      // Straight into a church channel is publishing — and with approval on, not theirs to do.
+      if (
+        targetSpaceAccess.space.type === 'public' &&
+        targetSpaceAccess.space.orgId &&
+        (await contentApprovalRequired(auth.userId, targetSpaceAccess.space.orgId))
+      ) {
+        return c.json(
+          { error: 'Your church reviews channel posts first. Submit it for approval.', code: CONTENT_APPROVAL_REQUIRED_CODE },
+          409,
+        );
       }
     }
 

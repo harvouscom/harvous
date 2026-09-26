@@ -39,6 +39,8 @@ import { Hono } from 'hono';
 import {
   db,
   first,
+  ChurchMinistries,
+  ChurchMinistryStaff,
   Notes,
   NoteTemplates,
   Spaces,
@@ -58,8 +60,10 @@ import { handleAPIError } from '@/utils/error-handling';
 import {
   capabilitiesForChurchRole,
   isAssignableChurchRole,
+  isMinistryScopableRole,
   ROLE_ADMIN,
 } from '../utils/church-role-capabilities';
+import { isPgUndefinedRelation } from '../utils/pg-undefined-relation';
 import { stripHtmlForCard } from '@/utils/html-stripper';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
 import {
@@ -86,6 +90,11 @@ import {
   resolveViewerServiceNotes,
 } from '../utils/church-teaching-plan';
 import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
+import {
+  channelAudienceAllows,
+  loadAudienceViewer,
+  reconcileViewerChannelAudience,
+} from '../utils/church-channel-audience';
 import {
   churchClockNow,
   listServiceTimesForChurch,
@@ -157,6 +166,17 @@ function serviceGraceWindowStart(): string {
 }
 
 /** The caller's home church, or null when they haven't connected one. */
+/** Drop someone's ministry scope. Harmless on a database without the table yet. */
+async function clearMinistryScope(orgId: string, userId: string): Promise<void> {
+  try {
+    await db
+      .delete(ChurchMinistryStaff)
+      .where(and(eq(ChurchMinistryStaff.orgId, orgId), eq(ChurchMinistryStaff.userId, userId)));
+  } catch (error) {
+    if (!isPgUndefinedRelation(error, 'ChurchMinistryStaff')) throw error;
+  }
+}
+
 async function getConnectedChurch(userId: string): Promise<ChurchRow | null> {
   const meta = first(
     await db
@@ -181,9 +201,54 @@ async function listOrgChannels(orgId: string) {
       orgId: Spaces.orgId,
       publishCadence: Spaces.publishCadence,
       isActive: Spaces.isActive,
+      ministryId: Spaces.ministryId,
+      audience: Spaces.audience,
     })
     .from(Spaces)
     .where(and(eq(Spaces.orgId, orgId), eq(Spaces.type, 'public'), isNull(Spaces.deletedAt)));
+}
+
+/**
+ * The church's live ministries for a congregant, each with the channels in it and the church
+ * groups in it that *this viewer* is in — never anyone else's groups. Empty on a database
+ * without the table yet, which is a church with no ministries.
+ */
+async function listMinistriesForViewer(
+  orgId: string,
+  userId: string,
+  channels: readonly { id: string; ministryId: string | null }[],
+) {
+  try {
+    const [ministries, myGroups] = await Promise.all([
+      db
+        .select({ id: ChurchMinistries.id, name: ChurchMinistries.name, sortOrder: ChurchMinistries.sortOrder })
+        .from(ChurchMinistries)
+        .where(and(eq(ChurchMinistries.orgId, orgId), isNull(ChurchMinistries.archivedAt))),
+      db
+        .select({ spaceId: Spaces.id, ministryId: Spaces.ministryId })
+        .from(SpaceMemberships)
+        .innerJoin(Spaces, eq(Spaces.id, SpaceMemberships.spaceId))
+        .where(
+          and(
+            eq(SpaceMemberships.userId, userId),
+            eq(Spaces.orgId, orgId),
+            eq(Spaces.type, 'shared'),
+            isNull(Spaces.deletedAt),
+          ),
+        ),
+    ]);
+    return ministries
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+      .map((ministry) => ({
+        id: ministry.id,
+        name: ministry.name,
+        channelIds: channels.filter((c) => c.ministryId === ministry.id).map((c) => c.id),
+        myGroupIds: myGroups.filter((g) => g.ministryId === ministry.id).map((g) => g.spaceId),
+      }));
+  } catch (error) {
+    if (isPgUndefinedRelation(error, 'ChurchMinistries')) return [];
+    throw error;
+  }
 }
 
 // ─── GET /api/church/channels ───────────────────────────────────────────────
@@ -202,7 +267,15 @@ app.get('/api/church/channels', requireAuth, async (c) => {
     }
 
     const sponsorship = churchSponsorship(church);
-    const channels = (await listOrgChannels(church.orgId)).filter((space) => space.isActive);
+    // A follow they no longer qualify for goes before the list reads follows back.
+    await reconcileViewerChannelAudience(auth.userId, church.orgId);
+    const active = (await listOrgChannels(church.orgId)).filter((space) => space.isActive);
+    /* Restricted channels are listed only to their audience — never "this exists, but not for
+       you". The viewer is loaded only when the church restricts anything. */
+    const viewer = active.some((space) => space.audience !== 'church')
+      ? await loadAudienceViewer(auth.userId, church.orgId)
+      : null;
+    const channels = viewer ? active.filter((space) => channelAudienceAllows(space, viewer)) : active;
 
     if (channels.length === 0) {
       return c.json({
@@ -237,6 +310,7 @@ app.get('/api/church/channels', requireAuth, async (c) => {
           title: space.title,
           description: space.description,
           color: space.color,
+          ministryId: space.ministryId ?? null,
           role,
           isFollowing: role === 'member',
           // Staff already reach their channels through the hub's staff lane;
@@ -255,6 +329,7 @@ app.get('/api/church/channels', requireAuth, async (c) => {
       church: { id: church.id, name: church.name, orgId: church.orgId },
       sponsorship,
       channels: payload,
+      ministries: await listMinistriesForViewer(church.orgId, auth.userId, channels),
     });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -271,7 +346,7 @@ app.get('/api/church/channels', requireAuth, async (c) => {
  * the caller's *own* connected church. Without that check any signed-in user
  * could follow any church's channel by guessing a space id.
  */
-async function resolveFollowTarget(userId: string, spaceId: string) {
+async function resolveFollowTarget(userId: string, spaceId: string, intent: 'follow' | 'unfollow') {
   const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
   if (!space || space.deletedAt || !isMinistryBroadcastSpaceRow(space)) {
     return { ok: false as const, status: 404 as const, code: 'CHANNEL_NOT_FOUND', error: 'Ministry channel not found' };
@@ -284,13 +359,19 @@ async function resolveFollowTarget(userId: string, spaceId: string) {
     return { ok: false as const, status: 404 as const, code: 'CHANNEL_NOT_FOUND', error: 'Ministry channel not found' };
   }
 
+  /* Outside a restricted channel's audience reads exactly like a channel that doesn't exist.
+     Follow only: leaving must always work. */
+  if (intent === 'follow' && space.audience !== 'church' && !channelAudienceAllows(space, await loadAudienceViewer(userId, church.orgId))) {
+    return { ok: false as const, status: 404 as const, code: 'CHANNEL_NOT_FOUND', error: 'Ministry channel not found' };
+  }
+
   return { ok: true as const, space, church };
 }
 
 app.post('/api/church/channels/:spaceId/follow', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const target = await resolveFollowTarget(auth.userId, c.req.param('spaceId') ?? '');
+    const target = await resolveFollowTarget(auth.userId, c.req.param('spaceId') ?? '', 'follow');
     if (!target.ok) return c.json({ error: target.error, code: target.code }, target.status);
 
     // New follows require a sponsored church; existing follows keep reading.
@@ -318,7 +399,7 @@ app.post('/api/church/channels/:spaceId/follow', requireAuth, rateLimit('write')
 app.post('/api/church/channels/:spaceId/unfollow', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const target = await resolveFollowTarget(auth.userId, c.req.param('spaceId') ?? '');
+    const target = await resolveFollowTarget(auth.userId, c.req.param('spaceId') ?? '', 'unfollow');
     if (!target.ok) return c.json({ error: target.error, code: target.code }, target.status);
 
     // No sponsorship check: leaving must always work, even for a lapsed church.
@@ -356,6 +437,7 @@ app.get('/api/church/feed', requireAuth, rateLimit('read'), async (c) => {
 
     const church = await getConnectedChurch(auth.userId);
     if (!church) return c.json({ connected: false, items: [] });
+    await reconcileViewerChannelAudience(auth.userId, church.orgId);
 
     // Followed channels only — a 'member' row on a ministry space of this church.
     const followed = await db
@@ -995,6 +1077,8 @@ app.post('/api/church/staff/remove', requireAuth, rateLimit('write'), async (c) 
     }
 
     await removeClerkOrgMember(ctx.church.orgId, targetUserId);
+    // Their ministry scope goes with them, so re-adding them later starts church-wide.
+    await clearMinistryScope(ctx.church.orgId, targetUserId);
     // Reconcile immediately; their leader rows are gone before the response.
     const sync = await syncChurchStaffForOrg(ctx.church.orgId);
 
@@ -1077,6 +1161,9 @@ app.post('/api/church/staff/role', requireAuth, rateLimit('write'), async (c) =>
     }
 
     await updateClerkOrgMemberRole(ctx.church.orgId, targetUserId, nextRole);
+    /* A church-wide role (admin, pastor, coordinator) leads everything, so any ministry scope is
+       cleared rather than left to resurface if they are later moved back to teacher. */
+    if (!isMinistryScopableRole(nextRole)) await clearMinistryScope(ctx.church.orgId, targetUserId);
     // Reconcile immediately so their channel rows match the new role before the
     // response lands, the way remove does.
     const sync = await syncChurchStaffForOrg(ctx.church.orgId);

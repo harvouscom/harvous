@@ -22,6 +22,15 @@ import type { ReminderSettings } from '@/utils/reminder-settings';
 import type { ReminderVariant } from './reminder-payload';
 
 export type ReminderOutcome = 'clicked' | 'dismissed' | 'opened' | 'ignored' | null;
+/**
+ * Church pushes — "New from your church" (`church`) and the staff approval notices
+ * (`church-content`, `church-review`). None is a reminder the reader chose a cadence for, so none
+ * may count toward pausing or choosing a reminder variant.
+ */
+export function isChurchDeliveryKind(kind: string): boolean {
+  return kind === 'church' || kind.startsWith('church-');
+}
+
 export type ReminderPolicyKind = 'sunday' | 'midweek' | 'daily';
 
 export interface DeliveryRecord {
@@ -128,7 +137,7 @@ export function preferredVariant(
 ): ReminderVariant | null {
   const stats = new Map<string, { sent: number; positive: number }>();
   for (const delivery of deliveries) {
-    if (delivery.kind === 'test' || delivery.kind === 'church') continue;
+    if (delivery.kind === 'test' || isChurchDeliveryKind(delivery.kind)) continue;
     const entry = stats.get(delivery.variant) ?? { sent: 0, positive: 0 };
     entry.sent += 1;
     if (isPositive(delivery.outcome)) entry.positive += 1;
@@ -221,7 +230,7 @@ export function shouldRearm(
 /** "Opened 3 of the last 5" — the one line the settings page shows about all this. */
 export function summarizeRecentDeliveries(deliveries: readonly DeliveryRecord[]): string | null {
   // Church update pushes ride the same table but are not reminders; the line is about reminders.
-  const settled = deliveries.filter((d) => d.kind !== 'test' && d.kind !== 'church' && d.outcome !== null);
+  const settled = deliveries.filter((d) => d.kind !== 'test' && !isChurchDeliveryKind(d.kind) && d.outcome !== null);
   if (settled.length === 0) return null;
   const recent = settled
     .slice()

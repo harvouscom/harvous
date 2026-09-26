@@ -24,7 +24,7 @@ A day when **churches have organization accounts** on Harvous for **education an
 - **Use case:** “I’m leading a small group and want to share a space with them.”
 - **Docs:** [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md), [FEATURES.md](../FEATURES.md).
 
-### Layer 2: Church organization (future)
+### Layer 2: Church organization (built — see ../CHURCH_V1_SCOPE.md)
 
 - **Church org accounts:** Church has a Clerk Organization (and corresponding Harvous church/org record). Only church staff/volunteers (≤20) are Clerk org members; they publish **threads and notes** as org-level curriculum. Congregants are not added to the Clerk org.
 - **Distribution (as shipped):** Staff publish into **ministry channels** — org-owned broadcast spaces (`Spaces.type='public'` + `orgId`). Congregants connect via `UserMetadata.connectedOrgId`, then **follow** channels, which writes a `SpaceMemberships` row with `role='member'`. Only staff/volunteers (≤20) are Clerk org members. There is no inbox fan-out: the follow row *is* the subscription, and `getMemberOfSpaces` already surfaces it in navigation.
@@ -100,11 +100,14 @@ Church **billing** uses Polar (same MoR as Harvous Plus); Clerk Organizations st
 | Stage | Who pays | What members get |
 |---|---|---|
 | **Group Leader** (v1) | Leader (~$15–19/mo est.) | Join leader's **shared spaces** free; **Review** is individual ($4/mo each if they want AI from their own notes) |
-| **Church org** (future) | Church (pricing TBD) | Curriculum to connected members; multiple leader seats; optional **bulk Review seat packs** (each seat still personal) |
+| **Church org** (built, pilots) | Church ($30/mo or $216/yr, unlisted) | Curriculum to connected members; multiple leader seats; **church review exercises** free to followers (planned — ../CHURCH_V2_ROADMAP.md §B) |
 
-**Review is never shared:** AI practice is customized to each person's notes and preferences. A leader or
-church pays to **host and distribute curriculum**, not to substitute for each member's Review subscription.
-Optional church-purchased Review seats **claim** to individual accounts — same product, church as payer.
+**Review is never shared:** a person's Review — items built from their own notes, their schedule, their
+answers — stays theirs. A leader or church pays to **host and distribute curriculum**, not to substitute for
+each member's Plus subscription. **Refined Sept 2026:** a church may author review *questions* (passage
+exercises, multiple choice, ordering, matching) and its followers get those free; the church sees only
+"Answered by N", floored at five. Review seat packs are superseded. See
+[../CHURCH_V2_ROADMAP.md](../CHURCH_V2_ROADMAP.md) §B.
 
 ### Position vs Planning Center
 
@@ -120,9 +123,10 @@ where possible, and optional Review seat packs. See open decisions in MONETIZATI
 **Ladder:** Successful **Group Leader** → church connects → church adopts Harvous org account when
 curriculum + admin needs justify it.
 
-**Draft church tiers (pilot):** Church Connect (free), Church Study ($29–39), Church Study Plus
-($59–79), Church Network ($99–149), plus Review seat packs and church-wide Season Pass add-ons. Full
-detail in [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) Section 7.
+**Superseded (Sept 2026):** the draft four-tier ladder (Connect / Study / Study Plus / Network) and
+Review seat packs. The Church plan is one product at $30/mo or $216/yr (`src/lib/billing-plans.ts`),
+and church Review is exercises the church writes, free to its followers — Plus stays review of your
+own study. See [../CHURCH_V2_ROADMAP.md](../CHURCH_V2_ROADMAP.md) §B.
 
 ---
 

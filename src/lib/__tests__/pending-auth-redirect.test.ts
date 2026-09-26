@@ -47,6 +47,14 @@ describe('pending auth redirect validation', () => {
     expect(validatePendingAuthDestination('/discover/soap/edit', origin)).toBe(null);
   });
 
+  it('allows a church join link, one token only', () => {
+    expect(validatePendingAuthDestination('/churches/join/AbCdEf123456', origin)).toBe(
+      '/churches/join/AbCdEf123456',
+    );
+    expect(validatePendingAuthDestination('/churches/join/AbC/extra', origin)).toBe(null);
+    expect(validatePendingAuthDestination('/churches', origin)).toBe(null);
+  });
+
   it.each([
     'https://example.com/spaces/join/AbC123',
     'javascript:alert(1)',
