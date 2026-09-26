@@ -31,6 +31,8 @@ import { isUniqueViolation } from '../utils/db-unique-violation';
 import {
   assertChurchReviewAccess,
   assertChurchReviewChannel,
+  channelsLedBy,
+  staffLeadsChannel,
   flooredAnsweredCount,
 } from '../utils/church-review-access';
 import { loadChurchReviewSuggestions, suggestionShapeFor } from '../utils/church-review-suggestions';
@@ -147,10 +149,13 @@ app.get('/api/church/review/channels', requireAuth, async (c) => {
     const gate = await assertChurchReviewAccess(auth.userId, orgId, 'read');
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
 
-    const channels = await db
-      .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color, isActive: Spaces.isActive })
+    const all = await db
+      .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color, isActive: Spaces.isActive, ownerId: Spaces.userId })
       .from(Spaces)
       .where(and(eq(Spaces.orgId, gate.church.orgId), eq(Spaces.type, 'public'), isNull(Spaces.deletedAt)));
+    // Only the channels they lead: a ministry-scoped teacher writes their ministry's questions.
+    const led = await channelsLedBy(auth.userId, all);
+    const channels = all.filter((channel) => led.has(channel.id));
     const ids = channels.map((channel) => channel.id);
     const counts = ids.length
       ? await db
@@ -286,7 +291,9 @@ app.post('/api/church/review/exercises/update', requireAuth, rateLimit('write'),
     const gate = await assertChurchReviewAccess(auth.userId, orgId, 'write');
     if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
     const row = await loadExercise(gate.church.orgId, str(body.exerciseId));
-    if (!row || row.status === 'dismissed') return c.json({ error: 'Question not found', code: 'NOT_FOUND' }, 404);
+    if (!row || row.status === 'dismissed' || !(await staffLeadsChannel(auth.userId, row.channelSpaceId))) {
+      return c.json({ error: 'Question not found', code: 'NOT_FOUND' }, 404);
+    }
 
     // The kind is fixed at creation: an edit changes the words, not what sort of question it is.
     const valid = validateExerciseInput({ ...body, kind: row.kind, reference: body.reference ?? row.scriptureReference });
@@ -331,7 +338,9 @@ for (const action of ['publish', 'archive'] as const) {
       const gate = await assertChurchReviewAccess(auth.userId, str(body.orgId), action === 'publish' ? 'write' : 'retire');
       if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
       const row = await loadExercise(gate.church.orgId, str(body.exerciseId));
-      if (!row || row.status === 'dismissed') return c.json({ error: 'Question not found', code: 'NOT_FOUND' }, 404);
+      if (!row || row.status === 'dismissed' || !(await staffLeadsChannel(auth.userId, row.channelSpaceId))) {
+        return c.json({ error: 'Question not found', code: 'NOT_FOUND' }, 404);
+      }
 
       const now = nowISO();
       const updated = first(

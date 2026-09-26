@@ -155,18 +155,30 @@ async function resolveSpacePlanAccess(
   return { ok: true, lane: 'church', church: access.church, space };
 }
 
-/** The staff *read* of a space plan. `sermon_tools`; never sponsorship-gated. */
-export function assertCanViewSpaceTeachingPlan(
+/**
+ * The staff *read* of a space plan: `sermon_tools`, OR a granted leader of this space. Never
+ * sponsorship-gated.
+ *
+ * The grant arm mirrors the write gate below. Without it a granted volunteer could change their
+ * room's plan but got a 403 reading it — the write gate had the grant and this one didn't.
+ */
+export async function assertCanViewSpaceTeachingPlan(
   userId: string,
   spaceId: string,
 ): Promise<SpacePlanGateResult> {
-  return resolveSpacePlanAccess(userId, spaceId, {
+  const viaCapability = await resolveSpacePlanAccess(userId, spaceId, {
     capability: 'sermon_tools',
     code: 'SERMON_TOOLS_REQUIRED',
     staffError: 'Only church staff can see this plan',
     roleError: 'Your role does not include the teaching plan',
     sponsorshipGated: false,
   }, { spaceLaneWrite: false });
+  if (viaCapability.ok) return viaCapability;
+  const fellThrough =
+    viaCapability.status === 403 &&
+    (viaCapability.code === 'SERMON_TOOLS_REQUIRED' || viaCapability.code === 'CHURCH_STAFF_REQUIRED');
+  if (!fellThrough) return viaCapability;
+  return resolveGrantedLeaderAccess(userId, spaceId, viaCapability, { sponsorshipGated: false });
 }
 
 /**
@@ -229,6 +241,7 @@ async function resolveGrantedLeaderAccess(
   userId: string,
   spaceId: string,
   refusal: Extract<SpacePlanGateResult, { ok: false }>,
+  opts: { sponsorshipGated: boolean } = { sponsorshipGated: true },
 ): Promise<SpacePlanGateResult> {
   const space = first(
     await db
@@ -245,8 +258,8 @@ async function resolveGrantedLeaderAccess(
   // Belonging first — this is the staff check's seat in the order.
   if (!(await isGrantedSpaceLeader(userId, space.id))) return refusal;
 
-  // Then, and only then, the billing state.
-  if (!churchIsSponsored(church)) {
+  // Then, and only then, the billing state — for a write. Reading is never gated on it.
+  if (opts.sponsorshipGated && !churchIsSponsored(church)) {
     return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
   }
 

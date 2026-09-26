@@ -1,6 +1,6 @@
 # Church V2: Roadmap
 
-**As of September 25, 2026.** What comes after [CHURCH_V1_SCOPE.md](CHURCH_V1_SCOPE.md), and
+**As of September 26, 2026.** Lanes A, B, C and D are built and on `main` (#199, #202). What comes after [CHURCH_V1_SCOPE.md](CHURCH_V1_SCOPE.md), and
 in what order. V1 is the loop: a church registers, its staff publish into ministry channels,
 and congregants follow them, read "From your church" and take a study plan into their own study.
 This doc is the plan for turning that loop into the place a church runs its ministries'
@@ -69,7 +69,7 @@ These carry over from V1 and bind every lane below:
 
 ## A. Reach
 
-**A1, the join link and QR code (building now).** One live link per church, carrying an
+**A1, the join link and QR code (built, #199).** One live link per church, carrying an
 unguessable token (the church list stays private, so there is no slug). The link:
 
 1. shows the church and its channels before sign-up;
@@ -86,6 +86,8 @@ rotate or revoke it. The hub shows "N joined via link", a count only.
   `server/routes/church-join.ts`.
 - **Page:** `/churches/join/$token` (`PublicJoinChurchPage.tsx`).
 - **Hub:** `PrototypeChurchJoinLinkSection.tsx`.
+- **Guests:** the page parks the token and picked channels through sign-up and connects once on
+  return (`pendingChurchJoin`).
 
 **Later in A:**
 - **Invite-as-leader.** `SpaceInvites.role` is always `member` today.
@@ -95,7 +97,6 @@ rotate or revoke it. The hub shows "N joined via link", a count only.
   (`/api/shared/thread-plan/:shareToken`).
 - **Native.** Universal links for `/churches/join/*`, and a church connect in the app, which
   today sends only free-text church fields.
-- **Guests.** Park the token on the device so a guest who signs up is connected automatically.
 
 ## B. Church Review
 
@@ -112,7 +113,7 @@ person's Review: their items built from their own notes, their schedule, and the
 What a church gets to share is the *question*. The church-purchased "Review seat packs" in
 older docs are superseded by this.
 
-**B1, v1 (building after A).** Three kinds:
+**B1, v1 (built, #199).** Three kinds:
 - **Suggested passage exercises.** Harvous suggests the passages cited in a channel's notes and
   in the services and series they belong to. Staff keep or dismiss each one. Congregants get the
   existing verse and chapter ladders.
@@ -127,7 +128,9 @@ Where each piece lives:
   entitlement, because that would grant all of Plus.
 - **Delivery:** `server/utils/church-review-delivery.ts`, which has its own daily cap so church
   items cannot crowd a sitting.
-- **Staff routes:** `server/routes/church-review.ts`.
+- **Staff routes:** `server/routes/church-review.ts`. Writing, publishing and taking down need
+  the staffer to lead the channel (`staffLeadsChannel` in `server/utils/church-review-access.ts`),
+  so a ministry-scoped teacher writes only their own ministry's questions.
 
 **What staff see:** "Answered by N", with nothing shown below five people. No per-person data
 and no correctness figures.
@@ -189,19 +192,40 @@ these specifics:
 
 ## D. Content lifecycle
 
-All approved in principle; none of it is designed in detail yet.
+**Built (Sept 25 2026, #202): publish at a set time, approval before publish, and a Content
+list.**
 
-- **Status on channel material:** draft, in review, scheduled, published, archived. Today a
-  draft is held on the client in Home until it is published (`PrototypeNotePage.tsx`).
-- **Publish at a set time.** An hourly tick next to `runChurchPublishTick` flips scheduled
-  material to published.
-- **Approval before publish.** A new `review_content` capability: a teacher or volunteer
-  submits, and a pastor or ministry lead approves.
-- **A church Content inventory.** Everything published across channels, with status, author,
-  channel or ministry, dates, per-item counts and bulk actions.
-- **Planner content becomes published material.** Rows with `ChurchServices.kind='content'`
-  still have no congregant-facing reader (`schema.ts`, and
-  `docs/future/CHURCH_STUDY_MATERIAL_LINKING.md`).
+- **The one rule:** a note is live in a channel exactly when it has a `SpaceNotes` row, and
+  about thirty readers rely on that. So nothing waits as a half-live row. Material that is
+  scheduled or waiting for approval is a `ChurchContentSubmissions` row. The note stays in its
+  author's My Home until it goes live through the ordinary publish
+  (`associateAuthoredNoteWithSpace`, as the author).
+- **Statuses:** `in_review`, `scheduled`, `published`, `declined`, `withdrawn`, `failed`
+  (`server/utils/church-content.ts`).
+- **Publish at a set time:** a five-minute tick on the Fly process (`runChurchContentTick` in
+  `server/scheduler.ts`), not hourly, so "Sunday 8:00" means 8:00. Each submission is claimed in
+  the same transaction as its publish.
+- **Approval:**
+  - `Churches.contentApproval` is off by default and set in Church settings.
+  - When it's on, anyone without `review_content` submits instead of publishing. That is
+    teachers and plain staff; admins, pastors and coordinators hold the capability.
+  - `add-note` and create-into-channel refuse them with `CONTENT_APPROVAL_REQUIRED`.
+  - Approval is church-wide only: a ministry-scoped teacher never holds `review_content`, so
+    there is no approval by a ministry lead.
+- **Content list:** a hub tool (`PrototypeExpandedChurchContent.tsx`) listing what needs your
+  approval, what's waiting, scheduled, came back and recently published. Its pane has approve
+  (optionally for a time), decline with a note, reschedule, publish now and unschedule.
+- **Scheduling from the note:** a clock beside each church channel in the note's destination
+  menu.
+
+**Still open in D:**
+- A server-side draft state and an archived state.
+- Bulk actions and per-item counts in the Content list.
+- Filtering the list by ministry.
+- Native handling of `CONTENT_APPROVAL_REQUIRED`; all native church work is deferred.
+- **Planner content becomes published material.** A `kind='content'` entry already reaches
+  followers' Home as a card, but its note isn't attached. Next: schedule the entry's note for
+  its date, and claim the entry through `ChurchServicePublishedNotes` when it publishes.
 
 ## E. Group leader kit
 
