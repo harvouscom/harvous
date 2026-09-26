@@ -28,6 +28,7 @@ import {
   ResourceLibraries,
   LibraryItems,
   LibraryItemScopes,
+  ChurchMinistries,
   SpaceMemberships,
   Spaces,
   Churches,
@@ -42,8 +43,8 @@ type LibraryRow = typeof ResourceLibraries.$inferSelect;
 export type LibraryItemRow = typeof LibraryItems.$inferSelect;
 export type LibraryItemScopeRow = typeof LibraryItemScopes.$inferSelect;
 
-/** Only the two the routes will write. `'ministry'` is schema-only — see schema.ts. */
-export const WRITABLE_SCOPE_KINDS = ['org', 'space'] as const;
+/** What the routes write. `'ministry'` carries a `ChurchMinistries.id` in `ministryKey`. */
+export const WRITABLE_SCOPE_KINDS = ['org', 'space', 'ministry'] as const;
 export type WritableScopeKind = (typeof WRITABLE_SCOPE_KINDS)[number];
 
 /**
@@ -304,14 +305,29 @@ export async function assertCanManageSpaceLibrary(
   };
 }
 
-/** Every church-org space the caller belongs to — the space scopes they can see. */
-async function memberSpaceIdsForChurch(userId: string, orgId: string): Promise<string[]> {
+/**
+ * Every church-org space the caller belongs to — the space scopes they can see — and the live
+ * ministries those spaces are in, which are the ministry scopes they can see. Belonging to a
+ * ministry is being in one of its groups or following one of its channels; an archived ministry
+ * counts for nobody.
+ */
+async function memberScopesForChurch(
+  userId: string,
+  orgId: string,
+): Promise<{ memberSpaceIds: string[]; memberMinistryIds: string[] }> {
   const rows = await db
-    .select({ spaceId: SpaceMemberships.spaceId })
+    .select({ spaceId: SpaceMemberships.spaceId, ministryId: Spaces.ministryId })
     .from(SpaceMemberships)
     .innerJoin(Spaces, eq(Spaces.id, SpaceMemberships.spaceId))
     .where(and(eq(SpaceMemberships.userId, userId), eq(Spaces.orgId, orgId), isNull(Spaces.deletedAt)));
-  return rows.map((r) => r.spaceId);
+  const ministryIds = [...new Set(rows.map((r) => r.ministryId).filter((id): id is string => Boolean(id)))];
+  const live = ministryIds.length
+    ? await db
+        .select({ id: ChurchMinistries.id })
+        .from(ChurchMinistries)
+        .where(and(inArray(ChurchMinistries.id, ministryIds), eq(ChurchMinistries.orgId, orgId), isNull(ChurchMinistries.archivedAt)))
+    : [];
+  return { memberSpaceIds: rows.map((r) => r.spaceId), memberMinistryIds: live.map((m) => m.id) };
 }
 
 export type ChurchLibraryViewer =
@@ -321,6 +337,8 @@ export type ChurchLibraryViewer =
       church: { id: string; name: string; orgId: string };
       /** Space ids whose scoped items this viewer may see. */
       memberSpaceIds: string[];
+      /** Live ministries this viewer belongs to, through a group or a followed channel. */
+      memberMinistryIds: string[];
       /** Staff and granted leaders see `access: 'leaders'` items. */
       seesLeaderOnly: boolean;
     };
@@ -346,10 +364,12 @@ export async function resolveChurchLibraryViewer(userId: string): Promise<Church
   if (!church) return { kind: 'none' };
 
   const staff = await assertCanViewChurchLibrary(userId, orgId);
+  const { memberSpaceIds, memberMinistryIds } = await memberScopesForChurch(userId, orgId);
   return {
     kind: staff.ok ? 'staff' : 'congregant',
     church,
-    memberSpaceIds: await memberSpaceIdsForChurch(userId, orgId),
+    memberSpaceIds,
+    memberMinistryIds,
     seesLeaderOnly: staff.ok,
   };
 }
@@ -362,9 +382,10 @@ export async function resolveChurchLibraryViewer(userId: string): Promise<Church
  * item as invisible would make the common case the broken one.
  */
 export function scopesAdmitViewer(
-  scopes: readonly LibraryItemScopeRow[],
+  scopes: readonly Pick<LibraryItemScopeRow, 'scopeKind' | 'spaceId' | 'ministryKey'>[],
   memberSpaceIds: readonly string[],
   isStaff: boolean,
+  memberMinistryIds: readonly string[] = [],
 ): boolean {
   if (scopes.length === 0) return true;
   if (scopes.some((s) => s.scopeKind === 'org')) return true;
@@ -373,7 +394,9 @@ export function scopesAdmitViewer(
      happen to have joined is not an answer. */
   if (isStaff) return true;
   return scopes.some(
-    (s) => s.scopeKind === 'space' && s.spaceId != null && memberSpaceIds.includes(s.spaceId),
+    (s) =>
+      (s.scopeKind === 'space' && s.spaceId != null && memberSpaceIds.includes(s.spaceId)) ||
+      (s.scopeKind === 'ministry' && s.ministryKey != null && memberMinistryIds.includes(s.ministryKey)),
   );
 }
 
@@ -471,7 +494,7 @@ export async function resolveVisibleItem(
   if (candidate.access === 'leaders' && !viewer.seesLeaderOnly) return null;
 
   const scopes = (await scopesByItemIds([candidate.id])).get(candidate.id) ?? [];
-  if (!scopesAdmitViewer(scopes, viewer.memberSpaceIds, viewer.seesLeaderOnly)) return null;
+  if (!scopesAdmitViewer(scopes, viewer.memberSpaceIds, viewer.seesLeaderOnly, viewer.memberMinistryIds)) return null;
 
   return candidate;
 }

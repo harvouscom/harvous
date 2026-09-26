@@ -23,6 +23,7 @@ import { Hono } from 'hono';
 import {
   db,
   first,
+  ChurchMinistries,
   and,
   eq,
   desc,
@@ -203,15 +204,30 @@ app.get('/api/spaces/:spaceId/library', requireAuth, async (c) => {
       : [];
     const pinById = new Map(pins.map((p) => [p.libraryItemId, p]));
 
+    /* The room's ministry, if live: items scoped to it reach every room in it, the way org-wide
+       items reach every room in the church. An archived ministry reaches nobody. */
+    const roomMinistryId = space.ministryId
+      ? first(
+          await db
+            .select({ id: ChurchMinistries.id })
+            .from(ChurchMinistries)
+            .where(and(eq(ChurchMinistries.id, space.ministryId), isNull(ChurchMinistries.archivedAt)))
+            .limit(1),
+        )?.id ?? null
+      : null;
+
     const visible = orgItems.filter((item) => {
       if (item.access === 'leaders' && !seesLeaderOnly) return false;
       const itemScopes = scopes.get(item.id) ?? [];
       const orgWide = itemScopes.length === 0 || itemScopes.some((s) => s.scopeKind === 'org');
+      const thisMinistry =
+        roomMinistryId != null && itemScopes.some((s) => s.scopeKind === 'ministry' && s.ministryKey === roomMinistryId);
+      const inherited = orgWide || thisMinistry;
       const thisSpace = scopedIds.includes(item.id);
-      if (!orgWide && !thisSpace) return false;
-      /* An explicit un-pin hides an org default here without editing it. */
+      if (!inherited && !thisSpace) return false;
+      /* An explicit un-pin hides an inherited default here without editing it. */
       const pin = pinById.get(item.id);
-      if (orgWide && !thisSpace && pin && !pin.pinned) return false;
+      if (inherited && !thisSpace && pin && !pin.pinned) return false;
       return true;
     });
 

@@ -2605,10 +2605,10 @@ export const LibraryItems = pgTable(
  * `scopeKind`:
  *   - `'org'`      — the whole church. `spaceId` and `ministryKey` null.
  *   - `'space'`    — one Shared Space or channel. `spaceId` set.
- *   - `'ministry'` — reserved. The column exists so the table never needs a
- *     migration, but **the write routes refuse it**: there is no ministry
- *     entity or key vocabulary anywhere in the app yet, so a free-text
- *     `ministryKey` written today would be data no read path could group by.
+ *   - `'ministry'` — one ministry. `ministryKey` holds a `ChurchMinistries.id`, validated as
+ *     a live ministry of this church on write. It reaches everyone in one of the ministry's
+ *     groups or following one of its channels, and every room in the ministry shows it on its
+ *     shelf like an org-wide default. An archived ministry reaches nobody but staff.
  *
  * Row ids: `libsc_${crypto.randomUUID()}`.
  */

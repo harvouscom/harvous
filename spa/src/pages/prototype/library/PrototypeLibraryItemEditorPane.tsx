@@ -18,6 +18,7 @@ import {
 import { useLibraryLinkPreview } from '../../../hooks/queries/useLibrary';
 import ProtoChipBar from '../components/ProtoChipBar';
 import { formatFileSize } from '../import/import-file-sources';
+import { useChurchMinistries } from '../../../hooks/queries/useChurchMinistries';
 
 type ResourceSource = 'link' | 'file';
 
@@ -151,6 +152,12 @@ export default function PrototypeLibraryItemEditorPane({
   const [spaceIds, setSpaceIds] = useState<string[]>(
     item?.scopes.filter((s) => s.scopeKind === 'space' && s.spaceId).map((s) => s.spaceId!) ?? [],
   );
+  /** A ministry reaches everyone in its groups and everyone following its channels. */
+  const [ministryIds, setMinistryIds] = useState<string[]>(
+    item?.scopes.filter((s) => s.scopeKind === 'ministry' && s.ministryId).map((s) => s.ministryId!) ?? [],
+  );
+  const ministriesQuery = useChurchMinistries(orgId);
+  const liveMinistries = (ministriesQuery.data?.ministries ?? []).filter((m) => !m.archivedAt);
   const [error, setError] = useState<string | null>(null);
 
   /* Escape closes the pane, not the whole surface — the panel's own listener
@@ -181,10 +188,20 @@ export default function PrototypeLibraryItemEditorPane({
     );
   };
 
+  const toggleMinistry = (ministryId: string) => {
+    setMinistryIds((ids) =>
+      ids.includes(ministryId) ? ids.filter((id) => id !== ministryId) : [...ids, ministryId],
+    );
+  };
+
+  const wholeChurch = spaceIds.length === 0 && ministryIds.length === 0;
   const scopePayload = () =>
-    spaceIds.length === 0
+    wholeChurch
       ? [{ scopeKind: 'org' as const, spaceId: null }]
-      : spaceIds.map((spaceId) => ({ scopeKind: 'space' as const, spaceId }));
+      : [
+          ...ministryIds.map((ministryId) => ({ scopeKind: 'ministry' as const, ministryId })),
+          ...spaceIds.map((spaceId) => ({ scopeKind: 'space' as const, spaceId })),
+        ];
 
   const canSubmit = isEditing
     ? title.trim().length > 0 && !actions.isPending
@@ -407,13 +424,13 @@ export default function PrototypeLibraryItemEditorPane({
             </button>
           </div>
 
-          {plannableSpaces.length > 0 ? (
+          {plannableSpaces.length > 0 || liveMinistries.length > 0 ? (
             <>
               <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
                 <span>Where it shows up</span>
-                {spaceIds.length > 0 ? (
+                {!wholeChurch ? (
                   <span className="proto-service-editor__optional">
-                    {spaceIds.length} selected
+                    {spaceIds.length + ministryIds.length} selected
                   </span>
                 ) : null}
               </label>
@@ -427,12 +444,27 @@ export default function PrototypeLibraryItemEditorPane({
                 <label className="proto-service-editor__slot">
                   <input
                     type="checkbox"
-                    checked={spaceIds.length === 0}
+                    checked={wholeChurch}
                     // Already the state — clicking again would leave it nowhere.
-                    onChange={() => setSpaceIds([])}
+                    onChange={() => {
+                      setSpaceIds([]);
+                      setMinistryIds([]);
+                    }}
                   />
                   <span>Whole church</span>
                 </label>
+                {/* A ministry before its rooms: it is the wider choice, and it keeps
+                    reaching the ministry's rooms as they are added. */}
+                {liveMinistries.map((ministry) => (
+                  <label key={ministry.id} className="proto-service-editor__slot">
+                    <input
+                      type="checkbox"
+                      checked={ministryIds.includes(ministry.id)}
+                      onChange={() => toggleMinistry(ministry.id)}
+                    />
+                    <span>All of {ministry.name}</span>
+                  </label>
+                ))}
                 {plannableSpaces.map((space) => (
                   <label key={space.id} className="proto-service-editor__slot">
                     <input

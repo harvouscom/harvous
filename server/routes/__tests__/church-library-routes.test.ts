@@ -95,10 +95,21 @@ describe('church library routes', () => {
     );
   });
 
-  it('refuses the ministry scope kind rather than writing unqueryable rows', () => {
+  it('writes a ministry scope only for a live ministry of this church', () => {
     const text = routes();
     expect(text).toContain('SCOPE_KIND_UNSUPPORTED');
-    expect(access()).toContain("WRITABLE_SCOPE_KINDS = ['org', 'space']");
+    expect(access()).toContain("WRITABLE_SCOPE_KINDS = ['org', 'space', 'ministry']");
+    const fn = text.slice(text.indexOf('async function resolveScopes'));
+    expect(fn).toContain('(await listMinistriesForOrg(orgId)).filter((m) => !m.archivedAt)');
+    expect(fn).toContain("'MINISTRY_NOT_FOUND'");
+    expect(text).toContain('ministryKey: scope.ministryKey');
+  });
+
+  it('counts only live ministries a viewer belongs to', () => {
+    const text = access();
+    const fn = text.slice(text.indexOf('async function memberScopesForChurch'));
+    expect(fn.slice(0, 1600)).toContain('isNull(ChurchMinistries.archivedAt)');
+    expect(fn.slice(0, 1600)).toContain('eq(ChurchMinistries.orgId, orgId)');
   });
 
   it('validates every scoped space belongs to this church', () => {
