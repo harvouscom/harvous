@@ -72,6 +72,10 @@ describe('the space dashboard', () => {
        plans. Any non-personal room can hold one now, and the endpoint behind
        this was only ever gated on membership. */
     expect(call).toContain("ministryMeta.type !== 'personal'");
-    expect(call).not.toContain('canManageThreads');
+    // The fetch is never gated on thread rights. (`canLead` may use them: it only decides
+    // whether the leaders' Agenda row shows, not whether the card asks.)
+    const enabled = /enabled=\{([^}]*)\}/.exec(call)?.[1] ?? '';
+    expect(enabled).toContain("ministryMeta.type !== 'personal'");
+    expect(enabled).not.toContain('canManageThreads');
   });
 });

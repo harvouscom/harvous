@@ -25,7 +25,10 @@ describe('leader kit on the client', () => {
     expect(control).toBeGreaterThan(-1);
     expect(branch).toBeGreaterThan(-1);
     const sheet = text.indexOf('<PrototypeStepLeaderGuideSheet');
-    expect(text.slice(text.lastIndexOf('{canManageSequence ? (', sheet), sheet)).toContain('canManageSequence');
+    const gate = text.lastIndexOf('{canManageSequence && guideStep != null ? (', sheet);
+    expect(gate).toBeGreaterThan(-1);
+    // Nothing else opens between the gate and the sheet but its lazy boundary.
+    expect(text.slice(gate, sheet).replace(/\s+/g, ' ')).toBe('{canManageSequence && guideStep != null ? ( <Suspense fallback={null}> ');
   });
 });
 
@@ -36,5 +39,11 @@ describe('agenda on the client', () => {
     const card = withoutComments(source('spa/src/pages/prototype/PrototypeSpaceComingUp.tsx'));
     expect(card).toContain('canLead = false');
     expect(card).toContain('{canLead && spaceId ? (');
+  });
+});
+
+describe('source update on the client', () => {
+  it('the banner renders only inside the manager’s branch', () => {
+    expect(drilldown()).toContain('{canManageSequence && isSequence && leaderKit.data?.sourceUpdate ? (');
   });
 });

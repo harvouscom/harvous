@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
@@ -40,7 +40,9 @@ import {
   threadPlanStatusClause,
 } from './PrototypeThreadPlanProgress';
 import PrototypeStudyPlanCopyButton, { StudyPlanCopyMenu } from './PrototypeStudyPlanCopyAction';
-import PrototypeStepLeaderGuideSheet from './PrototypeStepLeaderGuideSheet';
+/* Leaders only, so off the first paint: members never load them. */
+const PrototypeStepLeaderGuideSheet = lazy(() => import('./PrototypeStepLeaderGuideSheet'));
+const PrototypeSourceUpdateBanner = lazy(() => import('./PrototypeSourceUpdateBanner'));
 import { useStudyPlanLeaderKit } from '../../hooks/queries/useStudyPlanLeaderKit';
 import PrototypeSidebarRowMenuPopover, {
   TRIGGER_ANCHOR_MIN_WIDTH,
@@ -720,6 +722,12 @@ export default function PrototypeSharedThreadDrilldown({
         ) : null}
         {state === 'ready' ? (
           <>
+            {/* Leaders only: the church has changed the plan this group copied. */}
+            {canManageSequence && isSequence && leaderKit.data?.sourceUpdate ? (
+              <Suspense fallback={null}>
+                <PrototypeSourceUpdateBanner threadId={thread.id} update={leaderKit.data.sourceUpdate} />
+              </Suspense>
+            ) : null}
             {/* Same grouped-row card and spine the connected-notes trail wears.
                 A Thread should not look like a different feature because it was
                 opened inside a space. */}
@@ -917,7 +925,8 @@ export default function PrototypeSharedThreadDrilldown({
       viewerIsSpaceOwner={isOwner}
       onAdded={() => void notesQuery.refetch()}
     />
-    {canManageSequence ? (
+    {canManageSequence && guideStep != null ? (
+      <Suspense fallback={null}>
       <PrototypeStepLeaderGuideSheet
         open={guideStep != null}
         threadId={thread.id}
@@ -929,6 +938,7 @@ export default function PrototypeSharedThreadDrilldown({
           if (!next) setGuideStep(null);
         }}
       />
+      </Suspense>
     ) : null}
     </>
   );

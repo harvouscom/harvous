@@ -21,7 +21,7 @@
  * Renders nothing at all when the space has no plan — which is the common case,
  * and must stay silent rather than occupy a room that never gathers.
  */
-import { useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
@@ -39,7 +39,8 @@ import {
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { noteParamSlug } from './proto-route-slugs';
-import PrototypeGatheringAgendaSheet from './PrototypeGatheringAgendaSheet';
+/* Leaders only, so off the first paint. */
+const PrototypeGatheringAgendaSheet = lazy(() => import('./PrototypeGatheringAgendaSheet'));
 
 export interface PrototypeSpaceComingUpProps {
   spaceId: string | null;
@@ -290,13 +291,15 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled, canLead = fal
           </button>
         ) : null}
       </div>
-      {canLead && spaceId ? (
-        <PrototypeGatheringAgendaSheet
-          open={agendaOpen}
-          spaceId={spaceId}
-          gathering={{ id: gathering.id, title: gathering.title }}
-          onOpenChange={setAgendaOpen}
-        />
+      {canLead && spaceId && agendaOpen ? (
+        <Suspense fallback={null}>
+          <PrototypeGatheringAgendaSheet
+            open={agendaOpen}
+            spaceId={spaceId}
+            gathering={{ id: gathering.id, title: gathering.title }}
+            onOpenChange={setAgendaOpen}
+          />
+        </Suspense>
       ) : null}
     </div>
   );

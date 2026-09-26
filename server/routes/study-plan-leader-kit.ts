@@ -8,6 +8,8 @@
  *   GET  /api/threads/:threadId/leader-kit                 { guides: {noteId: {leaderNotes, questions}} }
  *   POST /api/threads/:threadId/leader-kit/steps/:noteId   { leaderNotes?, questions? } — empty deletes
  *   POST /api/threads/:threadId/leader-kit/resources/set   { noteId: string | null, itemIds } — church plans
+ *   POST /api/threads/:threadId/source-update/add-steps    { sourceNoteIds? } — a group's copy
+ *   POST /api/threads/:threadId/source-update/dismiss      { sourceNoteIds }
  *   GET  /api/spaces/:spaceId/gatherings/:serviceId/agenda
  *   POST /api/spaces/:spaceId/gatherings/:serviceId/agenda/set   { items, stepThreadId?, stepNoteId? }
  *
@@ -15,13 +17,14 @@
  * gates: a granted volunteer who runs the group runs its meetings, church role or not.
  */
 import { Hono } from 'hono';
-import { db, first, ChurchServices, GatheringAgendas, StudyPlanStepGuides, Threads, and, eq } from '../db';
+import { db, first, ChurchServices, GatheringAgendas, SpaceMemberships, StudyPlanStepGuides, Threads, and, eq } from '../db';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import { loadLiveThreadNoteIds } from '../utils/thread-sequence';
 import {
   canUseLeaderKit,
+  decideKitCarry,
   loadGuides,
   loadPlanResources,
   setPlanResources,
@@ -32,6 +35,8 @@ import {
 } from '../utils/study-plan-leader-kit';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { getActiveChurchByOrgId } from '../utils/church-staff';
+import { addUpstreamSteps, dismissUpstream, resolveSourcePlan, sourceUpdateFor } from '../utils/study-plan-source-update';
+import { broadcastInvalidation } from '../utils/realtime';
 
 /** The room and the gathering, when the viewer leads the room and the gathering is its own. */
 async function resolveAgendaAccess(userId: string, spaceId: string, serviceId: string) {
@@ -80,10 +85,21 @@ app.get('/api/threads/:threadId/leader-kit', requireAuth, async (c) => {
       loadLiveThreadNoteIds(access.thread.id, access.thread.spaceId),
     ]);
     const resources = await loadPlanResources(access.thread.id, live);
+    // A group's copy of a church plan: has the church changed it since?
+    const sourceUpdate =
+      access.space.type === 'shared'
+        ? await sourceUpdateFor({
+            copyThreadId: access.thread.id,
+            copiedFromThreadId: access.thread.copiedFromThreadId,
+            spaceId: access.thread.spaceId,
+            userId: auth.userId,
+          })
+        : null;
     return c.json(
       {
         guides,
         resources,
+        sourceUpdate,
         // Resources are attached on the church's own plan and travel from there; a copy reads them.
         canAttachResources: access.space.type === 'public' && Boolean(access.space.orgId),
       },
@@ -168,6 +184,70 @@ app.post('/api/threads/:threadId/leader-kit/resources/set', requireAuth, rateLim
     return c.json({ success: true, resources: await loadPlanResources(access.thread.id, live) });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/threads/[threadId]/leader-kit/resources/set', action: 'leader_kit_resources' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/** Only on a group's copy, by its leaders: bring in the steps the church added. */
+app.post('/api/threads/:threadId/source-update/add-steps', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const access = await resolveLeaderKitAccess(requireParam(c, 'threadId'), auth.userId);
+    if (!access.ok) return c.json({ error: access.error, code: access.code }, access.status);
+    if (access.space.type !== 'shared') return c.json({ error: 'Only a group’s copy takes new steps', code: 'NOT_A_GROUP_COPY' }, 400);
+
+    const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { sourceNoteIds?: unknown };
+    const requested = Array.isArray(body.sourceNoteIds)
+      ? body.sourceNoteIds.filter((id): id is string => typeof id === 'string')
+      : null;
+    const source = await resolveSourcePlan(access.thread.copiedFromThreadId, auth.userId);
+    const result = await addUpstreamSteps({
+      copyThreadId: access.thread.id,
+      copiedFromThreadId: access.thread.copiedFromThreadId,
+      spaceId: access.thread.spaceId,
+      actorId: auth.userId,
+      requested,
+      // Same rule as the copy: the kit comes along only inside the church's own rooms.
+      carryKit: decideKitCarry({ targetSpace: access.space, sourceOrgId: source?.channelOrgId ?? null }),
+    });
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status);
+    if (result.added > 0) {
+      const members = await db
+        .select({ userId: SpaceMemberships.userId })
+        .from(SpaceMemberships)
+        .where(eq(SpaceMemberships.spaceId, access.thread.spaceId));
+      for (const recipientId of new Set(members.map((row) => row.userId))) {
+        broadcastInvalidation(recipientId, { type: 'space:updated', id: access.thread.spaceId });
+      }
+    }
+    return c.json({ success: true, added: result.added });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/threads/[threadId]/source-update/add-steps', action: 'source_update_add' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/** Mark the church's changes as seen without taking them. */
+app.post('/api/threads/:threadId/source-update/dismiss', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const access = await resolveLeaderKitAccess(requireParam(c, 'threadId'), auth.userId);
+    if (!access.ok) return c.json({ error: access.error, code: access.code }, access.status);
+    const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { sourceNoteIds?: unknown };
+    if (!Array.isArray(body.sourceNoteIds) || body.sourceNoteIds.some((id) => typeof id !== 'string')) {
+      return c.json({ error: 'sourceNoteIds must be a list', code: 'BAD_REQUEST' }, 400);
+    }
+    const result = await dismissUpstream({
+      copyThreadId: access.thread.id,
+      copiedFromThreadId: access.thread.copiedFromThreadId,
+      spaceId: access.thread.spaceId,
+      actorId: auth.userId,
+      sourceNoteIds: body.sourceNoteIds as string[],
+    });
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status);
+    return c.json({ success: true });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/threads/[threadId]/source-update/dismiss', action: 'source_update_dismiss' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

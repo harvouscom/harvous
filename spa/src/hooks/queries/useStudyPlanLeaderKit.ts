@@ -23,6 +23,14 @@ export type StudyPlanLeaderKit = {
   resources?: { plan: PlanResource[]; byNoteId: Record<string, PlanResource[]> };
   /** True on a church channel's plan — where resources are attached; a copy only reads them. */
   canAttachResources?: boolean;
+  /** On a group's copy: what the church has changed since. Null when nothing has. */
+  sourceUpdate?: SourceUpdate | null;
+};
+
+export type SourceUpdate = {
+  channelSpaceId: string;
+  newSteps: { sourceNoteId: string; title: string }[];
+  editedSteps: { sourceNoteId: string; copyNoteId: string; title: string }[];
 };
 
 export function studyPlanLeaderKitQueryKey(userId: string | null | undefined, threadId: string | null | undefined) {
@@ -149,4 +157,35 @@ export function agendaItemsFromGuide(existing: readonly AgendaItem[], questions:
 /** Pure: the running total, counting only lines with minutes. */
 export function agendaTotalMinutes(items: readonly AgendaItem[]): number {
   return items.reduce((sum, item) => sum + (item.minutes ?? 0), 0);
+}
+
+/** Bring the church's new steps into a group's copy (all of them, or the ones named). */
+export function useAddUpstreamSteps(threadId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  const id = threadId?.trim() || null;
+  return useMutation({
+    mutationFn: (input: { sourceNoteIds?: string[] }) =>
+      api.post<{ success: boolean; added: number }>(
+        `/api/threads/${encodeURIComponent(id!)}/source-update/add-steps`,
+        input,
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['study-plan-leader-kit'] });
+      void queryClient.invalidateQueries({ queryKey: ['thread'] });
+      void queryClient.invalidateQueries({ queryKey: ['space'] });
+    },
+  });
+}
+
+/** Mark the church's changes seen without taking them. */
+export function useDismissUpstream(threadId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  const id = threadId?.trim() || null;
+  return useMutation({
+    mutationFn: (input: { sourceNoteIds: string[] }) =>
+      api.post<{ success: boolean }>(`/api/threads/${encodeURIComponent(id!)}/source-update/dismiss`, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['study-plan-leader-kit'] });
+    },
+  });
 }
