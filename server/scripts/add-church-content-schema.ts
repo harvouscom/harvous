@@ -6,7 +6,8 @@
  * — Drizzle selects every declared column, so every full-row read of `Churches` fails against a
  * database without `contentApproval`.
  *
- *   - `ChurchContentSubmissions`: channel material that is scheduled or waiting for approval.
+ *   - `ChurchContentSubmissions`: channel material that is scheduled or waiting for approval,
+ *     and (`serviceId`) the planner entry it is for.
  *   - `Churches.contentApproval`: whether teachers' material needs a pastor's approval. Off.
  *
  * Every statement is idempotent (IF NOT EXISTS), and the set runs in one transaction.
@@ -26,6 +27,7 @@ export const ADDITIVE_CHURCH_CONTENT_DDL = [
     "channelSpaceId" text NOT NULL,
     "noteId" text NOT NULL,
     "authorUserId" text NOT NULL,
+    "serviceId" text,
     "status" text NOT NULL,
     "publishAt" timestamptz,
     "reviewedByUserId" text,
@@ -41,6 +43,8 @@ export const ADDITIVE_CHURCH_CONTENT_DDL = [
   // One open submission per note per channel.
   `CREATE UNIQUE INDEX IF NOT EXISTS "ChurchContentSubmissions_open_unique" ON "ChurchContentSubmissions" ("channelSpaceId", "noteId") WHERE "status" IN ('in_review', 'scheduled')`,
   `ALTER TABLE "ChurchContentSubmissions" ENABLE ROW LEVEL SECURITY`,
+  // Added after the first apply (planner content → published): re-running this script adds it.
+  `ALTER TABLE "ChurchContentSubmissions" ADD COLUMN IF NOT EXISTS "serviceId" text`,
   // Off: every church publishes directly until an admin turns approval on.
   `ALTER TABLE "Churches" ADD COLUMN IF NOT EXISTS "contentApproval" boolean NOT NULL DEFAULT false`,
 ] as const;

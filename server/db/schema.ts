@@ -2054,6 +2054,12 @@ export const ChurchContentSubmissions = pgTable('ChurchContentSubmissions', {
   channelSpaceId: text('channelSpaceId').notNull(),
   noteId: text('noteId').notNull(),
   authorUserId: text('authorUserId').notNull(),
+  /**
+   * The planner entry this post is for — a `ChurchServices` row with `kind='content'` on the same
+   * channel. When set, going live also claims the entry (`ChurchServicePublishedNotes`), so the
+   * followers' Home card for that date shows the note.
+   */
+  serviceId: text('serviceId'),
   status: text('status').notNull(),
   /** When it goes live. Null = as soon as it is approved. */
   publishAt: ts('publishAt'),
