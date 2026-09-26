@@ -82,6 +82,7 @@ export {
   ChurchSpaceChannelLinks,
   ChurchJoinLinks,
   ChurchMinistries,
+  ChurchContentSubmissions,
   ChurchMinistryStaff,
   ChurchReviewExercises,
   InboxItems,

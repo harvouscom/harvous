@@ -20,6 +20,7 @@ import {
   Challenges,
   ChurchServicePublishedNotes,
   ChurchSeriesPublishedNotes,
+  ChurchContentSubmissions,
   and,
   eq,
   inArray,
@@ -143,6 +144,8 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
           ),
         );
       await tx.delete(SpaceNotes).where(inArray(SpaceNotes.noteId, chunk));
+      // A post waiting for its time or a pastor has nothing left to publish.
+      await tx.delete(ChurchContentSubmissions).where(inArray(ChurchContentSubmissions.noteId, chunk));
       await tx.delete(NoteVersions).where(inArray(NoteVersions.noteId, chunk));
       // Memory-layer rows. Without these, a deleted note keeps feeding Home:
       // fingerprints drive the greeting's canon-section line, and RecallEvents are
