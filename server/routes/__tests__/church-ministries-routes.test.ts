@@ -17,6 +17,16 @@ const WRITES = ['create', 'update', 'archive', 'restore', 'assign-space', 'set-s
 );
 
 describe('church ministries routes', () => {
+  it('set-channel-audience is admin-gated before any write, rate-limited, and never plan-gated', () => {
+    const body = handlerBody(routes(), "app.post('/api/church/ministries/set-channel-audience'");
+    const gate = body.indexOf('resolveChurchOrgAccess(auth.userId, str(body.orgId), AUDIENCE)');
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(body.search(/\.update\(Spaces\)/));
+    expect(body).toContain("rateLimit('write')");
+    // Narrowing who sees a channel is privacy: a lapsed church can still do it.
+    expect(routes()).toContain('const AUDIENCE: ChurchOrgAccessRule = { ...WRITE, sponsorshipGated: false }');
+  });
+
   it.each(WRITES)('%s is admin-gated before any write, and rate-limited', (marker) => {
     const body = handlerBody(routes(), marker);
     const gate = body.indexOf('resolveChurchOrgAccess(auth.userId, str(body.orgId), WRITE)');

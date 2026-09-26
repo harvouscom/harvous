@@ -29,7 +29,12 @@ import { getThreadColorCSS } from '@/utils/colors';
 import { PublicTopBar, PublicErrorState } from './public-shared';
 
 const PENDING_KEY = 'pendingChurchJoin';
-const PENDING_TTL_MS = 600_000;
+/*
+  localStorage and a day, not this tab and ten minutes: signing up often means verifying an
+  email, and that link opens a new tab — sometimes much later. Clerk's redirect brings them back
+  to this page either way; this is what lets it finish the connection they already chose.
+*/
+const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 /** App.tsx's PendingDiscoverToastBridge — generic in everything but its name. */
 const PENDING_TOAST_KEY = 'pendingDiscoverToast';
 
@@ -37,7 +42,7 @@ type Pending = { token: string; channelIds: string[]; timestamp: number };
 
 function readPending(token: string): Pending | null {
   try {
-    const raw = sessionStorage.getItem(PENDING_KEY);
+    const raw = localStorage.getItem(PENDING_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<Pending>;
     if (parsed.token !== token || Date.now() - (parsed.timestamp ?? 0) > PENDING_TTL_MS) return null;
@@ -49,7 +54,7 @@ function readPending(token: string): Pending | null {
 
 function clearPending() {
   try {
-    sessionStorage.removeItem(PENDING_KEY);
+    localStorage.removeItem(PENDING_KEY);
   } catch {
     /* ignore */
   }
@@ -170,7 +175,7 @@ export default function PublicJoinChurchPage() {
 
   function goToSignUp(toSignIn = false) {
     try {
-      sessionStorage.setItem(
+      localStorage.setItem(
         PENDING_KEY,
         JSON.stringify({ token, channelIds: [...picked], timestamp: Date.now() } satisfies Pending),
       );

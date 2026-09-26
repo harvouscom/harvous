@@ -55,6 +55,7 @@ import {
 } from '../utils/church-content';
 import { associateAuthoredNoteWithSpace, SharedSpaceLifecycleError } from '../utils/shared-space-lifecycle';
 import { broadcastCanonicalNoteInvalidation } from '../utils/broadcast-shared-space-note';
+import { notifyAuthorOfOutcome } from '../utils/church-content-push';
 
 const app = new Hono();
 
@@ -438,10 +439,12 @@ app.post('/api/church/content/approve', requireAuth, rateLimit('write'), async (
         .update(ChurchContentSubmissions)
         .set({ status: 'scheduled', updatedAt: now })
         .where(and(eq(ChurchContentSubmissions.id, loaded.submission.id), eq(ChurchContentSubmissions.status, 'in_review')));
+      void notifyAuthorOfOutcome({ submissionId: loaded.submission.id, outcome: 'scheduled', actorUserId: auth.userId });
       return c.json({ success: true, status: 'scheduled' });
     }
     const outcome = await publishSubmission(loaded.submission.id, now, ['in_review']);
     if (!outcome.ok) return c.json({ error: outcome.error, code: outcome.code }, 409);
+    void notifyAuthorOfOutcome({ submissionId: loaded.submission.id, outcome: 'approved', actorUserId: auth.userId });
     return c.json({ success: true, status: 'published' });
   } catch (error) {
     return fail(c, error, '/api/church/content/approve', 'church_content_approve');
@@ -469,6 +472,7 @@ app.post('/api/church/content/decline', requireAuth, rateLimit('write'), async (
         updatedAt: now,
       })
       .where(and(eq(ChurchContentSubmissions.id, loaded.submission.id), eq(ChurchContentSubmissions.status, 'in_review')));
+    void notifyAuthorOfOutcome({ submissionId: loaded.submission.id, outcome: 'declined', actorUserId: auth.userId });
     return c.json({ success: true, status: 'declined' });
   } catch (error) {
     return fail(c, error, '/api/church/content/decline', 'church_content_decline');

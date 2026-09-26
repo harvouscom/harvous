@@ -21,6 +21,7 @@ import { createPurgeSharedSpacesHandler } from './netlify-purge-shared-spaces';
 import { runReminderTick } from './utils/push-reminders';
 import { runChurchPublishTick } from './utils/church-publish-push';
 import { runChurchContentTick } from './utils/church-content';
+import { runChurchReviewNudgeTick } from './utils/church-content-push';
 
 /** Netlify ran both at 00:00 UTC (`schedule = "@daily"`). Keep that. */
 const DAILY_UTC_HOUR = 0;
@@ -59,6 +60,11 @@ const HOURLY_JOBS: Job[] = [
     // After reminders, so a Sunday verse is never queued behind a church digest.
     name: 'church-updates',
     run: () => runChurchPublishTick(),
+  },
+  {
+    // Staff: posts waiting for approval. At most one a day per reviewer, daytime only.
+    name: 'church-review-nudge',
+    run: () => runChurchReviewNudgeTick(),
   },
 ];
 

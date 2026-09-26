@@ -151,10 +151,16 @@ export async function publishSubmission(
     });
   } catch (error) {
     if (error instanceof SharedSpaceLifecycleError) {
-      await db
+      const marked = await db
         .update(ChurchContentSubmissions)
         .set({ status: 'failed', reviewNote: error.message.slice(0, REVIEW_NOTE_MAX), updatedAt: now })
-        .where(and(eq(ChurchContentSubmissions.id, submissionId), inArray(ChurchContentSubmissions.status, fromStatuses)));
+        .where(and(eq(ChurchContentSubmissions.id, submissionId), inArray(ChurchContentSubmissions.status, fromStatuses)))
+        .returning({ id: ChurchContentSubmissions.id });
+      if (marked.length) {
+        // Imported here, not at the top: church-content-push reads this module's role helper.
+        const { notifyAuthorOfOutcome } = await import('./church-content-push');
+        void notifyAuthorOfOutcome({ submissionId, outcome: 'failed', now });
+      }
       return { ok: false, error: error.message, code: error.code };
     }
     throw error;
