@@ -51,6 +51,7 @@ import PrototypeStarterPreview from './planner/PrototypeStarterPreview';
 import ProtoNoteSearch from './ProtoNoteSearch';
 import { isPresentableServerMessage } from '../../lib/error-copy';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
+import PrototypePlannerEntryPublish from './planner/PrototypePlannerEntryPublish';
 
 export interface PrototypeSermonEditorFieldsProps {
   orgId: string | null;
@@ -1153,6 +1154,17 @@ export default function PrototypeSermonEditorFields({
             ) : (
               <p className="proto-caption proto-service-editor__starter-hint">Loading your notes…</p>
             )}
+            {/* A channel entry's saved note can go out on the entry's date, and then shows on the
+                followers' card for it. Saved link only: a pick not yet saved has no entry to claim. */}
+            {planKind === 'content' && planSpaceId && service && linkedNoteId && pickedNoteId === linkedNoteId ? (
+              <PrototypePlannerEntryPublish
+                serviceId={service.id}
+                noteId={linkedNoteId}
+                channelSpaceId={planSpaceId}
+                orgId={orgId}
+                hasDate={Boolean(service.serviceDate)}
+              />
+            ) : null}
           </>
         ) : null}
 

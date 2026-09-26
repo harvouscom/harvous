@@ -6,7 +6,7 @@
  *   GET  /api/church/content?orgId=                      staff: the Content list
  *   GET  /api/church/content/for-note/:noteId            the author's open submissions for a note
  *   GET  /api/church/content/submissions/:id             the note behind a submission (author, reviewers)
- *   POST /api/church/content/submit       { noteId, channelSpaceId, publishAt? }
+ *   POST /api/church/content/submit       { noteId, channelSpaceId, publishAt?, serviceId? }
  *   POST /api/church/content/approve      { submissionId, publishAt? }       reviewers
  *   POST /api/church/content/decline      { submissionId, note? }            reviewers
  *   POST /api/church/content/publish-now  { submissionId }
@@ -22,6 +22,8 @@ import {
   db,
   first,
   ChurchContentSubmissions,
+  ChurchServices,
+  Churches,
   Notes,
   SpaceMemberships,
   SpaceNotes,
@@ -43,7 +45,10 @@ import { isMinistryBroadcastSpaceRow } from '../utils/channel-publish-cadence';
 import { getActiveChurchByOrgId } from '../utils/church-staff';
 import {
   OPEN_SUBMISSION_STATUSES,
+  PLANNED_ENTRY_PUBLISH_TIME,
   churchRoleFor,
+  churchWallTimeToInstant,
+  claimPlannedEntry,
   cleanReviewNote,
   parsePublishAt,
   planApproval,
@@ -225,6 +230,7 @@ app.get('/api/church/content/for-note/:noteId', requireAuth, async (c) => {
         status: ChurchContentSubmissions.status,
         channelSpaceId: ChurchContentSubmissions.channelSpaceId,
         publishAt: ChurchContentSubmissions.publishAt,
+        serviceId: ChurchContentSubmissions.serviceId,
       })
       .from(ChurchContentSubmissions)
       .where(
@@ -256,7 +262,27 @@ app.get('/api/church/content/for-note/:noteId', requireAuth, async (c) => {
         approvalRequiredOrgIds.push(orgId);
       }
     }
-    return c.json({ submissions, approvalRequiredOrgIds }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
+    // Where it is already live — the planner shows "Published" rather than offering to schedule.
+    const liveChannelIds = (
+      await db
+        .select({ spaceId: SpaceNotes.spaceId })
+        .from(SpaceNotes)
+        .innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId))
+        .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+        .where(
+          and(
+            eq(SpaceNotes.noteId, noteId),
+            eq(Notes.userId, auth.userId),
+            isNull(SpaceNotes.removedAt),
+            eq(Spaces.type, 'public'),
+          ),
+        )
+    ).map((row) => row.spaceId);
+    return c.json(
+      { submissions, approvalRequiredOrgIds, liveChannelIds },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error) {
     return fail(c, error, '/api/church/content/for-note/[noteId]', 'church_content_for_note');
   }
@@ -336,7 +362,32 @@ app.post('/api/church/content/submit', requireAuth, rateLimit('write'), async (c
     );
     if (live) return c.json({ error: 'Already published there', code: 'ALREADY_LIVE' }, 409);
 
-    const when = parsePublishAt(body.publishAt, now);
+    /*
+      A planner entry this post is for: a content row on this same channel. Its date (at the
+      church's 8:00) is the default time, and going live claims it for the followers' Home card.
+    */
+    const serviceId = str(body.serviceId) || null;
+    let entryPublishAt: string | null = null;
+    if (serviceId) {
+      const entry = first(
+        await db
+          .select({ spaceId: ChurchServices.spaceId, kind: ChurchServices.kind, serviceDate: ChurchServices.serviceDate })
+          .from(ChurchServices)
+          .where(eq(ChurchServices.id, serviceId))
+          .limit(1),
+      );
+      if (!entry || entry.kind !== 'content' || entry.spaceId !== channel.id) {
+        return c.json({ error: 'That plan entry isn’t on this channel', code: 'SERVICE_NOT_ON_CHANNEL' }, 404);
+      }
+      if (entry.serviceDate && body.publishAt === undefined) {
+        const zone = first(
+          await db.select({ timezone: Churches.timezone }).from(Churches).where(eq(Churches.orgId, channel.orgId)).limit(1),
+        )?.timezone;
+        entryPublishAt = churchWallTimeToInstant(entry.serviceDate, PLANNED_ENTRY_PUBLISH_TIME, zone)?.toISOString() ?? null;
+      }
+    }
+
+    const when = parsePublishAt(body.publishAt === undefined ? entryPublishAt : body.publishAt, now);
     if (!when.ok) return c.json({ error: when.error, code: 'INVALID_PUBLISH_AT' }, 400);
     const role = await churchRoleFor(channel.orgId, auth.userId);
     // Unknown role (Clerk down) with approval on: submit rather than publish around the pastor.
@@ -358,13 +409,17 @@ app.post('/api/church/content/submit', requireAuth, rateLimit('write'), async (c
           .limit(1),
       );
       if (existingOpen) {
+        if (serviceId) {
+          await db.update(ChurchContentSubmissions).set({ serviceId }).where(eq(ChurchContentSubmissions.id, existingOpen.id));
+        }
         const outcome = await publishSubmission(existingOpen.id, now);
         if (!outcome.ok) return c.json({ error: outcome.error, code: outcome.code }, 409);
         return c.json({ success: true, status: 'published' });
       }
-      await db.transaction((tx) =>
-        associateAuthoredNoteWithSpace(tx, { spaceId: channel.id, noteId: note.id, actorId: auth.userId, now }),
-      );
+      await db.transaction(async (tx) => {
+        await associateAuthoredNoteWithSpace(tx, { spaceId: channel.id, noteId: note.id, actorId: auth.userId, now });
+        if (serviceId) await claimPlannedEntry(tx, serviceId, note.id, auth.userId, now);
+      });
       await broadcastCanonicalNoteInvalidation(auth.userId, note.id, { type: 'note:updated', id: note.id }).catch(() => undefined);
       return c.json({ success: true, status: 'published' });
     }
@@ -388,7 +443,7 @@ app.post('/api/church/content/submit', requireAuth, rateLimit('write'), async (c
     if (existing) {
       await db
         .update(ChurchContentSubmissions)
-        .set({ status, publishAt: when.publishAt, updatedAt: now })
+        .set({ status, publishAt: when.publishAt, ...(serviceId ? { serviceId } : {}), updatedAt: now })
         .where(eq(ChurchContentSubmissions.id, existing.id));
       return c.json({ success: true, status, submissionId: existing.id });
     }
@@ -399,6 +454,7 @@ app.post('/api/church/content/submit', requireAuth, rateLimit('write'), async (c
       channelSpaceId: channel.id,
       noteId: note.id,
       authorUserId: auth.userId,
+      serviceId,
       status,
       publishAt: when.publishAt,
       createdAt: now,
