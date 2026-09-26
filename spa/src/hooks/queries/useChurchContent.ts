@@ -42,12 +42,16 @@ export type NoteSubmission = {
   status: 'in_review' | 'scheduled';
   channelSpaceId: string;
   publishAt: string | null;
+  /** The planner entry it is for, when scheduled from the planner. */
+  serviceId?: string | null;
 };
 
 export type NoteSubmissionsResponse = {
   submissions: NoteSubmission[];
   /** Churches where this author's channel posts need approval. */
   approvalRequiredOrgIds: string[];
+  /** Channels this author's note is already live in. */
+  liveChannelIds?: string[];
 };
 
 export type SubmissionPreview = {
@@ -106,7 +110,7 @@ export function useSubmissionPreview(submissionId: string | null | undefined) {
 }
 
 export type ContentAction =
-  | { type: 'submit'; noteId: string; channelSpaceId: string; publishAt?: string | null }
+  | { type: 'submit'; noteId: string; channelSpaceId: string; publishAt?: string | null; serviceId?: string | null }
   | { type: 'approve'; submissionId: string; publishAt?: string | null }
   | { type: 'decline'; submissionId: string; note?: string | null }
   | { type: 'publish-now'; submissionId: string }

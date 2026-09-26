@@ -24,6 +24,7 @@ import {
 } from '../db';
 import { buildSpaceNoteAssociation } from './space-note-associations';
 import { isMinistryBroadcastSpaceRow } from './channel-publish-cadence';
+import { deleteLeaderKitForThreads } from './study-plan-leader-kit';
 
 type Executor = any;
 
@@ -690,6 +691,7 @@ export async function deleteThreadInTransaction(
      Thread they belong to, so surviving it would be a private row nobody can
      reach and nobody deletes. */
   await tx.delete(ThreadProgress).where(eq(ThreadProgress.threadId, thread.id));
+  await deleteLeaderKitForThreads(tx, [thread.id]);
 
   if (!shared && affectedNoteIds.length > 0) {
     const remaining = (await tx
@@ -731,6 +733,10 @@ export const EXPIRED_SPACE_PURGE_TABLES = [
   /* Per-user step history for the room's Threads. Listed — and deleted — because
      it is the one row here that is a person's, not the space's. */
   'ThreadProgress',
+  // The room's leader kit: step guides, attached resources, copy baselines.
+  'StudyPlanStepGuides',
+  'StudyPlanLibraryItems',
+  'StudyPlanCopyBaselines',
   'StudyThreadEntries',
   'NoteConnections',
   'SpaceNotes',
@@ -808,6 +814,8 @@ export async function purgeExpiredDeletedSpaces(
            behind outlives the room they were about — the one table here that is
            a privacy question rather than only an orphan question. */
         await tx.delete(ThreadProgress).where(inArray(ThreadProgress.threadId, threadIds));
+        // Leader notes are leaders' words about this room's plans; they go with the room.
+        await deleteLeaderKitForThreads(tx, threadIds);
       }
       await tx.delete(StudyThreadEntries).where(eq(StudyThreadEntries.spaceId, spaceId));
       await tx.delete(NoteConnections).where(eq(NoteConnections.spaceId, spaceId));
