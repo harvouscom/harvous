@@ -48,3 +48,67 @@ export function useSaveStepGuide(threadId: string | null | undefined) {
     },
   });
 }
+
+// ─── Gathering agendas ─────────────────────────────────────────────────────────
+
+export type AgendaItem = { id?: string; text: string; minutes: number | null };
+
+export type GatheringAgenda = {
+  items: AgendaItem[];
+  stepThreadId: string | null;
+  stepNoteId: string | null;
+  updatedAt: string | null;
+};
+
+export function gatheringAgendaQueryKey(userId: string | null | undefined, serviceId: string | null | undefined) {
+  return ['gathering-agenda', userId ?? 'none', serviceId ?? 'none'] as const;
+}
+
+/** A gathering's agenda, for the group's leaders. Pass `enabled` only for someone who leads the room. */
+export function useGatheringAgenda(
+  spaceId: string | null | undefined,
+  serviceId: string | null | undefined,
+  options?: { enabled?: boolean },
+) {
+  const { userId } = useAuth();
+  const authReady = useAuthReady();
+  return useQuery({
+    queryKey: gatheringAgendaQueryKey(userId, serviceId),
+    enabled: authReady && !!userId && !!spaceId && !!serviceId && options?.enabled === true,
+    queryFn: () =>
+      api.get<GatheringAgenda>(
+        `/api/spaces/${encodeURIComponent(spaceId!)}/gatherings/${encodeURIComponent(serviceId!)}/agenda`,
+      ),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function useSaveGatheringAgenda(spaceId: string | null | undefined, serviceId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  const { userId } = useAuth();
+  return useMutation({
+    mutationFn: (input: { items: AgendaItem[]; stepThreadId: string | null; stepNoteId: string | null }) =>
+      api.post<GatheringAgenda & { success: boolean }>(
+        `/api/spaces/${encodeURIComponent(spaceId!)}/gatherings/${encodeURIComponent(serviceId!)}/agenda/set`,
+        input,
+      ),
+    onSuccess: (data) => {
+      queryClient.setQueryData(gatheringAgendaQueryKey(userId, serviceId), data);
+    },
+  });
+}
+
+/** Pure: a step's discussion questions as agenda lines, skipping any already on it. */
+export function agendaItemsFromGuide(existing: readonly AgendaItem[], questions: readonly string[]): AgendaItem[] {
+  const have = new Set(existing.map((item) => item.text.trim().toLowerCase()));
+  return questions
+    .map((q) => q.trim())
+    .filter((q) => q && !have.has(q.toLowerCase()))
+    .map((text) => ({ text, minutes: null }));
+}
+
+/** Pure: the running total, counting only lines with minutes. */
+export function agendaTotalMinutes(items: readonly AgendaItem[]): number {
+  return items.reduce((sum, item) => sum + (item.minutes ?? 0), 0);
+}

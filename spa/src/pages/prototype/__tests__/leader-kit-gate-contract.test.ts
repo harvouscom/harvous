@@ -28,3 +28,13 @@ describe('leader kit on the client', () => {
     expect(text.slice(text.lastIndexOf('{canManageSequence ? (', sheet), sheet)).toContain('canManageSequence');
   });
 });
+
+describe('agenda on the client', () => {
+  it('the room card offers it only to leaders of a group', () => {
+    const hub = withoutComments(source('spa/src/pages/prototype/PrototypeSpaceHub.tsx'));
+    expect(hub).toContain("canLead={canManageThreads && ministryMeta.type === 'shared'}");
+    const card = withoutComments(source('spa/src/pages/prototype/PrototypeSpaceComingUp.tsx'));
+    expect(card).toContain('canLead = false');
+    expect(card).toContain('{canLead && spaceId ? (');
+  });
+});

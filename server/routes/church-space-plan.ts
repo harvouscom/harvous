@@ -98,6 +98,7 @@ import {
   runLabelForDate,
   type RerunCopyFlags,
 } from '../utils/church-series-rerun';
+import { deleteAgendaForService } from '../utils/study-plan-leader-kit';
 
 const app = new Hono();
 
@@ -709,6 +710,8 @@ app.post('/api/church/spaces/:spaceId/services/delete', requireAuth, rateLimit('
     /* The staff drafts written for it go with it. Nothing cascades — these ids are plain text
        columns — so without this a note kept calling itself planned for a week that is gone. */
     await releaseNotesPlannedForService(serviceId);
+    // And the leaders' agenda for it.
+    await deleteAgendaForService(serviceId);
 
     return c.json({ success: true, serviceId });
   } catch (error) {

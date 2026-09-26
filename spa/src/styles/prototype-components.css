@@ -12375,6 +12375,44 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   padding-left: 0;
 }
 
+/* A gathering's agenda: a line, its minutes, and its controls. */
+.proto-agenda__items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.proto-agenda__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.proto-agenda__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-settings-field__input.proto-agenda__minutes {
+  flex: 0 0 56px;
+  width: 56px;
+  text-align: right;
+}
+
+.proto-agenda__controls {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.proto-agenda__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+}
+
 /* Content: the note under review, read in the pane before deciding. */
 .proto-church-content__byline {
   margin: 0;

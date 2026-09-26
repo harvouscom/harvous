@@ -7,14 +7,62 @@
  *
  *   GET  /api/threads/:threadId/leader-kit                 { guides: {noteId: {leaderNotes, questions}} }
  *   POST /api/threads/:threadId/leader-kit/steps/:noteId   { leaderNotes?, questions? } — empty deletes
+ *   GET  /api/spaces/:spaceId/gatherings/:serviceId/agenda
+ *   POST /api/spaces/:spaceId/gatherings/:serviceId/agenda/set   { items, stepThreadId?, stepNoteId? }
+ *
+ * The agenda is gated on leading the *room* (`canUseLeaderKit`), deliberately not on the plan
+ * gates: a granted volunteer who runs the group runs its meetings, church role or not.
  */
 import { Hono } from 'hono';
-import { db, first, StudyPlanStepGuides, and, eq } from '../db';
+import { db, first, ChurchServices, GatheringAgendas, StudyPlanStepGuides, Threads, and, eq } from '../db';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import { loadLiveThreadNoteIds } from '../utils/thread-sequence';
-import { loadGuides, normalizeGuideInput, resolveLeaderKitAccess } from '../utils/study-plan-leader-kit';
+import {
+  canUseLeaderKit,
+  loadGuides,
+  normalizeAgendaItems,
+  normalizeGuideInput,
+  parseAgendaItems,
+  resolveLeaderKitAccess,
+} from '../utils/study-plan-leader-kit';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
+
+/** The room and the gathering, when the viewer leads the room and the gathering is its own. */
+async function resolveAgendaAccess(userId: string, spaceId: string, serviceId: string) {
+  let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
+  try {
+    access = await requireSpaceAccess(spaceId, userId);
+  } catch (error) {
+    if (error instanceof SpaceAccessError) return { ok: false as const, status: 404 as const, code: 'NOT_FOUND', error: 'Not found' };
+    throw error;
+  }
+  if (access.space.type !== 'shared' || !canUseLeaderKit(access.space, access.role, userId)) {
+    return { ok: false as const, status: 403 as const, code: 'LEADER_ROLE_REQUIRED', error: 'Only this group’s leaders plan its meetings' };
+  }
+  const service = first(
+    await db
+      .select({ id: ChurchServices.id, spaceId: ChurchServices.spaceId, kind: ChurchServices.kind })
+      .from(ChurchServices)
+      .where(eq(ChurchServices.id, serviceId))
+      .limit(1),
+  );
+  if (!service || service.spaceId !== access.space.id || service.kind !== 'gathering') {
+    return { ok: false as const, status: 404 as const, code: 'NOT_FOUND', error: 'Gathering not found' };
+  }
+  return { ok: true as const, space: access.space, serviceId: service.id };
+}
+
+async function agendaPayload(serviceId: string) {
+  const row = first(await db.select().from(GatheringAgendas).where(eq(GatheringAgendas.serviceId, serviceId)).limit(1));
+  return {
+    items: parseAgendaItems(row?.items),
+    stepThreadId: row?.stepThreadId ?? null,
+    stepNoteId: row?.stepNoteId ?? null,
+    updatedAt: row?.updatedAt ?? null,
+  };
+}
 
 const app = new Hono();
 
@@ -69,6 +117,68 @@ app.post('/api/threads/:threadId/leader-kit/steps/:noteId', requireAuth, rateLim
     return c.json({ success: true, guides: await loadGuides(access.thread.id, access.thread.spaceId) });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/threads/[threadId]/leader-kit/steps/[noteId]', action: 'leader_kit_guide' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+app.get('/api/spaces/:spaceId/gatherings/:serviceId/agenda', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const access = await resolveAgendaAccess(auth.userId, requireParam(c, 'spaceId'), requireParam(c, 'serviceId'));
+    if (!access.ok) return c.json({ error: access.error, code: access.code }, access.status);
+    return c.json(await agendaPayload(access.serviceId), 200, { 'Cache-Control': 'private, max-age=0, no-store' });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/gatherings/[serviceId]/agenda', action: 'agenda_read' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+app.post('/api/spaces/:spaceId/gatherings/:serviceId/agenda/set', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const access = await resolveAgendaAccess(auth.userId, requireParam(c, 'spaceId'), requireParam(c, 'serviceId'));
+    if (!access.ok) return c.json({ error: access.error, code: access.code }, access.status);
+
+    const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { items?: unknown; stepThreadId?: unknown; stepNoteId?: unknown };
+    const items = normalizeAgendaItems(body.items);
+    if (!items.ok) return c.json({ error: items.error, code: 'INVALID_AGENDA' }, 400);
+
+    // The step it covers, if any: a live step of a study plan in this same room.
+    const stepThreadId = typeof body.stepThreadId === 'string' && body.stepThreadId.trim() ? body.stepThreadId.trim() : null;
+    const stepNoteId = typeof body.stepNoteId === 'string' && body.stepNoteId.trim() ? body.stepNoteId.trim() : null;
+    if (stepThreadId || stepNoteId) {
+      const thread = stepThreadId
+        ? first(
+            await db
+              .select({ spaceId: Threads.spaceId, mode: Threads.mode })
+              .from(Threads)
+              .where(eq(Threads.id, stepThreadId))
+              .limit(1),
+          )
+        : undefined;
+      const live = thread && thread.spaceId === access.space.id && thread.mode === 'sequence'
+        ? await loadLiveThreadNoteIds(stepThreadId!, access.space.id)
+        : [];
+      if (!stepNoteId || !live.includes(stepNoteId)) {
+        return c.json({ error: 'That step isn’t in one of this group’s plans', code: 'STEP_NOT_FOUND' }, 404);
+      }
+    }
+
+    const now = new Date();
+    const values = {
+      items: JSON.stringify(items.items),
+      stepThreadId,
+      stepNoteId,
+      updatedByUserId: auth.userId,
+      updatedAt: now,
+    };
+    await db
+      .insert(GatheringAgendas)
+      .values({ id: `agenda_${crypto.randomUUID()}`, serviceId: access.serviceId, createdAt: now, ...values })
+      .onConflictDoUpdate({ target: GatheringAgendas.serviceId, set: values });
+    return c.json({ success: true, ...(await agendaPayload(access.serviceId)) });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/gatherings/[serviceId]/agenda/set', action: 'agenda_set' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

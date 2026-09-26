@@ -5,7 +5,9 @@ import {
   baselineRowFor,
   canUseLeaderKit,
   decideKitCarry,
+  normalizeAgendaItems,
   normalizeGuideInput,
+  parseAgendaItems,
   parseQuestions,
   remapGuidesForCopy,
   stepFingerprint,
@@ -140,5 +142,54 @@ describe('leader kit — wiring and privacy', () => {
     const lifecycle = src('server/utils/shared-space-lifecycle.ts');
     expect(lifecycle).toContain('deleteLeaderKitForThreads(tx, [thread.id])');
     expect(lifecycle).toContain('deleteLeaderKitForThreads(tx, threadIds)');
+  });
+});
+
+describe('normalizeAgendaItems', () => {
+  it('keeps text and whole minutes, drops blank lines, mints ids', () => {
+    const r = normalizeAgendaItems([{ text: '  Welcome ', minutes: 5 }, { text: '' }, { text: 'Pray', minutes: '' }]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.items.map(({ text, minutes }) => ({ text, minutes }))).toEqual([
+      { text: 'Welcome', minutes: 5 },
+      { text: 'Pray', minutes: null },
+    ]);
+    expect(r.items.every((item) => item.id.startsWith('agi_'))).toBe(true);
+  });
+  it('keeps an existing id through a reorder', () => {
+    const r = normalizeAgendaItems([{ id: 'agi_abcdef12', text: 'Discuss' }]);
+    expect(r.ok && r.items[0].id).toBe('agi_abcdef12');
+  });
+  it('refuses bad minutes, long lines and too many', () => {
+    expect(normalizeAgendaItems([{ text: 'x', minutes: 2.5 }]).ok).toBe(false);
+    expect(normalizeAgendaItems([{ text: 'x', minutes: 241 }]).ok).toBe(false);
+    expect(normalizeAgendaItems([{ text: 'x'.repeat(201) }]).ok).toBe(false);
+    expect(normalizeAgendaItems(Array.from({ length: 21 }, (_, i) => ({ text: `i${i}` }))).ok).toBe(false);
+    expect(normalizeAgendaItems('not a list').ok).toBe(false);
+  });
+  it('reads stored JSON forgivingly', () => {
+    expect(parseAgendaItems('nope')).toEqual([]);
+    expect(parseAgendaItems(null)).toEqual([]);
+  });
+});
+
+describe('agenda — wiring', () => {
+  const src = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
+  it('both agenda routes check the room’s leaders and the gathering before touching it', () => {
+    const routes = src('server/routes/study-plan-leader-kit.ts');
+    for (const marker of ["app.get('/api/spaces/:spaceId/gatherings/:serviceId/agenda'", "app.post('/api/spaces/:spaceId/gatherings/:serviceId/agenda/set'"]) {
+      const body = routes.slice(routes.indexOf(marker));
+      const gate = body.indexOf('resolveAgendaAccess(');
+      expect(gate).toBeGreaterThan(-1);
+      const touch = body.search(/agendaPayload\(|\.insert\(GatheringAgendas\)/);
+      expect(gate).toBeLessThan(touch);
+    }
+    const fn = routes.slice(routes.indexOf('async function resolveAgendaAccess'));
+    expect(fn).toContain("service.kind !== 'gathering'");
+    expect(fn).toContain('service.spaceId !== access.space.id');
+    expect(fn).toContain('canUseLeaderKit(access.space, access.role, userId)');
+  });
+  it('deleting a gathering deletes its agenda', () => {
+    expect(src('server/routes/church-space-plan.ts')).toContain('await deleteAgendaForService(serviceId)');
   });
 });

@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto';
 import {
   db,
   first,
+  GatheringAgendas,
   StudyPlanCopyBaselines,
   StudyPlanLibraryItems,
   StudyPlanStepGuides,
@@ -217,4 +218,57 @@ export async function deleteLeaderKitForThreads(
   await tx.delete(StudyPlanStepGuides).where(inArray(StudyPlanStepGuides.threadId, ids));
   await tx.delete(StudyPlanLibraryItems).where(inArray(StudyPlanLibraryItems.threadId, ids));
   await tx.delete(StudyPlanCopyBaselines).where(inArray(StudyPlanCopyBaselines.threadId, ids));
+}
+
+// ─── Gathering agendas (E2) ───────────────────────────────────────────────────
+
+export const AGENDA_ITEMS_MAX = 20;
+export const AGENDA_ITEM_MAX = 200;
+export const AGENDA_MINUTES_MAX = 240;
+
+export type AgendaItem = { id: string; text: string; minutes: number | null };
+
+/**
+ * Pure: an agenda from a request — plain text lines, each with optional whole minutes. Ids are
+ * kept when they look like ours, so a reorder doesn't churn them; new lines get fresh ones.
+ */
+export function normalizeAgendaItems(raw: unknown): { ok: true; items: AgendaItem[] } | { ok: false; error: string } {
+  if (raw == null) return { ok: true, items: [] };
+  if (!Array.isArray(raw)) return { ok: false, error: 'Items must be a list' };
+  const items: AgendaItem[] = [];
+  for (const entry of raw) {
+    const e = (entry && typeof entry === 'object' ? entry : {}) as { id?: unknown; text?: unknown; minutes?: unknown };
+    const text = typeof e.text === 'string' ? e.text.replace(/\s+/g, ' ').trim() : '';
+    if (!text) continue;
+    if (text.length > AGENDA_ITEM_MAX) return { ok: false, error: `Keep each item under ${AGENDA_ITEM_MAX} characters` };
+    let minutes: number | null = null;
+    if (e.minutes != null && e.minutes !== '') {
+      const n = Number(e.minutes);
+      if (!Number.isInteger(n) || n < 0 || n > AGENDA_MINUTES_MAX) {
+        return { ok: false, error: `Minutes are a whole number up to ${AGENDA_MINUTES_MAX}` };
+      }
+      minutes = n;
+    }
+    const id = typeof e.id === 'string' && /^agi_[\w-]{6,64}$/.test(e.id) ? e.id : `agi_${crypto.randomUUID()}`;
+    items.push({ id, text, minutes });
+  }
+  if (items.length > AGENDA_ITEMS_MAX) return { ok: false, error: `At most ${AGENDA_ITEMS_MAX} items` };
+  return { ok: true, items };
+}
+
+/** Pure: stored agenda JSON, forgiving of anything malformed. */
+export function parseAgendaItems(raw: string | null | undefined): AgendaItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    const result = normalizeAgendaItems(parsed);
+    return result.ok ? result.items : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Delete a gathering's agenda with the gathering. Nothing cascades here. */
+export async function deleteAgendaForService(serviceId: string): Promise<void> {
+  await db.delete(GatheringAgendas).where(eq(GatheringAgendas.serviceId, serviceId));
 }
