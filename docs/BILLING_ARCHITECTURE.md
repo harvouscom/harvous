@@ -236,10 +236,12 @@ Sandbox and production are **separate Polar orgs/environments**. Product ids and
 ## 9. Church / org billing (future)
 
 Clerk **Organizations** stay the identity layer (roles, memberships, `orgId` on `Spaces`/`Churches`).
-Church **billing** rides Polar too — seat-based pricing (prorated seat-count changes, `seat.claimed`/
-`seat.revoked` webhooks) maps onto the leader-seat model, and Polar's org reference (`externalId`/metadata)
-onto `Churches.orgId` / `Churches.billingPlan`. Review stays individual — a church-sponsored seat is a
-`source='church_seat'` Entitlements row that coexists with the member's own grants. See
+Church **billing** rides Polar too — one Church plan at a single price ($30/mo or $216/yr, not
+seat-based), with Polar's org reference (`externalId`/metadata) mapped onto `Churches.orgId` /
+`Churches.billingPlan`. Review stays individual: a church's own review questions reach its
+followers through the `church` access level (`server/utils/review-access.ts`), and a
+`source='church_seat'` Entitlements row is **never** granted — it would hand a congregant all of
+Plus (docs/CHURCH_V2_ROADMAP.md §B). See
 [future/MONETIZATION_AND_PRICING.md](./future/MONETIZATION_AND_PRICING.md) §7 and
 [future/CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md](./future/CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md).
 

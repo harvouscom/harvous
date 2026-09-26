@@ -91,3 +91,35 @@ describe('church review routes', () => {
     expect(body).toContain('suggestionKey: shape.reference');
   });
 });
+
+describe('church review — ministry scope', () => {
+  it('writing into a channel needs to lead it; reading does not', () => {
+    const text = code(access());
+    const fn = text.slice(text.indexOf('export async function assertChurchReviewChannel'));
+    expect(fn).toContain("mode !== 'read' && !(await staffLeadsChannel(userId, channel.id))");
+  });
+
+  it('leading means owning the channel or an owner/leader row — the publish rule', () => {
+    const text = code(access());
+    expect(text).toContain("const LEAD_ROLES = ['owner', 'leader']");
+    expect(text).toMatch(/row\.ownerId === userId/);
+  });
+
+  it('the channel list only offers channels the staffer leads', () => {
+    const body = handlerBody(routes(), "app.get('/api/church/review/channels'");
+    expect(body).toContain('channelsLedBy(auth.userId, all)');
+    expect(body).toContain('all.filter((channel) => led.has(channel.id))');
+  });
+
+  it.each(["app.post('/api/church/review/exercises/update'", 'app.post(`/api/church/review/exercises/${action}`'])(
+    '%s checks the exercise’s channel before writing',
+    (marker) => {
+      const body = handlerBody(routes(), marker);
+      const check = body.indexOf('staffLeadsChannel(auth.userId, row.channelSpaceId)');
+      expect(check).toBeGreaterThan(-1);
+      const write = body.search(/\.update\(ChurchReviewExercises\)/);
+      expect(write).toBeGreaterThan(-1);
+      expect(check).toBeLessThan(write);
+    },
+  );
+});

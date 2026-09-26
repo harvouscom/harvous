@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   PUBLISH_AT_MAX_AHEAD_MS,
+  churchWallTimeToInstant,
   cleanReviewNote,
   parsePublishAt,
   planApproval,
@@ -123,5 +124,56 @@ describe('content lifecycle — wiring', () => {
     const scheduler = src('server/scheduler.ts');
     expect(scheduler).toContain('runChurchContentTick()');
     expect(scheduler).toContain('5 * 60_000');
+  });
+});
+
+describe('churchWallTimeToInstant', () => {
+  it('reads a church wall clock as an instant', () => {
+    // Central Daylight Time is UTC-5 in September.
+    expect(churchWallTimeToInstant('2026-09-27', '08:00', 'America/Chicago')?.toISOString()).toBe('2026-09-27T13:00:00.000Z');
+    // …and Central Standard Time is UTC-6 in December.
+    expect(churchWallTimeToInstant('2026-12-06', '08:00', 'America/Chicago')?.toISOString()).toBe('2026-12-06T14:00:00.000Z');
+  });
+  it('lands on the right side of a DST change', () => {
+    // US DST ends Nov 1 2026 at 2:00; 8:00 that morning is already CST.
+    expect(churchWallTimeToInstant('2026-11-01', '08:00', 'America/Chicago')?.toISOString()).toBe('2026-11-01T14:00:00.000Z');
+  });
+  it('reads no zone, or an unknown one, as UTC', () => {
+    expect(churchWallTimeToInstant('2026-09-27', '08:00', null)?.toISOString()).toBe('2026-09-27T08:00:00.000Z');
+    expect(churchWallTimeToInstant('2026-09-27', '08:00', 'Not/AZone')?.toISOString()).toBe('2026-09-27T08:00:00.000Z');
+  });
+  it('refuses a malformed date or time', () => {
+    expect(churchWallTimeToInstant('Sept 27', '08:00', 'UTC')).toBeNull();
+    expect(churchWallTimeToInstant('2026-09-27', '8am', 'UTC')).toBeNull();
+  });
+});
+
+describe('planner entry → published material', () => {
+  const src = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
+
+  it('claims the entry inside the publish transaction', () => {
+    const text = src('server/utils/church-content.ts');
+    const fn = text.slice(text.indexOf('export async function publishSubmission'));
+    const publish = fn.indexOf('associateAuthoredNoteWithSpace(tx,');
+    const claim = fn.indexOf('claimPlannedEntry(tx, row.serviceId');
+    expect(claim).toBeGreaterThan(publish);
+    expect(fn.slice(0, claim)).toContain('db.transaction(');
+  });
+
+  it('the immediate path claims it too', () => {
+    const routes = src('server/routes/church-content.ts');
+    expect(routes).toContain('if (serviceId) await claimPlannedEntry(tx, serviceId, note.id, auth.userId, now)');
+  });
+
+  it('only accepts a content entry on the same channel', () => {
+    const routes = src('server/routes/church-content.ts');
+    expect(routes).toContain("entry.kind !== 'content' || entry.spaceId !== channel.id");
+    expect(routes).toContain("'SERVICE_NOT_ON_CHANNEL'");
+  });
+
+  it('defaults to the entry’s date at the church’s 8:00, but an explicit time wins', () => {
+    const routes = src('server/routes/church-content.ts');
+    expect(routes).toContain('churchWallTimeToInstant(entry.serviceDate, PLANNED_ENTRY_PUBLISH_TIME, zone)');
+    expect(routes).toContain('parsePublishAt(body.publishAt === undefined ? entryPublishAt : body.publishAt, now)');
   });
 });

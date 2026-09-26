@@ -17,6 +17,7 @@ import {
   db,
   first,
   ChurchContentSubmissions,
+  ChurchServicePublishedNotes,
   Churches,
   and,
   eq,
@@ -55,6 +56,44 @@ export function parsePublishAt(raw: unknown, now: Date): PublishAtResult {
     return { ok: false, error: 'Choose a time within the next year' };
   }
   return { ok: true, publishAt: at.getTime() - now.getTime() <= 60_000 ? null : at };
+}
+
+/** When a planner entry's post goes out if nobody says otherwise: its date, at this church time. */
+export const PLANNED_ENTRY_PUBLISH_TIME = '08:00';
+
+/**
+ * Pure: the instant a church wall-clock reading names — `2026-09-27` at `08:00` in
+ * `America/Chicago` is 13:00Z. Planner dates are stored as the church's wall clock and never
+ * converted (church-service-times.ts); this is the one place one becomes an instant, because
+ * a publish has to happen at a moment. An unknown zone reads as UTC, like `churchClockNow`.
+ */
+export function churchWallTimeToInstant(date: string, time: string, timezone: string | null | undefined): Date | null {
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const t = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!d || !t) return null;
+  const wall = Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Number(t[1]), Number(t[2]));
+  const zone = timezone || 'UTC';
+  const offsetAt = (instant: number): number => {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: zone,
+        hourCycle: 'h23',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).formatToParts(new Date(instant));
+      const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+      return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute')) - instant;
+    } catch {
+      return 0;
+    }
+  };
+  // Twice, so a date on the far side of a DST change settles on that side's offset.
+  let instant = wall - offsetAt(wall);
+  instant = wall - offsetAt(instant);
+  return new Date(instant);
 }
 
 export type SubmitPlan = 'publish_now' | 'scheduled' | 'in_review';
@@ -147,14 +186,21 @@ export async function publishSubmission(
         actorId: row.authorUserId,
         now,
       });
+      if (row.serviceId) await claimPlannedEntry(tx, row.serviceId, row.noteId, row.authorUserId, now);
       return row;
     });
   } catch (error) {
     if (error instanceof SharedSpaceLifecycleError) {
-      await db
+      const marked = await db
         .update(ChurchContentSubmissions)
         .set({ status: 'failed', reviewNote: error.message.slice(0, REVIEW_NOTE_MAX), updatedAt: now })
-        .where(and(eq(ChurchContentSubmissions.id, submissionId), inArray(ChurchContentSubmissions.status, fromStatuses)));
+        .where(and(eq(ChurchContentSubmissions.id, submissionId), inArray(ChurchContentSubmissions.status, fromStatuses)))
+        .returning({ id: ChurchContentSubmissions.id });
+      if (marked.length) {
+        // Imported here, not at the top: church-content-push reads this module's role helper.
+        const { notifyAuthorOfOutcome } = await import('./church-content-push');
+        void notifyAuthorOfOutcome({ submissionId, outcome: 'failed', now });
+      }
       return { ok: false, error: error.message, code: error.code };
     }
     throw error;
@@ -165,6 +211,23 @@ export async function publishSubmission(
     id: claimed.noteId,
   }).catch(() => undefined);
   return { ok: true };
+}
+
+/**
+ * The live note is the material for its planner entry: the "material claims the service" row
+ * the followers' Home card reads (docs/future/CHURCH_STUDY_MATERIAL_LINKING.md). Idempotent.
+ */
+export async function claimPlannedEntry(
+  tx: Pick<typeof db, 'insert'>,
+  serviceId: string,
+  noteId: string,
+  userId: string,
+  now: Date,
+): Promise<void> {
+  await tx
+    .insert(ChurchServicePublishedNotes)
+    .values({ id: `svcpub_${crypto.randomUUID()}`, serviceId, noteId, publishedByUserId: userId, createdAt: now })
+    .onConflictDoNothing();
 }
 
 /** How many a tick publishes at most; the rest wait five minutes. */

@@ -687,8 +687,9 @@ export const SpaceMemberships = pgTable('SpaceMemberships', {
   /**
    * 'owner' | 'leader' | 'member'. The owner has a membership row too (the v1
    * model derived owner solely from Spaces.userId, which stays the
-   * creator/billing anchor). 'leader' is schema-ready but dormant in the
-   * foundation UI; it activates with Group Leader / church org.
+   * creator/billing anchor). 'leader' is written by the church staff sync (every staffer leads
+   * the rooms their ministry scope covers) and by granted leadership (`grantSource = 'grant'`,
+   * server/routes/church-space-leaders.ts).
    */
   role: text('role').notNull().default('member'),
   /** userId of the inviter; null on the owner row. */
@@ -1271,10 +1272,11 @@ export const ChurchServices = pgTable('ChurchServices', {
    * `isMinistryBroadcastSpaceRow` decides it. A client that could name its own
    * kind could escape the one-per-date rule by claiming to be content.
    *
-   * Not a publish state. There is no pipeline from a planned entry to a
-   * published note yet (see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md for
-   * why the pointer that tried was removed) — a content entry is still only a
-   * plan, and nothing congregant-facing reads it.
+   * Not a publish state. A content entry is a plan, not material: the note written for it goes
+   * live through the ordinary publish (see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md for
+   * why a pointer from here to a note was tried and removed). Followers of the channel do see
+   * its dated entries on Home — following a channel is membership, so
+   * `listViewerPlanSources` includes it — as a card that reads "This Wednesday: …".
    */
   kind: text('kind').notNull().default('gathering'),
   createdBy: text('createdBy').notNull(),
@@ -2052,6 +2054,12 @@ export const ChurchContentSubmissions = pgTable('ChurchContentSubmissions', {
   channelSpaceId: text('channelSpaceId').notNull(),
   noteId: text('noteId').notNull(),
   authorUserId: text('authorUserId').notNull(),
+  /**
+   * The planner entry this post is for — a `ChurchServices` row with `kind='content'` on the same
+   * channel. When set, going live also claims the entry (`ChurchServicePublishedNotes`), so the
+   * followers' Home card for that date shows the note.
+   */
+  serviceId: text('serviceId'),
   status: text('status').notNull(),
   /** When it goes live. Null = as soon as it is approved. */
   publishAt: ts('publishAt'),
@@ -2694,10 +2702,10 @@ export const LibraryItems = pgTable(
  * `scopeKind`:
  *   - `'org'`      — the whole church. `spaceId` and `ministryKey` null.
  *   - `'space'`    — one Shared Space or channel. `spaceId` set.
- *   - `'ministry'` — reserved. The column exists so the table never needs a
- *     migration, but **the write routes refuse it**: there is no ministry
- *     entity or key vocabulary anywhere in the app yet, so a free-text
- *     `ministryKey` written today would be data no read path could group by.
+ *   - `'ministry'` — one ministry. `ministryKey` holds a `ChurchMinistries.id`, validated as
+ *     a live ministry of this church on write. It reaches everyone in one of the ministry's
+ *     groups or following one of its channels, and every room in the ministry shows it on its
+ *     shelf like an org-wide default. An archived ministry reaches nobody but staff.
  *
  * Row ids: `libsc_${crypto.randomUUID()}`.
  */

@@ -51,11 +51,13 @@ import {
   findChurchLibrary,
   resolveChurchLibraryViewer,
   scopesAdmitViewer,
+  type WritableScopeKind,
   scopesByItemIds,
   WRITABLE_SCOPE_KINDS,
   type LibraryItemRow,
   type LibraryItemScopeRow,
 } from '../utils/church-library-access';
+import { listMinistriesForOrg } from '../utils/church-ministries';
 
 const app = new Hono();
 
@@ -92,7 +94,7 @@ function serializeChurchItem(row: LibraryItemRow, scopes: readonly LibraryItemSc
     fileMime: row.fileMime,
     fileBytes: row.fileBytes,
     access: row.access,
-    scopes: scopes.map((s) => ({ scopeKind: s.scopeKind, spaceId: s.spaceId })),
+    scopes: scopes.map((s) => ({ scopeKind: s.scopeKind, spaceId: s.spaceId, ministryId: s.ministryKey })),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -127,7 +129,7 @@ async function resolveScopes(
   orgId: string,
   raw: unknown,
 ): Promise<
-  | { ok: true; scopes: { scopeKind: 'org' | 'space'; spaceId: string | null }[] }
+  | { ok: true; scopes: ScopeInput[] }
   | { ok: false; error: string; code: string }
 > {
   if (raw === undefined) return { ok: true, scopes: [] };
@@ -138,17 +140,13 @@ async function resolveScopes(
     return { ok: false, error: `At most ${SCOPES_MAX} scopes`, code: 'BAD_REQUEST' };
   }
 
-  const scopes: { scopeKind: 'org' | 'space'; spaceId: string | null }[] = [];
+  const scopes: ScopeInput[] = [];
   const spaceIds: string[] = [];
+  const ministryIds: string[] = [];
 
   for (const entry of raw) {
     const kind = String((entry as { scopeKind?: unknown })?.scopeKind ?? '');
-    if (!WRITABLE_SCOPE_KINDS.includes(kind as 'org' | 'space')) {
-      /*
-        'ministry' lands here on purpose. The column exists so this table never
-        needs a migration, but there is no ministry entity to key against — a
-        free-text key written today is data no read path could group by.
-      */
+    if (!WRITABLE_SCOPE_KINDS.includes(kind as WritableScopeKind)) {
       return {
         ok: false,
         error: `Unsupported scope: ${kind || '(missing)'}`,
@@ -156,14 +154,23 @@ async function resolveScopes(
       };
     }
     if (kind === 'org') {
-      scopes.push({ scopeKind: 'org', spaceId: null });
+      scopes.push({ scopeKind: 'org', spaceId: null, ministryKey: null });
+      continue;
+    }
+    if (kind === 'ministry') {
+      const ministryId = clean((entry as { ministryId?: unknown })?.ministryId, 200);
+      if (!ministryId) {
+        return { ok: false, error: 'A ministry scope needs a ministryId', code: 'BAD_REQUEST' };
+      }
+      scopes.push({ scopeKind: 'ministry', spaceId: null, ministryKey: ministryId });
+      ministryIds.push(ministryId);
       continue;
     }
     const spaceId = clean((entry as { spaceId?: unknown })?.spaceId, 200);
     if (!spaceId) {
       return { ok: false, error: 'A space scope needs a spaceId', code: 'BAD_REQUEST' };
     }
-    scopes.push({ scopeKind: 'space', spaceId });
+    scopes.push({ scopeKind: 'space', spaceId, ministryKey: null });
     spaceIds.push(spaceId);
   }
 
@@ -185,14 +192,24 @@ async function resolveScopes(
     }
   }
 
+  // A ministry must be one of this church's, and live: an archived one reaches nobody.
+  if (ministryIds.length > 0) {
+    const live = new Set((await listMinistriesForOrg(orgId)).filter((m) => !m.archivedAt).map((m) => m.id));
+    if (ministryIds.some((id) => !live.has(id))) {
+      return { ok: false, error: 'That ministry is not one of your church’s', code: 'MINISTRY_NOT_FOUND' };
+    }
+  }
+
   return { ok: true, scopes };
 }
+
+type ScopeInput = { scopeKind: WritableScopeKind; spaceId: string | null; ministryKey: string | null };
 
 /** Replace an item's scope set wholesale, inside the caller's transaction. */
 async function replaceScopes(
   tx: { delete: typeof db.delete; insert: typeof db.insert },
   itemId: string,
-  scopes: readonly { scopeKind: 'org' | 'space'; spaceId: string | null }[],
+  scopes: readonly ScopeInput[],
 ): Promise<void> {
   await tx.delete(LibraryItemScopes).where(eq(LibraryItemScopes.libraryItemId, itemId));
   if (scopes.length === 0) return;
@@ -203,7 +220,7 @@ async function replaceScopes(
       libraryItemId: itemId,
       scopeKind: scope.scopeKind,
       spaceId: scope.spaceId,
-      ministryKey: null,
+      ministryKey: scope.ministryKey,
       createdAt: timestamp,
     })),
   );
@@ -281,7 +298,7 @@ app.get('/api/library/church', requireAuth, async (c) => {
 
     const visible = items.filter((item) => {
       if (item.access === 'leaders' && !viewer.seesLeaderOnly) return false;
-      return scopesAdmitViewer(scopes.get(item.id) ?? [], viewer.memberSpaceIds, viewer.seesLeaderOnly);
+      return scopesAdmitViewer(scopes.get(item.id) ?? [], viewer.memberSpaceIds, viewer.seesLeaderOnly, viewer.memberMinistryIds);
     });
 
     return c.json({

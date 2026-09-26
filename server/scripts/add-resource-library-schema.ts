@@ -118,7 +118,7 @@ export const ADDITIVE_RESOURCE_LIBRARY_DDL = [
   // a column: docs/future/CHURCH_STUDY_MATERIAL_LINKING.md is the post-mortem
   // of the single pointer that was tried and removed, and it says outright not
   // to add a cheaper one. Staff-side prep, distinct from the congregant-facing
-  // "material claims the service" inversion, which is still unbuilt.
+  // "material claims the service" inversion (ChurchServicePublishedNotes), built separately.
   `CREATE TABLE IF NOT EXISTS "ChurchServiceLibraryItems" (
     "id" text PRIMARY KEY,
     "serviceId" text NOT NULL,

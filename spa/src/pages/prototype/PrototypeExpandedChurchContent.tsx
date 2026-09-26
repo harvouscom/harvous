@@ -11,8 +11,10 @@
  * everyone else sees their own. What is published is already in front of the congregation, so
  * every staffer sees that list.
  */
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
+import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import {
   formatPublishAt,
@@ -30,6 +32,20 @@ import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import PrototypeStaffToolGate from './PrototypeStaffToolGate';
 import type { ExpandedSidebarToolProps } from './PrototypeExpandedSidebarHost';
+import { noteParamSlug } from './proto-route-slugs';
+
+/** Open a note from the tool, closing the expanded surface so the note has the pane. */
+function useOpenNote() {
+  const navigate = useNavigate();
+  const { closeExpandedSidebar } = useProtoShell();
+  return useCallback(
+    (noteId: string) => {
+      closeExpandedSidebar({ preserveHistory: true });
+      navigate({ to: prototypeNoteRouteTo(), params: { noteId: noteParamSlug(noteId) } });
+    },
+    [closeExpandedSidebar, navigate],
+  );
+}
 
 function relativeDay(iso: string | null): string {
   if (!iso) return '';
@@ -61,6 +77,7 @@ export default function PrototypeExpandedChurchContent({ exiting, origin, onClos
   const { can } = staffStatus;
   const isStaff = can('publish');
   const query = useChurchContent(orgId, { enabled: isStaff });
+  const openNote = useOpenNote();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const data = query.data;
@@ -170,12 +187,14 @@ export default function PrototypeExpandedChurchContent({ exiting, origin, onClos
                         <span className="proto-church-tools__row-icon" aria-hidden>
                           <Icon name="rss" size={13} />
                         </span>
-                        <span className="proto-church-tools__row-text">
-                          <span className="pds-list-title proto-church-tools__row-title">{item.title}</span>
-                          <span className="proto-caption proto-church-tools__row-meta">
-                            {[item.channel.title, item.author.isYou ? 'You' : item.author.displayName, relativeDay(item.publishedAt)].join(' · ')}
+                        <button type="button" className="proto-church-review__row-open" onClick={() => openNote(item.noteId)}>
+                          <span className="proto-church-tools__row-text">
+                            <span className="pds-list-title proto-church-tools__row-title">{item.title}</span>
+                            <span className="proto-caption proto-church-tools__row-meta">
+                              {[item.channel.title, item.author.isYou ? 'You' : item.author.displayName, relativeDay(item.publishedAt)].join(' · ')}
+                            </span>
                           </span>
-                        </span>
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -214,6 +233,7 @@ function SubmissionPane({
   onClose: () => void;
 }) {
   const preview = useSubmissionPreview(submission.id);
+  const openNote = useOpenNote();
   const actions = useChurchContentActions();
   const [when, setWhen] = useState(
     submission.publishAt ? toDateTimeLocal(new Date(submission.publishAt)) : '',
@@ -252,6 +272,14 @@ function SubmissionPane({
         <div className="proto-church-review-editor">
           <p className="proto-caption proto-church-content__byline">
             {submission.author.isYou ? 'You' : submission.author.displayName} · sent {relativeDay(submission.createdAt)}
+            {submission.author.isYou ? (
+              <>
+                {' · '}
+                <button type="button" className="proto-church-review__text-btn" onClick={() => openNote(submission.noteId)}>
+                  Open note
+                </button>
+              </>
+            ) : null}
           </p>
           {preview.isPending ? (
             <ProtoSpaceLoading label="Loading note" />

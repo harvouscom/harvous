@@ -211,6 +211,26 @@ describe('granted leader — the P5 boundary', () => {
     expect((await assertCanManageSpaceTeachingPlan('user_volunteer', 'space_youth')).ok).toBe(true);
   });
 
+  it('lets a granted volunteer read the plan they can write', async () => {
+    // The read gate once lacked the grant arm: a volunteer could change their room's plan but
+    // got a 403 opening it.
+    asGrantedVolunteer();
+    expect((await assertCanViewSpaceTeachingPlan('user_volunteer', 'space_youth')).ok).toBe(true);
+  });
+
+  it('lets a granted volunteer read even at a lapsed church — reads are never gated', async () => {
+    asGrantedVolunteer();
+    churchIsSponsored.mockReturnValue(false);
+    expect((await assertCanViewSpaceTeachingPlan('user_volunteer', 'space_youth')).ok).toBe(true);
+  });
+
+  it('does not let a plain member read the full plan', async () => {
+    isChurchStaffForChurch.mockResolvedValue(false);
+    fetchClerkOrgMemberships.mockResolvedValue([]);
+    membershipRows.mockResolvedValue([{ role: 'member', grantSource: null }]);
+    expect((await assertCanViewSpaceTeachingPlan('user_member', 'space_youth')).ok).toBe(false);
+  });
+
   it('refuses a member whose row is not a grant', async () => {
     isChurchStaffForChurch.mockResolvedValue(false);
     fetchClerkOrgMemberships.mockResolvedValue([]);

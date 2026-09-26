@@ -32,12 +32,12 @@ only 8 `NoteConnections` edges across 5 of 115 users with zero chains longer tha
 notes — an explicit-link trail would be invisible to ~96% of users. The narrower
 `buildStudyThreadTrail` / inspector spine still exists for that 4%.
 
-**Generative recall, phase 2** (`crossrefGap` and `connectNotes` cards) is approved
-but deferred — plan at `~/.claude/plans/i-m-wondering-how-great-foamy-dusk.md`.
+**Generative recall, phase 2** (`crossrefGap` and `connectNotes` cards) has since shipped
+(`proto-recall-candidates.ts`, `PrototypeRecallCarousel.tsx`).
 
-**Still genuinely not done:** workstream A's inspector read-out (declined by the
-user), and the paid `review` feature (practice-from-your-notes) that this layer is
-meant to ground per `SCRIPTURE_AI_GROUNDING_PHASE_5.md`.
+**Still genuinely not done:** workstream A's inspector read-out (declined by the user). The
+paid `review` feature shipped in 3.0 without generative AI — `SCRIPTURE_AI_GROUNDING_PHASE_5.md`
+is superseded for Review.
 
 ## Context
 

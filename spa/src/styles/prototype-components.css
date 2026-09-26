@@ -12413,6 +12413,15 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   margin-top: 6px;
 }
 
+/* Planner: a channel entry's note, sent on its date. */
+.proto-planner-entry-publish {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 2px 0;
+}
+
 /* Content: the note under review, read in the pane before deciding. */
 .proto-church-content__byline {
   margin: 0;
