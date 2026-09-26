@@ -85,8 +85,12 @@ describe('copy write path', () => {
 
   it('writes the Thread first so the dedupe index refuses a racing copy before any note lands', () => {
     const text = util();
-    const tx = text.slice(text.indexOf('db.transaction'));
-    expect(tx.indexOf('tx.insert(Threads)')).toBeLessThan(tx.indexOf('tx.insert(Notes)'));
+    const fn = text.slice(text.indexOf('export async function copyStudyPlanThread'));
+    const tx = fn.slice(fn.indexOf('db.transaction'));
+    // The steps are written by insertCopiedStepsInTx; the plan row must land before it runs.
+    const steps = tx.indexOf('insertCopiedStepsInTx(tx,');
+    expect(steps).toBeGreaterThan(-1);
+    expect(tx.indexOf('tx.insert(Threads)')).toBeLessThan(steps);
     expect(tx).toContain('copiedFromThreadId: source.id');
   });
 

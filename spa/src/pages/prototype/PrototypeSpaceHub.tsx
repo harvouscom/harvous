@@ -1327,6 +1327,7 @@ function PrototypeSpaceHubLive() {
           <PrototypeSpaceComingUp
             spaceId={activeSpaceId ?? null}
             enabled={ministryMeta.type !== 'personal'}
+            canLead={canManageThreads && ministryMeta.type === 'shared'}
           />
 
           {totalNoteCount === 0 ? (

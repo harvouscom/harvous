@@ -18,6 +18,14 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
   Spaces: ['deletedAt', 'recoveryUntil', 'ministryId', 'audience'],
   ChurchMinistries: ['id', 'orgId', 'name', 'description', 'sortOrder', 'createdByUserId', 'archivedAt', 'createdAt', 'updatedAt'],
   ChurchMinistryStaff: ['id', 'orgId', 'ministryId', 'userId', 'createdByUserId', 'createdAt'],
+  ChurchContentSubmissions: [
+    'id', 'orgId', 'channelSpaceId', 'noteId', 'authorUserId', 'status', 'publishAt',
+    'reviewedByUserId', 'reviewedAt', 'reviewNote', 'publishedAt', 'createdAt', 'updatedAt',
+  ],
+  StudyPlanStepGuides: ['id', 'threadId', 'noteId', 'leaderNotes', 'questions', 'copiedFromGuideId', 'updatedByUserId', 'createdAt', 'updatedAt'],
+  GatheringAgendas: ['id', 'serviceId', 'items', 'stepThreadId', 'stepNoteId', 'updatedByUserId', 'createdAt', 'updatedAt'],
+  StudyPlanLibraryItems: ['id', 'threadId', 'noteId', 'libraryItemId', 'sortOrder', 'attachedByUserId', 'createdAt'],
+  StudyPlanCopyBaselines: ['id', 'threadId', 'sourceThreadId', 'stepFingerprints', 'createdAt', 'updatedAt'],
   // Without these the shared-thread import has nothing to be idempotent on,
   // and a repeat click silently forks a second copy of the whole thread.
   Threads: ['copiedFromThreadId', 'copiedFromAuthorId'],
@@ -271,6 +279,13 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
     'ChurchReviewExercises_channel_statusIndex',
     'ChurchReviewExercises_channel_suggestion_unique',
   ],
+  // One open submission per note per channel.
+  ChurchContentSubmissions: ['ChurchContentSubmissions_open_unique', 'ChurchContentSubmissions_status_publishAtIndex'],
+  StudyPlanStepGuides: ['StudyPlanStepGuides_thread_note_unique'],
+  GatheringAgendas: ['GatheringAgendas_serviceId_unique'],
+  StudyPlanLibraryItems: ['StudyPlanLibraryItems_plan_item_unique', 'StudyPlanLibraryItems_step_item_unique'],
+  // Doubles as the lock for "Add the new steps".
+  StudyPlanCopyBaselines: ['StudyPlanCopyBaselines_threadId_unique'],
   // The endpoint unique index is what the subscribe upsert targets.
   PushSubscriptions: ['PushSubscriptions_endpoint_unique', 'PushSubscriptions_userIdIndex'],
   ReminderDeliveries: ['ReminderDeliveries_userId_sentAtIndex', 'ReminderDeliveries_outcome_sentAtIndex'],
@@ -320,6 +335,11 @@ async function main() {
     'ChurchMinistries',
     'ChurchMinistryStaff',
     'ChurchReviewExercises',
+    'ChurchContentSubmissions',
+    'StudyPlanStepGuides',
+    'GatheringAgendas',
+    'StudyPlanLibraryItems',
+    'StudyPlanCopyBaselines',
     'ReviewItems',
     'ChurchServices',
     'ChurchSeries',

@@ -21,7 +21,7 @@
  * Renders nothing at all when the space has no plan — which is the common case,
  * and must stay silent rather than occupy a room that never gathers.
  */
-import { useCallback } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
@@ -39,6 +39,8 @@ import {
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { noteParamSlug } from './proto-route-slugs';
+/* Leaders only, so off the first paint. */
+const PrototypeGatheringAgendaSheet = lazy(() => import('./PrototypeGatheringAgendaSheet'));
 
 export interface PrototypeSpaceComingUpProps {
   spaceId: string | null;
@@ -48,9 +50,15 @@ export interface PrototypeSpaceComingUpProps {
    * be allowed to look — this is an optimisation, not a permission.
    */
   enabled?: boolean;
+  /**
+   * The viewer leads this group, so the card also offers the gathering's agenda. Leaders only —
+   * the server refuses everyone else, and members never see the row.
+   */
+  canLead?: boolean;
 }
 
-export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSpaceComingUpProps) {
+export default function PrototypeSpaceComingUp({ spaceId, enabled, canLead = false }: PrototypeSpaceComingUpProps) {
+  const [agendaOpen, setAgendaOpen] = useState(false);
   const navigate = useNavigate();
   const { isMobileSidebar, closeDrawer, beginPrototypeComposeSession } = useProtoShell();
   const { data } = useSpaceComingUp(spaceId, { enabled });
@@ -261,7 +269,38 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
             </span>
           </button>
         ) : null}
+        {/* Leaders only: the run of the evening. A third row in the same card rather than a
+            control inside the first — same reasoning as the passage row above. */}
+        {canLead && spaceId ? (
+          <button
+            type="button"
+            className="proto-church-tools__row"
+            aria-label={`Agenda for ${gathering.title}`}
+            onClick={() => setAgendaOpen(true)}
+          >
+            <span className="proto-church-tools__row-icon" aria-hidden>
+              <Icon name="list-ol" size={13} />
+            </span>
+            <span className="proto-church-tools__row-text">
+              <span className="pds-list-title proto-church-tools__row-title">Agenda</span>
+              <span className="proto-caption proto-church-tools__row-meta">For leaders</span>
+            </span>
+            <span className="proto-church-tools__row-chevron" aria-hidden>
+              <Icon name="caret-right" size={11} />
+            </span>
+          </button>
+        ) : null}
       </div>
+      {canLead && spaceId && agendaOpen ? (
+        <Suspense fallback={null}>
+          <PrototypeGatheringAgendaSheet
+            open={agendaOpen}
+            spaceId={spaceId}
+            gathering={{ id: gathering.id, title: gathering.title }}
+            onOpenChange={setAgendaOpen}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

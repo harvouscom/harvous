@@ -232,12 +232,41 @@ list.**
 
 ## E. Group leader kit
 
-- Leader-only notes and discussion questions on each step of a study plan.
-- A per-meeting agenda tied to plan steps.
-- Library items that travel with a plan when it is handed to a group.
-- A "the source was updated" notice for a group's copy.
+**Built (Sept 26 2026).** Four tables, all leaders only (schema: `npm run leader-kit:schema:apply`):
+- **Step guides** (`StudyPlanStepGuides`): notes and discussion questions on each step.
+- **Agendas** (`GatheringAgendas`): one per gathering, with lines, optional minutes and a total.
+  "Add discussion questions" copies in the current step's questions.
+- **Resources that travel** (`StudyPlanLibraryItems`): library items attached plan-wide or per step
+  on a church channel's plan.
+- **"Your church updated this plan"** (`StudyPlanCopyBaselines`): fingerprints of what each
+  source step said when copied.
+
+How it behaves:
+- **One gate.** `canUseLeaderKit` is the rule that already gates a plan's `pulse`
+  (`canManageSpaceThreadStructure`), on its own endpoint (`GET /api/threads/:id/leader-kit`).
+  Member-facing reads never touch the kit tables.
+- **The agenda is gated on leading the room**, not on the plan gates, so a granted volunteer runs
+  their own meetings.
+- **Kit carry (Derek):** a copy carries guides and resources only into a church room of the
+  channel's own church. Home and churchless groups get steps only.
+- **Resources and scopes.** An item already scoped to some rooms gains the group's scope. An
+  org-wide item never gets one, because a first space scope would narrow it.
+- **Source updates (Derek).** Leaders can add new steps in place, after their nearest earlier step,
+  idempotently under a locked baseline. Changed steps can only be opened ("Open the church's
+  version") or marked seen; the group's copy is never overwritten.
+- **Also fixed:** a granted group leader could see a leaders-only library item on the shelf but got
+  a 404 opening it.
 
 There is **no attendance and no RSVP**. That is ChMS work.
+
+**Later in E:**
+- Group leaders attaching their own resources to a copy.
+- Merging or overwriting upstream edits, and steps removed upstream.
+- Plan-level leader notes.
+- Printing an agenda, or showing it in the staff planner.
+- Guides for copies made before this shipped.
+- Rich-text guides.
+- One copy per group rather than per person (the `Threads_copiedFromThread_unique` index).
 
 ## F. Curriculum and taxonomy
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
@@ -40,6 +40,10 @@ import {
   threadPlanStatusClause,
 } from './PrototypeThreadPlanProgress';
 import PrototypeStudyPlanCopyButton, { StudyPlanCopyMenu } from './PrototypeStudyPlanCopyAction';
+/* Leaders only, so off the first paint: members never load them. */
+const PrototypeStepLeaderGuideSheet = lazy(() => import('./PrototypeStepLeaderGuideSheet'));
+const PrototypeSourceUpdateBanner = lazy(() => import('./PrototypeSourceUpdateBanner'));
+import { useStudyPlanLeaderKit } from '../../hooks/queries/useStudyPlanLeaderKit';
 import PrototypeSidebarRowMenuPopover, {
   TRIGGER_ANCHOR_MIN_WIDTH,
 } from './PrototypeSidebarRowMenuPopover';
@@ -140,7 +144,7 @@ export default function PrototypeSharedThreadDrilldown({
   onThreadUpdated?: (patch: Pick<SharedThreadDrillTarget, 'title' | 'color'>) => void;
 }) {
   const navigate = useNavigate();
-  const { isMobileSidebar, closeDrawer } = useProtoShell();
+  const { isMobileSidebar, closeDrawer, activeChurchOrgId } = useProtoShell();
   const notesQuery = useThreadNotes(thread.id, spaceId);
   const candidateNotesQuery = useSpaceNotes(spaceId, 100);
   const updateThread = useUpdateSharedThread();
@@ -195,6 +199,10 @@ export default function PrototypeSharedThreadDrilldown({
   */
   const orderedNoteIds = useMemo(() => notes.map((note) => note.id), [notes]);
   const canManageSequence = canManageStructure ?? isOwner;
+  /* The leader kit — asked for only by someone who can manage the plan; the server refuses
+     everyone else, and a member's session never sends the request. */
+  const leaderKit = useStudyPlanLeaderKit(thread.id, { enabled: canManageSequence && isSequence });
+  const [guideStep, setGuideStep] = useState<{ id: string; title: string } | 'plan' | null>(null);
   const sequenceLabel = isSequence && sequenceInfo && sequenceInfo.total > 0
     ? sequenceInfo.currentIndex > 0
       ? `Step ${sequenceInfo.currentIndex} of ${sequenceInfo.total}`
@@ -456,6 +464,17 @@ export default function PrototypeSharedThreadDrilldown({
               {/* Your own standing, as one more clause — it used to be a row of its own
                   with a pill, competing with the actions below. */}
               {planStatus ? ` · ${planStatus}` : ''}
+              {/* Leaders only: what goes with the whole plan. Shown on the church's plan (where
+                  resources are attached) and on a copy that arrived with some. */}
+              {isSequence && canManageSequence &&
+              (leaderKit.data?.canAttachResources || (leaderKit.data?.resources?.plan.length ?? 0) > 0) ? (
+                <>
+                  {' · '}
+                  <button type="button" className="proto-church-review__text-btn proto-shared-thread-drilldown__kit" onClick={() => setGuideStep('plan')}>
+                    Leader kit
+                  </button>
+                </>
+              ) : null}
             </p>
           </div>
           {showOwnerMenu ? (
@@ -703,6 +722,12 @@ export default function PrototypeSharedThreadDrilldown({
         ) : null}
         {state === 'ready' ? (
           <>
+            {/* Leaders only: the church has changed the plan this group copied. */}
+            {canManageSequence && isSequence && leaderKit.data?.sourceUpdate ? (
+              <Suspense fallback={null}>
+                <PrototypeSourceUpdateBanner threadId={thread.id} update={leaderKit.data.sourceUpdate} />
+              </Suspense>
+            ) : null}
             {/* Same grouped-row card and spine the connected-notes trail wears.
                 A Thread should not look like a different feature because it was
                 opened inside a space. */}
@@ -816,19 +841,35 @@ export default function PrototypeSharedThreadDrilldown({
                         <Icon name="bars" size={12} />
                       </span>
                     ) : null}
-                    {isSequence && canManageSequence && !isCurrentStep ? (
+                    {isSequence && canManageSequence ? (
                       <div className="proto-shared-thread-step__controls">
+                        {/* Leaders only: notes and questions for leading this step. Filled when
+                            the step has a guide, so a leader can see at a glance which do. */}
                         <button
                           type="button"
-                          className="proto-toolbar-icon-btn"
-                          aria-label={`Make ${noteTitle(note)} the current step`}
-                          disabled={updateSequence.isPending}
-                          /* The row carries the drag listeners. */
+                          className={`proto-toolbar-icon-btn${
+                            leaderKit.data?.guides[note.id] ? ' proto-shared-thread-step__guide--set' : ''
+                          }`}
+                          aria-label={`${leaderKit.data?.guides[note.id] ? 'Leader guide for' : 'Add a leader guide to'} ${noteTitle(note)}`}
+                          title={leaderKit.data?.guides[note.id] ? 'Leader guide' : 'Add a leader guide'}
                           onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => void applySequence({ currentNoteId: note.id })}
+                          onClick={() => setGuideStep({ id: note.id, title: noteTitle(note) })}
                         >
-                          <Icon name="thumbtack" size={11} />
+                          <Icon name="compass" size={11} />
                         </button>
+                        {!isCurrentStep ? (
+                          <button
+                            type="button"
+                            className="proto-toolbar-icon-btn"
+                            aria-label={`Make ${noteTitle(note)} the current step`}
+                            disabled={updateSequence.isPending}
+                            /* The row carries the drag listeners. */
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={() => void applySequence({ currentNoteId: note.id })}
+                          >
+                            <Icon name="thumbtack" size={11} />
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                     </div>
@@ -884,6 +925,21 @@ export default function PrototypeSharedThreadDrilldown({
       viewerIsSpaceOwner={isOwner}
       onAdded={() => void notesQuery.refetch()}
     />
+    {canManageSequence && guideStep != null ? (
+      <Suspense fallback={null}>
+      <PrototypeStepLeaderGuideSheet
+        open={guideStep != null}
+        threadId={thread.id}
+        step={guideStep}
+        guide={guideStep && guideStep !== 'plan' ? leaderKit.data?.guides[guideStep.id] ?? null : null}
+        kit={leaderKit.data}
+        orgId={activeChurchOrgId ?? null}
+        onOpenChange={(next) => {
+          if (!next) setGuideStep(null);
+        }}
+      />
+      </Suspense>
+    ) : null}
     </>
   );
 }

@@ -18,6 +18,7 @@ import { broadcastInvalidation } from '../utils/realtime';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { canManageSpaceThreadStructure } from '../utils/thread-sequence';
 import { copyStudyPlanThread, decideStudyPlanCopy } from '../utils/study-plan-copy';
+import { decideKitCarry } from '../utils/study-plan-leader-kit';
 
 const app = new Hono();
 
@@ -70,8 +71,10 @@ app.post(
       ]);
 
       let target: Parameters<typeof decideStudyPlanCopy>[0]['target'] = null;
+      let targetSpaceForKit: { type: string | null; orgId: string | null } | null = null;
       if (targetSpaceId) {
         const targetAccess = await accessOrNull(targetSpaceId, auth.userId);
+        targetSpaceForKit = targetAccess ? { type: targetAccess.space.type, orgId: targetAccess.space.orgId } : null;
         target = {
           spaceId: targetSpaceId,
           type: targetAccess?.space.type ?? null,
@@ -103,6 +106,8 @@ app.post(
         },
         actorId: auth.userId,
         targetSpaceId,
+        // Leader notes go only to the church's own rooms — never a group a follower made.
+        carryKit: decideKitCarry({ targetSpace: targetSpaceForKit, sourceOrgId: sourceSpace?.orgId ?? null }),
       });
 
       if (!result.alreadyCopied && targetSpaceId) {
