@@ -14,15 +14,24 @@ import type { ChurchLibraryStaffItem } from '../../../hooks/queries/useChurchLib
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
 import type { LibrarySelection } from './PrototypeExpandedLibraryManager';
 
-/** "Whole church", or the rooms it is scoped to, in the church's own words. */
-function scopeLabel(item: ChurchLibraryStaffItem, spaces: PlannableSpace[]): string {
-  const spaceScopes = item.scopes.filter((s) => s.scopeKind === 'space' && s.spaceId);
+/** "Whole church", or the ministries and rooms it is scoped to, in the church's own words. */
+function scopeLabel(
+  item: ChurchLibraryStaffItem,
+  spaces: PlannableSpace[],
+  ministries: readonly { id: string; name: string }[],
+): string {
   if (item.scopes.length === 0 || item.scopes.some((s) => s.scopeKind === 'org')) {
     return 'Whole church';
   }
-  const names = spaceScopes
+  const ministryNames = item.scopes
+    .filter((s) => s.scopeKind === 'ministry' && s.ministryId)
+    .map((s) => ministries.find((m) => m.id === s.ministryId)?.name)
+    .filter((t): t is string => Boolean(t));
+  const roomNames = item.scopes
+    .filter((s) => s.scopeKind === 'space' && s.spaceId)
     .map((s) => spaces.find((sp) => sp.id === s.spaceId)?.title)
     .filter((t): t is string => Boolean(t));
+  const names = [...ministryNames, ...roomNames];
   if (names.length === 0) return 'No rooms yet';
   if (names.length <= 2) return names.join(' · ');
   return `${names[0]} · ${names[1]} +${names.length - 2}`;
@@ -32,12 +41,15 @@ export default function PrototypeLibraryManagerItems({
   items,
   canCurate,
   plannableSpaces,
+  ministries = [],
   selection,
   onSelect,
 }: {
   items: ChurchLibraryStaffItem[];
   canCurate: boolean;
   plannableSpaces: PlannableSpace[];
+  /** Live ministries, for naming ministry scopes. */
+  ministries?: readonly { id: string; name: string }[];
   selection: LibrarySelection;
   onSelect: (selection: LibrarySelection) => void;
 }) {
@@ -115,7 +127,7 @@ export default function PrototypeLibraryManagerItems({
                 </span>
                 <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
                   {subtitle ? `${subtitle} · ` : ''}
-                  {scopeLabel(item, plannableSpaces)}
+                  {scopeLabel(item, plannableSpaces, ministries)}
                   {/* Audience only when it narrows — "Members" on every row
                       would be noise on the default. */}
                   {item.access === 'leaders' ? ' · Leaders only' : ''}

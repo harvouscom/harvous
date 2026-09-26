@@ -18,6 +18,8 @@ export type LibraryItemAccess = 'leaders' | 'members';
 export type LibraryScope = {
   scopeKind: 'org' | 'space' | 'ministry';
   spaceId: string | null;
+  /** Set on a ministry scope: a `ChurchMinistries` id. */
+  ministryId?: string | null;
 };
 
 export type ChurchLibraryItem = {
@@ -154,7 +156,7 @@ type ChurchLibraryAction =
       siteName?: string | null;
       image?: string | null;
       access?: LibraryItemAccess;
-      scopes?: { scopeKind: 'org' | 'space'; spaceId?: string | null }[];
+      scopes?: { scopeKind: 'org' | 'space' | 'ministry'; spaceId?: string | null; ministryId?: string | null }[];
     }
   | {
       kind: 'upload';
@@ -162,7 +164,7 @@ type ChurchLibraryAction =
       title?: string | null;
       description?: string | null;
       access?: LibraryItemAccess;
-      scopes?: { scopeKind: 'org' | 'space'; spaceId?: string | null }[];
+      scopes?: { scopeKind: 'org' | 'space' | 'ministry'; spaceId?: string | null; ministryId?: string | null }[];
     }
   | {
       kind: 'update';
@@ -170,7 +172,7 @@ type ChurchLibraryAction =
       title?: string;
       description?: string | null;
       access?: LibraryItemAccess;
-      scopes?: { scopeKind: 'org' | 'space'; spaceId?: string | null }[];
+      scopes?: { scopeKind: 'org' | 'space' | 'ministry'; spaceId?: string | null; ministryId?: string | null }[];
     }
   | { kind: 'archive'; id: string };
 

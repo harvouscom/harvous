@@ -187,7 +187,10 @@ these specifics:
 **Later in C:**
 - **Volunteer ministry leads.** A separate `ChurchMinistryGrants` table, never
   `ChurchMinistryStaff`.
-- **Library items scoped to a ministry** (`LibraryItemScopes.scopeKind='ministry'`).
+- ~~**Library items scoped to a ministry**~~ — built (Sept 26 2026): `scopeKind='ministry'` with
+  `ministryKey` = a live `ChurchMinistries.id`. It reaches anyone in one of the ministry's groups
+  or following one of its channels, and shows on every room in the ministry like an org-wide
+  default (a room can still unpin it).
 - **An opt-in group directory** so congregants can find a ministry's groups.
 
 ## D. Content lifecycle
