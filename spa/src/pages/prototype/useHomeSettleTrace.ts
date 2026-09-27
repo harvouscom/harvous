@@ -4,6 +4,9 @@ import type { PrototypeHomePresentationReadyInput } from '@/utils/prototype-home
 /** Where the opt-in is remembered. Session-scoped on purpose — see `resolveHomeSettleTrace`. */
 export const HOME_SETTLE_TRACE_KEY = 'harvous-debug-home-settle';
 
+/** `performance.mark` name for the first frame Home presents its content in this document. */
+export const HOME_PRESENTED_MARK = 'home:presented';
+
 /**
  * What `?debug=home` should do, given the URL and whether the trace is already armed.
  *
@@ -96,6 +99,19 @@ export function useHomeSettleTrace(
     }
   });
 
+  /*
+   * The one number this hook exists to explain, measured from navigation rather than from mount.
+   * Mount is late: the bundle, Clerk and the shell have all run by then, and on a cold load that
+   * is most of the wait. A mark on the page's own timeline is readable in any build with
+   * `performance.getEntriesByName('home:presented')`, which is how the initial-load work is
+   * measured (docs/performance/PERF_BASELINE.md). First presentation of the document only.
+   */
+  useEffect(() => {
+    if (!contentReady) return;
+    if (performance.getEntriesByName(HOME_PRESENTED_MARK).length > 0) return;
+    performance.mark(HOME_PRESENTED_MARK);
+  }, [contentReady]);
+
   useEffect(() => {
     if (!enabled) return;
     if (!contentReady || reportedRef.current) return;
@@ -103,6 +119,7 @@ export function useHomeSettleTrace(
 
     const startedAt = startedAtRef.current ?? performance.now();
     const elapsed = Math.round(performance.now() - startedAt);
+    const sinceNavigation = Math.round(performance.now());
     const unsettled = Object.entries(inputRef.current)
       .filter(([, settled]) => !settled)
       .map(([flag]) => flag);
@@ -116,10 +133,12 @@ export function useHomeSettleTrace(
     const off = import.meta.env.DEV ? '' : ' — ?debug=off to stop';
 
     if (presentationReady) {
-      console.info(`[home] settled via gate in ${elapsed}ms — last to land: ${slowest}${off}`);
+      console.info(
+        `[home] settled via gate in ${elapsed}ms (${sinceNavigation}ms after navigation) — last to land: ${slowest}${off}`,
+      );
     } else {
       console.warn(
-        `[home] settled via DEADLINE in ${elapsed}ms — still waiting on: ${unsettled.join(', ') || '(none)'} — last to land: ${slowest}${off}`,
+        `[home] settled via DEADLINE in ${elapsed}ms (${sinceNavigation}ms after navigation) — still waiting on: ${unsettled.join(', ') || '(none)'} — last to land: ${slowest}${off}`,
       );
     }
   }, [contentReady, presentationReady, enabled]);

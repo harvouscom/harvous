@@ -29,6 +29,29 @@
     <link rel="preconnect" href="https://clerk.harvous.com" />
     <link rel="preload" href="/fonts/google-sans-flex/GoogleSansFlex-opsz-wght-ROND.woff2" as="font" type="font/woff2" crossorigin />
     <title>Harvous</title>
+    <!-- Starts reading last visit's query cache now, so it overlaps the bundle download rather
+         than following it; main.tsx picks the promise up before first render. Signed-out
+         browsers skip it. Names match src/utils/query-cache-persistence.ts (a test checks). -->
+    <script>
+      (function () {
+        try {
+          if (!/(?:^|;\s*)__client_uat(?:_[A-Za-z0-9]+)?=[1-9]/.test(document.cookie)) return;
+          window.__harvousQueryCacheRead = new Promise(function (resolve) {
+            var open = indexedDB.open('harvous-query-cache', 1);
+            open.onupgradeneeded = function () { open.result.createObjectStore('snapshots'); };
+            open.onerror = function () { resolve(undefined); };
+            open.onsuccess = function () {
+              var db = open.result;
+              try {
+                var get = db.transaction('snapshots', 'readonly').objectStore('snapshots').get('last');
+                get.onsuccess = function () { resolve(get.result); db.close(); };
+                get.onerror = function () { resolve(undefined); db.close(); };
+              } catch (e) { resolve(undefined); db.close(); }
+            };
+          });
+        } catch (e) { /* no IndexedDB: the app loads as it always did */ }
+      })();
+    </script>
     <style>
       /* SPA: lock the viewport — all scrolling happens inside .card-stack__inner */
       html {

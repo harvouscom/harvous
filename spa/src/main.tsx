@@ -1,8 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { queryClient } from './lib/query-client';
+import { restorePersistedQueryCache } from '@/utils/query-cache-persistence';
 import { initDiagnosticCapture } from '@/utils/diagnostics-client';
-import { startGuestSessionFromUrl } from './lib/guest-session';
+import { isGuestModeActive, startGuestSessionFromUrl } from './lib/guest-session';
 import { clearAppCachesThen, showPrototypeAppUpdateNotice } from '@/utils/prototype-app-update-notice';
 import { enforceProductionClerkKey } from '@/utils/production-clerk-key-guard';
 import {
@@ -130,8 +132,16 @@ initNotificationNavigation();
 // Never boot a development-Clerk bundle on a production host. Returns true when it has
 // started a reload or shown the recovery screen, in which case nothing else may mount:
 // rendering <App /> would sign the user into the wrong Clerk instance.
+//
+// First render waits (at most 250ms, and in practice not at all — `index.html` started the read
+// while this bundle downloaded) for last visit's query cache, so Home and the shell paint what
+// was there last time and revalidate underneath instead of opening on loading dots.
 if (!enforceProductionClerkKey()) {
-  ReactDOM.createRoot(document.getElementById('root')!).render(
-    <App />
-  );
+  restorePersistedQueryCache(queryClient, { guest: isGuestModeActive() })
+    .catch(() => false)
+    .then(() => {
+      ReactDOM.createRoot(document.getElementById('root')!).render(
+        <App />
+      );
+    });
 }

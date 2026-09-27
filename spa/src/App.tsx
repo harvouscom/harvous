@@ -3,7 +3,12 @@ import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { extractIdFromPath } from '@/utils/url-helpers';
 import { ClerkProvider, useAuth, useUser } from '@clerk/clerk-react';
 import { hasClerkSessionCookieHint } from './hooks/queries/useProfile';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { queryClient } from './lib/query-client';
+import {
+  reconcilePersistedQueryCacheUser,
+  startQueryCachePersistence,
+} from '@/utils/query-cache-persistence';
 import { clearUserClientCaches } from '@/utils/clear-user-client-caches';
 import { RouterProvider } from '@tanstack/react-router';
 import React, { lazy, Suspense, useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -17,7 +22,6 @@ import { WebHaptics } from 'web-haptics';
 import { router } from './router';
 import { APIError } from './lib/api';
 import { isGuestModeActive } from './lib/guest-session';
-import SpotlightSearch from './components/SpotlightSearch';
 import KeyboardShortcutsInit from '../../src/components/react/KeyboardShortcutsInit';
 import {
   getMobileChipBottomInsetPx,
@@ -45,31 +49,6 @@ const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
 declare const __APP_VERSION__: string;
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60_000,           // 1 minute
-      // 30 minutes. Leaving the PWA for longer than gcTime used to drop every inactive query,
-      // so coming back painted loaders instead of last-known data revalidating underneath.
-      // Costs memory only; staleTime (not this) decides when anything refetches.
-      gcTime: 30 * 60_000,
-      retry: (failureCount, error) => {
-        // Don't retry on 401 (session expired) — redirect to sign-in instead
-        if (error instanceof APIError && error.status === 401) return false;
-        return failureCount < 2;
-      },
-      // Refetch stale queries when the user returns to the tab/app or regains
-      // network. staleTime still gates this, so quick tab flips don't refetch —
-      // but coming back after being away (or after an edit on another device)
-      // pulls fresh data without a manual reload.
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
-    },
-    mutations: {
-      retry: false,
-    },
-  },
-});
 
 // Global handler lives in QueryClient401Redirect (inside ClerkProvider) so we do not redirect
 // on 401 while Clerk is still loading — avoids localhost refresh flashing /sign-in then dashboard.
@@ -301,6 +280,28 @@ function AuthSignedOutCacheCleanup() {
 }
 
 /**
+ * Keeps last visit's query cache on disk while an account is signed in, and — once Clerk has
+ * said who that is — drops anything restored for someone else. See query-cache-persistence.ts.
+ */
+function QueryCachePersistenceBridge() {
+  const { isLoaded, isSignedIn, userId } = useAuth();
+  const queryClient = useQueryClient();
+  const accountIdRef = useRef<string | null>(null);
+  accountIdRef.current = isLoaded && isSignedIn && userId ? userId : null;
+
+  useEffect(
+    () => startQueryCachePersistence(queryClient, () => accountIdRef.current),
+    [queryClient],
+  );
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    reconcilePersistedQueryCacheUser(queryClient, userId ?? null);
+  }, [isLoaded, isSignedIn, userId, queryClient]);
+
+  return null;
+}
+
+/**
  * Keep Supabase Realtime authorized with a fresh Clerk session JWT.
  * Private channels fail "after a while" when the short-lived token expires
  * and setAuth is never refreshed.
@@ -476,6 +477,35 @@ function QueryClient401Redirect() {
   }, []);
 
   return null;
+}
+
+/*
+ * Spotlight, loaded on its first open rather than with every page.
+ *
+ * It only ever opens on classic routes — on 2.0 Mod+K opens the Library panel and Spotlight's own
+ * handler returns early — yet it and `cmdk` shipped in the entry bundle for every load, sign-in
+ * included. The open that asks for it is replayed by `openOnMount` once the chunk has mounted.
+ */
+const SpotlightSearch = lazy(() => import('./components/SpotlightSearch'));
+
+function SpotlightSearchOnDemand() {
+  const [requested, setRequested] = useState(false);
+  useEffect(() => {
+    if (requested) return;
+    const onOpen = () => {
+      if (isPrototypeShellPath(window.location.pathname)) return;
+      setRequested(true);
+    };
+    window.addEventListener('openSpotlightSearch', onOpen);
+    return () => window.removeEventListener('openSpotlightSearch', onOpen);
+  }, [requested]);
+
+  if (!requested) return null;
+  return (
+    <Suspense fallback={null}>
+      <SpotlightSearch openOnMount />
+    </Suspense>
+  );
 }
 
 function UserIdSync() {
@@ -912,6 +942,7 @@ export default function App() {
     <HarvousClerkProvider>
       <QueryClientProvider client={queryClient}>
         <AuthSignedOutCacheCleanup />
+        <QueryCachePersistenceBridge />
         <SupabaseRealtimeAuthBridge />
         <PublicRouteClassBridge />
         <PendingAuthRedirectBridge />
@@ -927,7 +958,7 @@ export default function App() {
         <SharedSpacesEntitlementBridge />
         <SpaToaster />
         <KeyboardShortcutsInit />
-        <SpotlightSearch />
+        <SpotlightSearchOnDemand />
         <RouterProvider router={router} />
       </QueryClientProvider>
     </HarvousClerkProvider>

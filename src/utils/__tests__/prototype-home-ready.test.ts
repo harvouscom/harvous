@@ -62,6 +62,7 @@ describe('isQuerySettled', () => {
 describe('isPrototypeHomePresentationReady', () => {
   const readyBase = {
     authReady: true,
+    restoredFromCache: false,
     notesReady: true,
     clerkLoaded: true,
     fingerprintsSettled: true,
@@ -151,11 +152,39 @@ describe('isPrototypeHomePresentationReady', () => {
   it('is never ready before auth, however settled everything else looks', () => {
     expect(isPrototypeHomePresentationReady({ ...readyBase, authReady: false })).toBe(false);
   });
+
+  /*
+   * A reload that restored last visit's cache for this account paints from it before Clerk has
+   * loaded — that is the whole point of keeping it. Only auth is waived, never the data.
+   */
+  it('presents from a restored cache before auth and Clerk have answered', () => {
+    expect(
+      isPrototypeHomePresentationReady({
+        ...readyBase,
+        restoredFromCache: true,
+        authReady: false,
+        clerkLoaded: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('still waits for notes when the restored cache did not have them', () => {
+    expect(
+      isPrototypeHomePresentationReady({
+        ...readyBase,
+        restoredFromCache: true,
+        authReady: false,
+        clerkLoaded: false,
+        notesReady: false,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe('home readiness composition', () => {
   const ready = {
     authReady: true,
+    restoredFromCache: false,
     notesReady: true,
     clerkLoaded: true,
     fingerprintsSettled: true,

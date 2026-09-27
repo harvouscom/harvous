@@ -77,6 +77,7 @@ import {
   type PrototypeHomePresentationReadyInput,
   isQuerySettled,
 } from '@/utils/prototype-home-ready';
+import { wasQueryCacheRestored } from '@/utils/query-cache-persistence';
 import {
   countLooseNotes,
   deriveSubjectConnections,
@@ -510,6 +511,7 @@ export function useHomeSurfaceData({
   // exact mistake that let five queries sit outside the gate for months.
   const presentationInput: PrototypeHomePresentationReadyInput = {
     authReady,
+    restoredFromCache: wasQueryCacheRestored(),
     notesReady: isPrototypeHomeContentReady(notesListPhase),
     clerkLoaded,
     fingerprintsSettled,
