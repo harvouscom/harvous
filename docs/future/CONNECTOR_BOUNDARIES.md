@@ -13,9 +13,10 @@ $5/mo add-on this doc originally assumed; where the text below says "subscriptio
 
 ### Going live — what is not code
 
-1. Clerk (dev and live): OAuth applications → Settings → Client onboarding → turn on **dynamic
-   client registration** (and CIMD). As of 2026-10-01 neither instance advertises a
-   `registration_endpoint`, so Claude/ChatGPT cannot register yet.
+1. Clerk (dev and live): OAuth applications → Settings → Client onboarding → turn on **Publish CIMD
+   support** with admission "Any compatible CIMD client" (Client ID Metadata Documents: the app's
+   client id is a URL Clerk reads, replacing `/register`), and DCR too for older clients. Done
+   2026-10-01; both instances then advertised `client_id_metadata_document_supported: true`.
 2. DNS `mcp.harvous.com` CNAME → `harvous.fly.dev` (grey cloud), then `fly certs add mcp.harvous.com`.
 3. Fly secrets: `CLERK_PUBLISHABLE_KEY` (the server previously read only the secret key),
    `CONNECTOR_RESOURCE_URL=https://mcp.harvous.com/mcp`, `CONNECTOR_PREVIEW_USER_IDS`.
@@ -323,7 +324,8 @@ Both MCP tools and `GET /api/connector/*` call these functions — **no duplicat
 - [x] Business refusals → `isError: true`; protocol errors → JSON-RPC codes
 - [x] No write tools, no bulk export, no locked-note plaintext
 - [x] `.well-known` routes public and path-suffixed (`/mcp`)
-- [ ] Clerk DCR on, DNS, Fly secrets, schema, backfill (see *Going live*)
+- [x] Clerk CIMD on (dev + live)
+- [ ] DNS, Fly secrets, schema, backfill (see *Going live*)
 - [ ] Dogfood in production, then remove `connector` from `WITHHELD_FEATURES`
 
 ---
