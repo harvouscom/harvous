@@ -10,6 +10,7 @@
  */
 
 import { createClerkClient, verifyToken } from '@clerk/backend';
+import { isMachineToken } from '@clerk/backend/internal';
 import type { Context, Next } from 'hono';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
@@ -132,6 +133,17 @@ export async function clerkAuth(c: Context, next: Next) {
     return next();
   }
 
+  // This middleware accepts Clerk *session* tokens only. A Clerk OAuth access token — what
+  // the Connector's MCP clients carry (server/connector/) — is read-only by product
+  // decision, and must never be honoured here as a full read-write session. Clerk's
+  // `verifyToken` refuses an `at+jwt` header, but `assertHeaderType` returns early when
+  // `typ` is absent, so that is the only thing standing between the two today. Refuse
+  // machine tokens by shape before verifying, and by claim after (see `client_id` below).
+  if (isMachineToken(token)) {
+    c.set('auth', NULL_AUTH);
+    return next();
+  }
+
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
     console.error('[auth] Missing CLERK_SECRET_KEY');
@@ -145,6 +157,14 @@ export async function clerkAuth(c: Context, next: Next) {
       secretKey,
       ...(authorizedParties ? { authorizedParties } : {}),
     });
+
+    // RFC 9068 requires `client_id` on every OAuth access token, and a session token never
+    // carries one — so this catches an OAuth JWT whose `typ` header went missing.
+    if ('client_id' in payload) {
+      console.warn('[auth] refused an OAuth access token on a session route');
+      c.set('auth', NULL_AUTH);
+      return next();
+    }
 
     let userId = payload.sub;
     // Only resolve live→dev mapping in production (live Clerk key).
