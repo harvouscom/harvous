@@ -1023,6 +1023,68 @@ button[disabled] {
   stroke: var(--pds-text-tertiary, rgba(60, 60, 67, 0.6));
 }
 
+/* "Did you mean John 3:16?" — a reference the detector can't read yet (`joh 3:16`). Sits just
+   above the typed book; accepting rewrites the book and the normal draft takes over. Quiet on
+   purpose: it's an offer, not a selection, so no accent fill. */
+.scripture-book-suggest {
+  display: flex;
+  gap: 6px;
+  transform: translateY(-100%);
+  animation: scripture-book-suggest-in 120ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+  pointer-events: auto;
+}
+
+.scripture-book-suggest--below {
+  transform: none;
+}
+
+.scripture-book-suggest__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  margin: 0;
+  border: 1px solid var(--pds-accent-subtle-border, rgba(56, 105, 230, 0.2));
+  border-radius: 999px;
+  background: var(--pds-bg-popover-solid, #fff);
+  color: var(--pds-text-primary, #111);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--pds-shadow-popover, 0 2px 8px rgba(0, 0, 0, 0.12));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.scripture-book-suggest__option:active {
+  transform: scale(0.97);
+}
+
+.scripture-book-suggest__key {
+  font: inherit;
+  font-size: 11px;
+  color: var(--pds-text-secondary, rgba(60, 60, 67, 0.6));
+}
+
+/* No keyboard Tab on touch — the hint would only confuse. */
+@media (pointer: coarse) {
+  .scripture-book-suggest__key {
+    display: none;
+  }
+}
+
+@keyframes scripture-book-suggest-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes scripture-draft-confirm-pop {
   from {
     opacity: 0;

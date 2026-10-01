@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/core';
 import {
@@ -15,6 +15,8 @@ import {
 } from './TiptapScriptureDraft';
 import { isTiptapViewReady } from '@/utils/tiptap-helpers';
 import { onProtoViewportSettle } from '@/utils/proto-viewport-settle';
+import { mapSliceIndexToDocPos, scriptureSliceStart } from '@/utils/scripture-pill-position';
+import { suggestBooksForTypedReference } from '@/utils/scripture-book-suggest';
 
 interface DraftConfirmState {
   top: number;
@@ -24,12 +26,27 @@ interface DraftConfirmState {
   invalidReason: string | null;
 }
 
+interface BookSuggestionState {
+  /** Doc range of the typed book — the only text an accept rewrites. */
+  from: number;
+  to: number;
+  typedBook: string;
+  tail: string;
+  books: string[];
+  top: number;
+  left: number;
+  /** Not enough room above the line (top of the viewport) — sit below it instead. */
+  below: boolean;
+}
+
 export interface ScriptureDraftChromeWebProps {
   editor: Editor;
 }
 
 /**
- * Everything that floats beside an inline scripture draft (prototype): the ✓ confirm.
+ * Everything that floats beside an inline scripture draft (prototype): the ✓ confirm, and —
+ * before a draft exists — a "Did you mean John 3:16?" row for a reference the detector can't
+ * read (`joh 3:16`). Accepting rewrites only the book; the normal detection then drafts it.
  *
  * Rendered OUTSIDE the editor, as portals — an inline contentEditable=false widget at the draft
  * blocks iOS text entry next to it. Every control here takes `pointerdown` with preventDefault so
@@ -37,6 +54,24 @@ export interface ScriptureDraftChromeWebProps {
  */
 export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChromeWebProps) {
   const [confirm, setConfirm] = useState<DraftConfirmState | null>(null);
+  const [bookSuggestion, setBookSuggestion] = useState<BookSuggestionState | null>(null);
+  const bookSuggestionRef = useRef<BookSuggestionState | null>(null);
+  bookSuggestionRef.current = bookSuggestion;
+  /** Escape hides the row for this typed book until it changes. Keyed `${from}:${typedBook}`. */
+  const dismissedBookKeyRef = useRef<string | null>(null);
+
+  const acceptBook = (book: string) => {
+    const s = bookSuggestionRef.current;
+    if (!s || !isTiptapViewReady(editor)) return;
+    const { state } = editor;
+    // The doc moved since the row was measured — don't rewrite the wrong text.
+    if (state.doc.textBetween(s.from, s.to) !== s.typedBook) {
+      setBookSuggestion(null);
+      return;
+    }
+    editor.view.dispatch(state.tr.insertText(book, s.from, s.to));
+    setBookSuggestion(null);
+  };
 
   // Position the floating ✓ confirm just past the draft end (coordsAtPos), kept in sync with
   // edits, scroll, and the iOS keyboard (visualViewport).
@@ -96,6 +131,16 @@ export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChrome
       }
     };
 
+    const updateBookSuggestion = () => {
+      const next = computeBookSuggestion(editor, dismissedBookKeyRef.current);
+      setBookSuggestion(next);
+    };
+
+    const updateAll = () => {
+      updatePos();
+      updateBookSuggestion();
+    };
+
     // Hide the ✓ while actively typing — it sits at the draft's right edge, exactly where the next
     // character lands, so leaving it up covers the char being typed. Re-show + reposition once the
     // user pauses (same idle cadence as the mobile draft grow), so it reappears at the grown pill.
@@ -104,14 +149,15 @@ export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChrome
     const onDocUpdate = () => {
       lastTypeAt = Date.now();
       setConfirm(null);
+      setBookSuggestion(null);
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         idleTimer = null;
-        updatePos();
+        updateAll();
         // Measure again on the next frame: showing the ✓ is the moment the draft's inline box has
         // just settled, and a sub-frame layout shift (fonts, the chrome row collapsing) would
         // otherwise strand it at the pre-shift rect until the next scroll.
-        requestAnimationFrame(updatePos);
+        requestAnimationFrame(updateAll);
         if (canSafelyResyncMobileDraftIdleCaret(editor.state)) {
           const anchor = getScriptureDraftAnchorPos(editor.state);
           const draftRange = getScriptureDraftRange(editor.state);
@@ -129,84 +175,191 @@ export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChrome
     const onSelectionChange = () => {
       // During active typing the idle timer owns re-showing the ✓; don't flash it at the caret.
       if (Date.now() - lastTypeAt < 260) return;
-      updatePos();
+      updateAll();
+    };
+    const onBlur = () => setBookSuggestion(null);
+
+    // Tab takes the first book and Escape hides the row — only while the row is up. Capture on
+    // the editor's own element so this runs before ProseMirror's keydown.
+    const onKeyDown = (e: KeyboardEvent) => {
+      const s = bookSuggestionRef.current;
+      if (!s) return;
+      if (e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        acceptBook(s.books[0]);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        dismissedBookKeyRef.current = `${s.from}:${s.typedBook}`;
+        setBookSuggestion(null);
+      }
     };
 
-    updatePos();
+    updateAll();
     editor.on('update', onDocUpdate);
     editor.on('selectionUpdate', onSelectionChange);
-    window.addEventListener('scroll', updatePos, true);
-    window.addEventListener('resize', updatePos);
+    editor.on('blur', onBlur);
+    const dom = editor.view.dom as HTMLElement;
+    dom.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('scroll', updateAll, true);
+    window.addEventListener('resize', updateAll);
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-    vv?.addEventListener('resize', updatePos);
-    vv?.addEventListener('scroll', updatePos);
+    vv?.addEventListener('resize', updateAll);
+    vv?.addEventListener('scroll', updateAll);
     // The mobile shell frame is resized programmatically across the keyboard-settle window, which
     // moves every line of the editor without firing scroll/resize. That is what leaves the FIRST ✓
     // of a note misaligned — it is measured 260ms after the last keystroke, between two settle
     // passes, while later ones land after the frame has stopped moving.
-    const offSettle = onProtoViewportSettle(updatePos);
+    const offSettle = onProtoViewportSettle(updateAll);
     return () => {
       if (idleTimer) clearTimeout(idleTimer);
       if (!editor.isDestroyed) {
         editor.off('update', onDocUpdate);
         editor.off('selectionUpdate', onSelectionChange);
+        editor.off('blur', onBlur);
       }
-      window.removeEventListener('scroll', updatePos, true);
-      window.removeEventListener('resize', updatePos);
-      vv?.removeEventListener('resize', updatePos);
-      vv?.removeEventListener('scroll', updatePos);
+      dom.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('scroll', updateAll, true);
+      window.removeEventListener('resize', updateAll);
+      vv?.removeEventListener('resize', updateAll);
+      vv?.removeEventListener('scroll', updateAll);
       offSettle();
     };
+    // acceptBook reads only refs and the editor, so the closure captured here never goes stale.
   }, [editor]);
 
-  if (!confirm) return null;
+  if (!confirm && !bookSuggestion) return null;
 
   return createPortal(
-    <button
-      type="button"
-      className={`scripture-draft-confirm-float${
-        confirm.invalidReason ? ' scripture-draft-confirm-float--invalid' : ''
-      }`}
-      aria-label={
-        confirm.invalidReason
-          ? `Can't add this reference — ${confirm.invalidReason}`
-          : 'Confirm scripture reference'
-      }
-      aria-disabled={confirm.invalidReason ? true : undefined}
-      title={confirm.invalidReason ?? 'Confirm'}
-      style={{
-        position: 'fixed',
-        top: confirm.top,
-        left: confirm.left,
-        zIndex: 99999,
-        pointerEvents: 'auto',
-      }}
-      onPointerDown={(e) => {
-        // preventDefault keeps the editor selection/focus alive and beats the blur handler.
-        e.preventDefault();
-        e.stopPropagation();
-        if (!isTiptapViewReady(editor)) return;
-        // Out-of-canon reference: the commit would refuse anyway, and the
-        // confirmAnyScriptureDraftView fallback below would just retry the same doomed
-        // draft. Leave the draft open so the user can fix it in place.
-        if (confirm.invalidReason) return;
-        const view = editor.view;
-        if (confirmScriptureDraftView(view, confirm.to, { focus: true }) == null) {
-          confirmAnyScriptureDraftView(view);
-        }
-      }}
-    >
-      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
-        <path
-          d="M13.5 4.5l-6.5 7-3.5-3.5"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </button>,
+    <>
+      {bookSuggestion && (
+        <div
+          className={`scripture-book-suggest${bookSuggestion.below ? ' scripture-book-suggest--below' : ''}`}
+          role="listbox"
+          aria-label="Did you mean"
+          style={{ position: 'fixed', top: bookSuggestion.top, left: bookSuggestion.left, zIndex: 99999 }}
+        >
+          {bookSuggestion.books.map((book, i) => (
+            <button
+              key={book}
+              type="button"
+              role="option"
+              aria-selected={i === 0}
+              className="scripture-book-suggest__option"
+              // Keep the caret (and the iOS keyboard) in the editor.
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                acceptBook(book);
+              }}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              {book} {bookSuggestion.tail}
+              {i === 0 && <kbd className="scripture-book-suggest__key">Tab</kbd>}
+            </button>
+          ))}
+        </div>
+      )}
+      {confirm && (
+        <button
+          type="button"
+          className={`scripture-draft-confirm-float${
+            confirm.invalidReason ? ' scripture-draft-confirm-float--invalid' : ''
+          }`}
+          aria-label={
+            confirm.invalidReason
+              ? `Can't add this reference — ${confirm.invalidReason}`
+              : 'Confirm scripture reference'
+          }
+          aria-disabled={confirm.invalidReason ? true : undefined}
+          title={confirm.invalidReason ?? 'Confirm'}
+          style={{
+            position: 'fixed',
+            top: confirm.top,
+            left: confirm.left,
+            zIndex: 99999,
+            pointerEvents: 'auto',
+          }}
+          onPointerDown={(e) => {
+            // preventDefault keeps the editor selection/focus alive and beats the blur handler.
+            e.preventDefault();
+            e.stopPropagation();
+            if (!isTiptapViewReady(editor)) return;
+            // Out-of-canon reference: the commit would refuse anyway, and the
+            // confirmAnyScriptureDraftView fallback below would just retry the same doomed
+            // draft. Leave the draft open so the user can fix it in place.
+            if (confirm.invalidReason) return;
+            const view = editor.view;
+            if (confirmScriptureDraftView(view, confirm.to, { focus: true }) == null) {
+              confirmAnyScriptureDraftView(view);
+            }
+          }}
+        >
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
+            <path
+              d="M13.5 4.5l-6.5 7-3.5-3.5"
+              fill="none"
+              stroke="#fff"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      )}
+    </>,
     document.body,
   );
+}
+
+/**
+ * The "did you mean" row for the reference ending at the caret, or null. Only when there is no
+ * draft (a draft means the detector already read it) and the caret is collapsed in plain text.
+ */
+function computeBookSuggestion(editor: Editor, dismissedKey: string | null): BookSuggestionState | null {
+  if (!isTiptapViewReady(editor) || !editor.isEditable || !editor.isFocused) return null;
+  const { state, view } = editor;
+  const { from, to, $from } = state.selection;
+  if (from !== to || from < 2) return null;
+  if (getScriptureDraftAnchorPos(state) != null) return null;
+  if ($from.marks().some((m) => m.type.name === 'scripturePill' || m.type.name === 'scriptureDraft')) {
+    return null;
+  }
+  // Mid-word ("joh 3:1|6") — wait until the caret is at the end of what they typed.
+  const after = $from.nodeAfter?.isText ? ($from.nodeAfter.text ?? '') : '';
+  if (/^[\w:\-–—]/.test(after)) return null;
+
+  const sliceFrom = scriptureSliceStart(state.doc, from, 80);
+  const text = state.doc.textBetween(sliceFrom, from);
+  const match = suggestBooksForTypedReference(text);
+  if (!match) return null;
+
+  const bookFrom = mapSliceIndexToDocPos(state.doc, sliceFrom, from, match.bookStart);
+  if (bookFrom == null) return null;
+  const bookTo = bookFrom + match.typedBook.length;
+  if (state.doc.textBetween(bookFrom, bookTo) !== match.typedBook) return null;
+  if (dismissedKey === `${bookFrom}:${match.typedBook}`) return null;
+
+  try {
+    const coords = view.coordsAtPos(bookFrom);
+    // Same visual→layout viewport correction as the ✓ (position: fixed under the iOS keyboard).
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    const ox = vv?.offsetLeft ?? 0;
+    const oy = vv?.offsetTop ?? 0;
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 9999;
+    const below = coords.top < 56;
+    return {
+      from: bookFrom,
+      to: bookTo,
+      typedBook: match.typedBook,
+      tail: match.tail,
+      books: match.books,
+      top: (below ? coords.bottom + 6 : coords.top - 6) + oy,
+      left: Math.max(8, Math.min(coords.left - 4, vw - 240)) + ox,
+      below,
+    };
+  } catch {
+    return null;
+  }
 }
