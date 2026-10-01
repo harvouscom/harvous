@@ -151,7 +151,7 @@ function buildHighlightCallout(h: PortableHighlight): string {
   return ['', `> [!note] ${label}`, ...lines.map((l) => `> ${l}`), ''].join('\n');
 }
 
-function htmlToPortableBody(html: string): string {
+export function htmlToPortableBody(html: string): string {
   if (!html?.trim()) return '';
   try {
     let md = turndownWithMarks.turndown(html);

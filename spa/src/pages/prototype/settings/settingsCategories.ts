@@ -8,6 +8,7 @@
  */
 import type { IconName } from '@/components/react/Icon';
 import { prototypeHref } from '@/lib/prototype-path';
+import { isFeatureWithheld } from '@/lib/billing-plans';
 
 export interface SettingsCategory {
   key: string;
@@ -100,6 +101,22 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: 'plus',
     footnote: 'Your plan, what it includes, and add-ons.',
   },
+  /*
+   * Web-only, like Reminders. Listed for everyone once launched (the page describes the
+   * feature to someone without Plus), but hidden entirely while `connector` is withheld —
+   * a static check, so the list still never changes shape with what someone has bought.
+   */
+  ...(isFeatureWithheld('connector')
+    ? []
+    : [
+        {
+          key: 'connector',
+          title: 'Claude & ChatGPT',
+          route: prototypeHref('settings/connector'),
+          icon: 'link' as const,
+          footnote: 'Use your study in Claude, ChatGPT, and other AI apps.',
+        },
+      ]),
   {
     key: 'data',
     title: 'My Notes',

@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { prototypeHref } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
 import SafeSubscriptionDetailsButton from '@/components/react/SafeSubscriptionDetailsButton';
-import { billingErrorMessage } from '@/lib/billing-errors';
 import { getSharedSpacesAddonFeatureBullets } from '@/lib/shared-spaces-limits';
 import {
   formatPlanPrice,
@@ -10,7 +10,6 @@ import {
   PLUS_COMING_SOON_FEATURE_BULLETS,
   PLUS_FOUNDING_BADGE,
   type PlanDefinition,
-  type PlanKey,
 } from '@/lib/billing-plans';
 import { toast } from '@/utils/toast';
 import {
@@ -24,17 +23,15 @@ import {
 import { useBillingCancel } from '../../../hooks/mutations/useBillingCancel';
 import { useBillingManage } from '../../../hooks/queries/useBillingManage';
 import { useSubscriptionStatus } from '../../../hooks/queries/useSubscriptionStatus';
+import { useHasFeature } from '../../../hooks/useHasFeature';
 import { api } from '../../../lib/api';
 import ProtoConfirmDialog from '../ProtoConfirmDialog';
 import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
 
 const monthPlan = planFor('plus', 'month');
 const yearPlan = planFor('plus', 'year');
-const connectorMonthPlan = planFor('connector', 'month');
-const connectorYearPlan = planFor('connector', 'year');
 
 const PLAN_NAME = yearPlan?.name ?? monthPlan?.name ?? 'Harvous Plus';
-const CONNECTOR_NAME = connectorMonthPlan?.name ?? 'Connector';
 
 function priceSummary(...plans: Array<PlanDefinition | null>): string {
   return plans
@@ -44,14 +41,6 @@ function priceSummary(...plans: Array<PlanDefinition | null>): string {
 }
 
 const PRICE_SUMMARY = priceSummary(monthPlan, yearPlan);
-const CONNECTOR_PRICE_SUMMARY = priceSummary(connectorMonthPlan, connectorYearPlan);
-
-/** Connector is a separate product for a different buyer — never a Plus tier. */
-const CONNECTOR_FEATURE_BULLETS = [
-  'Reference your Harvous study from Claude, Cursor, and other MCP clients',
-  'Personal API key for the CLI and your own scripts',
-  'Read-only by design — writes stay in the app',
-] as const;
 
 /** Badge helper retained for tests / join-state copy. */
 export function resolveSharedSpacesAddonBadge(options: {
@@ -108,10 +97,11 @@ export default function PrototypeAddonsPage() {
   const { data: manage, isLoading: manageLoading } = useBillingManage(
     hasSharedSpaces && canManageBilling,
   );
-  const hasConnector = Boolean(subscription?.hasConnector);
+  // Connector is part of Plus, not a product of its own — there is nothing to buy or cancel
+  // here, only a way into the page that connects Claude and ChatGPT.
+  const connector = useHasFeature('connector');
   const isFounding = Boolean(subscription?.isFounding);
   const billing = manage?.billing ?? subscription?.billing ?? null;
-  const connectorBilling = manage?.connector ?? subscription?.connectorBilling ?? null;
   const paymentMethod = manage?.paymentMethod ?? null;
   const orders = manage?.orders ?? [];
   const featureBullets = getSharedSpacesAddonFeatureBullets({
@@ -121,10 +111,8 @@ export default function PrototypeAddonsPage() {
   });
 
   const cancelAnchorRef = useRef<HTMLDivElement | null>(null);
-  const connectorCancelAnchorRef = useRef<HTMLDivElement | null>(null);
-  const [cancelPlan, setCancelPlan] = useState<PlanKey | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [receiptBusyId, setReceiptBusyId] = useState<string | null>(null);
-  const [connectorBusy, setConnectorBusy] = useState(false);
 
   const planSublabel = (() => {
     // Deliberately not "Founding price" here — founding is capped at 99 and may
@@ -142,35 +130,6 @@ export default function PrototypeAddonsPage() {
     if (canManageBilling) return 'Active on your account';
     return 'Active · Managed by Harvous';
   })();
-
-  const connectorSublabel = (() => {
-    if (!hasConnector) {
-      return CONNECTOR_PRICE_SUMMARY || 'Reference your study from other tools';
-    }
-    if (connectorBilling) {
-      return `${formatBillingStatusLine(connectorBilling)} · ${formatBillingPriceLine(connectorBilling)}`;
-    }
-    return 'Active on your account';
-  })();
-
-  /** Connector has no dedicated upgrade page — start its checkout inline. */
-  async function startConnectorCheckout(interval: 'month' | 'year') {
-    if (connectorBusy) return;
-    setConnectorBusy(true);
-    try {
-      const { url } = await api.post<{ url?: string }>('/api/billing/checkout', {
-        plan: 'connector',
-        interval,
-      });
-      if (!url) throw new Error('missing checkout url');
-      window.location.assign(url);
-    } catch (error) {
-      // `APIError.message` is whatever the server sent, and for a provider
-      // failure that used to be Polar's own words. The code decides the copy.
-      toast.error(billingErrorMessage(error));
-      setConnectorBusy(false);
-    }
-  }
 
   async function openOrderReceipt(orderId: string) {
     if (receiptBusyId) return;
@@ -205,6 +164,18 @@ export default function PrototypeAddonsPage() {
 
         <div className="proto-settings-plan__body">
           <PlanFeatureList items={featureBullets} />
+
+          {connector.has ? (
+            <SettingsGroup>
+              <SettingsRow
+                label="Claude & ChatGPT"
+                sublabel="Use your study in the AI apps you already use"
+                leadingIcon="link"
+                trailing="chevron"
+                onClick={() => navigate({ to: prototypeHref('settings/connector') })}
+              />
+            </SettingsGroup>
+          ) : null}
 
           {/* Empty since 3.0 — see the constant. A heading with no list under it reads as a
               rendering bug, not as restraint. */}
@@ -313,7 +284,7 @@ export default function PrototypeAddonsPage() {
                   sublabel={`Access continues until ${formatBillingPeriodDate(billing.currentPeriodEnd)}`}
                   onClick={() => {
                     if (!cancelBilling.isPending) {
-                      cancelBilling.mutate({ cancelAtPeriodEnd: false, plan: 'plus' });
+                      cancelBilling.mutate({ cancelAtPeriodEnd: false });
                     }
                   }}
                   disabled={cancelBilling.isPending}
@@ -327,7 +298,7 @@ export default function PrototypeAddonsPage() {
                     destructive
                     trailing="none"
                     disabled={cancelBilling.isPending || !billing}
-                    onClick={() => setCancelPlan('plus')}
+                    onClick={() => setCancelOpen(true)}
                   />
                 </div>
               )}
@@ -335,115 +306,28 @@ export default function PrototypeAddonsPage() {
           </div>
         ) : null}
 
-        {/* Connector — unlisted until MCP/CLI shipping; only show for active subscribers. */}
-        {hasConnector || connectorMonthPlan || connectorYearPlan ? (
-          <div className="proto-settings-plan__addon">
-            <ManageSectionLabel>Add-on</ManageSectionLabel>
-            <SettingsGroup>
-              <SettingsRow
-                label={CONNECTOR_NAME}
-                sublabel={connectorSublabel}
-                leadingIcon="link"
-                badge={hasConnector ? 'Active' : undefined}
-                trailing="none"
-              />
-            </SettingsGroup>
-
-            <div className="proto-settings-plan__body">
-              <PlanFeatureList items={CONNECTOR_FEATURE_BULLETS} />
-
-              {!hasConnector ? (
-                <SettingsGroup>
-                  {connectorMonthPlan ? (
-                    <SettingsRow
-                      label={`Add ${CONNECTOR_NAME}`}
-                      value={`${formatPlanPrice(connectorMonthPlan)}/mo`}
-                      trailing="chevron"
-                      disabled={connectorBusy}
-                      onClick={() => void startConnectorCheckout('month')}
-                    />
-                  ) : null}
-                  {connectorYearPlan ? (
-                    <SettingsRow
-                      label="Pay yearly"
-                      /* No annual discount by design — same rate, one charge. */
-                      sublabel="Same rate, billed once a year"
-                      value={`${formatPlanPrice(connectorYearPlan)}/yr`}
-                      trailing="chevron"
-                      disabled={connectorBusy}
-                      onClick={() => void startConnectorCheckout('year')}
-                    />
-                  ) : null}
-                </SettingsGroup>
-              ) : null}
-            </div>
-
-            {hasConnector && connectorBilling ? (
-              <SettingsGroup>
-                <SettingsRow
-                  label="Billing period"
-                  value={formatBillingIntervalLabel(connectorBilling.interval)}
-                  trailing="none"
-                />
-                {connectorBilling.cancelAtPeriodEnd ? (
-                  <SettingsRow
-                    label={`Keep ${CONNECTOR_NAME}`}
-                    sublabel={`Access continues until ${formatBillingPeriodDate(connectorBilling.currentPeriodEnd)}`}
-                    onClick={() => {
-                      if (!cancelBilling.isPending) {
-                        cancelBilling.mutate({ cancelAtPeriodEnd: false, plan: 'connector' });
-                      }
-                    }}
-                    disabled={cancelBilling.isPending}
-                    trailing="none"
-                  />
-                ) : (
-                  <div ref={connectorCancelAnchorRef} className="proto-settings-plan__cancel-wrap">
-                    <SettingsRow
-                      label={`Cancel ${CONNECTOR_NAME}`}
-                      sublabel="Your Harvous Plus plan is not affected."
-                      destructive
-                      trailing="none"
-                      disabled={cancelBilling.isPending}
-                      onClick={() => setCancelPlan('connector')}
-                    />
-                  </div>
-                )}
-              </SettingsGroup>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
       {(() => {
-        if (!cancelPlan) return null;
-        const isConnector = cancelPlan === 'connector';
-        const target = isConnector ? connectorBilling : billing;
-        if (!target || target.cancelAtPeriodEnd) return null;
-        const until = formatBillingPeriodDate(target.currentPeriodEnd);
+        if (!cancelOpen || !billing || billing.cancelAtPeriodEnd) return null;
+        const until = formatBillingPeriodDate(billing.currentPeriodEnd);
         return (
           <ProtoConfirmDialog
-            anchorEl={
-              isConnector ? connectorCancelAnchorRef.current : cancelAnchorRef.current
-            }
+            anchorEl={cancelAnchorRef.current}
             preferAbove
-            title={`Cancel ${isConnector ? CONNECTOR_NAME : PLAN_NAME}?`}
-            description={
-              isConnector
-                ? `You’ll keep Connector access until ${until}. Your ${PLAN_NAME} plan is not affected.`
-                : `You’ll keep access until ${until}. Shared Spaces you own stay until then, and history older than 90 days is kept, just hidden.`
-            }
-            confirmLabel={isConnector ? 'Cancel add-on' : 'Cancel plan'}
+            title={`Cancel ${PLAN_NAME}?`}
+            description={`You’ll keep access until ${until}. Shared Spaces you own stay until then, and history older than 90 days is kept, just hidden.`}
+            confirmLabel="Cancel plan"
             cancelLabel="Keep"
             busy={cancelBilling.isPending}
             onConfirm={() => {
               cancelBilling.mutate(
-                { cancelAtPeriodEnd: true, plan: cancelPlan },
-                { onSettled: () => setCancelPlan(null) },
+                { cancelAtPeriodEnd: true },
+                { onSettled: () => setCancelOpen(false) },
               );
             }}
             onCancel={() => {
-              if (!cancelBilling.isPending) setCancelPlan(null);
+              if (!cancelBilling.isPending) setCancelOpen(false);
             }}
           />
         );

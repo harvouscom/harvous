@@ -10,7 +10,6 @@ import {
   featuresForProductId,
   foundingOffer,
   getPlans,
-  isUnlimited,
   limitsForFeatures,
   listedPlans,
   planFor,
@@ -90,8 +89,6 @@ describe('pricing model', () => {
   const plans = getPlans();
   const plus = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'plus' && p.interval === interval);
-  const connector = (interval: 'month' | 'year') =>
-    plans.find((p) => p.key === 'connector' && p.interval === interval);
   const church = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'church' && p.interval === interval);
 
@@ -118,11 +115,6 @@ describe('pricing model', () => {
     expect(plus('year')!.amountCents).toBe(plus('month')!.amountCents * 6);
   });
 
-  it('prices Connector at $5/mo with NO annual discount', () => {
-    expect(connector('month')?.amountCents).toBe(500);
-    expect(connector('year')?.amountCents).toBe(connector('month')!.amountCents * 12);
-  });
-
   it('prices Church at $30/mo with a 40% annual discount', () => {
     expect(church('month')?.amountCents).toBe(3000);
     // Pin the *intent*, not the literal 21600 — a future monthly change must
@@ -139,12 +131,28 @@ describe('pricing model', () => {
     expect(church('year')?.listed).toBe(false);
   });
 
-  it('Plus grants every consumer feature; Connector grants only its own', () => {
+  it('Plus grants every consumer feature, Connector included', () => {
     expect(plus('month')?.features).toEqual(
-      expect.arrayContaining(['shared_spaces', 'review', 'challenges', 'full_history']),
+      expect.arrayContaining(['shared_spaces', 'review', 'challenges', 'connector', 'full_history']),
     );
-    expect(connector('month')?.features).toEqual(['connector']);
-    expect(connector('month')?.features).not.toContain('shared_spaces');
+  });
+
+  it('sells Connector only as part of Plus — there is no product of its own', () => {
+    // It was drafted as a $5/mo add-on and never sold. A row here would put a second
+    // checkout back on the shelf for something every Plus subscriber already holds.
+    expect(plans.every((p) => (p.key as string) !== 'connector')).toBe(true);
+    expect(plans.filter((p) => p.features.includes('connector')).every((p) => p.key === 'plus')).toBe(
+      true,
+    );
+  });
+
+  /*
+   * Withheld until the MCP server has been dogfooded in production. Launching it is deleting
+   * 'connector' from WITHHELD_FEATURES — and this test with it, on purpose.
+   */
+  it('connector is withheld until launch', () => {
+    expect(isFeatureWithheld('connector')).toBe(true);
+    expect(isFeatureKey('connector')).toBe(true);
   });
 
   /*
@@ -171,10 +179,6 @@ describe('pricing model', () => {
     expect(isFeatureKey('challenges')).toBe(true);
   });
 
-  it('Connector grants no hosting limits', () => {
-    expect(isUnlimited(connector('month')!.limits.ownedSpaces)).toBe(false);
-    expect(connector('month')!.limits.ownedSpaces).toBe(0);
-  });
 });
 
 describe('founding vs standard product resolution', () => {
@@ -182,8 +186,6 @@ describe('founding vs standard product resolution', () => {
     'POLAR_PLUS_FOUNDING_DISCOUNT_ID',
     'POLAR_PLUS_PRODUCT_MONTHLY',
     'POLAR_PLUS_PRODUCT_ANNUAL',
-    'POLAR_CONNECTOR_PRODUCT_MONTHLY',
-    'POLAR_CONNECTOR_PRODUCT_ANNUAL',
   ] as const;
   const saved: Record<string, string | undefined> = {};
 
@@ -217,12 +219,6 @@ describe('founding vs standard product resolution', () => {
   it('planFor returns both listed Plus intervals', () => {
     expect(planFor('plus', 'month')?.amountCents).toBe(600);
     expect(planFor('plus', 'year')?.amountCents).toBe(3600);
-  });
-
-  it('keeps Connector in the registry but unlisted until it ships', () => {
-    expect(getPlans().some((p) => p.key === 'connector')).toBe(true);
-    expect(listedPlans().some((p) => p.key === 'connector')).toBe(false);
-    expect(planFor('connector', 'month')).toBeNull();
   });
 
   it('both Plus intervals buy the same features', () => {

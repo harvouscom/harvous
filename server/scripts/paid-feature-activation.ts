@@ -43,8 +43,8 @@ const num = (v: unknown, n: number) => String(v ?? 0).padStart(n);
 /**
  * Per feature: has this user ever used it, and did they use it inside the window.
  *
- * `null` means the feature has no usage signal worth measuring — `connector` ships no rows of
- * its own, so a 0% activation for it would read as a finding rather than as an absence.
+ * `null` means the feature has no usage signal worth measuring. `connector` is measured by
+ * `ConnectorClients` (an AI app has connected), which needs `connector:schema:apply` first.
  */
 function usagePredicates(
   key: FeatureKey,
@@ -87,6 +87,15 @@ function usagePredicates(
         recent: sql`EXISTS (
           SELECT 1 FROM "Challenges" c
           WHERE c."userId" = u."userId" AND c."startedAt" >= ${since}
+        )`,
+      };
+    case 'connector':
+      // An AI app has connected; `lastUsedAt` moves on connect and on every tool call.
+      return {
+        ever: sql`EXISTS (SELECT 1 FROM "ConnectorClients" cc WHERE cc."userId" = u."userId")`,
+        recent: sql`EXISTS (
+          SELECT 1 FROM "ConnectorClients" cc
+          WHERE cc."userId" = u."userId" AND cc."lastUsedAt" >= ${since}
         )`,
       };
     default:

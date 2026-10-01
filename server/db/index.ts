@@ -37,6 +37,8 @@ export {
   PushSubscriptions,
   ReminderDeliveries,
   Entitlements,
+  ConnectorClients,
+  ConnectorUsageDays,
   ClerkUserMapping,
   UserXP,
   UserSeasonalXP,

@@ -5,15 +5,12 @@ CLERK_UNLIMITED_PLAN_ID=
 # Each (plan x interval) is its own Polar Product; see src/lib/billing-plans.ts.
 #   Founding    $45/yr  annual only, first 99 subscribers, lifetime lock
 #   Plus        $8/mo   $64/yr (four months free)
-#   Connector   $5/mo   $60/yr (no annual discount - exactly 12x monthly)
 POLAR_ACCESS_TOKEN=
 POLAR_WEBHOOK_SECRET=
 POLAR_ENV=sandbox
 POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL=
 POLAR_PLUS_PRODUCT_MONTHLY=
 POLAR_PLUS_PRODUCT_ANNUAL=
-POLAR_CONNECTOR_PRODUCT_MONTHLY=
-POLAR_CONNECTOR_PRODUCT_ANNUAL=
 # Church plan ($39/mo, $390/yr). Org-scoped: the webhook grants Churches.billingPlan
 # from checkout metadata.churchId, never a personal entitlement for the staff buyer.
 POLAR_CHURCH_PRODUCT_MONTHLY=
@@ -22,8 +19,6 @@ POLAR_CHURCH_PRODUCT_ANNUAL=
 VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL=
 VITE_POLAR_PLUS_PRODUCT_MONTHLY=
 VITE_POLAR_PLUS_PRODUCT_ANNUAL=
-VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY=
-VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL=
 VITE_POLAR_CHURCH_PRODUCT_MONTHLY=
 VITE_POLAR_CHURCH_PRODUCT_ANNUAL=
 

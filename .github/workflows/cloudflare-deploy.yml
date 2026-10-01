@@ -96,8 +96,6 @@ jobs:
           # billing return zero plans during the Fly migration.
           VITE_POLAR_PLUS_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_MONTHLY }}
           VITE_POLAR_PLUS_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_ANNUAL }}
-          VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY }}
-          VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL }}
 
       # Cloudflare-only routing/header config. Deliberately NOT in public/ — Vite copies
       # public/ verbatim, so a file there would also ship to Netlify and layer a second

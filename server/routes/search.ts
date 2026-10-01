@@ -14,32 +14,19 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import {
-  db,
-  Notes,
-  Threads,
-  Spaces,
-  SpaceNotes,
-  SpaceMemberships,
-  NoteThreads,
-  ScriptureMetadata,
-  Tags,
-  NoteTags,
-  eq,
-  and,
-  or,
-  like,
-  desc,
-  not,
-  ne,
-  isNull,
-  sql,
-} from '../db';
+import { db, Threads, Spaces, eq, and, or, like, desc, sql } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { batchAuthorAttribution, getThreadColorsForNotesBatch } from '../utils/dashboard-data';
 import { parseNoteSecondaryCollections } from '../utils/note-secondary-collections';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
+import {
+  buildActiveSharedAccessFilters,
+  classifySearchScope,
+  searchNoteRows,
+  sharedThreadSearchUsesViewerOwnership,
+  type SearchNoteRow,
+} from '../utils/search-notes-query';
 import {
   requireThreadReadAccess,
   SharedSpaceLifecycleError,
@@ -47,29 +34,14 @@ import {
 
 const route = new Hono();
 
-export type SearchScopeKind = 'home' | 'personal' | 'shared';
-
-export function classifySearchScope(
-  space: { type: string; title: string } | null,
-): SearchScopeKind {
-  if (!space) return 'home';
-  if (space.type === 'shared' || space.type === 'public') return 'shared';
-  return space.title.trim().toLowerCase() === 'my home' ? 'home' : 'personal';
-}
-
-export function sharedThreadSearchUsesViewerOwnership(scope: SearchScopeKind): boolean {
-  return scope !== 'shared';
-}
-
-export function sharedSearchRequiresActiveAccess(scope: SearchScopeKind): boolean {
-  return scope === 'shared';
-}
-
-export function sharedThreadNoteSearchUsesCanonicalThreadId(
-  scope: SearchScopeKind,
-): boolean {
-  return scope !== 'shared';
-}
+// Re-exported so existing imports (and search-scope.test.ts) keep resolving here.
+export {
+  classifySearchScope,
+  sharedSearchRequiresActiveAccess,
+  sharedThreadNoteSearchUsesCanonicalThreadId,
+  sharedThreadSearchUsesViewerOwnership,
+  type SearchScopeKind,
+} from '../utils/search-notes-query';
 
 route.get('/api/search', requireAuth, async (c) => {
   try {
@@ -127,22 +99,6 @@ route.get('/api/search', requireAuth, async (c) => {
     // Thread-scoped search is notes-only (one thread). If both threadId and spaceId are sent, threadId wins for notes; threads are not searched.
     const searchThreads =
       (type === 'all' || type === 'threads') && !threadIdParam;
-    const noteScopeFilters = threadIdParam
-      ? !sharedThreadNoteSearchUsesCanonicalThreadId(searchScope)
-        ? [
-            sql`EXISTS (
-              SELECT 1 FROM ${NoteThreads}
-              WHERE ${NoteThreads.noteId} = ${Notes.id}
-                AND ${NoteThreads.threadId} = ${threadIdParam}
-            )`,
-          ]
-        : [eq(Notes.threadId, threadIdParam)]
-      : spaceIdParam && searchScope === 'personal'
-        ? [eq(Notes.spaceId, spaceIdParam)]
-        : [];
-    if (excludeLegacyScripture) {
-      noteScopeFilters.push(ne(Notes.noteType, 'scripture'));
-    }
     const threadScopeFilters =
       spaceIdParam && !threadIdParam
         ? [
@@ -152,28 +108,7 @@ route.get('/api/search', requireAuth, async (c) => {
               : undefined,
           ]
         : [];
-    const activeSharedAccessFilters =
-      sharedSearchRequiresActiveAccess(searchScope) && spaceIdParam
-        ? [
-            sql`EXISTS (
-              SELECT 1 FROM ${Spaces}
-              WHERE ${Spaces.id} = ${spaceIdParam}
-                AND ${Spaces.deletedAt} IS NULL
-            )`,
-            sql`(
-              EXISTS (
-                SELECT 1 FROM ${Spaces}
-                WHERE ${Spaces.id} = ${spaceIdParam}
-                  AND ${Spaces.userId} = ${userId}
-              )
-              OR EXISTS (
-                SELECT 1 FROM ${SpaceMemberships}
-                WHERE ${SpaceMemberships.spaceId} = ${spaceIdParam}
-                  AND ${SpaceMemberships.userId} = ${userId}
-              )
-            )`,
-          ]
-        : [];
+    const activeSharedAccessFilters = buildActiveSharedAccessFilters(searchScope, spaceIdParam, userId);
 
     // Use FTS + substring ILIKE for queries >= 3 chars; ILIKE only for shorter ones.
     // FTS provides stemming ("running" matches "run") and is indexed via GIN; ILIKE
@@ -181,33 +116,7 @@ route.get('/api/search', requireAuth, async (c) => {
     const useFTS = trimmedQuery.length >= MIN_SEARCH_QUERY_LENGTH;
     const ftsSubstringPattern = useFTS ? `%${trimmedQuery}%` : '';
 
-    // Scoped to the searcher's own tags: `Tags` are per-user, so in a shared space an
-    // unscoped match would let one member's private label surface another member's note.
-    const noteTagMatchSql = (pattern: string) => sql`EXISTS (
-      SELECT 1 FROM ${NoteTags}
-      INNER JOIN ${Tags} ON ${Tags.id} = ${NoteTags.tagId}
-      WHERE ${NoteTags.noteId} = ${Notes.id}
-        AND ${Tags.userId} = ${userId}
-        AND ${Tags.name} ILIKE ${pattern}
-    )`;
-
-    let notesRows: {
-      id: string;
-      title: string | null;
-      content: string;
-      noteType: string;
-      scriptureTranslation: string | null;
-      threadId: string;
-      spaceId: string | null;
-      createdAt: Date;
-      updatedAt: Date | null;
-      primaryCollection: string | null;
-      secondaryCollections: string | null;
-      authorUserId: string;
-      associationIsPinned?: boolean | null;
-      associationPrimaryCollection?: string | null;
-      associationSecondaryCollections?: string | null;
-    }[] = [];
+    let notesRows: SearchNoteRow[] = [];
 
     let threadsRows: {
       id: string;
@@ -220,156 +129,15 @@ route.get('/api/search', requireAuth, async (c) => {
     }[] = [];
 
     if (searchNotes) {
-      const scriptureTranslationSql = sql<string | null>`(
-        SELECT ${ScriptureMetadata.translation}
-        FROM ${ScriptureMetadata}
-        WHERE ${ScriptureMetadata.noteId} = ${Notes.id}
-        LIMIT 1
-      )`;
-
-      if (searchScope === 'shared' && spaceIdParam) {
-        const sharedSelect = {
-          id: Notes.id,
-          title: Notes.title,
-          content: Notes.content,
-          noteType: Notes.noteType,
-          scriptureTranslation: scriptureTranslationSql,
-          threadId: Notes.threadId,
-          spaceId: Notes.spaceId,
-          createdAt: Notes.createdAt,
-          updatedAt: Notes.updatedAt,
-          primaryCollection: Notes.primaryCollection,
-          secondaryCollections: Notes.secondaryCollections,
-          authorUserId: Notes.userId,
-          associationIsPinned: SpaceNotes.isPinned,
-          associationPrimaryCollection: SpaceNotes.primaryCollection,
-          associationSecondaryCollections: SpaceNotes.secondaryCollections,
-        } as const;
-        if (useFTS) {
-          const tsQuery = sql`plainto_tsquery('english', ${trimmedQuery})`;
-          const noteTsVector = sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, ''))`;
-          notesRows = await db
-            .select(sharedSelect)
-            .from(SpaceNotes)
-            .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
-            .where(
-              and(
-                eq(SpaceNotes.spaceId, spaceIdParam),
-                isNull(SpaceNotes.removedAt),
-                not(eq(Notes.contentEncrypted, true)),
-                ...activeSharedAccessFilters,
-                ...noteScopeFilters,
-                or(
-                  sql`${noteTsVector} @@ ${tsQuery}`,
-                  like(Notes.title, ftsSubstringPattern),
-                  like(Notes.content, ftsSubstringPattern),
-                  sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`,
-                  noteTagMatchSql(ftsSubstringPattern),
-                ),
-              ),
-            )
-            .orderBy(
-              sql`CASE WHEN ${noteTsVector} @@ ${tsQuery} THEN ts_rank(${noteTsVector}, ${tsQuery}) ELSE -1::real END DESC`,
-              desc(Notes.updatedAt),
-            )
-            .limit(limit);
-        } else {
-          const searchTerm = `%${trimmedQuery}%`;
-          notesRows = await db
-            .select(sharedSelect)
-            .from(SpaceNotes)
-            .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
-            .where(
-              and(
-                eq(SpaceNotes.spaceId, spaceIdParam),
-                isNull(SpaceNotes.removedAt),
-                not(eq(Notes.contentEncrypted, true)),
-                ...activeSharedAccessFilters,
-                ...noteScopeFilters,
-                or(
-                  like(Notes.title, searchTerm),
-                  like(Notes.content, searchTerm),
-                  sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`,
-                  noteTagMatchSql(searchTerm),
-                ),
-              ),
-            )
-            .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
-            .limit(limit);
-        }
-      } else if (useFTS) {
-        const tsQuery = sql`plainto_tsquery('english', ${trimmedQuery})`;
-        const noteTsVector = sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, ''))`;
-        notesRows = await db
-          .select({
-            id: Notes.id,
-            title: Notes.title,
-            content: Notes.content,
-            noteType: Notes.noteType,
-            scriptureTranslation: scriptureTranslationSql,
-            threadId: Notes.threadId,
-            spaceId: Notes.spaceId,
-            createdAt: Notes.createdAt,
-            updatedAt: Notes.updatedAt,
-            primaryCollection: Notes.primaryCollection,
-            secondaryCollections: Notes.secondaryCollections,
-            authorUserId: Notes.userId,
-          })
-          .from(Notes)
-          .where(
-            and(
-              eq(Notes.userId, userId),
-              not(eq(Notes.contentEncrypted, true)),
-              ...noteScopeFilters,
-              or(
-                sql`${noteTsVector} @@ ${tsQuery}`,
-                like(Notes.title, ftsSubstringPattern),
-                like(Notes.content, ftsSubstringPattern),
-                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`,
-                noteTagMatchSql(ftsSubstringPattern),
-              ),
-            ),
-          )
-          .orderBy(
-            sql`CASE WHEN ${noteTsVector} @@ ${tsQuery} THEN ts_rank(${noteTsVector}, ${tsQuery}) ELSE -1::real END DESC`,
-            desc(Notes.updatedAt),
-          )
-          .limit(limit);
-      } else {
-        // ILIKE fallback for short queries
-        const searchTerm = `%${trimmedQuery}%`;
-        notesRows = await db
-          .select({
-            id: Notes.id,
-            title: Notes.title,
-            content: Notes.content,
-            noteType: Notes.noteType,
-            scriptureTranslation: scriptureTranslationSql,
-            threadId: Notes.threadId,
-            spaceId: Notes.spaceId,
-            createdAt: Notes.createdAt,
-            updatedAt: Notes.updatedAt,
-            primaryCollection: Notes.primaryCollection,
-            secondaryCollections: Notes.secondaryCollections,
-            authorUserId: Notes.userId,
-          })
-          .from(Notes)
-          .where(
-            and(
-              eq(Notes.userId, userId),
-              not(eq(Notes.contentEncrypted, true)),
-              ...noteScopeFilters,
-              or(
-                like(Notes.title, searchTerm),
-                like(Notes.content, searchTerm),
-                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`,
-                noteTagMatchSql(searchTerm),
-              ),
-            ),
-          )
-          .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
-          .limit(limit);
-      }
+      notesRows = await searchNoteRows({
+        userId,
+        query: trimmedQuery,
+        scope: searchScope,
+        spaceId: spaceIdParam,
+        threadId: threadIdParam,
+        excludeLegacyScripture,
+        limit,
+      });
     }
 
     if (searchThreads) {

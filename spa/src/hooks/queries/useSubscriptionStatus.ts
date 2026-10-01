@@ -25,8 +25,6 @@ export type BillingSubscriptionSummary = {
 export interface SubscriptionStatusResponse {
   hasUnlimited: boolean;
   hasSharedSpaces: boolean;
-  /** Connector — a separate product with its own subscription, not a Plus tier. */
-  hasConnector?: boolean;
   /**
    * Claimed the founding offer while it existed (first 99). The offer is retired
    * — see `foundingOffer()` — but this stays true for anyone who took it, and
@@ -39,8 +37,6 @@ export interface SubscriptionStatusResponse {
   canManageBilling?: boolean;
   /** Present when Polar checkout manages Plus; omitted for admin grants. */
   billing?: BillingSubscriptionSummary | null;
-  /** Connector's own subscription summary — billed and canceled independently. */
-  connectorBilling?: BillingSubscriptionSummary | null;
   limits: PlanLimits;
   currentCount: number;
   limit: number | null;

@@ -34,9 +34,7 @@ export type BillingOrderSummary = {
 export type BillingManagePayload = {
   /** Harvous Plus subscription, if any. */
   billing: BillingSubscriptionSummary | null;
-  /** Connector subscription, if any — a separate product, billed separately. */
-  connector: BillingSubscriptionSummary | null;
-  /** Customer-level — covers both products. */
+  /** Customer-level — covers every product the customer holds. */
   paymentMethod: BillingPaymentMethodSummary | null;
   orders: BillingOrderSummary[];
 };
@@ -150,9 +148,9 @@ export function mapPolarOrder(order: PolarOrderLike): BillingOrderSummary | null
 /**
  * Active subscriptions for the Clerk user (externalCustomerId), keyed by plan.
  *
- * A user can hold Plus and Connector at once — they are separate Polar products
- * with separate subscriptions — so anything that acts on "the" subscription has
- * to say which one it means.
+ * A user can hold Plus and a church plan at once — they are separate Polar
+ * products with separate subscriptions — so anything that acts on "the"
+ * subscription has to say which one it means.
  */
 export async function getPolarBillingSummaries(
   userId: string,
@@ -184,7 +182,7 @@ export async function getPolarBillingSummaries(
 
 /**
  * Active subscription for one plan (defaults to Plus).
- * Pass `planKey` explicitly whenever the caller means Connector.
+ * Pass `planKey` explicitly whenever the caller means another plan.
  */
 export async function getPolarBillingSummary(
   userId: string,
@@ -239,24 +237,22 @@ async function getPolarOrders(userId: string, limit = 8): Promise<BillingOrderSu
 /**
  * Full manage payload for Settings › Plan (subscription + card + recent orders).
  *
- * `billing` is the Plus subscription; `connector` is surfaced alongside it so
- * the page can show both without a second round trip. Payment method and orders
- * are customer-level and cover both products.
+ * `billing` is the Plus subscription. Payment method and orders are
+ * customer-level.
  */
 export async function getPolarBillingManage(userId: string): Promise<BillingManagePayload | null> {
   if (!isPolarConfigured()) return null;
 
   const summaries = await getPolarBillingSummaries(userId);
   const billing = summaries.plus ?? null;
-  const connector = summaries.connector ?? null;
-  if (!billing && !connector) return null;
+  if (!billing) return null;
 
   const [paymentMethod, orders] = await Promise.all([
     getPolarPaymentMethod(userId),
     getPolarOrders(userId, 8),
   ]);
 
-  return { billing, connector, paymentMethod, orders };
+  return { billing, paymentMethod, orders };
 }
 
 /**
@@ -309,7 +305,7 @@ export async function setPolarCancelAtPeriodEnd(
     throw new Error('Billing is not configured');
   }
 
-  // Plan-scoped: canceling Connector must never touch the Plus subscription.
+  // Plan-scoped: canceling one plan must never touch another subscription.
   const current = await getPolarBillingSummary(userId, planKey);
   if (!current) {
     throw new Error('No active subscription found');

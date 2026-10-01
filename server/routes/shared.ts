@@ -22,6 +22,7 @@ import {
   first,
 } from '../db';
 import { parseSequenceNoteIds } from '../utils/thread-sequence';
+import { findPublicSharedNoteByToken } from '../utils/shared-note-lookup';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { generateNoteId, generateThreadId, isValidShareToken } from '@/utils/ids';
@@ -193,15 +194,7 @@ app.get('/api/shared/note/:shareToken', async (c) => {
     const shareToken = requireParam(c, 'shareToken');
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
 
-    const note = first(await db
-      .select({
-        id: Notes.id, title: Notes.title, content: Notes.content,
-        noteType: Notes.noteType, isPublic: Notes.isPublic, shareToken: Notes.shareToken,
-        createdAt: Notes.createdAt, updatedAt: Notes.updatedAt, userId: Notes.userId,
-      })
-      .from(Notes)
-      .where(and(eq(Notes.shareToken, shareToken), eq(Notes.isPublic, true), eq(Notes.contentEncrypted, false)))
-      .limit(1));
+    const note = await findPublicSharedNoteByToken(shareToken);
 
     if (!note) return c.json({ error: 'Shared note not found or no longer available' }, 404);
 

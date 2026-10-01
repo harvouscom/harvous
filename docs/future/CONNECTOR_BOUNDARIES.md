@@ -1,11 +1,30 @@
 # Harvous Connector — Boundaries
 
-Canonical spec for the **Connector** paid add-on: what it does, what it refuses, and what belongs to
-a different product. Complements [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) Section 4
-(pricing/SKU) and [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) (inbound SDK
-vs outbound Connector).
+Canonical spec for the **Connector**, part of Harvous Plus: what it does, what it refuses, and what
+belongs to a different product. Complements [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md)
+Section 4 and [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) (inbound SDK vs
+outbound Connector).
 
-**Status:** Decision doc; **not implemented** in code yet.
+**Status (October 2026):** **v1 built** in `server/connector/` — MCP + Clerk OAuth, the seven read
+tools below, limits, and Settings › Claude & ChatGPT. Shipped **withheld** (`WITHHELD_FEATURES`)
+behind a preview allowlist (`CONNECTOR_PREVIEW_USER_IDS`). Personal API keys, `/api/connector/*`
+REST and the CLI are **deferred** until someone asks. Folded into Plus rather than sold as the
+$5/mo add-on this doc originally assumed; where the text below says "subscription", read "Plus".
+
+### Going live — what is not code
+
+1. Clerk (dev and live): OAuth applications → Settings → Client onboarding → turn on **Publish CIMD
+   support** with admission "Any compatible CIMD client" (Client ID Metadata Documents: the app's
+   client id is a URL Clerk reads, replacing `/register`), and DCR too for older clients. Done
+   2026-10-01; both instances then advertised `client_id_metadata_document_supported: true`.
+2. DNS `mcp.harvous.com` CNAME → `harvous.fly.dev` (grey cloud), then `fly certs add mcp.harvous.com`.
+3. Fly secrets: `CLERK_PUBLISHABLE_KEY` (the server previously read only the secret key),
+   `CONNECTOR_RESOURCE_URL=https://mcp.harvous.com/mcp`, `CONNECTOR_PREVIEW_USER_IDS`.
+4. `npm run connector:schema:apply -- --production` (two additive tables), before the deploy.
+5. `npm run entitlement:backfill -- connector --from review` (dry run, then `--apply`) so admin-granted
+   Plus holds the key too; billing subscribers also self-heal on first use.
+6. Archive the two never-sold Connector products in Polar; unset `POLAR_CONNECTOR_PRODUCT_*`.
+7. Launch = delete `'connector'` from `WITHHELD_FEATURES` (a `feat:` commit).
 
 ---
 
@@ -13,11 +32,12 @@ vs outbound Connector).
 
 | Layer | Name |
 |---|---|
-| In-app SKU | **Connector** |
+| In-app page | **Claude & ChatGPT** (Settings) |
+| Internal name | **Connector** (`server/connector/`) |
 | Claude Connectors Directory | **Harvous** |
-| Docs / npm | **Harvous Connector** (`@harvous/connector` or `@harvous/cli`) |
-| Entitlement (internal) | `hasCliMcpAccess` (may alias `hasConnector` later) |
-| Positioning | *Reference your Harvous study wherever you already work.* |
+| URL | `https://mcp.harvous.com/mcp` |
+| Entitlement | feature key `connector`, granted by Plus (`hasConnectorAccess`, server/connector/access.ts) |
+| Positioning | *Use your study in Claude, ChatGPT, and other AI apps.* |
 
 **Not Connector:** inbound partner SDK (YouVersion → Harvous), account export, Review AI, Group Sharing
 admin/roster APIs.
@@ -54,16 +74,16 @@ See [LOCKED_NOTES_ENCRYPTION.md](../LOCKED_NOTES_ENCRYPTION.md).
 
 | Topic | Decision |
 |---|---|
-| **Paywall** | **Hard paywall** — `hasCliMcpAccess` required before any MCP/CLI read; no free tier or trial in v1. |
-| **API keys** | **1 active key** per subscriber (revoke + re-issue to rotate). |
-| **OAuth consent** | **Minimal Clerk** — standard profile scopes; Connector entitlement checked server-side after auth (no custom `connector:read` scope in v1). |
-| **Audit** | **Basic** — last-used timestamp per key + optional "recent Connector activity" on account page (not per-note access log). |
+| **Paywall** | **Plus** — `connector` required before any read. `initialize`/`tools/list` succeed for anyone signed in, so a non-subscriber sees the upgrade message inside their assistant as an `isError` tool result. |
+| **API keys** | **Deferred** (v1 is OAuth only). When built: 1 active key per person. |
+| **OAuth consent** | **Minimal Clerk** — standard profile scopes; entitlement checked server-side after auth (no custom `connector:read` scope). |
+| **Audit** | **Basic** — `ConnectorClients` (each app's name, first/last use, Harvous-side Disconnect) and `ConnectorUsageDays` (calls per day). No per-note access log. |
 
 ### Rate limits and anti-migration
 
 | Topic | Decision |
 |---|---|
-| **Pagination / scraping** | **Industry-standard:** paginated list/search allowed, max page size **25–50**, daily + burst rate limits (~**1,000/day**, ~**60/min** — finalize before launch), **no export endpoint**. No special anti-crawl beyond caps. |
+| **Pagination / scraping** | Paginated list/search, max page **25** (50 for `list_spaces`), cursors stop at offset **1,000**; **1,000 tool calls/day**, **60/min**; **no export endpoint**. Numbers live in `server/connector/config.ts`. |
 | **Writes** | **Never** — Connector stays **read-only permanently**. Creates/edits stay in the Harvous app (and deferred inbound SDK for partner writes). |
 
 ### Discovery and launch
@@ -75,44 +95,26 @@ See [LOCKED_NOTES_ENCRYPTION.md](../LOCKED_NOTES_ENCRYPTION.md).
 
 ---
 
-## Architecture
+## Architecture (as built)
 
 ```mermaid
 flowchart TB
-  subgraph clients [Clients]
-    Claude[Claude_Cursor]
-    CLI[CLI_scripts]
-  end
-  subgraph auth [Auth]
-    OAuth[Clerk_OAuth_MCP]
-    Keys[Personal_API_keys]
-  end
-  subgraph api [Hono_API_Netlify]
-    MCP["POST /mcp"]
-    WellKnown["/.well-known/oauth-*"]
-    ConnectorREST["GET /api/connector/*"]
-  end
-  subgraph core [Shared_read_layer]
-    ReadSvc[connectorReadService]
-    Perms[space-permissions]
-    Tier[hasCliMcpAccess]
-  end
-  subgraph data [Postgres]
-    DB[(Supabase)]
-  end
-  Claude --> OAuth --> MCP
-  CLI --> Keys --> ConnectorREST
-  MCP --> ReadSvc
-  ConnectorREST --> ReadSvc
-  ReadSvc --> Perms --> Tier --> DB
+  Clients[Claude / ChatGPT / Cursor] -->|Bearer OAuth token| MCP["POST /mcp on mcp.harvous.com"]
+  MCP --> Auth[server/connector/auth.ts — Clerk acceptsToken oauth_token]
+  Auth --> Gate[access.ts + usage.ts — Plus, disconnect, limits]
+  Gate --> Tools[tools.ts — Zod schemas, isError refusals]
+  Tools --> Read[read-service.ts]
+  Read --> Shared[shared utils the app also uses: search-notes-query, note-read-access, space-study-threads, shared-note-lookup, dashboard-data]
+  Shared --> DB[(Supabase)]
 ```
 
 | Question | Decision |
 |---|---|
-| Where does MCP live? | **Same Hono API** as today (`POST /mcp`, not SPA). Netlify function bundles deps per [AGENTS.md](../../AGENTS.md). |
-| Where does CLI live? | **Separate npm package**; HTTP to `/api/connector/*`, not embedded in Netlify. |
-| Service layer | **New** `connectorReadService` — see [Read service sketch](#read-service-sketch) below. |
-| CSRF | Exempt `/mcp`, `/api/connector/*` (Bearer-only), `/.well-known/*` (public). |
+| Where does MCP live? | **Same Hono API on Fly**, mounted **outside `/api/*`** (`server/connector/mcp-route.ts`), so `clerkAuth`, CSRF and the default cache header never run on it. |
+| Which host? | **`mcp.harvous.com`**, DNS straight to Fly. The Cloudflare Worker fronts only `app.harvous.com` and forwards only `/api/*`; MCP needs root `/.well-known/` paths, gains nothing from the Worker, and would inherit its 20s timeout and a billed invocation per call. |
+| Session isolation | `clerkAuth` refuses OAuth tokens (machine-token shape check + `client_id` claim), so a Connector token can never act as a full session on `/api/*`; the Connector refuses session tokens. |
+| Service layer | `connectorReadService` (`server/connector/read-service.ts`) — reuses the app's own queries, several of them extracted from routes for exactly this. |
+| CLI | Deferred. |
 
 ---
 
@@ -124,7 +126,9 @@ layer). Reference: Dotflowy teardown / MCP 2026-07-28 RC direction.
 ### 1. Stateless — no sessions, ever
 
 - Every `POST /mcp` request is fully self-contained; no `Mcp-Session-Id`, no in-memory session store.
-- Matches serverless Netlify deploy ([server/netlify.ts](../../server/netlify.ts)); instances are not sticky.
+- A fresh `McpServer` + transport per request (`sessionIdGenerator: undefined`), JSON responses
+  (`enableJsonResponse: true`) — every tool is a short read, and SSE through `@hono/node-server`
+  has known HTTP/2 problems (modelcontextprotocol/typescript-sdk#1619).
 - Do not use stateful MCP mode from older SDK examples.
 
 ### 2. Schema is the validator
@@ -155,9 +159,9 @@ layer). Reference: Dotflowy teardown / MCP 2026-07-28 RC direction.
 
 | Surface | Auth | Rationale |
 |---|---|---|
-| **MCP** (`POST /mcp`) | **Clerk OAuth 2.1** (`@clerk/mcp-tools` patterns) | Claude/Cursor require discovery + OAuth |
-| **CLI / scripts** | **Personal API key** (Bearer) | Non-interactive; maps to same `userId` |
-| **Both** | Gate on `hasCliMcpAccess` before any read | Paid add-on boundary |
+| **MCP** (`POST /mcp`) | **Clerk OAuth 2.1** — `authenticateRequest(req, { acceptsToken: 'oauth_token' })`, audience checked when the token names one | Claude/ChatGPT/Cursor require discovery + OAuth |
+| **CLI / scripts** | Deferred — personal API key when built | Non-interactive; maps to same `userId` |
+| **Both** | Gate on `connector` before any read | Plus boundary |
 
 **Do not:** cookie/session auth on `/mcp`; team/shared keys in v1; a second identity system (keys and
 OAuth both resolve to Clerk `userId`).
@@ -172,35 +176,19 @@ OAuth both resolve to Clerk `userId`).
 
 ## Auth and entitlements
 
-### `hasCliMcpAccess`
+### Access: the `connector` feature key
 
-Gates **all** Connector surfaces before any data read:
+Granted by Plus. `hasConnectorAccess(userId)` (server/connector/access.ts) is
+`hasFeatureWithReconcile(…, 'connector')` once launched; while withheld, only accounts in
+`CONNECTOR_PREVIEW_USER_IDS` that also hold the key. Checked lazily on the first `tools/call` of a
+request, never on `initialize` / `tools/list`.
 
-1. **MCP** — after Clerk OAuth bearer verification on `POST /mcp`
-2. **CLI / REST** — after API key middleware on `/api/connector/*`
-3. **Key issuance** — account UI only when flag is true (Stripe/Clerk Connector plan active)
+### Disconnect
 
-Stored in Clerk `public_metadata` and/or Postgres when Review/Connector entitlements ship; today
-**conceptual only** (see [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) §6).
-
-### `ConnectorApiKeys` (planned schema)
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | text PK | e.g. `connector_key_{uuid}` |
-| `userId` | text FK | Clerk user id |
-| `keyHash` | text | Hash of secret; never store plaintext after creation |
-| `keyPrefix` | text | First 8 chars for display ("…abc123") |
-| `createdAt` | timestamp | |
-| `lastUsedAt` | timestamp | Updated on successful auth (basic audit) |
-| `revokedAt` | timestamp nullable | Set on revoke; null = active |
-
-**Rules:**
-
-- **1 active key** per user (`revokedAt IS NULL` count ≤ 1).
-- Issue flow: generate secret once → show to user once → store hash only.
-- Rotate: revoke current → issue new.
-- Middleware: `Authorization: Bearer hvous_…` → lookup hash → `userId` → `hasCliMcpAccess` → attach auth context.
+Clerk exposes no API to list or revoke a user's OAuth grants, so **Disconnect** in Settings is
+Harvous's own per-app block (`ConnectorClients.revokedAt`): the app keeps its token and every tool
+call returns a readable `isError` telling the person where to allow it again. Not a 401 — that would
+send clients into a re-auth loop.
 
 ### OAuth and `.well-known` routes
 
@@ -208,7 +196,8 @@ Host on **Hono API** ([server/app.ts](../../server/app.ts)), not SPA:
 
 | Route | Auth | Purpose |
 |---|---|---|
-| `POST /mcp` | Clerk OAuth bearer (`mcpAuthClerk` or Hono equivalent) | MCP Streamable HTTP |
+| `POST /mcp` | Clerk OAuth bearer | MCP Streamable HTTP (stateless, JSON) |
+| `GET`/`DELETE /mcp` | — | 405 (no sessions, no standalone stream) |
 | `GET /.well-known/oauth-protected-resource/mcp` | **Public** — no auth middleware | RFC 9728 protected resource metadata |
 | `GET /.well-known/oauth-authorization-server` | **Public** | Clerk authorization server metadata |
 
@@ -216,8 +205,9 @@ Host on **Hono API** ([server/app.ts](../../server/app.ts)), not SPA:
 
 - Discovery routes must be **publicly accessible** — do not wrap in `requireAuth` or CSRF.
 - Use **path-suffixed** protected-resource URL (`/mcp`), not root-only — RFC 9728 clients probe the suffixed variant first.
-- Exempt `/mcp` and `/.well-known/*` from CSRF ([server/middleware/csrf.ts](../../server/middleware/csrf.ts)).
-- `@clerk/mcp-tools` ships Express adapters today; on Hono use `@hono/mcp` + Clerk bearer verification or verify current Clerk MCP docs before shipping.
+- Mounted outside `/api/*`, so CSRF never runs on it — no exemption list needed.
+- `@clerk/mcp-tools` was not used: its helpers are a few lines (reimplemented in
+  `server/connector/oauth-metadata.ts`) and the published verifier predates audience binding.
 
 ---
 
@@ -237,7 +227,10 @@ Seven tools — scoped per guardrails above:
 
 Optional later: `get_thread` by id if agents need it.
 
-Each tool: Zod schema → handler → `connectorReadService` → `requireSpaceAccess` where applicable.
+Each tool: Zod schema → `beforeCall` (disconnect, access, per-minute + daily limits) →
+`connectorReadService` → `requireSpaceAccess` where applicable. All annotated `readOnlyHint: true`.
+`server/connector/__tests__/tools-contract.test.ts` fails if a tool appears without it, if the module
+imports a side-effect writer, or if it reads Bible verse text.
 
 ---
 
@@ -254,7 +247,7 @@ Each tool: Zod schema → handler → `connectorReadService` → `requireSpaceAc
 | Get note by share token | Explicit token only |
 | List spaces | Owned + joined |
 | MCP transport | Stateless Streamable HTTP at `/mcp`; OAuth |
-| CLI | npm binary → `/api/connector/*`; API key |
+| CLI | Deferred |
 | Rate limits | Per-user counter on account page |
 | OAuth discovery | Public `.well-known` routes |
 
@@ -291,7 +284,7 @@ Every read requires **at least one scoping parameter** — never "give me everyt
 
 ## Read service sketch
 
-New module: `server/connector/connector-read-service.ts` (or `server/utils/connector-read-service.ts`).
+Built as `server/connector/read-service.ts`.
 Both MCP tools and `GET /api/connector/*` call these functions — **no duplicate query logic**.
 
 | Service function | Mirrors | Key dependencies |
@@ -299,13 +292,13 @@ Both MCP tools and `GET /api/connector/*` call these functions — **no duplicat
 | `searchNotesForConnector(userId, query, opts)` | [server/routes/search.ts](../../server/routes/search.ts) | `MIN_SEARCH_QUERY_LENGTH`; owned notes only; optional `spaceId`; exclude deleted; scripture refs in content, not resolved text |
 | `getNoteForConnector(userId, noteId)` | Note details paths in [server/routes/notes.ts](../../server/routes/notes.ts) | Owner OR member-view access via space; locked: metadata-only if yours, 404/hidden if others'; `contentEncrypted` check |
 | `listSpacesForConnector(userId, cursor)` | [server/routes/spaces.ts](../../server/routes/spaces.ts), dashboard helpers | Owned + member spaces; no roster |
-| `listThreadsInSpaceForConnector(userId, spaceId, cursor)` | Space thread queries in [server/utils/dashboard-data.ts](../../server/utils/dashboard-data.ts) | [requireSpaceAccess](../../server/utils/space-permissions.ts); member vs owner paths |
+| `listThreadsInSpaceForConnector(userId, spaceId, cursor)` | Space thread queries in [server/utils/dashboard-data.ts](../../server/utils/dashboard-data.ts) | [requireSpaceAccess](../../server/utils/space-access.ts); member vs owner paths |
 | `listNotesInSpaceForConnector(userId, spaceId, cursor)` | `getNotesForSpaceForMember` / owner equivalents in dashboard-data | Exclude `contentEncrypted: true` for non-owner notes; member-view parity |
 | `listStudyThreadConnectionsForConnector(userId, opts)` | [server/routes/study-threads.ts](../../server/routes/study-threads.ts), [server/utils/study-thread-cluster-naming.ts](../../server/utils/study-thread-cluster-naming.ts) | Scope by `noteId` or `spaceId`; respect same visibility as note reads |
 | `getSharedNoteForConnector(userId, shareToken)` | [server/routes/shared.ts](../../server/routes/shared.ts) share-token resolution | Explicit token; readable if token valid (may not require space membership) |
 
 **Every function:** filter by authenticated `userId`; call `requireSpaceAccess` where space-scoped; check
-`hasCliMcpAccess` at route/MCP handler layer before invoking service.
+`connector` access in `beforeCall` (server/connector/mcp-route.ts) before invoking service.
 
 ---
 
@@ -313,7 +306,8 @@ Both MCP tools and `GET /api/connector/*` call these functions — **no duplicat
 
 | Phase | Adds |
 |---|---|
-| **v1** | Read tools + CLI + OAuth + 1 API key |
+| **v1** | Read tools + OAuth + Settings page (built, withheld) |
+| **v1.1** | API keys + CLI if asked for; `search`/`fetch` aliases for ChatGPT deep research |
 | **v1.5** | MCP Apps (interactive Connector in Claude) + Connectors Directory listing; still read-only |
 | **Inbound SDK** | Partner apps → Harvous; separate OAuth app registry — **not** Connector |
 
@@ -321,15 +315,18 @@ Both MCP tools and `GET /api/connector/*` call these functions — **no duplicat
 
 ## Implementation checklist
 
-- [ ] `/mcp` + `/.well-known/*` on Hono API, not SPA
-- [ ] Stateless MCP only
-- [ ] Clerk OAuth gates MCP; API keys gate CLI; both check `hasCliMcpAccess`
-- [ ] Zod schema = published contract = validator
-- [ ] Tools call `connectorReadService`, not raw Drizzle
-- [ ] Every tool scopes to authenticated `userId`
-- [ ] Business refusals → `isError: true`; protocol errors → JSON-RPC codes
-- [ ] No write tools, no bulk export, no locked-note plaintext
-- [ ] `.well-known` routes public and path-suffixed (`/mcp`)
+- [x] `/mcp` + `/.well-known/*` on the Hono API, outside `/api/*`
+- [x] Stateless MCP only
+- [x] Clerk OAuth gates MCP and checks `connector` (API keys deferred)
+- [x] Zod schema = published contract = validator
+- [x] Tools call `connectorReadService`, not raw Drizzle
+- [x] Every tool scopes to authenticated `userId`
+- [x] Business refusals → `isError: true`; protocol errors → JSON-RPC codes
+- [x] No write tools, no bulk export, no locked-note plaintext
+- [x] `.well-known` routes public and path-suffixed (`/mcp`)
+- [x] Clerk CIMD on (dev + live)
+- [ ] DNS, Fly secrets, schema, backfill (see *Going live*)
+- [ ] Dogfood in production, then remove `connector` from `WITHHELD_FEATURES`
 
 ---
 

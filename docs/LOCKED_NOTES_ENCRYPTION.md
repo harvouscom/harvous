@@ -129,4 +129,4 @@ after the user unlocks in the Harvous app.
 - Connector is **read-only permanently** — no path to read locked plaintext via Connector without
   in-app unlock.
 
-See [CONNECTOR_BOUNDARIES.md](../future/CONNECTOR_BOUNDARIES.md).
+See [CONNECTOR_BOUNDARIES.md](./future/CONNECTOR_BOUNDARIES.md).

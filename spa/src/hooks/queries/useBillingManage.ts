@@ -20,9 +20,7 @@ export type BillingOrderSummary = {
 export type BillingManageResponse = {
   /** Harvous Plus subscription, if any. */
   billing: BillingSubscriptionSummary | null;
-  /** Connector subscription, if any — separate product, billed separately. */
-  connector: BillingSubscriptionSummary | null;
-  /** Customer-level — covers both products. */
+  /** Customer-level — covers every product the customer holds. */
   paymentMethod: BillingPaymentMethodSummary | null;
   orders: BillingOrderSummary[];
 };

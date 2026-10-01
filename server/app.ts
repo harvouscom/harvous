@@ -80,6 +80,8 @@ import studyFeed from './routes/study-feed';
 import support from './routes/support';
 import diagnostics from './routes/diagnostics';
 import statusPublic from './routes/status-public';
+import connector from './connector/mcp-route';
+import connectorSettings from './routes/connector-settings';
 
 const app = new Hono();
 
@@ -160,5 +162,10 @@ app.route('/', studyFeed);
 app.route('/', support);
 app.route('/', diagnostics);
 app.route('/', statusPublic);
+app.route('/', connectorSettings);
+
+// The Connector's MCP endpoint and OAuth discovery — outside /api/*, so none of the global
+// middleware above runs on them. Its own auth is Clerk OAuth (server/connector/auth.ts).
+app.route('/', connector);
 
 export default app;
