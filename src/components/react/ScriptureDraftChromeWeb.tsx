@@ -17,6 +17,9 @@ import { isTiptapViewReady } from '@/utils/tiptap-helpers';
 import { onProtoViewportSettle } from '@/utils/proto-viewport-settle';
 import { mapSliceIndexToDocPos, scriptureSliceStart } from '@/utils/scripture-pill-position';
 import { suggestBooksForTypedReference } from '@/utils/scripture-book-suggest';
+import { getCachedVersePeek, getVersePeek } from '@/utils/verse-peek';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 
 interface DraftConfirmState {
   top: number;
@@ -39,6 +42,16 @@ interface BookSuggestionState {
   below: boolean;
 }
 
+interface VersePeekState {
+  text: string;
+  /** Short label for the translation the text is in, e.g. "NET". */
+  translationLabel: string;
+  top: number;
+  left: number;
+  maxWidth: number;
+  below: boolean;
+}
+
 export interface ScriptureDraftChromeWebProps {
   editor: Editor;
 }
@@ -47,6 +60,8 @@ export interface ScriptureDraftChromeWebProps {
  * Everything that floats beside an inline scripture draft (prototype): the ✓ confirm, and —
  * before a draft exists — a "Did you mean John 3:16?" row for a reference the detector can't
  * read (`joh 3:16`). Accepting rewrites only the book; the normal detection then drafts it.
+ * Once the draft is a reference that would commit, a one-line peek of the verse sits above it,
+ * so confirming feels like grabbing the verse rather than typing a citation and hoping.
  *
  * Rendered OUTSIDE the editor, as portals — an inline contentEditable=false widget at the draft
  * blocks iOS text entry next to it. Every control here takes `pointerdown` with preventDefault so
@@ -55,6 +70,7 @@ export interface ScriptureDraftChromeWebProps {
 export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChromeWebProps) {
   const [confirm, setConfirm] = useState<DraftConfirmState | null>(null);
   const [bookSuggestion, setBookSuggestion] = useState<BookSuggestionState | null>(null);
+  const [peek, setPeek] = useState<VersePeekState | null>(null);
   const bookSuggestionRef = useRef<BookSuggestionState | null>(null);
   bookSuggestionRef.current = bookSuggestion;
   /** Escape hides the row for this typed book until it changes. Keyed `${from}:${typedBook}`. */
@@ -136,9 +152,31 @@ export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChrome
       setBookSuggestion(next);
     };
 
+    // Bumped on every edit, so a peek that resolves after the draft changed is dropped.
+    let peekToken = 0;
+    const updatePeek = () => {
+      const target = computePeekTarget(editor);
+      if (!target) {
+        peekToken++;
+        setPeek(null);
+        return;
+      }
+      const cached = getCachedVersePeek(target.reference, target.translation);
+      if (cached) {
+        setPeek(placePeek(editor, cached, target.translation));
+        return;
+      }
+      const token = ++peekToken;
+      void getVersePeek(target.reference, target.translation).then((text) => {
+        if (token !== peekToken) return;
+        setPeek(text ? placePeek(editor, text, target.translation) : null);
+      });
+    };
+
     const updateAll = () => {
       updatePos();
       updateBookSuggestion();
+      updatePeek();
     };
 
     // Hide the ✓ while actively typing — it sits at the draft's right edge, exactly where the next
@@ -150,6 +188,8 @@ export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChrome
       lastTypeAt = Date.now();
       setConfirm(null);
       setBookSuggestion(null);
+      peekToken++;
+      setPeek(null);
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         idleTimer = null;
@@ -229,10 +269,26 @@ export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChrome
     // acceptBook reads only refs and the editor, so the closure captured here never goes stale.
   }, [editor]);
 
-  if (!confirm && !bookSuggestion) return null;
+  if (!confirm && !bookSuggestion && !peek) return null;
 
   return createPortal(
     <>
+      {peek && (
+        <div
+          className={`scripture-verse-peek${peek.below ? ' scripture-verse-peek--below' : ''}`}
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            top: peek.top,
+            left: peek.left,
+            maxWidth: peek.maxWidth,
+            zIndex: 99998,
+          }}
+        >
+          <span className="scripture-verse-peek__text">{peek.text}</span>
+          <span className="scripture-verse-peek__trans">{peek.translationLabel}</span>
+        </div>
+      )}
       {bookSuggestion && (
         <div
           className={`scripture-book-suggest${bookSuggestion.below ? ' scripture-book-suggest--below' : ''}`}
@@ -362,4 +418,47 @@ function computeBookSuggestion(editor: Editor, dismissedKey: string | null): Boo
   } catch {
     return null;
   }
+}
+
+/** The draft's reference and translation when it would commit right now, else null. */
+function computePeekTarget(editor: Editor): { reference: string; translation: string } | null {
+  if (!isTiptapViewReady(editor) || !editor.isFocused) return null;
+  const { state } = editor;
+  const to = getScriptureDraftAnchorPos(state);
+  if (to == null) return null;
+  const validity = getScriptureDraftValidity(state, to);
+  if (validity.status !== 'ready') return null;
+  const range = getScriptureDraftRange(state);
+  const draftMark = range
+    ? state.doc.nodeAt(range.from)?.marks.find((m) => m.type.name === 'scriptureDraft')
+    : null;
+  const translation: string = draftMark?.attrs.translation || getEffectiveDefaultTranslation();
+  return { reference: validity.reference, translation };
+}
+
+/** Measure where the peek goes: above the draft's first line, aligned to its start. */
+function placePeek(editor: Editor, text: string, translation: string): VersePeekState | null {
+  if (!isTiptapViewReady(editor)) return null;
+  const to = getScriptureDraftAnchorPos(editor.state);
+  if (to == null) return null;
+  const draftEl = getScriptureDraftAnchorElement(editor.view, to);
+  if (!draftEl) return null;
+  const rects = draftEl.getClientRects();
+  if (rects.length === 0) return null;
+  const first = rects[0];
+  const last = rects[rects.length - 1];
+  const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+  const ox = vv?.offsetLeft ?? 0;
+  const oy = vv?.offsetTop ?? 0;
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 9999;
+  const below = first.top < 56;
+  const left = Math.max(8, Math.min(first.left - 4, vw - 200));
+  return {
+    text,
+    translationLabel: getTranslationAbbreviationDisplay(translation),
+    top: (below ? last.bottom + 6 : first.top - 6) + oy,
+    left: left + ox,
+    maxWidth: Math.min(420, vw - left - 8),
+    below,
+  };
 }

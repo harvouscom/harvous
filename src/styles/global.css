@@ -1085,6 +1085,48 @@ button[disabled] {
   }
 }
 
+/* One line of the verse above a draft that would commit — what confirming will grab. Text only,
+   never a control: it takes no taps, and nothing here offers to insert the passage. */
+.scripture-verse-peek {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: var(--pds-bg-popover-solid, #fff);
+  border: 1px solid var(--pds-accent-subtle-border, rgba(56, 105, 230, 0.2));
+  box-shadow: var(--pds-shadow-popover, 0 2px 8px rgba(0, 0, 0, 0.12));
+  color: var(--pds-text-secondary, rgba(60, 60, 67, 0.75));
+  font-size: 13px;
+  line-height: 1.35;
+  transform: translateY(-100%);
+  pointer-events: none;
+  animation: scripture-book-suggest-in 160ms ease-out both;
+}
+
+.scripture-verse-peek--below {
+  transform: none;
+}
+
+.scripture-verse-peek__text {
+  /* Explicit: a broader span rule sets `flex: 0 0 auto`, which keeps the text from shrinking and
+     pushes the translation label out of the box. */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-style: italic;
+}
+
+.scripture-verse-peek__trans {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--pds-text-tertiary, rgba(60, 60, 67, 0.5));
+}
+
 @keyframes scripture-draft-confirm-pop {
   from {
     opacity: 0;
