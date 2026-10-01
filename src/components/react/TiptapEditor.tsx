@@ -9378,7 +9378,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         )}
         {/* Floating chrome beside an inline scripture draft (prototype): the ✓ confirm. Portaled
             outside the editor so it never blocks iOS text entry the way an inline widget did. */}
-        {editor && editorChromeMode === 'prototypeNative' && <ScriptureDraftChromeWeb editor={editor} />}
+        {editor && editorChromeMode === 'prototypeNative' && <ScriptureDraftChromeWeb editor={editor} sourceNoteId={sourceNoteId ?? null} />}
         {/* Custom floating selection action bar — positioned via selectionUpdate event */}
         {/* Uses createPortal like the translation picker for reliable positioning */}
         {selectionActionBar && enableCreateNoteFromSelection && !selectionBarSuppressedOnTouch && createPortal(

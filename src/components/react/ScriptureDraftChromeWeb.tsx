@@ -20,6 +20,8 @@ import { suggestBooksForTypedReference } from '@/utils/scripture-book-suggest';
 import { getCachedVersePeek, getVersePeek } from '@/utils/verse-peek';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
+import { getCachedPassageHistory, getPassageHistory, passageHistoryLabel } from '@/utils/passage-history';
+import { isGuestLocalNote } from '../../../spa/src/lib/guest-store';
 
 interface DraftConfirmState {
   top: number;
@@ -43,7 +45,10 @@ interface BookSuggestionState {
 }
 
 interface VersePeekState {
+  /** Verse text; empty when only the history line could be had. */
   text: string;
+  /** "in 3 of your notes" — other notes of yours on this passage, or null. */
+  history: string | null;
   /** Short label for the translation the text is in, e.g. "NET". */
   translationLabel: string;
   top: number;
@@ -54,6 +59,8 @@ interface VersePeekState {
 
 export interface ScriptureDraftChromeWebProps {
   editor: Editor;
+  /** The note being edited — left out of the passage-history count. */
+  sourceNoteId?: string | null;
 }
 
 /**
@@ -67,10 +74,12 @@ export interface ScriptureDraftChromeWebProps {
  * blocks iOS text entry next to it. Every control here takes `pointerdown` with preventDefault so
  * the caret never leaves the draft.
  */
-export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChromeWebProps) {
+export default function ScriptureDraftChromeWeb({ editor, sourceNoteId = null }: ScriptureDraftChromeWebProps) {
   const [confirm, setConfirm] = useState<DraftConfirmState | null>(null);
   const [bookSuggestion, setBookSuggestion] = useState<BookSuggestionState | null>(null);
   const [peek, setPeek] = useState<VersePeekState | null>(null);
+  const sourceNoteIdRef = useRef(sourceNoteId);
+  sourceNoteIdRef.current = sourceNoteId;
   const bookSuggestionRef = useRef<BookSuggestionState | null>(null);
   bookSuggestionRef.current = bookSuggestion;
   /** Escape hides the row for this typed book until it changes. Keyed `${from}:${typedBook}`. */
@@ -161,15 +170,25 @@ export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChrome
         setPeek(null);
         return;
       }
-      const cached = getCachedVersePeek(target.reference, target.translation);
-      if (cached) {
-        setPeek(placePeek(editor, cached, target.translation));
+      const noteId = sourceNoteIdRef.current;
+      // Guests have no server notes to count, and the request would only 401.
+      const wantsHistory = !isGuestLocalNote(noteId);
+      const show = (text: string | null, history: string | null) =>
+        setPeek(text || history ? placePeek(editor, text ?? '', history, target.translation) : null);
+
+      const cachedText = getCachedVersePeek(target.reference, target.translation);
+      const cachedHistory = wantsHistory ? getCachedPassageHistory(target.reference, noteId) : null;
+      if (cachedText && (!wantsHistory || cachedHistory)) {
+        show(cachedText, passageHistoryLabel(cachedHistory));
         return;
       }
       const token = ++peekToken;
-      void getVersePeek(target.reference, target.translation).then((text) => {
+      void Promise.all([
+        cachedText ?? getVersePeek(target.reference, target.translation),
+        wantsHistory ? (cachedHistory ?? getPassageHistory(target.reference, noteId)) : null,
+      ]).then(([text, history]) => {
         if (token !== peekToken) return;
-        setPeek(text ? placePeek(editor, text, target.translation) : null);
+        show(text, passageHistoryLabel(history));
       });
     };
 
@@ -285,8 +304,9 @@ export default function ScriptureDraftChromeWeb({ editor }: ScriptureDraftChrome
             zIndex: 99998,
           }}
         >
-          <span className="scripture-verse-peek__text">{peek.text}</span>
-          <span className="scripture-verse-peek__trans">{peek.translationLabel}</span>
+          {peek.text && <span className="scripture-verse-peek__text">{peek.text}</span>}
+          {peek.text && <span className="scripture-verse-peek__trans">{peek.translationLabel}</span>}
+          {peek.history && <span className="scripture-verse-peek__history">{peek.history}</span>}
         </div>
       )}
       {bookSuggestion && (
@@ -437,7 +457,12 @@ function computePeekTarget(editor: Editor): { reference: string; translation: st
 }
 
 /** Measure where the peek goes: above the draft's first line, aligned to its start. */
-function placePeek(editor: Editor, text: string, translation: string): VersePeekState | null {
+function placePeek(
+  editor: Editor,
+  text: string,
+  history: string | null,
+  translation: string,
+): VersePeekState | null {
   if (!isTiptapViewReady(editor)) return null;
   const to = getScriptureDraftAnchorPos(editor.state);
   if (to == null) return null;
@@ -455,6 +480,7 @@ function placePeek(editor: Editor, text: string, translation: string): VersePeek
   const left = Math.max(8, Math.min(first.left - 4, vw - 200));
   return {
     text,
+    history,
     translationLabel: getTranslationAbbreviationDisplay(translation),
     top: (below ? last.bottom + 6 : first.top - 6) + oy,
     left: left + ox,
