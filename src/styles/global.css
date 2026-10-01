@@ -1119,6 +1119,19 @@ button[disabled] {
   font-style: italic;
 }
 
+/* "· in 3 of your notes" — other notes of yours on this passage. Quieter than the verse. */
+.scripture-verse-peek__history {
+  flex: none;
+  font-size: 11px;
+  font-style: normal;
+  white-space: nowrap;
+  color: var(--pds-text-tertiary, rgba(60, 60, 67, 0.5));
+}
+
+.scripture-verse-peek__text + .scripture-verse-peek__trans + .scripture-verse-peek__history::before {
+  content: '· ';
+}
+
 .scripture-verse-peek__trans {
   flex: none;
   font-size: 10px;
