@@ -9,6 +9,7 @@
 import type { IconName } from '@/components/react/Icon';
 import { prototypeHref } from '@/lib/prototype-path';
 import { isFeatureWithheld } from '@/lib/billing-plans';
+import { useSubscriptionStatus } from '../../../hooks/queries/useSubscriptionStatus';
 
 export interface SettingsCategory {
   key: string;
@@ -103,20 +104,16 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   /*
    * Web-only, like Reminders. Listed for everyone once launched (the page describes the
-   * feature to someone without Plus), but hidden entirely while `connector` is withheld —
-   * a static check, so the list still never changes shape with what someone has bought.
+   * feature to someone without Plus). While `connector` is withheld it is listed only for
+   * preview accounts — see `useSettingsCategories`.
    */
-  ...(isFeatureWithheld('connector')
-    ? []
-    : [
-        {
-          key: 'connector',
-          title: 'Claude & ChatGPT',
-          route: prototypeHref('settings/connector'),
-          icon: 'link' as const,
-          footnote: 'Use your study in Claude, ChatGPT, and other AI apps.',
-        },
-      ]),
+  {
+    key: 'connector',
+    title: 'Claude & ChatGPT',
+    route: prototypeHref('settings/connector'),
+    icon: 'link',
+    footnote: 'Use your study in Claude, ChatGPT, and other AI apps.',
+  },
   {
     key: 'data',
     title: 'My Notes',
@@ -141,3 +138,14 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     footnote: 'On Mac and iPad.',
   },
 ];
+
+/**
+ * The categories this account sees. Static except for one row: while `connector` is
+ * withheld, Claude & ChatGPT appears only for preview accounts (`connectorPreview`, from
+ * the subscription status); after launch it is listed for everyone, as the rest are.
+ */
+export function useSettingsCategories(): SettingsCategory[] {
+  const { data } = useSubscriptionStatus();
+  const showConnector = !isFeatureWithheld('connector') || Boolean(data?.connectorPreview);
+  return showConnector ? SETTINGS_CATEGORIES : SETTINGS_CATEGORIES.filter((cat) => cat.key !== 'connector');
+}

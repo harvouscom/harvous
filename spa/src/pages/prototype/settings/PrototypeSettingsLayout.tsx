@@ -8,7 +8,7 @@ import { readSettingsOpenerPath } from '../../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { prefetchSettingsCategoryChunks } from './prefetch-settings-chunks';
 import { isSettingsCloseBlocked } from './settings-close-guard';
-import { SETTINGS_CATEGORIES } from './settingsCategories';
+import { useSettingsCategories } from './settingsCategories';
 
 function isSettingsIndexPath(pathname: string) {
   const settingsRoot = prototypeSettingsRouteTo();
@@ -56,14 +56,15 @@ export default function PrototypeSettingsLayout() {
     return () => document.removeEventListener('keydown', onKey);
   }, [isMobileSidebar, closeSettings]);
 
-  const activeCategory = SETTINGS_CATEGORIES.find((cat) => pathname === cat.route);
+  const categories = useSettingsCategories();
+  const activeCategory = categories.find((cat) => pathname === cat.route);
   const isSettingsSubpage = !isSettingsIndexPath(pathname);
   const sheetTitle = isSettingsSubpage ? (activeCategory?.title ?? 'Settings') : 'Settings';
 
   const categoryNav = (
     <nav className="proto-settings__nav" aria-label="Settings categories">
       <div className="proto-settings__nav-list">
-        {SETTINGS_CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const active = pathname === cat.route;
           return (
             <button

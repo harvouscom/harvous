@@ -14,8 +14,10 @@ import { getActiveEntitlements, limitsForUser } from './entitlements';
 import {
   planForProductId,
   type FeatureKey,
+  isFeatureWithheld,
   type PlanKey,
 } from '@/lib/billing-plans';
+import { previewUserIds } from '../connector/config';
 import { getPolarBillingSummaries, type BillingSubscriptionSummary } from './polar-billing';
 
 export type { BillingSubscriptionSummary };
@@ -195,6 +197,15 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
   return {
     hasUnlimited,
     hasSharedSpaces,
+    /**
+     * This account is on the Connector preview list and holds the key, so the app may show
+     * Settings › Claude & ChatGPT while `connector` is still withheld (the client's own
+     * check answers "no" for everyone then). False once launched — `useHasFeature` takes over.
+     */
+    connectorPreview:
+      isFeatureWithheld('connector') &&
+      previewUserIds().has(userId) &&
+      (entitlements as FeatureKey[]).includes('connector'),
     /**
      * Claimed the founding offer (first 99) — drives the "Founding" badge.
      *

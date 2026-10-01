@@ -25,6 +25,8 @@ export type BillingSubscriptionSummary = {
 export interface SubscriptionStatusResponse {
   hasUnlimited: boolean;
   hasSharedSpaces: boolean;
+  /** On the Connector preview list while `connector` is withheld — see `getSubscriptionInfo`. */
+  connectorPreview?: boolean;
   /**
    * Claimed the founding offer while it existed (first 99). The offer is retired
    * — see `foundingOffer()` — but this stays true for anyone who took it, and
