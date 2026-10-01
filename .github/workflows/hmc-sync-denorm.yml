@@ -6,6 +6,12 @@ on:
     - cron: '15 */2 * * *'
   workflow_dispatch:
 
+# A manual run must not overlap a scheduled one: both would read the same cursor
+# and race to advance it. Queue rather than cancel so an in-progress sync finishes.
+concurrency:
+  group: hmc-sync-denorm
+  cancel-in-progress: false
+
 jobs:
   hmc-sync-denorm:
     runs-on: ubuntu-latest
