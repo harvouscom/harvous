@@ -121,7 +121,7 @@ async function softRead<T>(label: string, read: () => Promise<T>, fallback: T): 
 }
 
 /**
- * Active billing-sourced product ids. A user can hold Plus and Connector at
+ * Active billing-sourced product ids. A user can hold more than one product at
  * once, so this returns all of them rather than picking one arbitrarily.
  */
 async function activeBillingProductIds(userId: string): Promise<string[]> {
@@ -195,8 +195,6 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
   return {
     hasUnlimited,
     hasSharedSpaces,
-    /** Connector is a separate product with its own subscription. */
-    hasConnector: (entitlements as FeatureKey[]).includes('connector'),
     /**
      * Claimed the founding offer (first 99) — drives the "Founding" badge.
      *
@@ -212,7 +210,6 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     /** Polar checkout exists — in-app manage + payment portal. False for admin_grant / trial. */
     canManageBilling,
     billing: summaries.plus ?? null,
-    connectorBilling: summaries.connector ?? null,
     limits: {
       ownedSpaces: sharedSpacesOwnedLimit,
       membersPerSpace: limits.membersPerSpace,

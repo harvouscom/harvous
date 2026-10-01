@@ -46,9 +46,9 @@ Polar product  ──(registry)──▶  feature keys  ──(Entitlements rows
 | `review` | Review practice from your own notes | **Harvous Plus** |
 | `challenges` | Challenges — withheld for everyone (`WITHHELD_FEATURES`) | **Harvous Plus** |
 | `full_history` | History older than `FREE_HISTORY_WINDOW_DAYS` (90): note versions and the activity feed. Hidden without it, never deleted | **Harvous Plus** |
-| `connector` | Outbound MCP/API access (future) | **Connector** add-on |
+| `connector` | Read-only MCP access from Claude, ChatGPT and other AI apps (`server/connector/`) — withheld until launch | **Harvous Plus** |
 
-(Add a key here to introduce a new gate. `connector` is declared but not yet sold. There is no `season_pass` key; seasons ride `challenges`.)
+(Add a key here to introduce a new gate. `connector` is granted by Plus and withheld (`WITHHELD_FEATURES`) until the MCP server launches; preview accounts reach it through `CONNECTOR_PREVIEW_USER_IDS`. There is no `season_pass` key; seasons ride `challenges`.)
 
 ---
 
@@ -82,8 +82,8 @@ Entitlements
 
 Why rows, not a boolean or jsonb: **multiple sources coexist per feature** without clobbering. A church can
 sponsor a member's `review` (`source='church_seat'`) while that member also holds a personal `billing`
-grant — two rows, both honored. A user holding **Plus + Connector + a Season Pass** is just three rows
-across different `productId`s.
+grant — two rows, both honored. A user holding **Plus** plus a church-sponsored seat is just more rows
+across different sources.
 
 `server/utils/entitlements.ts` is the only module that reads/writes this table:
 

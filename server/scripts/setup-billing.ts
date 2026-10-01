@@ -1,5 +1,5 @@
 /**
- * Create the Polar catalog for Harvous Plus + Connector and register the
+ * Create the Polar catalog for Harvous Plus and register the
  * webhook endpoint — idempotent, so re-runs are safe.
  *
  * Usage:
@@ -55,18 +55,6 @@ const DESIRED: DesiredProduct[] = [
     amountCents: 3600,
     envVar: 'POLAR_PLUS_PRODUCT_ANNUAL',
   },
-  {
-    name: 'Connector (Monthly)',
-    interval: 'month',
-    amountCents: 500,
-    envVar: 'POLAR_CONNECTOR_PRODUCT_MONTHLY',
-  },
-  {
-    name: 'Connector (Annual)',
-    interval: 'year',
-    amountCents: 6000,
-    envVar: 'POLAR_CONNECTOR_PRODUCT_ANNUAL',
-  },
 ];
 
 const WEBHOOK_EVENTS = [
@@ -78,7 +66,7 @@ const WEBHOOK_EVENTS = [
   'order.paid',
 ] as const;
 
-const VITE_MIRROR_PREFIXES = ['POLAR_PLUS_PRODUCT_', 'POLAR_CONNECTOR_PRODUCT_'] as const;
+const VITE_MIRROR_PREFIXES = ['POLAR_PLUS_PRODUCT_'] as const;
 
 function arg(name: string): string | undefined {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));

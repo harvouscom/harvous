@@ -4,14 +4,13 @@ Canonical product and pricing model for Harvous paid features. Technical billing
 entitlements, webhooks) lives in [`docs/BILLING_ARCHITECTURE.md`](../BILLING_ARCHITECTURE.md). Clerk
 auth/orgs: [`docs/CLERK_ARCHITECTURE.md`](../CLERK_ARCHITECTURE.md).
 
-**Status (September 2026 — 3.0): three products, one of them free. Simple pricing,
+**Status (October 2026): three products, one of them free. Simple pricing,
 37signals-style — one price per product, everything included, no tiers within a product.**
 
 | Product | Price | What's in it |
 |---|---|---|
 | **Free** | $0 | Private study, forever. Unlimited notes, 90 days of history (older history kept, not shown), Remember surfaces, Compete free track. **Join** shared spaces — hosting is paid. |
-| **Harvous Plus** | **$6/mo · $36/yr** | **Review**, unlimited history, and Shared Spaces hosting; themed seasons fold in later. Both intervals listed. Challenges is built but withheld — see `WITHHELD_FEATURES`. |
-| **Connector** | **$5/mo · $60/yr** | Separate add-on — CLI/MCP read access. **No annual discount.** Hard paywall, no trial. |
+| **Harvous Plus** | **$6/mo · $36/yr** | **Review**, unlimited history, Shared Spaces hosting, and the **Connector** (read-only MCP access from Claude, ChatGPT and other AI apps); themed seasons fold in later. Both intervals listed. Challenges and Connector are built but withheld until launch — see `WITHHELD_FEATURES`. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
 Plus a **30-day money-back guarantee** on Plus (cancel anytime). There is deliberately **no free
@@ -77,8 +76,12 @@ resting on the money-back guarantee alone and should be revisited.
 8–11 purchase decisions a year at a price point where the processor takes ~15%, plus a new SKU each
 season. Plus includes every season; free keeps the free track. There is no `season_pass` feature key.
 
-**Why Connector stays separate.** Different buyer (CLI/MCP power users, not small-group hosts).
-Separate *products* are fine; *tiers within a product* are what this model avoids.
+**Why Connector folded into Plus (October 2026).** It was drafted as a separate $5/mo · $60/yr
+add-on for "a different buyer" (CLI/MCP power users) and never sold. Two things changed the call:
+connecting Claude or ChatGPT is now an everyday thing, not a developer's, and the Connector is a
+read-only MCP server — the model doing the work is the reader's own assistant, so its marginal cost
+is a few capped reads and it passes the Plus cost constraint by construction. It also ended the
+oddity of an add-on costing more per year than the product it added to.
 
 **Guiding principle:** Notes and passive **Remember** stay free. **Review** is paid (bundled into
 Plus when it ships). **Compete** stays free to play. Hosting Shared Spaces is Plus; members join free.
@@ -99,7 +102,7 @@ Plus when it ships). **Compete** stays free to play. Hosting Shared Spaces is Pl
 | **Review** | Active personal practice — questions built from *your* own notes, passages and highlights, at your pace | **Always paid; individual subscription** |
 | **Compete** | Themed seasons, study guides, leaderboards | Current season **free track**; **Season Pass** for full guide + archive |
 | **Group Sharing** | Unlimited owned shared spaces (host/admin for small groups — roster, optional cohort Compete) | Paid (live today as Premium / `unlimited` tier); members join spaces free and buy **Review** on their own |
-| **Connector** | Read-only reference to your notes, spaces, threads, and study connections from Claude, Cursor, scripts, and MCP-compatible assistants | Paid, individual, **stackable add-on** — see Section 4 |
+| **Connector** | Read-only reference to your notes, spaces, threads, and study connections from Claude, ChatGPT, Cursor, and other MCP clients | **Included in Plus** — see Section 4 |
 | **Church org** | Curriculum distribution, multiple leaders, admin | Future; pricing TBD — see Section 7 |
 
 **Naming:** Internal North Star pillar **Learn** powers customer-facing **Review**. **Compete** is a
@@ -116,9 +119,8 @@ separate pillar — communal program, not personal memory.
 | **Connector** (docs/npm: **Harvous Connector**) | $6 | $50 | Individual — power users, Claude/Cursor, CLI |
 | **Season Pass** | — | $5–8 one-time | Individual (or host bulk codes later) |
 
-> **Superseded — historical derivation only (see Status banner).** Review, Group Sharing and Season
-> Pass are **not** standalone SKUs; they are Plus features. Connector is the only separate paid
-> product, at **$5/mo · $60/yr**. Live prices are in the Status banner and
+> **Superseded — historical derivation only (see Status banner).** Review, Group Sharing, Season
+> Pass and Connector are **not** standalone SKUs; they are Plus features. Live prices are in the Status banner and
 > [src/lib/billing-plans.ts](../../src/lib/billing-plans.ts) — that registry is the source of truth,
 > not this table.
 
@@ -216,76 +218,61 @@ There is deliberately **no `season_pass` feature key** — see `FEATURE_KEYS` in
 
 ---
 
-## 4. Connector — $5/mo · $60/yr
+## 4. Connector — included in Plus
 
-**Separate product, not a Plus tier.** Different buyer: a developer wiring notes into Claude/Cursor is
-not a small-group host. Selling distinct products is consistent with simple pricing; tiering *within*
-a product is not.
+**Part of Plus since October 2026**, not a product of its own. It was drafted as a separate
+$5/mo · $60/yr add-on for a different buyer and never sold; see *Why Connector folded into Plus*
+above. Built on `server/connector/`, shipped withheld (`WITHHELD_FEATURES`) behind a preview
+allowlist (`CONNECTOR_PREVIEW_USER_IDS`) until it has been dogfooded in production.
 
-**No annual discount** — $60/yr is exactly 12 × $5. Discount the product you want commitment in (Plus,
-where annual is discounted via Founding); don't lock a lifetime discount into an add-on whose demand is
-unproven. Offering the undiscounted annual is still worth it: one charge instead of twelve saves
-eleven flat processor fees (~$5.50/yr), and some buyers prefer a single line item to expense.
-
-**No trial, hard paywall** — a developer already knows whether they want MCP access.
-
-**Product name:** **Connector** (in-app upgrade page). **External / docs name:** **Harvous Connector**
-— Claude Connectors Directory listing, npm package, MCP manifest. No **Harvous** prefix on the in-app
-SKU (same pattern as **Review**, **Group Sharing**).
+**Product name:** **Connector** internally; in the app the page is **Claude & ChatGPT**, because
+that is what people are connecting. **External / directory name:** **Harvous**.
 
 **Canonical boundaries:** [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md) — tools, guardrails,
 auth, and permanent read-only scope.
 
-**Who pays:** Individual power users who already use Harvous for capture and want to reference their
-study from Claude Desktop, Cursor, personal scripts, and MCP-compatible AI assistants.
-
-**Positioning:** *"Reference your Harvous study wherever you already work."* This is an outbound
-add-on (Harvous data flowing *out* to other tools), distinct from the deferred inbound Harvous SDK
-(other apps writing content *into* Harvous — see
+**Positioning:** *"Use your study in Claude, ChatGPT, and other AI apps."* This is outbound
+(Harvous data flowing *out* to other tools), distinct from the deferred inbound Harvous SDK (other
+apps writing content *into* Harvous — see
 [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md)).
 
 ### What it unlocks (v1)
 
-- Authenticated **MCP server** at `POST /mcp` (Claude, Cursor, other MCP clients).
-- Authenticated **CLI** via `/api/connector/*` and npm package **Harvous Connector**.
-- **Read-only, query-shaped** tools only — see [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md)
-  for the v1 tool catalog (search, get note, list spaces/threads/notes, study-thread connections,
-  optional share-token lookup). **No bulk "export all notes" endpoint.**
-- **Hybrid auth:** Clerk OAuth 2.1 for MCP; **1 revocable personal API key** for CLI/scripts (same
-  `userId`, same `hasCliMcpAccess` gate).
-- Visible **usage counter** on the account page.
+- A remote **MCP server** at `https://mcp.harvous.com/mcp` (Claude, ChatGPT, Cursor, other MCP
+  clients), signed in with Clerk OAuth.
+- **Read-only, query-shaped** tools only — the seven in
+  [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md). **No bulk "export all notes" endpoint.**
+- Settings › Claude & ChatGPT: the URL to paste, connected apps with Disconnect, today's usage.
+- **Deferred until asked for:** personal API keys, `/api/connector/*` REST, the npm CLI.
 
 ### Why read-only, query-shaped (retention safeguard)
 
-The add-on makes Harvous useful as a **live reference layer** for other tools without turning it into
-a one-time migration/export tool. If Connector could dump the entire corpus in one call, a power user
+The Connector makes Harvous useful as a **live reference layer** for other tools without turning it
+into a one-time migration/export tool. If it could dump the entire corpus in one call, a person
 could mirror Harvous elsewhere and stop opening the app — killing the reason to keep capturing here.
 Query-shaped access preserves the reason to keep capture, organization, and Remember/Review inside
 Harvous. Grounded in the "not infrastructure" and "not locked in" principles already in
 [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) Section 4.
 
-**Permanent read-only:** Connector does **not** gain create/edit/delete tools in a future tier.
-Writes stay in the Harvous app (and deferred inbound SDK for partners).
+**Permanent read-only:** the Connector does **not** gain create/edit/delete tools. Writes stay in
+the Harvous app (and the deferred inbound SDK for partners).
 
-### Rate limits / fair use (draft — numbers to be finalized before launch)
+### Limits (live in `server/connector/config.ts`)
 
-- **Per-user daily cap:** ~1,000 requests/day. Sized generously for personal agent workflows, not
-  scraping.
-- **Per-minute burst cap:** ~60 requests/min. Blocks hot-loop and misconfigured-agent abuse without
-  interrupting normal interactive use.
-- **Max page size:** 25–50 items per list/search page.
-- **No bulk export endpoint.** All endpoints scoped and paginated.
-- **Revocable key + visible usage counter** on the account page so users can self-manage.
-- Fair-use language modeled on the existing "Fair-use soft cap on Review sessions" open item in
-  Section 9 — soft caps with a clear message beat hard walls for retention.
+- **1,000 tool calls per person per UTC day**, counted in Postgres (`ConnectorUsageDays`).
+- **60 tool calls per minute** per person; 240 requests/min per person; 120 requests/min per IP
+  before auth.
+- **Pages of at most 25** (50 for `list_spaces`), and cursors stop at offset 1,000 — paging is for
+  finding, not exporting.
+- Refusals (no Plus, limits, disconnected app) come back as readable tool errors, never HTTP 500s.
 
 ### Not in v1 (and never for writes)
 
 - **Write access** (create note, edit note via Connector) — **never**; permanent product boundary.
 - **Team/shared keys** under Group Sharing or church org — see Open decisions in Section 9.
-- **Bulk export.** If the user wants their data out, that's a separate account-level export feature,
-  not the Connector surface.
-- **Free tier or trial** — hard paywall; `hasCliMcpAccess` required.
+- **Bulk export.** If the user wants their data out, that's the account-level export, not the
+  Connector.
+- **A trial** — it is part of Plus, which has none.
 
 ---
 
@@ -318,7 +305,7 @@ providers — see [entitlements.ts](../../server/utils/entitlements.ts).
 | `shared_spaces` | Owning shared spaces (`canCreateSharedSpace`) | Plus |
 | `review` | The Review section, review sessions, adding items — **live in 3.0** | Plus |
 | `challenges` | Personal challenge paths — **live in 3.0**; seasons later | Plus |
-| `connector` | Connector API key, MCP OAuth, `/api/connector/*` + `/mcp` reads | Connector (separate product) |
+| `connector` | MCP reads at `mcp.harvous.com/mcp` (Clerk OAuth); Settings › Claude & ChatGPT | Plus |
 
 There is no `season_pass` key — Plus includes every season via `challenges`.
 
@@ -362,7 +349,7 @@ it is paying **or** inside an admin-set pilot window.
 
 Repriced from $39/$390 in v2.19. The annual break is now **40%** ($360 → $216, i.e. $18/mo
 effective) rather than the old "two months free" (~16.7%). That is materially steeper than any
-personal plan — Plus annual is 25% off, Connector annual is 0% — and deliberately so: the
+personal plan — Plus annual is half of twelve months — and deliberately so: the
 argument in §7 below about churches responding to a steep, legible break applies to the base
 product, not only to seat packs. No church had ever paid at the old price, so nothing was
 grandfathered and no Polar product needed changing.
@@ -515,7 +502,8 @@ free-track/Plus split in §3 is unchanged by 3.0.
 - [x] ~~Trial on signup~~ — **no trial.** 30-day money-back guarantee instead: same de-risking, zero
       entitlement plumbing, and it sidesteps the `expiresAt` bug in §6.
 - [x] ~~Season Pass price~~ — **no Season Pass.** Folded into Plus via `challenges` (§3).
-- [x] ~~Connector price~~ — **$5/mo · $60/yr**, no annual discount.
+- [x] ~~Connector price~~ — ~~$5/mo · $60/yr, no annual discount~~ **Included in Plus (Oct 2026).**
+      Never sold as an add-on; the SKU and its Polar products were retired.
 - [x] ~~Founding price / cap~~ — ~~**$35 first year, then $49, first 99**, a Polar `duration: once`
       discount on the annual product~~ **Retired (Sept 2026)** with the $6/$36 reprice: at half the
       annual rate the plan is its own argument. `foundingOffer()` returns null; recognition of past
@@ -533,13 +521,10 @@ free-track/Plus split in §3 is unchanged by 3.0.
       this is now about abuse, not unit economics.
 - [ ] Revisit "no trial" — its stated rationale (free users meet the paid surface by joining a
       host's space) does not hold for Review. Blocked on the `expiresAt` bug in §6.
-- [ ] Reprice Connector before it ships — $60/yr costs well over the $36/yr product it adds to (the
-      gap widened with the reprice).
-- [ ] Connector: exact rate limit numbers (requests/day, requests/min, max page size) before launch
+- [x] ~~Reprice Connector before it ships~~ — moot: folded into Plus.
+- [x] ~~Connector: exact rate limit numbers~~ — 1,000/day, 60 calls/min, pages ≤ 25 (§4).
 - [ ] Connector: whether church tiers get a higher shared limit, or Connector stays purely individual
-- [ ] Whether a **bundle product** is worth adding if Plus + Connector dual-buy turns out common —
-      two subscriptions means two flat processor fees ($1.65 on $13 vs $1.15 as one charge, ~$6/yr per
-      dual customer). Not worth the extra SKU until the data says so.
+- [x] ~~Plus + Connector bundle product~~ — moot: Connector is part of Plus.
 - [ ] Fix `listActiveFeatureKeys` to honor `expiresAt` (§6) — not launch-blocking without a trial, but
       it blocks ever adding one.
 

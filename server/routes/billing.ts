@@ -144,13 +144,13 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
 
     const body = (await c.req.json().catch(() => ({}))) as {
       interval?: PlanInterval | 'annual';
-      plan?: PlanKey;
       productId?: string;
       founding?: boolean;
     };
 
     const interval: PlanInterval = body.interval === 'month' ? 'month' : 'year';
-    const planKey: PlanKey = body.plan === 'connector' ? 'connector' : 'plus';
+    // The personal checkout only ever sells Plus; churches buy from the My Church hub.
+    const planKey: PlanKey = 'plus';
 
     const allowed = new Set(listedPlans().map((p) => p.productId));
 
@@ -325,15 +325,13 @@ app.post('/api/billing/cancel', requireAuth, async (c) => {
 
     const body = (await c.req.json().catch(() => ({}))) as {
       cancelAtPeriodEnd?: boolean;
-      plan?: PlanKey;
     };
     if (typeof body.cancelAtPeriodEnd !== 'boolean') {
       return c.json({ error: 'cancelAtPeriodEnd (boolean) is required' }, 400);
     }
 
-    // Defaults to Plus; Connector must be named explicitly so a Connector cancel
-    // can never take down someone's Plus subscription.
-    const planKey: PlanKey = body.plan === 'connector' ? 'connector' : 'plus';
+    // Personal cancel is Plus-scoped; a church plan is canceled from the My Church hub.
+    const planKey: PlanKey = 'plus';
     const billing = await setPolarCancelAtPeriodEnd(auth.userId, body.cancelAtPeriodEnd, planKey);
     return c.json({ billing, plan: planKey });
   } catch (error) {
@@ -386,13 +384,11 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
       {
         hasUnlimited: subscriptionInfo.hasUnlimited,
         hasSharedSpaces: subscriptionInfo.hasSharedSpaces,
-        hasConnector: subscriptionInfo.hasConnector,
         isFounding: subscriptionInfo.isFounding,
         entitlements: subscriptionInfo.entitlements,
         planKey: subscriptionInfo.planKey,
         canManageBilling: subscriptionInfo.canManageBilling,
         billing: subscriptionInfo.billing,
-        connectorBilling: subscriptionInfo.connectorBilling,
         limits: subscriptionInfo.limits,
         currentCount: subscriptionInfo.currentCount,
         limit: subscriptionInfo.limit,

@@ -5559,23 +5559,6 @@ html.harvous-prototype-route
   display: block;
 }
 
-/* Settings › Plan — Connector add-on block. A separate product with its own
-   subscription, so it gets its own section rather than sitting inside Plus. */
-.proto-settings-plan__addon {
-  margin-top: 32px;
-  padding-top: 28px;
-  border-top: 1px solid var(--pds-border-soft);
-}
-
-.proto-settings-plan__addon .proto-settings-plan__section-label {
-  margin: 0 0 10px;
-  padding: 0 12px;
-}
-
-.proto-settings-plan__addon .proto-settings-plan__body {
-  margin-bottom: 20px;
-}
-
 /* Settings › Plan — upgrade-style check orbs + coming-soon section */
 .proto-settings-plan-features {
   margin: 12px 0 0;

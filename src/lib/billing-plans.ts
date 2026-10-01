@@ -1,5 +1,5 @@
 /**
- * Processor-agnostic plan registry for Harvous Plus and Connector.
+ * Processor-agnostic plan registry for Harvous Plus and Harvous for Churches.
  * Gates check feature keys — never plan names or providers.
  *
  * Product ids come from env so sandbox and live stay distinct. Superseded price
@@ -21,7 +21,6 @@
  * |-----------|----------------|-------------------------------------------|
  * | Free      | $0             | Private study only — cannot host           |
  * | Plus      | $6/mo · $36/yr | Both listed; annual is half of monthly     |
- * | Connector | $5/mo · $60/yr | Separate add-on; NO annual discount        |
  *
  * Set at the 3.0 cutover, when Review and Challenges shipped and the paid hook
  * stopped being "you may host a shared space" (social, needs a network) and
@@ -42,21 +41,18 @@
  * Glorify $69.99/yr, Readwise $119.88/yr. $36 is deliberately the value price,
  * not the ceiling — there is room above if the product earns it.
  *
- * Two deliberate asymmetries, so they don't read as mistakes later:
- * - **Plus discounts annual structurally; Connector does not.** Polar's flat 50c
- *   per charge makes monthly the worst instrument we have — 13.3% effective take
- *   at $6/mo against 6.4% at $36/yr — so the annual discount is partly buying
- *   back our own fees. Don't lock a discount into an unproven add-on; an
- *   undiscounted annual is still worth offering, since one charge instead of
- *   twelve saves eleven flat fees.
- * - **Connector is a separate product, not a Plus tier.** Different buyer
- *   (CLI/MCP power users, not small-group hosts). Separate products are fine;
- *   tiers within one product are what we avoid.
+ * Why the annual discount is structural: Polar's flat 50c per charge makes
+ * monthly the worst instrument we have — 13.3% effective take at $6/mo against
+ * 6.4% at $36/yr — so the annual discount is partly buying back our own fees.
  *
- * Known incoherence, wider than it was and still left alone: Connector's $60/yr
- * costs well over the $36/yr product it adds to. It is `listed: false` and
- * unbuyable, and moving it would break `billing:verify` unless the Polar catalog
- * moved too. Reprice it when it actually ships.
+ * **Connector is part of Plus (October 2026), not a product of its own.** It was
+ * drafted as a separate $5/mo · $60/yr add-on for "a different buyer" (CLI/MCP
+ * power users), never sold, and left an add-on costing more per year than the
+ * product it added to. Folded in because it passes the cost constraint below by
+ * construction: the Connector is a read-only MCP server, and the model doing the
+ * thinking is the reader's own assistant (Claude, ChatGPT, …), not one we pay
+ * for. Its marginal cost is a few indexed reads per call, capped per day. See
+ * docs/future/CONNECTOR_BOUNDARIES.md.
  */
 
 export const FEATURE_KEYS = ['shared_spaces', 'review', 'challenges', 'connector', 'full_history'] as const;
@@ -77,8 +73,12 @@ export type FeatureKey = (typeof FEATURE_KEYS)[number];
  * timed, social thing the name promises, and it deserves designing on purpose rather than
  * launching by accident. Nothing is deleted: five routes, two pages and four templates stay
  * exactly as they are. See docs/future/CHALLENGES_AS_SUGGESTIONS.md.
+ *
+ * `connector` is here until the MCP server has been dogfooded in production. Launching it is
+ * deleting it from this list; preview accounts reach it through `CONNECTOR_PREVIEW_USER_IDS`
+ * (server/connector/access.ts), which reads entitlement rows directly.
  */
-export const WITHHELD_FEATURES: readonly FeatureKey[] = ['challenges'];
+export const WITHHELD_FEATURES: readonly FeatureKey[] = ['challenges', 'connector'];
 
 /** Is this feature switched off for everyone, regardless of what they hold? */
 export function isFeatureWithheld(key: FeatureKey): boolean {
@@ -86,7 +86,7 @@ export function isFeatureWithheld(key: FeatureKey): boolean {
 }
 
 export type PlanInterval = 'month' | 'year';
-export type PlanKey = 'plus' | 'connector' | 'church';
+export type PlanKey = 'plus' | 'church';
 
 /**
  * Sentinel for "no limit". Deliberately -1 rather than `Infinity`:
@@ -137,14 +137,19 @@ export interface PlanDefinition {
 }
 
 /**
- * Plus grants every consumer feature — one price, no matrix. `review` and `challenges` are
- * both granted, including while Challenges is withheld (see `WITHHELD_FEATURES`): issuing
- * the row regardless is what means nobody needs a backfill on the day it is turned back on.
+ * Plus grants every consumer feature — one price, no matrix. `review`, `challenges` and
+ * `connector` are all granted, including while a feature is withheld (see
+ * `WITHHELD_FEATURES`): issuing the row regardless is what means nobody needs a backfill on
+ * the day it is turned on.
  * Seasons ride `challenges`; there is deliberately no `season_pass` key.
  */
-const PLUS_FEATURES = ['shared_spaces', 'review', 'challenges', 'full_history'] as const satisfies readonly FeatureKey[];
-
-const CONNECTOR_FEATURES = ['connector'] as const satisfies readonly FeatureKey[];
+const PLUS_FEATURES = [
+  'shared_spaces',
+  'review',
+  'challenges',
+  'connector',
+  'full_history',
+] as const satisfies readonly FeatureKey[];
 
 /**
  * A church subscription grants the **church** (Churches.billingPlan), not the
@@ -213,16 +218,6 @@ export function getPlusProductAnnualId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_ANNUAL', 'VITE_POLAR_PLUS_PRODUCT_ANNUAL');
 }
 
-/** Connector monthly ($5). */
-export function getConnectorProductMonthlyId(): string {
-  return envProduct('POLAR_CONNECTOR_PRODUCT_MONTHLY', 'VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY');
-}
-
-/** Connector annual ($60 — same rate as monthly, no discount). */
-export function getConnectorProductAnnualId(): string {
-  return envProduct('POLAR_CONNECTOR_PRODUCT_ANNUAL', 'VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL');
-}
-
 /** Church monthly ($30). */
 export function getChurchProductMonthlyId(): string {
   return envProduct('POLAR_CHURCH_PRODUCT_MONTHLY', 'VITE_POLAR_CHURCH_PRODUCT_MONTHLY');
@@ -265,29 +260,6 @@ export function getPlans(): PlanDefinition[] {
       // row, so this is the yearly plan rather than an alternative to it.
       listed: true,
       productId: getPlusProductAnnualId(),
-    },
-    {
-      key: 'connector',
-      name: 'Connector',
-      interval: 'month',
-      amountCents: 500,
-      currencyCode: 'USD',
-      features: CONNECTOR_FEATURES,
-      limits: FREE_LIMITS,
-      // Not for sale yet — registry + webhooks stay wired; Settings / checkout hide it.
-      listed: false,
-      productId: getConnectorProductMonthlyId(),
-    },
-    {
-      key: 'connector',
-      name: 'Connector',
-      interval: 'year',
-      amountCents: 6000,
-      currencyCode: 'USD',
-      features: CONNECTOR_FEATURES,
-      limits: FREE_LIMITS,
-      listed: false,
-      productId: getConnectorProductAnnualId(),
     },
     {
       key: 'church',
@@ -363,7 +335,7 @@ export function planForProductId(productId: string | null | undefined): PlanDefi
 }
 
 export function limitsForFeatures(features: readonly FeatureKey[]): PlanLimits {
-  // Each key lifts only its own limits, so Connector alone grants neither hosting nor history.
+  // Each key lifts only its own limits — `connector` alone grants neither hosting nor history.
   const hosting = features.includes('shared_spaces') ? PLUS_LIMITS : FREE_LIMITS;
   const history = features.includes('full_history') ? PLUS_LIMITS : FREE_LIMITS;
   return {

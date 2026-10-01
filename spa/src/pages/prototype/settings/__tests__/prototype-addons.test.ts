@@ -41,31 +41,26 @@ describe('plan manage status copy', () => {
   });
 });
 
-describe('Plus and Connector are separate subscriptions', () => {
-  it('scopes every cancel/resume call to a plan', () => {
+describe('Connector is part of Plus, not a second subscription', () => {
+  it('never sells or cancels Connector on its own', () => {
+    const source = addonsSource();
+    // The add-on purchase and cancel UI was retired when Connector folded into Plus.
+    expect(source).not.toContain("plan: 'connector'");
+    expect(source).not.toContain('connectorBilling');
+    expect(source).not.toContain('startConnectorCheckout');
+  });
+
+  it('cancels and resumes only the Plus subscription, with an explicit flag', () => {
     const source = addonsSource();
     const calls = source.match(/cancelBilling\.mutate\(/g) ?? [];
-    expect(calls.length).toBeGreaterThanOrEqual(3);
-    // A bare mutate(true/false) would cancel whichever subscription the server
-    // happened to find first — Connector could take down Plus.
+    expect(calls.length).toBeGreaterThanOrEqual(2);
     expect(source).not.toMatch(/cancelBilling\.mutate\((?:true|false)\)/);
-    expect(source).toContain("plan: 'connector'");
-    expect(source).toContain("plan: 'plus'");
   });
 
-  it('reads Connector state from its own subscription, not the Plus one', () => {
+  it('links Plus holders to the Claude & ChatGPT page, gated on the feature key', () => {
     const source = addonsSource();
-    expect(source).toContain('manage?.connector ?? subscription?.connectorBilling');
-    expect(source).toContain('hasConnector');
-  });
-
-  it('reassures the user that canceling Connector leaves Plus alone', () => {
-    expect(addonsSource()).toContain('is not affected');
-  });
-
-  it('hides the Connector add-on card until the product is listed (or already active)', () => {
-    const source = addonsSource();
-    expect(source).toContain('hasConnector || connectorMonthPlan || connectorYearPlan');
+    expect(source).toContain("useHasFeature('connector')");
+    expect(source).toContain("settings/connector");
   });
 
   it('does not claim the founding price outside /upgrade, where the cap is live', () => {
