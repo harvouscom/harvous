@@ -9,9 +9,11 @@ describe('Generation 2B route hardening', () => {
   it('requires unencrypted public note reads and blocks shared Thread tokens', () => {
     const shared = routeSource('shared');
     const threads = routeSource('threads');
-    expect(shared).toContain(
-      'eq(Notes.shareToken, shareToken), eq(Notes.isPublic, true), eq(Notes.contentEncrypted, false)',
-    );
+    // The lookup lives in a util the Connector's get_shared_note shares; the route calls it.
+    expect(shared).toContain('findPublicSharedNoteByToken(shareToken)');
+    expect(
+      readFileSync(resolve(process.cwd(), 'server/utils/shared-note-lookup.ts'), 'utf8'),
+    ).toContain('eq(Notes.shareToken, shareToken), eq(Notes.isPublic, true), eq(Notes.contentEncrypted, false)');
     expect(shared).toContain("contextSpace.type !== 'personal'");
     expect(threads).toContain('SHARED_THREAD_NOT_PUBLIC');
     expect(threads).toContain('threadAllowsPublicBroadcast');

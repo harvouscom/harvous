@@ -16,9 +16,17 @@ function section(text: string, start: string, end: string): string {
 
 describe('Threads are built only from connections whose notes still exist', () => {
   it('filters the Threads list edges before choosing representatives', () => {
+    // The handler delegates to listStudyThreadsForSpace, which the Connector shares.
+    expect(
+      section(
+        source('server/routes/spaces.ts'),
+        "route.get('/api/spaces/:spaceId/study-threads', requireAuth",
+        'route.get(',
+      ),
+    ).toContain('listStudyThreadsForSpace(');
     const handler = section(
-      source('server/routes/spaces.ts'),
-      "route.get('/api/spaces/:spaceId/study-threads', requireAuth",
+      source('server/utils/space-study-threads.ts'),
+      'export async function listStudyThreadsForSpace',
       '// Build adjacency list',
     );
     expect(handler).toContain(LIVE);

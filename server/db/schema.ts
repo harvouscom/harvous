@@ -1586,6 +1586,50 @@ export const Entitlements = pgTable(
   ],
 );
 
+// ─── Connector (read-only MCP access from Claude, ChatGPT, …) ──────────────────
+
+/**
+ * One row per (person, AI app) that has called the Connector. `clientId` is the OAuth
+ * client Clerk registered for that app (dynamic registration mints one per connection).
+ *
+ * `revokedAt` is Harvous's own "Disconnect" — Clerk exposes no API to list or revoke a
+ * user's OAuth grants, so a disconnected app keeps a valid token and is refused here,
+ * with a readable tool error rather than a 401 (a 401 would send it into a re-auth loop).
+ */
+export const ConnectorClients = pgTable(
+  'ConnectorClients',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    clientId: text('clientId').notNull(),
+    /** `clientInfo.name` from the MCP `initialize` request — what the app calls itself. */
+    clientName: text('clientName'),
+    firstUsedAt: ts('firstUsedAt').notNull(),
+    /** Written at most once a minute per row (throttled in process). */
+    lastUsedAt: ts('lastUsedAt').notNull(),
+    revokedAt: ts('revokedAt'),
+  },
+  (table) => [
+    uniqueIndex('ConnectorClients_userId_clientIdUnique').on(table.userId, table.clientId),
+  ],
+);
+
+/**
+ * Tool calls per person per UTC day — the daily cap, and the "Today: N of 1,000" line.
+ * In Postgres rather than memory so it survives deploys and holds across machines.
+ */
+export const ConnectorUsageDays = pgTable(
+  'ConnectorUsageDays',
+  {
+    userId: text('userId').notNull(),
+    /** UTC calendar day, `YYYY-MM-DD`. */
+    day: text('day').notNull(),
+    toolCalls: integer('toolCalls').notNull().default(0),
+    updatedAt: ts('updatedAt').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] })],
+);
+
 // ─── ClerkUserMapping (pk_live → pk_test read-time resolution) ─────────────────
 
 export const ClerkUserMapping = pgTable(

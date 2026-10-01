@@ -166,6 +166,7 @@ import {
   canExposeCanonicalTagInContext,
   serializeSharedCanonicalNote,
 } from '../utils/shared-note-serializer';
+import { sharedSpaceNoteAssociation } from '../utils/note-read-access';
 import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
 import {
   authorizeNoteThreadMutationInTransaction,
@@ -284,33 +285,12 @@ async function resolveNoteReadContext(input: {
     return { space, association: null, isShared: false };
   }
 
-  if (input.note.contentEncrypted) return null;
-  const [membership, association] = await Promise.all([
-    db
-      .select({ id: SpaceMemberships.id })
-      .from(SpaceMemberships)
-      .where(
-        and(
-          eq(SpaceMemberships.spaceId, space.id),
-          eq(SpaceMemberships.userId, input.viewerUserId),
-        ),
-      )
-      .limit(1)
-      .then((rows) => first(rows)),
-    db
-      .select()
-      .from(SpaceNotes)
-      .where(
-        and(
-          eq(SpaceNotes.spaceId, space.id),
-          eq(SpaceNotes.noteId, input.note.id),
-          isNull(SpaceNotes.removedAt),
-        ),
-      )
-      .limit(1)
-      .then((rows) => first(rows)),
-  ]);
-  if ((!membership && space.userId !== input.viewerUserId) || !association) return null;
+  const association = await sharedSpaceNoteAssociation({
+    space,
+    note: input.note,
+    viewerUserId: input.viewerUserId,
+  });
+  if (!association) return null;
   return { space, association, isShared: true };
 }
 

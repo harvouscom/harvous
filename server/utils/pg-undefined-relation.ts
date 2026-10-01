@@ -223,3 +223,10 @@ export function isPrototypeFolderStatsColumnMissing(error: unknown): boolean {
 export function isReviewExerciseSettingsColumnMissing(error: unknown): boolean {
   return isPgUndefinedColumn(error, 'reviewExerciseSettings');
 }
+
+/** Before `npm run connector:schema:apply`: the Connector's bookkeeping tables. */
+export function isConnectorSchemaMissing(error: unknown): boolean {
+  return (
+    isPgUndefinedRelation(error, 'ConnectorClients') || isPgUndefinedRelation(error, 'ConnectorUsageDays')
+  );
+}

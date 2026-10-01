@@ -32,6 +32,7 @@ export function prefetchSettingsCategoryChunks(): void {
     // registered while note lock is disabled. See settingsCategories.ts.
     void import('./PrototypeSharingPage').catch(swallow);
     void import('./PrototypeAddonsPage').catch(swallow);
+    void import('./PrototypeConnectorPage').catch(swallow);
     void import('./PrototypeDataPage').catch(swallow);
     void import('./PrototypeSupportPage').catch(swallow);
     void import('./PrototypeKeyboardShortcutsPage').catch(swallow);
