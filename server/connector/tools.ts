@@ -42,6 +42,8 @@ export const CONNECTOR_TOOL_NAMES = [
   'list_study_thread_connections',
   'get_shared_note',
   'find_by_passage',
+  'search',
+  'fetch',
 ] as const;
 
 const cursor = z.string().max(512).optional().describe('From a previous result’s nextCursor, to get the next page.');
@@ -231,5 +233,33 @@ export function registerConnectorTools(server: McpServer, ctx: ToolContext): voi
       annotations: { title: 'Find by passage', ...READ_ONLY },
     },
     (args) => run(ctx, 'find_by_passage', async () => json(await reads.findByPassage(userId, args))),
+  );
+
+  // ChatGPT's deep research and company-knowledge modes use only these two names and shapes
+  // (https://developers.openai.com/api/docs/mcp). Thin adapters over the tools above.
+  server.registerTool(
+    'search',
+    {
+      title: 'Search Harvous',
+      description:
+        "Search this person's Harvous Bible study notes. A Bible reference (\"Romans 8\") finds notes " +
+        'citing that passage; anything else is a full-text search. Returns ids to pass to fetch.',
+      inputSchema: {
+        query: z.string().trim().min(2).max(200).describe('Words, a theme, or a Bible reference.'),
+      },
+      annotations: { title: 'Search Harvous', ...READ_ONLY },
+    },
+    (args) => run(ctx, 'search', async () => json(await reads.searchForResearch(userId, args.query))),
+  );
+
+  server.registerTool(
+    'fetch',
+    {
+      title: 'Fetch a Harvous note',
+      description: 'The full text of one Harvous note by id (from search), with its folder, tags and scripture references.',
+      inputSchema: { id: id('A note id from search.') },
+      annotations: { title: 'Fetch a Harvous note', ...READ_ONLY },
+    },
+    (args) => run(ctx, 'fetch', async () => json(await reads.fetchForResearch(userId, args.id))),
   );
 }

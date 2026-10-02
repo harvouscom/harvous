@@ -7,6 +7,8 @@ const revoked = vi.fn();
 const touch = vi.fn();
 const searchNotes = vi.fn();
 const getNote = vi.fn();
+const searchForResearch = vi.fn();
+const fetchForResearch = vi.fn();
 
 vi.mock('../auth', async (orig) => {
   const actual = await orig<typeof import('../auth')>();
@@ -32,6 +34,8 @@ vi.mock('../read-service', () => ({
   listStudyThreadConnections: vi.fn(),
   getSharedNote: vi.fn(),
   findByPassage: vi.fn(),
+  searchForResearch: (...a: unknown[]) => searchForResearch(...a),
+  fetchForResearch: (...a: unknown[]) => fetchForResearch(...a),
 }));
 
 const { default: connector } = await import('../mcp-route');
@@ -81,13 +85,15 @@ describe('POST /mcp', () => {
     expect(touch).toHaveBeenCalledWith('user_1', 'client_1', 'Claude');
   });
 
-  it('lists exactly the eight read-only tools', async () => {
+  it('lists exactly the ten read-only tools', async () => {
     const res = await rpc('tools/list');
     const body = await res.json();
     const tools = body.result.tools as Array<{ name: string; annotations: { readOnlyHint: boolean } }>;
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
+        'fetch',
         'find_by_passage',
+        'search',
         'get_note',
         'get_shared_note',
         'list_notes_in_space',
@@ -116,6 +122,16 @@ describe('POST /mcp', () => {
     expect(text).toContain("Don't present your own interpretation as mine");
     expect(hasAccess).not.toHaveBeenCalled();
     expect(consume).not.toHaveBeenCalled();
+  });
+
+  it('answers ChatGPT search/fetch in the required shape: structured and as JSON text', async () => {
+    searchForResearch.mockResolvedValue({ results: [{ id: 'note_1', title: 'Grace', url: 'https://app.harvous.com/note/note_1' }] });
+    const s = (await (await rpc('tools/call', { name: 'search', arguments: { query: 'grace' } })).json()).result;
+    expect(s.structuredContent.results[0]).toEqual({ id: 'note_1', title: 'Grace', url: 'https://app.harvous.com/note/note_1' });
+    expect(JSON.parse(s.content[0].text)).toEqual(s.structuredContent);
+    fetchForResearch.mockResolvedValue({ id: 'note_1', title: 'Grace', text: 'Body', url: 'https://app.harvous.com/note/note_1', metadata: {} });
+    const f = (await (await rpc('tools/call', { name: 'fetch', arguments: { id: 'note_1' } })).json()).result;
+    expect(f.structuredContent).toMatchObject({ id: 'note_1', text: 'Body', url: expect.stringContaining('/note/note_1') });
   });
 
   it('calls a tool through the read service', async () => {

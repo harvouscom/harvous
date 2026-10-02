@@ -55,7 +55,7 @@ import { parseNoteSecondaryCollections } from '../utils/note-secondary-collectio
 import { normalizeServerNoteId } from '../utils/normalize-note-id';
 import { isValidShareToken } from '@/utils/ids';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
-import { MAX_GRAPH_NODES, MAX_PASSAGE_HIGHLIGHTS } from './config';
+import { MAX_GRAPH_NODES, MAX_PASSAGE_HIGHLIGHTS, noteUrl } from './config';
 import {
   ConnectorRefusal,
   NOTE_NOT_FOUND,
@@ -654,4 +654,60 @@ export async function findByPassage(
     highlights,
     nextCursor: nextCursorFor('find_by_passage', scope, offset, args.limit, page.length),
   };
+}
+
+// ─── search / fetch (ChatGPT deep research and company knowledge) ─────────────
+//
+// ChatGPT's research modes only use two tools named exactly `search` and `fetch`, with fixed
+// shapes, and only cite results that carry a `url`. These are thin adapters over the reads
+// above — no new query — so the same scoping, locking and Bible-text rules apply.
+
+export interface SearchResult {
+  id: string;
+  title: string;
+  url: string;
+}
+
+const SEARCH_LIMIT = 10;
+
+/** A Bible reference goes to the passage lookup; anything else is full-text search. */
+export async function searchForResearch(userId: string, query: string): Promise<{ results: SearchResult[] }> {
+  const trimmed = query.trim();
+  const looksLikeReference = (() => {
+    const canonical = canonicalizeServiceReference(trimmed);
+    return canonical.ok && Boolean(canonical.reference) && Boolean(parseScriptureReference(canonical.reference!));
+  })();
+  const notes = looksLikeReference
+    ? (await findByPassage(userId, { passage: trimmed, limit: SEARCH_LIMIT })).notes
+    : (await searchNotes(userId, { query: trimmed, limit: SEARCH_LIMIT })).results;
+  return { results: notes.map((n) => ({ id: n.id, title: n.title, url: noteUrl(n.id) })) };
+}
+
+export interface FetchedDocument {
+  id: string;
+  title: string;
+  text: string;
+  url: string;
+  metadata: Record<string, string>;
+}
+
+export async function fetchForResearch(userId: string, id: string): Promise<FetchedDocument> {
+  const note = await getNote(userId, { noteId: id });
+  const url = noteUrl(note.id);
+  if (note.locked) {
+    return { id: note.id, title: note.title, text: note.message, url, metadata: { locked: 'true' } };
+  }
+  const metadata: Record<string, string> = { author: note.byYou ? 'you' : 'another member of a shared space' };
+  if (note.updatedAt) metadata.updatedAt = note.updatedAt;
+  if (note.folder) metadata.folder = note.folder;
+  if (note.tags?.length) metadata.tags = note.tags.join(', ');
+  if (note.space) metadata.space = note.space.title;
+  const refs = note.scripture?.reference ? [note.scripture.reference] : note.scriptureReferences;
+  if (refs.length) metadata.scripture = refs.join('; ');
+  const highlights = note.highlights?.length
+    ? '\n\nHighlights:\n' + note.highlights.map((h) => `- ${h.text ? `"${h.text}"` : ''}${h.note ? ` — ${h.note}` : ''}`).join('\n')
+    : '';
+  const body =
+    note.bodyMarkdown ?? 'This note is a passage of Scripture; only its reference is shared.';
+  return { id: note.id, title: note.title, text: `${body}${highlights}`, url, metadata };
 }

@@ -284,3 +284,29 @@ describe('find_by_passage', () => {
     expect(second.highlights).toEqual([]);
   });
 });
+
+describe('ChatGPT search / fetch', () => {
+  it('routes a Bible reference to the passage lookup and words to full-text search, with app links', async () => {
+    findNotesCitingReference.mockResolvedValue([
+      { id: 'note_r8', title: 'Romans 8', updatedAt: new Date(), content: '<p>x</p>', contentEncrypted: false, references: ['Romans 8:28'] },
+    ]);
+    selectResults.push([]); // highlights
+    const byRef = await reads.searchForResearch(ME, 'Romans 8');
+    expect(byRef.results).toEqual([{ id: 'note_r8', title: 'Romans 8', url: 'https://app.harvous.com/note/note_r8' }]);
+  });
+
+  it('fetches a note as text with metadata and a link', async () => {
+    selectResults.push([note()], []); // the note, then highlights
+    const doc = await reads.fetchForResearch(ME, 'note_1');
+    expect(doc).toMatchObject({ id: 'note_1', title: 'Romans 8', url: 'https://app.harvous.com/note/note_1' });
+    expect(doc.text).toContain('Nothing can separate us');
+    expect(doc.metadata).toMatchObject({ author: 'you', folder: 'Romans', tags: 'hope' });
+  });
+
+  it('fetches a locked note as its locked message only', async () => {
+    selectResults.push([note({ contentEncrypted: true, content: 'ciphertext' })]);
+    const doc = await reads.fetchForResearch(ME, 'note_1');
+    expect(doc.metadata).toEqual({ locked: 'true' });
+    expect(doc.text).not.toContain('ciphertext');
+  });
+});
