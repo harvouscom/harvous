@@ -1,6 +1,7 @@
 /**
  * Per-person Connector settings (ConnectorPreferences). Today one switch: "Let apps start
- * notes", on unless turned off — no row means the default.
+ * notes", **off until the person turns it on** — no row means the default. Reading is
+ * everything else the Connector does; writing into someone's study is opt-in.
  */
 
 import { db, ConnectorPreferences, eq, first } from '../db';
@@ -10,7 +11,7 @@ export interface ConnectorPrefs {
   allowStartNotes: boolean;
 }
 
-export const DEFAULT_CONNECTOR_PREFS: ConnectorPrefs = { allowStartNotes: true };
+export const DEFAULT_CONNECTOR_PREFS: ConnectorPrefs = { allowStartNotes: false };
 
 export async function getConnectorPreferences(userId: string): Promise<ConnectorPrefs> {
   try {

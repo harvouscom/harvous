@@ -65,7 +65,7 @@ export const ADDITIVE_CONNECTOR_DDL = [
   `ALTER TABLE "NoteChatOrigins" ENABLE ROW LEVEL SECURITY`,
   `CREATE TABLE IF NOT EXISTS "ConnectorPreferences" (
     "userId" text PRIMARY KEY,
-    "allowStartNotes" boolean NOT NULL DEFAULT true,
+    "allowStartNotes" boolean NOT NULL DEFAULT false,
     "updatedAt" timestamptz NOT NULL
   )`,
   `ALTER TABLE "ConnectorPreferences" ENABLE ROW LEVEL SECURITY`,

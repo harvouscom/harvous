@@ -62,7 +62,8 @@ function ChatMock({ allowed, onAllow }: { allowed: boolean; onAllow: () => void 
         It’s a fair question. Paul’s promise is to “those who love God,” and verse 29 says what the good is:
         being conformed to the image of his Son. Joseph says something similar in Genesis 50:20… (and so on)
       </Bubble>
-      <Bubble who="you">This is helpful. Save this to Harvous so I can write about it.</Bubble>
+      <Bubble who="ai">Want me to start a Harvous note from this, so you can keep writing about it there?</Bubble>
+      <Bubble who="you">Yes please.</Bubble>
       <div className="dev-chat__tool">
         <p className="pds-caption dev-chat__tool-head">Harvous · start_note</p>
         <p className="dev-chat__tool-body">

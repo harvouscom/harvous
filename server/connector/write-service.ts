@@ -77,7 +77,7 @@ export async function startNote(userId: string, clientId: string, input: StartNo
   if (!(await allowsStartNotes(userId))) {
     throw new ConnectorRefusal(
       'turned_off',
-      'Starting notes from apps is turned off in Harvous Settings › Connector. The person can turn it back on there.',
+      'Starting notes from apps is off. The person can turn it on in Harvous: Settings › Connector › "Let apps start notes".',
     );
   }
 

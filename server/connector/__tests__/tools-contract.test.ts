@@ -68,11 +68,11 @@ describe('the Connector stays read-only, plus one create (docs/future/CONNECTOR_
   });
 
   it('routes by the words people use: the key phrases stay in the instructions and descriptions', () => {
-    for (const phrase of ['my notes', 'my Bible study', 'where was I', 'pick up where I left off', 'save this', 'start a note']) {
+    for (const phrase of ['my notes', 'my Bible study', 'where was I', 'pick up where I left off', 'start a note in Harvous', 'offer', 'only after they say yes']) {
       expect(SERVER_INSTRUCTIONS, phrase).toContain(phrase);
     }
     const tools = raw('tools.ts');
-    for (const phrase of ['what did I write about', 'Romans 8', 'where was I?', 'save this to Harvous', 'cross-references']) {
+    for (const phrase of ['what did I write about', 'Romans 8', 'where was I?', 'start a note in Harvous', 'say yes when you offer', 'cross-references']) {
       expect(tools, phrase).toContain(phrase);
     }
   });

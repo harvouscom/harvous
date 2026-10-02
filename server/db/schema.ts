@@ -1677,7 +1677,8 @@ export const NoteChatOrigins = pgTable('NoteChatOrigins', {
 /** Per-person Connector settings. A table, not UserMetadata columns (the full-row literal trap). */
 export const ConnectorPreferences = pgTable('ConnectorPreferences', {
   userId: text('userId').primaryKey(),
-  allowStartNotes: boolean('allowStartNotes').notNull().default(true),
+  /** Off until turned on: writing into someone's study is opt-in. */
+  allowStartNotes: boolean('allowStartNotes').notNull().default(false),
   updatedAt: ts('updatedAt').notNull(),
 });
 

@@ -11,7 +11,7 @@
  * appears without the hint. `start_note` starts a new, empty note and can't name an existing one.
  *
  * Descriptions lead with the words people actually use ("what did I write about…", "where was
- * I", "save this to Harvous"): an assistant picks a tool by matching those, so the wording is
+ * I", "start a note in Harvous"): an assistant picks a tool by matching those, so the wording is
  * the routing. tools-contract.test.ts pins the key phrases.
  */
 
@@ -334,13 +334,15 @@ export function registerConnectorTools(server: McpServer, ctx: ToolContext): voi
     {
       title: 'Start a Harvous note',
       description:
-        'When they say "save this to Harvous", "start a note from this", "put this in my study" or ' +
-        '"I want to write about this": start ONE new note in their Harvous so they can pick up from ' +
-        'this conversation. The note opens with a card labeled as coming from you — your short summary ' +
-        'of what you discussed, the passages, and any question they were left with — and an empty page for them to ' +
+        'When they say "start a note in Harvous", "keep studying this in Harvous", "pick this up in ' +
+        'Harvous" or "I want to write about this", or say yes when you offer: start ONE new note in ' +
+        'their Harvous so they can keep going from this conversation. The note opens with a card ' +
+        'labeled as coming from you — your short summary of what you discussed, the passages, and any question they were left with — and an empty page for them to ' +
         'write in. Never write their reflections for them; summarize what was discussed in plain, ' +
         'modest words, and where Christians read a passage differently, say so rather than settling it. ' +
-        'Only call this when they ask. It cannot change or delete any existing note.',
+        'Only call this when they ask or accept your offer. It is off until they turn it on in ' +
+        'Harvous; if it is refused as turned off, tell them where to turn it on. It cannot change or ' +
+        'delete any existing note.',
       inputSchema: {
         title: z.string().trim().min(1).max(120).describe('A short note title, ideally under 50 characters, in their words where possible.'),
         summary: z

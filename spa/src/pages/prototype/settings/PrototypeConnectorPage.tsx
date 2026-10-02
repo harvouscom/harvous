@@ -272,8 +272,8 @@ export default function PrototypeConnectorPage() {
   return (
     <SettingsShell>
       <SettingsIntro>
-        Ask Claude, ChatGPT, or another AI app about your notes, and start a new note from a
-        chat. Apps can&rsquo;t change or delete anything you&rsquo;ve written.
+        Ask Claude, ChatGPT, or another AI app about your notes. Apps can&rsquo;t change or
+        delete anything you&rsquo;ve written.
       </SettingsIntro>
 
       {/* The one setting that changes what apps may do, so it leads the page rather than
@@ -281,8 +281,8 @@ export default function PrototypeConnectorPage() {
       <SettingsGroup>
         <SettingsToggleRow
           label="Let apps start notes"
-          sublabel="Say “save this to Harvous” in a chat."
-          checked={data?.preferences?.allowStartNotes ?? true}
+          sublabel="Pick up a chat about Scripture as a new note."
+          checked={data?.preferences?.allowStartNotes ?? false}
           disabled={!data || setAllowStartNotes.isPending}
           onChange={(next) => setAllowStartNotes.mutate(next)}
         />
@@ -369,7 +369,8 @@ export default function PrototypeConnectorPage() {
 
 
       <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '4px 0 0' }}>
-        Apps can read your study and start a new note. They can&rsquo;t change or delete anything.
+        Apps can read your study, and start a new note if you allow it. They can&rsquo;t change or
+        delete anything.
         Locked notes stay locked, and Scripture is shared as references only.
       </p>
     </SettingsShell>

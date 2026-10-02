@@ -191,8 +191,11 @@ OAuth both resolve to Clerk `userId`).
     1,000 reads.
   - The app-wide note-create rate limit.
   - Plus, as for every tool.
-- **An off switch.** Settings › Connector › "Let apps start notes" (`ConnectorPreferences`), on by
-  default. Turning it off is allowed even after Plus lapses.
+- **Opt-in.** Settings › Connector › "Let apps start notes" (`ConnectorPreferences`) is **off by
+  default**; until it's on, the tool refuses with where to turn it on. Turning it off is allowed even
+  after Plus lapses.
+- **Offered, not pushed.** `SERVER_INSTRUCTIONS` lets an assistant offer once per conversation, at a
+  natural pause in a study conversation, and call only after a yes.
 - **Your writing counts as yours.** The Study Bible layer counts `mcp-*` notes as the person's own
   writing (`study-bible-layer.ts`), because the body is theirs.
 
@@ -252,7 +255,7 @@ Host on **Hono API** ([server/app.ts](../../server/app.ts)), not SPA:
 ## MCP tool catalog
 
 Fourteen tools: thirteen read-only and one create, scoped per the guardrails above. Descriptions lead
-with the words people actually use ("what did I write about…", "where was I?", "save this to
+with the words people actually use ("what did I write about…", "where was I?", "start a note in
 Harvous"), because that wording is how an assistant picks a tool. `tools-contract.test.ts` pins the
 key phrases, and `SERVER_INSTRUCTIONS` lists them.
 
