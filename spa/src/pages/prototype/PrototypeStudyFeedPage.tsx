@@ -45,6 +45,8 @@ import { noteParamSlug } from './proto-route-slugs';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeStudyFeedPart from './PrototypeStudyFeedPart';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
+import { useHistoryWindowStatus } from '../../hooks/queries/useHistoryWindowStatus';
+import { lockedEdgeLabel } from '../../lib/history-window-copy';
 import {
   STUDY_FEED_LOCKED_EDGE_ARIA_LABEL,
   STUDY_FEED_LOCKED_EDGE_LABEL,
@@ -130,6 +132,7 @@ function studyFeedItemNoteId(item: StudyFeedItem): string | null {
 }
 
 export default function PrototypeStudyFeedPage() {
+  const historyWindow = useHistoryWindowStatus();
   const navigate = useNavigate();
   const openTodaysPassage = useCallback(
     () => void navigate({ to: prototypeReadTodayRouteTo() }),
@@ -726,6 +729,10 @@ export default function PrototypeStudyFeedPage() {
   const showFetchEdge = trailEndEdge === 'fetch';
   const showOriginEdge = trailEndEdge === 'origin';
   const showLockedEdge = trailEndEdge === 'locked';
+  // The real count of what the free window is hiding, when there is one — "42 earlier · Plus".
+  const lockedEdgeCaption =
+    lockedEdgeLabel(historyWindow.status?.hiddenCount, historyWindow.status?.hiddenCapped) ??
+    STUDY_FEED_LOCKED_EDGE_LABEL;
 
 
   return (
@@ -781,7 +788,7 @@ export default function PrototypeStudyFeedPage() {
               aria-label={STUDY_FEED_LOCKED_EDGE_ARIA_LABEL}
             >
               <span className="pds-caption proto-feed-stack__edge-label">
-                {STUDY_FEED_LOCKED_EDGE_LABEL}
+                {lockedEdgeCaption}
               </span>
             </button>
           ) : null}

@@ -1,4 +1,4 @@
-import { FREE_HISTORY_WINDOW_DAYS } from '@/lib/billing-plans';
+import { FREE_HISTORY_VISIBLE_DAYS } from '@/lib/billing-plans';
 import { startsNewEditingSession } from './note-version-thinning';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -46,8 +46,9 @@ export type NoteHistoryRawVersion = {
 
 export type NoteHistoryLock = { before: string } | null;
 
+/** The free window plus its grace week (`FREE_HISTORY_GRACE_DAYS`); null with full history. */
 export function historyVisibleSince(now: Date, hasFullHistory: boolean): Date | null {
-  return hasFullHistory ? null : new Date(now.getTime() - FREE_HISTORY_WINDOW_DAYS * DAY_MS);
+  return hasFullHistory ? null : new Date(now.getTime() - FREE_HISTORY_VISIBLE_DAYS * DAY_MS);
 }
 
 /** A version stays visible until the version that replaced it falls outside the window. */

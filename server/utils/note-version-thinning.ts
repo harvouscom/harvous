@@ -1,11 +1,12 @@
-import { FREE_HISTORY_WINDOW_DAYS } from '@/lib/billing-plans';
+import { FREE_HISTORY_VISIBLE_DAYS } from '@/lib/billing-plans';
 import { NOTE_VERSION_SAVE_COALESCE_MS } from './note-versioning';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const NOTE_VERSION_RETENTION_LATEST_COUNT = 100;
-// Tied to the free window so thinning can never remove a version a free account can still see.
-export const NOTE_VERSION_RETENTION_MAX_AGE_MS = FREE_HISTORY_WINDOW_DAYS * DAY_MS;
+// Tied to the free window *including its grace week*, so thinning can never remove a version a
+// free account can still see.
+export const NOTE_VERSION_RETENTION_MAX_AGE_MS = FREE_HISTORY_VISIBLE_DAYS * DAY_MS;
 export const NOTE_VERSION_THIN_SCAN_LIMIT = 2000;
 export const NOTE_VERSION_THIN_DELETE_LIMIT = 500;
 
