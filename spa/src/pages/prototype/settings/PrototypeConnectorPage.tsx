@@ -13,6 +13,7 @@ import {
 } from '../../../hooks/mutations/useConnectorToken';
 import { connectorSetupMessage } from '../../../lib/connector-setup-copy';
 import { connectorAppFromClientName } from '@/utils/connector-app-name';
+import { AiAppMark } from './ai-app-marks';
 import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShell, SettingsToggleRow } from './SettingsShell';
 import { useSetAllowStartNotes } from '../../../hooks/mutations/useConnectorPreferences';
 
@@ -136,7 +137,10 @@ function AppPicker({ value, onChange }: { value: AppKey; onChange: (app: AppKey)
             className={`proto-appearance-segmented__btn${value === app ? ' proto-appearance-segmented__btn--active' : ''}`}
             onClick={() => onChange(app)}
           >
-            {SETUP[app].label}
+            <span className="proto-connector-app-tab">
+              <AiAppMark app={app} />
+              {SETUP[app].label}
+            </span>
           </button>
         ))}
       </div>

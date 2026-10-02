@@ -24616,6 +24616,19 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /* Settings › Connector — numbered setup steps, in SettingsRow's leading slot. */
+/* Settings › Connector app tabs: the app's mark, then its name. The mark stays in the
+   primary ink (black on light) on every tab, selected or not. */
+.proto-connector-app-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.proto-connector-app-tab svg {
+  color: var(--pds-text-primary);
+}
+
 .proto-connector-step__num {
   display: inline-grid;
   place-items: center;
