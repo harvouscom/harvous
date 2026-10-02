@@ -7,6 +7,12 @@ vi.mock('@clerk/backend', () => ({
   createClerkClient: () => ({ authenticateRequest, idPOAuthAccessToken: { verify } }),
 }));
 
+const resolvePersonalToken = vi.fn();
+vi.mock('../tokens', () => ({
+  isPersonalToken: (v: string) => v.startsWith('hvous_'),
+  resolvePersonalToken,
+}));
+
 const { authenticateConnectorRequest, describeTokenShape, __resetConnectorAuthCache } = await import('../auth');
 
 const OPAQUE = 'oat_SECRETSECRETSECRET1234567890';
@@ -85,5 +91,23 @@ describe('token shape description', () => {
   it('tells opaque tokens from JWTs, and names the JWT header type', () => {
     expect(describeTokenShape(OPAQUE)).toMatch(/^opaque prefix=oat_ len=\d+$/);
     expect(describeTokenShape(JWT_NO_TYP)).toBe('jwt typ=none alg=RS256 aud=none client_id=present sub=present');
+  });
+});
+
+describe('personal tokens', () => {
+  it('resolves an hvous_ token by lookup, never asking Clerk', async () => {
+    resolvePersonalToken.mockResolvedValue({ id: 'ctoken_1', userId: 'user_9' });
+    const result = await authenticateConnectorRequest(req('hvous_abc123'));
+    expect(result).toMatchObject({ ok: true, auth: { userId: 'user_9', clientId: 'token:ctoken_1' } });
+    expect(authenticateRequest).not.toHaveBeenCalled();
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unknown or revoked token without logging it', async () => {
+    resolvePersonalToken.mockResolvedValue(null);
+    const result = await authenticateConnectorRequest(req('hvous_revokedvalue'));
+    expect(result).toMatchObject({ ok: false });
+    expect(authenticateRequest).not.toHaveBeenCalled();
+    expect(logs.join('\n')).not.toContain('hvous_revokedvalue');
   });
 });

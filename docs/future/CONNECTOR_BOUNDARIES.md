@@ -160,7 +160,7 @@ layer). Reference: Dotflowy teardown / MCP 2026-07-28 RC direction.
 | Surface | Auth | Rationale |
 |---|---|---|
 | **MCP** (`POST /mcp`) | **Clerk OAuth 2.1** — `authenticateRequest(req, { acceptsToken: 'oauth_token' })`, audience checked when the token names one | Claude/ChatGPT/Cursor require discovery + OAuth |
-| **CLI / scripts** | Deferred — personal API key when built | Non-interactive; maps to same `userId` |
+| **Fixed-header apps** (Grok Bot, scripts) | **Personal token** `hvous_…` — sha256 lookup in `ConnectorApiKeys` (server/connector/tokens.ts), never sent to Clerk; recorded as client `token:<id>` | Grok Bot takes only a URL and a static `Authorization` header |
 | **Both** | Gate on `connector` before any read | Plus boundary |
 
 **Do not:** cookie/session auth on `/mcp`; team/shared keys in v1; a second identity system (keys and
@@ -189,6 +189,20 @@ Clerk exposes no API to list or revoke a user's OAuth grants, so **Disconnect** 
 Harvous's own per-app block (`ConnectorClients.revokedAt`): the app keeps its token and every tool
 call returns a readable `isError` telling the person where to allow it again. Not a 401 — that would
 send clients into a re-auth loop.
+
+### Personal tokens
+
+For apps that cannot run OAuth (Grok Bot's Settings → Plugins takes a URL and a static header).
+Settings › Connector › Grok creates one: `hvous_` + 32 random bytes, shown once, stored only as a
+sha256. **One active token per person** — creating a new one revokes the old (a partial unique index
+backs it). Revoke is `DELETE /api/user/connector/token`, allowed even after Plus lapses. A revoked
+token keeps working for up to a minute on a machine that had it cached (`CACHE_TTL_MS`). The session
+middleware refuses `hvous_` values outright, so a token can never become a read-write session. Its
+calls get the same Plus gate, limits and per-app Disconnect as any OAuth client.
+
+Muse has no URL field at all: you ask Muse to add the connector and it registers itself by DCR. The
+Muse tab copies a setup message (`spa/src/lib/connector-setup-copy.ts`) naming the URL, the discovery
+document and PKCE.
 
 ### OAuth and `.well-known` routes
 

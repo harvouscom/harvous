@@ -6,6 +6,12 @@ import { useHasFeature } from '../../../hooks/useHasFeature';
 import { useSubscriptionStatus } from '../../../hooks/queries/useSubscriptionStatus';
 import { useConnectorStatus, type ConnectorClient } from '../../../hooks/queries/useConnectorStatus';
 import { useConnectorClientAccess } from '../../../hooks/mutations/useConnectorClientAccess';
+import {
+  useCreateConnectorToken,
+  useRevokeConnectorToken,
+  type CreatedConnectorToken,
+} from '../../../hooks/mutations/useConnectorToken';
+import { connectorSetupMessage } from '../../../lib/connector-setup-copy';
 import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
 
 /**
@@ -17,6 +23,10 @@ import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShe
  * that app's settings), paste the URL. Once an app has connected, it is listed at the top with
  * a reversible Disconnect — Harvous's own per-app block, since Clerk has no API to revoke a
  * grant — so the page reads as status for people who are already set up.
+ *
+ * Grok has two doors: grok.com signs in like Claude, but Grok Bot only takes a URL and a fixed
+ * header, so its tab can mint a personal token. Muse has no URL field at all — you ask Muse to
+ * add the connector — so its tab hands you the message to send.
  */
 
 function SectionLabel({ children }: { children: ReactNode }) {
@@ -30,13 +40,13 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-type AppKey = 'claude' | 'chatgpt' | 'other';
+type AppKey = 'claude' | 'chatgpt' | 'grok' | 'muse';
 
 type SetupStep = { label: string; sublabel?: string; href?: string };
 
 /**
- * Per-app steps. The first step of Claude and ChatGPT opens that app's own settings in a new
- * tab, so nobody has to hunt for where custom connectors live. ChatGPT needs Developer mode
+ * Per-app steps. The first step of Claude, ChatGPT and Grok opens that app's own settings in a
+ * new tab, so nobody has to hunt for where custom connectors live. ChatGPT needs Developer mode
  * and an explicit OAuth choice to add a custom connector; Claude needs neither.
  */
 const SETUP: Record<AppKey, { label: string; steps: SetupStep[] }> = {
@@ -65,20 +75,29 @@ const SETUP: Record<AppKey, { label: string; steps: SetupStep[] }> = {
       { label: 'Sign in', sublabel: 'Use your Harvous account, then allow access.' },
     ],
   },
-  other: {
-    label: 'Other apps',
+  grok: {
+    label: 'Grok',
     steps: [
       {
-        label: 'Add a remote MCP server',
-        sublabel: 'Cursor, Claude Code and most AI apps that support MCP can add one by URL.',
+        label: 'Open Grok’s connectors',
+        sublabel: 'grok.com → Settings → Connectors',
+        href: 'https://grok.com/connectors',
       },
-      { label: 'Paste your URL from above', sublabel: 'Choose Streamable HTTP if asked.' },
-      { label: 'Sign in when prompted', sublabel: 'Use your Harvous account.' },
+      { label: 'New Connector → Custom', sublabel: 'Name it Harvous and paste your URL from above.' },
+      { label: 'Connect and sign in', sublabel: 'Use your Harvous account, then allow access.' },
+    ],
+  },
+  muse: {
+    label: 'Muse',
+    steps: [
+      { label: 'Copy the setup message below', sublabel: 'Muse adds connectors when you ask it to.' },
+      { label: 'Send it to Muse', sublabel: 'In a new chat, paste and send.' },
+      { label: 'Sign in when Muse asks', sublabel: 'Use your Harvous account, then allow access.' },
     ],
   },
 };
 
-const APP_ORDER: AppKey[] = ['claude', 'chatgpt', 'other'];
+const APP_ORDER: AppKey[] = ['claude', 'chatgpt', 'grok', 'muse'];
 
 const TRY_ASKING = [
   'What have I written on Romans 8?',
@@ -92,6 +111,8 @@ export function displayAppName(raw: string): string {
   if (/claude/i.test(name)) return 'Claude';
   if (/chatgpt|openai/i.test(name)) return 'ChatGPT';
   if (/cursor/i.test(name)) return 'Cursor';
+  if (/muse|meta[\s_-]?ai/i.test(name)) return 'Muse';
+  if (/grok|xai/i.test(name)) return 'Grok';
   const last = name.split('/').pop()?.trim();
   return last || 'Unknown app';
 }
@@ -124,6 +145,77 @@ function AppPicker({ value, onChange }: { value: AppKey; onChange: (app: AppKey)
         ))}
       </div>
     </div>
+  );
+}
+
+function shortDate(iso: string): string {
+  return getRelativeTime(new Date(iso)).toLowerCase();
+}
+
+/**
+ * Grok Bot's door: a personal token, shown once. Creating a new one replaces the old one, so
+ * "lost it" and "rotate it" are the same button.
+ */
+function GrokBotToken({
+  mcpUrl,
+  active,
+}: {
+  mcpUrl: string | undefined;
+  active: { prefix: string; createdAt: string; lastUsedAt: string | null } | null;
+}) {
+  const create = useCreateConnectorToken();
+  const revoke = useRevokeConnectorToken();
+  const [fresh, setFresh] = useState<CreatedConnectorToken | null>(null);
+  const busy = create.isPending || revoke.isPending;
+
+  const onCreate = () => create.mutate(undefined, { onSuccess: (created) => setFresh(created) });
+  const onRevoke = () => revoke.mutate(undefined, { onSuccess: () => setFresh(null) });
+
+  return (
+    <>
+      <SectionLabel>Grok Bot</SectionLabel>
+      <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 10px' }}>
+        Grok Bot can&rsquo;t sign in, so it uses a personal token instead. In Grok Bot, open
+        Settings → Plugins, add your URL from above, and add a header named Authorization with
+        this value.
+      </p>
+      {fresh ? (
+        <>
+          <div style={{ marginBottom: 8 }}>
+            <SettingsCopyRow value={`Bearer ${fresh.token}`} mono layout="field" copyLabel="Copy" />
+          </div>
+          <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '0 0 12px' }}>
+            Copy it now — Harvous won&rsquo;t show it again. Anyone with it can read your study,
+            so keep it private.
+          </p>
+        </>
+      ) : null}
+      <SettingsGroup>
+        {active && !fresh ? (
+          <SettingsRow
+            label={`Token ${active.prefix}…`}
+            sublabel={`Created ${shortDate(active.createdAt)}${
+              active.lastUsedAt ? ` · last used ${shortDate(active.lastUsedAt)}` : ' · not used yet'
+            }`}
+            value="Revoke"
+            trailing="none"
+            disabled={busy}
+            onClick={onRevoke}
+          />
+        ) : null}
+        {fresh ? (
+          <SettingsRow label="Revoke this token" trailing="none" disabled={busy} onClick={onRevoke} />
+        ) : (
+          <SettingsRow
+            label={active ? 'Replace token' : 'Create a token'}
+            sublabel={active ? 'The old one stops working.' : undefined}
+            trailing="none"
+            disabled={busy || !mcpUrl}
+            onClick={onCreate}
+          />
+        )}
+      </SettingsGroup>
+    </>
   );
 }
 
@@ -235,6 +327,21 @@ export default function PrototypeConnectorPage() {
           />
         ))}
       </SettingsGroup>
+      {app === 'muse' && data?.mcpUrl ? (
+        <div style={{ margin: '-8px 0 20px' }}>
+          <SettingsCopyRow
+            value="Setup message for Muse"
+            copyValue={connectorSetupMessage(data.mcpUrl)}
+            copyLabel="Copy message"
+            layout="field"
+          />
+        </div>
+      ) : null}
+      {app === 'grok' ? <GrokBotToken mcpUrl={data?.mcpUrl} active={data?.token ?? null} /> : null}
+      <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '-8px 0 20px' }}>
+        Other apps — Cursor, Claude Code, and most that support MCP — can add your URL as a remote
+        server and sign in the same way.
+      </p>
       {isError ? (
         <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '-8px 0 16px' }}>
           Couldn&rsquo;t load your connected apps. Try again in a moment.
