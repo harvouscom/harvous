@@ -31,6 +31,14 @@ describe('note summaries', () => {
     expect(s.scriptureReference).toBe('John 3:16');
   });
 
+  it('keeps a space between paragraphs in the snippet', () => {
+    const s = toNoteSummary(
+      { id: 'note_4', title: 'Basket', content: '<p>same word as Ark</p><p>Now what about grace</p><p>a<br>b</p>' },
+      ME,
+    );
+    expect(s.snippet).toBe('same word as Ark Now what about grace a b');
+  });
+
   it('says whose note it is without saying who', () => {
     const s = toNoteSummary({ id: 'note_3', title: 'x', content: '<p>x</p>', authorUserId: THEM }, ME);
     expect(s.byYou).toBe(false);

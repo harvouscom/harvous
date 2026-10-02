@@ -38,7 +38,19 @@ export const MAX_BODY_CHARS = 60_000;
 /** Study-thread graphs are capped at this many notes, as the app's thread view is. */
 export const MAX_GRAPH_NODES = 200;
 
-export const SERVER_INFO = { name: 'harvous', version: '1.0.0' } as const;
+/** Served by mcp-route.ts at `/icon.png`; clients show it as the connector's tile. */
+export function connectorIconUrl(resourceUrl = connectorResourceUrl()): string {
+  return `${new URL(resourceUrl).origin}/icon.png`;
+}
+
+export function serverInfo() {
+  return {
+    name: 'harvous',
+    title: 'Harvous',
+    version: '1.0.0',
+    icons: [{ src: connectorIconUrl(), mimeType: 'image/png', sizes: ['192x192'] }],
+  };
+}
 
 export const SERVER_INSTRUCTIONS = [
   "Harvous is where this person keeps their Bible study: notes, the threads and folders",

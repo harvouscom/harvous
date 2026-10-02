@@ -177,6 +177,22 @@ describe('the rest of the surface', () => {
     expect(res.headers.get('allow')).toBe('POST');
   });
 
+  it('serves its own full-bleed icon and declares it in serverInfo', async () => {
+    for (const path of ['/icon.png', '/favicon.ico']) {
+      const res = await connector.request(path);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('image/png');
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      expect([...bytes.slice(1, 4)].map((b) => String.fromCharCode(b)).join('')).toBe('PNG');
+    }
+    const init = await rpc('initialize', INIT);
+    const body = await init.json();
+    expect(body.result.serverInfo.icons[0]).toMatchObject({
+      src: 'https://mcp.example.test/icon.png',
+      mimeType: 'image/png',
+    });
+  });
+
   it('publishes protected-resource metadata pointing at Clerk', async () => {
     for (const path of ['/.well-known/oauth-protected-resource/mcp', '/.well-known/oauth-protected-resource']) {
       const res = await connector.request(path);
