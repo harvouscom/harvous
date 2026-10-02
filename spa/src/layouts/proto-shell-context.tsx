@@ -367,8 +367,25 @@ export type PaperStackOrigin = {
   label: string;
   icon: string;
   returnTo: PaperStackReturnTo;
+  /**
+   * The passage a note was started from, when the stack began as one ("Proverbs 8:23").
+   *
+   * Names the parked note while it has no title of its own: "New Note" is true of every
+   * draft, and the passage is the one thing this draft is already about. Kept apart from
+   * `label`, which is the paper behind and moves when a parked stack is retargeted to the
+   * chapter you read on to — the note's passage does not move with it.
+   */
+  noteReference?: string;
   base:
-    | { type: 'reader'; book: string; chapter: number; translation: string; fromVerse?: number }
+    | {
+        type: 'reader';
+        book: string;
+        chapter: number;
+        translation: string;
+        fromVerse?: number;
+        /** End of a ranged start, so flipping back marks the whole passage. */
+        fromVerseEnd?: number;
+      }
     | { type: 'originCard'; eyebrow?: string; title: string; meta?: string; icon: string };
 };
 
@@ -1824,7 +1841,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
           origin: {
             ...current.origin,
             label: `${base.book} ${base.chapter}`,
-            base: { ...at, ...base, fromVerse: undefined },
+            base: { ...at, ...base, fromVerse: undefined, fromVerseEnd: undefined },
             returnTo,
           },
         };

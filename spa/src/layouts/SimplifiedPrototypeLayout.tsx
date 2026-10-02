@@ -666,6 +666,35 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
    * clears the stack, and returns to the note with a fresh dock nonce so the dock reopens.
    */
   const stackedNoteHrefRef = useRef<string | null>(null);
+
+  /*
+   * A draft's first save, landing after you flipped it down.
+   *
+   * Saving a compose draft navigates to `/{noteId}` — the URL follows the paper on top. But a
+   * draft's first save is often triggered by the flip itself (the editor blurs as you tap the
+   * edge), so it lands a moment AFTER the sheet went down, while the chapter is the paper in
+   * front. The address then named the note, the parked layer handed the live route to the
+   * front paper, and the note was on both papers at once with the chapter nowhere.
+   *
+   * So the save's address is kept for the flip back up — exactly what the flip-down does with
+   * a note that already had one — and the URL goes back to the chapter. Only on the adoption
+   * itself (no id → id): opening the parked note on purpose later is a real navigation.
+   */
+  const prevStackNoteIdRef = useRef<string | undefined>(paperStack?.noteId);
+  useEffect(() => {
+    const prev = prevStackNoteIdRef.current;
+    prevStackNoteIdRef.current = paperStack?.noteId;
+    if (!paperStack || paperStack.open || prev || !paperStack.noteId) return;
+    if (paperStack.origin.kind === 'noteDock' || !isPrototypeNotePath(pathname)) return;
+    stackedNoteHrefRef.current = pathname;
+    const { returnTo } = paperStack.origin;
+    void chromeRouter.navigate({
+      to: returnTo.to,
+      params: returnTo.params ?? {},
+      search: returnTo.search ?? {},
+      replace: true,
+    });
+  }, [paperStack, pathname, chromeRouter]);
   const [paperStackExiting, setPaperStackExiting] = useState(false);
   const handleFlipSheetDown = useCallback(() => {
     const stack = paperStack;
