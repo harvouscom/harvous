@@ -213,7 +213,7 @@ Host on **Hono API** ([server/app.ts](../../server/app.ts)), not SPA:
 
 ## MCP tool catalog (read-only)
 
-Eight tools — scoped per guardrails above:
+Ten tools — scoped per guardrails above:
 
 | Tool | Parameters | Notes |
 |---|---|---|
@@ -225,6 +225,14 @@ Eight tools — scoped per guardrails above:
 | `list_study_thread_connections` | `noteId` **or** `spaceId` | Study-thread graph |
 | `get_shared_note` | `shareToken` (required) | Explicit share-link lookup only |
 | `find_by_passage` | `passage` (required), `limit`, `cursor` | Added in v1.1. Your notes citing an overlapping passage (`findNotesCitingReference`, the query behind `/api/notes/by-reference`), plus your Bible-reader highlights on it. **Highlights carry the reference, translation and your own words only** — never `scripturePassageExcerpt`, `sourceSnippet` or `anchorQuote`, which can hold Bible text. Owner-only. |
+
+| `search` | `query` | ChatGPT deep research / company knowledge. A Bible reference runs `find_by_passage`, anything else `search_notes`; returns `{ results: [{ id, title, url }] }`. |
+| `fetch` | `id` | ChatGPT counterpart of `get_note`: `{ id, title, text, url, metadata }`. Locked notes return the locked message only. |
+
+ChatGPT's research modes use only tools named exactly `search` and `fetch`, and cite only results
+with a non-empty `url` (https://developers.openai.com/api/docs/mcp). `url` is
+`https://app.harvous.com/note/<id>`, which opens the note in the app (for the owner or a member who
+can read it). Both are thin adapters over the reads above: same scoping, locking and Bible-text rules.
 
 Optional later: `get_thread` by id if agents need it.
 
@@ -318,7 +326,8 @@ Both MCP tools and `GET /api/connector/*` call these functions — **no duplicat
 |---|---|
 | **v1** | Read tools + OAuth + Settings page (built, withheld) |
 | **v1.1** | `find_by_passage` + prompts (built) |
-| **Next** | `search`/`fetch` aliases for ChatGPT deep research; a recent-study tool; search across shared spaces; API keys + CLI if asked for |
+| **v1.2** | `search`/`fetch` for ChatGPT deep research (built) |
+| **Next** | A recent-study tool; search across shared spaces; API keys + CLI if asked for |
 | **v1.5** | MCP Apps (interactive Connector in Claude) + Connectors Directory listing; still read-only |
 | **Inbound SDK** | Partner apps → Harvous; separate OAuth app registry — **not** Connector |
 

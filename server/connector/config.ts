@@ -88,10 +88,21 @@ export function protectedResourceMetadataUrl(resourceUrl = connectorResourceUrl(
   return `${url.origin}/.well-known/oauth-protected-resource${path}`;
 }
 
+function appOrigin(): string {
+  return (process.env.PUBLIC_APP_ORIGIN?.trim() || 'https://app.harvous.com').replace(/\/+$/, '');
+}
+
 /** Where a person without Plus is sent. */
 export function upgradeUrl(): string {
-  const origin = process.env.PUBLIC_APP_ORIGIN?.trim() || 'https://app.harvous.com';
-  return `${origin.replace(/\/+$/, '')}/upgrade`;
+  return `${appOrigin()}/upgrade`;
+}
+
+/**
+ * A link that opens the note in Harvous — ChatGPT only cites results that carry one.
+ * `/note/:id` is the stable classic path; the router redirects it to the current note route.
+ */
+export function noteUrl(noteId: string): string {
+  return `${appOrigin()}/note/${encodeURIComponent(noteId)}`;
 }
 
 /** Clerk publishable key — the server historically read only the secret key. */
