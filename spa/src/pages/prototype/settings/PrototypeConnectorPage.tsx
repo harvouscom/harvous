@@ -276,6 +276,18 @@ export default function PrototypeConnectorPage() {
         chat. Apps can&rsquo;t change or delete anything you&rsquo;ve written.
       </SettingsIntro>
 
+      {/* The one setting that changes what apps may do, so it leads the page rather than
+          trailing the setup guide. */}
+      <SettingsGroup>
+        <SettingsToggleRow
+          label="Let apps start notes"
+          sublabel="Say “save this to Harvous” in a chat."
+          checked={data?.preferences?.allowStartNotes ?? true}
+          disabled={!data || setAllowStartNotes.isPending}
+          onChange={(next) => setAllowStartNotes.mutate(next)}
+        />
+      </SettingsGroup>
+
       {hasClients ? (
         <>
           <SectionLabel>Connected apps</SectionLabel>
@@ -355,16 +367,6 @@ export default function PrototypeConnectorPage() {
         In Claude, Harvous also adds ready-made prompts to the + menu.
       </p>
 
-      <SectionLabel>Starting notes</SectionLabel>
-      <SettingsGroup>
-        <SettingsToggleRow
-          label="Let apps start notes"
-          sublabel="“Save this to Harvous” starts a new note. The page is yours."
-          checked={data?.preferences?.allowStartNotes ?? true}
-          disabled={!data || setAllowStartNotes.isPending}
-          onChange={(next) => setAllowStartNotes.mutate(next)}
-        />
-      </SettingsGroup>
 
       <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '4px 0 0' }}>
         Apps can read your study and start a new note. They can&rsquo;t change or delete anything.
