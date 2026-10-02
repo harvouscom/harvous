@@ -1,5 +1,5 @@
 /**
- * Settings › Claude & ChatGPT — the app-side view of the Connector.
+ * Settings › Connector — the app-side view of the Connector.
  *
  *   GET  /api/user/connector                          URL to paste, connected apps, today's usage
  *   POST /api/user/connector/clients/:clientId/revoke Disconnect one app

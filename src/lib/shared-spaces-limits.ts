@@ -40,6 +40,8 @@ export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Unlimited shared spaces',
   `Up to ${MEMBERS_PER_SPACE_CAP} people per space`,
   'Turn a thread into a shared study plan',
+  // After OWNED_SPACES_BULLET_INDEX on purpose, so the live-usage rewrite still lands on spaces.
+  'Use your study in Claude and ChatGPT',
   'Joining is always free',
 ] as const;
 

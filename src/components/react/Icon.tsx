@@ -62,6 +62,7 @@ import thumbsDownSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbs-down.
 import trashCanSvg from '@fortawesome/fontawesome-free/svgs/solid/trash-can.svg?raw';
 import penSvg from '@fortawesome/fontawesome-free/svgs/solid/pen.svg?raw';
 import linkSvg from '@fortawesome/fontawesome-free/svgs/solid/link.svg?raw';
+import puzzlePieceSvg from '@fortawesome/fontawesome-free/svgs/solid/puzzle-piece.svg?raw';
 import newspaperSvg from '@fortawesome/fontawesome-free/svgs/solid/newspaper.svg?raw';
 import scrollSvg from '@fortawesome/fontawesome-free/svgs/solid/scroll.svg?raw';
 import paperclipSvg from '@fortawesome/fontawesome-free/svgs/solid/paperclip.svg?raw';
@@ -70,6 +71,7 @@ import imageSvg from '@fortawesome/fontawesome-free/svgs/solid/image.svg?raw';
 import personSvg from '@fortawesome/fontawesome-free/svgs/solid/person.svg?raw';
 import bookOpenSvg from '@fortawesome/fontawesome-free/svgs/solid/book-open.svg?raw';
 import bookOpenReaderSvg from '@fortawesome/fontawesome-free/svgs/solid/book-open-reader.svg?raw';
+import idCardSvg from '@fortawesome/fontawesome-free/svgs/solid/id-card.svg?raw';
 import idCardClipSvg from '@fortawesome/fontawesome-free/svgs/solid/id-card-clip.svg?raw';
 import linesLeaningSvg from '@fortawesome/fontawesome-free/svgs/solid/lines-leaning.svg?raw';
 import locationDotSvg from '@fortawesome/fontawesome-free/svgs/solid/location-dot.svg?raw';
@@ -195,6 +197,8 @@ const icons = {
   'trash-can': withCurrentColor(trashCanSvg),
   'pen': withCurrentColor(penSvg),
   'link': svgRootCurrentColor(linkSvg),
+  /** The Connector — matches the puzzle piece harvous.com uses for it. */
+  'puzzle-piece': svgRootCurrentColor(puzzlePieceSvg),
   image: withCurrentColor(imageSvg),
   'person': withCurrentColor(personSvg),
   'book-open': svgRootCurrentColor(bookOpenSvg),
@@ -204,6 +208,8 @@ const icons = {
   tags: svgRootCurrentColor(tagsSvg),
   glasses: svgRootCurrentColor(glassesSvg),
   play: svgRootCurrentColor(playSvg),
+  /** Settings › Plan — membership, neutral across personal and church plans. */
+  'id-card': svgRootCurrentColor(idCardSvg),
   'id-card-clip': svgRootCurrentColor(idCardClipSvg),
   'lines-leaning': withCurrentColor(linesLeaningSvg),
   'location-dot': svgRootCurrentColor(locationDotSvg),

@@ -37,7 +37,7 @@ import {
 const MAX_BODY_BYTES = 64 * 1024;
 
 const DISCONNECTED_MESSAGE =
-  'This app was disconnected from Harvous in Settings → Claude & ChatGPT. Choose "Allow again" there to use it.';
+  'This app was disconnected from Harvous in Settings → Connector. Choose "Allow again" there to use it.';
 
 /** Fly sets Fly-Client-IP; behind anything else, the first X-Forwarded-For hop. */
 function clientIp(c: Context): string | undefined {

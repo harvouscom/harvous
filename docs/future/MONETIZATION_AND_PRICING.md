@@ -225,8 +225,8 @@ $5/mo · $60/yr add-on for a different buyer and never sold; see *Why Connector 
 above. Built on `server/connector/`, shipped withheld (`WITHHELD_FEATURES`) behind a preview
 allowlist (`CONNECTOR_PREVIEW_USER_IDS`) until it has been dogfooded in production.
 
-**Product name:** **Connector** internally; in the app the page is **Claude & ChatGPT**, because
-that is what people are connecting. **External / directory name:** **Harvous**.
+**Product name:** **Connector**, in the app (Settings, puzzle-piece icon) and on harvous.com.
+**External / directory name:** **Harvous**.
 
 **Canonical boundaries:** [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md) — tools, guardrails,
 auth, and permanent read-only scope.
@@ -242,7 +242,7 @@ apps writing content *into* Harvous — see
   clients), signed in with Clerk OAuth.
 - **Read-only, query-shaped** tools only — the seven in
   [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md). **No bulk "export all notes" endpoint.**
-- Settings › Claude & ChatGPT: the URL to paste, connected apps with Disconnect, today's usage.
+- Settings › Connector: the URL to paste, connected apps with Disconnect, today's usage.
 - **Deferred until asked for:** personal API keys, `/api/connector/*` REST, the npm CLI.
 
 ### Why read-only, query-shaped (retention safeguard)
@@ -305,7 +305,7 @@ providers — see [entitlements.ts](../../server/utils/entitlements.ts).
 | `shared_spaces` | Owning shared spaces (`canCreateSharedSpace`) | Plus |
 | `review` | The Review section, review sessions, adding items — **live in 3.0** | Plus |
 | `challenges` | Personal challenge paths — **live in 3.0**; seasons later | Plus |
-| `connector` | MCP reads at `mcp.harvous.com/mcp` (Clerk OAuth); Settings › Claude & ChatGPT | Plus |
+| `connector` | MCP reads at `mcp.harvous.com/mcp` (Clerk OAuth); Settings › Connector | Plus |
 
 There is no `season_pass` key — Plus includes every season via `challenges`.
 

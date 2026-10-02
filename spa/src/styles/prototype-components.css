@@ -24614,3 +24614,18 @@ button.proto-feed-sheet__stat:hover {
   padding-left: 16px;
   padding-right: 16px;
 }
+
+/* Settings › Connector — numbered setup steps, in SettingsRow's leading slot. */
+.proto-connector-step__num {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}

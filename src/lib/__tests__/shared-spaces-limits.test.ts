@@ -56,7 +56,9 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
     expect(bullets[1]).toBe('Unlimited history');
     expect(bullets[2]).toBe('Review exercises');
     expect(bullets[3]).toBe('Unlimited shared spaces');
-    expect(bullets).toHaveLength(7);
+    // Connector, launched into Plus Oct 2026 — sold only because it is switched on.
+    expect(bullets).toContain('Use your study in Claude and ChatGPT');
+    expect(bullets).toHaveLength(8);
   });
 
   /**
@@ -96,7 +98,7 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
     expect(bullets[2]).toBe('Review exercises');
     expect(bullets[3]).toBe('2 out of 10 shared spaces');
     // Only the owned-spaces line is rewritten; everything else passes through.
-    expect(bullets).toHaveLength(7);
+    expect(bullets).toHaveLength(8);
   });
 });
 
