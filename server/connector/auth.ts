@@ -14,6 +14,7 @@
 import { createHash } from 'node:crypto';
 import { createClerkClient } from '@clerk/backend';
 import { clerkPublishableKey, connectorResourceUrl, protectedResourceMetadataUrl } from './config';
+import { isPersonalToken, resolvePersonalToken } from './tokens';
 
 export interface ConnectorAuth {
   userId: string;
@@ -110,6 +111,23 @@ export async function authenticateConnectorRequest(request: Request, now = Date.
   const cached = verified.get(key);
   if (cached && cached.until > now) return { ok: true, auth: cached.auth };
   if (cached) verified.delete(key);
+
+  // A personal token (Grok Bot, scripts) never goes near Clerk: it is a hash lookup.
+  if (isPersonalToken(token)) {
+    try {
+      const row = await resolvePersonalToken(token);
+      if (!row) {
+        console.warn('[connector] refused token: unknown or revoked personal token');
+        return { ok: false, reason: 'invalid' };
+      }
+      const auth: ConnectorAuth = { userId: row.userId, clientId: `token:${row.id}`, scopes: [], token };
+      verified.set(key, { auth, until: now + CACHE_TTL_MS });
+      return { ok: true, auth };
+    } catch (error) {
+      console.warn('[connector] personal token lookup failed:', error instanceof Error ? error.message : error);
+      return { ok: false, reason: 'invalid' };
+    }
+  }
 
   try {
     let verifiedAuth: { userId: string; clientId: string; scopes: string[] } | null = null;
