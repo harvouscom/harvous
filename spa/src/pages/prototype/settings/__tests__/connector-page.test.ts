@@ -13,6 +13,9 @@ describe('connected app names', () => {
     expect(displayAppName('openai-mcp')).toBe('ChatGPT');
     expect(displayAppName('ChatGPT')).toBe('ChatGPT');
     expect(displayAppName('Cursor')).toBe('Cursor');
+    expect(displayAppName('meta-ai-muse')).toBe('Muse');
+    expect(displayAppName('Grok Bot')).toBe('Grok');
+    expect(displayAppName('Personal token')).toBe('Personal token');
     expect(displayAppName('acme/notes-bot')).toBe('notes-bot');
     expect(displayAppName('   ')).toBe('Unknown app');
   });

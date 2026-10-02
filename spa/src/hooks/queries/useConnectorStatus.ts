@@ -11,11 +11,15 @@ export type ConnectorClient = {
   disconnected: boolean;
 };
 
+/** The active personal token, described — never the token itself. */
+export type ConnectorPersonalToken = { prefix: string; createdAt: string; lastUsedAt: string | null };
+
 export type ConnectorStatusResponse = {
   /** The URL to paste into an AI app's "add connector" field. */
   mcpUrl: string;
   clients: ConnectorClient[];
   usage: { today: number; dailyLimit: number; resetsAt: string };
+  token: ConnectorPersonalToken | null;
 };
 
 export const CONNECTOR_STATUS_KEY = ['connector', 'status'] as const;

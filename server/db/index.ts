@@ -39,6 +39,7 @@ export {
   Entitlements,
   ConnectorClients,
   ConnectorUsageDays,
+  ConnectorApiKeys,
   ClerkUserMapping,
   UserXP,
   UserSeasonalXP,

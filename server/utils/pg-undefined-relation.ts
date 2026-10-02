@@ -227,6 +227,8 @@ export function isReviewExerciseSettingsColumnMissing(error: unknown): boolean {
 /** Before `npm run connector:schema:apply`: the Connector's bookkeeping tables. */
 export function isConnectorSchemaMissing(error: unknown): boolean {
   return (
-    isPgUndefinedRelation(error, 'ConnectorClients') || isPgUndefinedRelation(error, 'ConnectorUsageDays')
+    isPgUndefinedRelation(error, 'ConnectorClients') ||
+    isPgUndefinedRelation(error, 'ConnectorUsageDays') ||
+    isPgUndefinedRelation(error, 'ConnectorApiKeys')
   );
 }

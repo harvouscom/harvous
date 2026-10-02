@@ -1618,6 +1618,30 @@ export const ConnectorClients = pgTable(
  * Tool calls per person per UTC day — the daily cap, and the "Today: N of 1,000" line.
  * In Postgres rather than memory so it survives deploys and holds across machines.
  */
+/**
+ * Personal Connector tokens — for apps that take a fixed `Authorization: Bearer` header and
+ * cannot run a sign-in (Grok Bot). `hvous_…`, shown once at creation; only the sha256 is kept.
+ * One active token per person (a partial unique index in add-connector-schema.ts). A token's
+ * calls are recorded in ConnectorClients as client `token:<id>`, so it appears in Connected
+ * apps and can be disconnected like any app.
+ */
+export const ConnectorApiKeys = pgTable(
+  'ConnectorApiKeys',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    keyHash: text('keyHash').notNull(),
+    keyPrefix: text('keyPrefix').notNull(),
+    createdAt: ts('createdAt').notNull(),
+    lastUsedAt: ts('lastUsedAt'),
+    revokedAt: ts('revokedAt'),
+  },
+  (table) => [
+    uniqueIndex('ConnectorApiKeys_keyHashUnique').on(table.keyHash),
+    uniqueIndex('ConnectorApiKeys_activePerUser').on(table.userId).where(sql`"revokedAt" IS NULL`),
+  ],
+);
+
 export const ConnectorUsageDays = pgTable(
   'ConnectorUsageDays',
   {

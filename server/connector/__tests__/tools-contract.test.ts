@@ -34,13 +34,18 @@ describe('the Connector stays read-only (docs/future/CONNECTOR_BOUNDARIES.md)', 
     }
   });
 
-  it('only usage.ts writes, and only the Connector’s own bookkeeping tables', () => {
-    for (const file of moduleFiles.filter((f) => f !== 'usage.ts')) {
-      expect(source(file), file).not.toMatch(/db\s*\.(insert|update|delete)\(/);
+  it('only usage.ts and tokens.ts write, and only the Connector’s own bookkeeping tables', () => {
+    const writers: Record<string, string[]> = {
+      'usage.ts': ['ConnectorClients', 'ConnectorUsageDays'],
+      'tokens.ts': ['ConnectorApiKeys'],
+    };
+    for (const file of moduleFiles.filter((f) => !(f in writers))) {
+      expect(source(file), file).not.toMatch(/(db|tx)\s*\.(insert|update|delete)\(/);
     }
-    const usage = source('usage.ts');
-    for (const m of usage.matchAll(/db\s*\.(insert|update|delete)\((\w+)\)/g)) {
-      expect(['ConnectorClients', 'ConnectorUsageDays']).toContain(m[2]);
+    for (const [file, tables] of Object.entries(writers)) {
+      for (const m of source(file).matchAll(/(db|tx)\s*\.(insert|update|delete)\((\w+)\)/g)) {
+        expect(tables, file).toContain(m[3]);
+      }
     }
   });
 
