@@ -37,6 +37,33 @@ function tokenKey(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
+/**
+ * What kind of token this is, for a log line — never the token itself. Enough to tell an
+ * opaque `oat_…` from a JWT, and a JWT Clerk's machine-token check would recognise
+ * (`typ: at+jwt`) from one it would silently call a type mismatch.
+ */
+export function describeTokenShape(token: string): string {
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    const prefix = token.match(/^[a-z]+_/i)?.[0] ?? 'none';
+    return `opaque prefix=${prefix} len=${token.length}`;
+  }
+  try {
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8')) as { typ?: string; alg?: string };
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as Record<string, unknown>;
+    return [
+      'jwt',
+      `typ=${header.typ ?? 'none'}`,
+      `alg=${header.alg ?? 'none'}`,
+      `aud=${payload.aud == null ? 'none' : 'present'}`,
+      `client_id=${payload.client_id == null ? 'none' : 'present'}`,
+      `sub=${payload.sub == null ? 'none' : 'present'}`,
+    ].join(' ');
+  } catch {
+    return 'jwt unparseable';
+  }
+}
+
 /** `exp` and `aud` from a JWT access token Clerk has already verified; null for opaque tokens. */
 function jwtClaims(token: string): { exp?: number; aud?: string | string[] } | null {
   const parts = token.split('.');
@@ -85,22 +112,48 @@ export async function authenticateConnectorRequest(request: Request, now = Date.
   if (cached) verified.delete(key);
 
   try {
+    let verifiedAuth: { userId: string; clientId: string; scopes: string[] } | null = null;
     const state = await clerk().authenticateRequest(request, { acceptsToken: 'oauth_token' });
     const auth = state.toAuth();
-    if (!state.isAuthenticated || !auth || auth.tokenType !== 'oauth_token' || !auth.userId || !auth.clientId) {
-      return { ok: false, reason: 'invalid' };
+    if (state.isAuthenticated && auth && auth.tokenType === 'oauth_token' && auth.userId && auth.clientId) {
+      verifiedAuth = {
+        userId: auth.userId,
+        clientId: auth.clientId,
+        scopes: Array.isArray(auth.scopes) ? auth.scopes : [],
+      };
+    } else {
+      /*
+       * Ask Clerk's Backend API, which verifies an OAuth access token whatever its shape.
+       *
+       * harvous#220: Meta Muse registers itself (DCR), signs in, and then every request was
+       * refused here — silently, so the logs said nothing. `authenticateRequest` only treats a
+       * JWT as an OAuth token when its header says `typ: at+jwt`, and answers anything else
+       * with a quiet "token type mismatch". Claude registers through CIMD and never hit it.
+       */
+      const why = `reason=${state.reason ?? 'none'} message=${state.message || 'none'} shape=${describeTokenShape(token)}`;
+      try {
+        const bapi = await clerk().idPOAuthAccessToken.verify(token);
+        if (!bapi.revoked && !bapi.expired && bapi.subject && bapi.clientId) {
+          verifiedAuth = { userId: bapi.subject, clientId: bapi.clientId, scopes: bapi.scopes ?? [] };
+          console.info(`[connector] accepted via backend verify (${why})`);
+        } else {
+          console.warn(
+            `[connector] refused token: backend verify revoked=${bapi.revoked} expired=${bapi.expired} (${why})`,
+          );
+        }
+      } catch (error) {
+        console.warn(
+          `[connector] refused token: ${error instanceof Error ? error.message : 'backend verify failed'} (${why})`,
+        );
+      }
+      if (!verifiedAuth) return { ok: false, reason: 'invalid' };
     }
     const claims = jwtClaims(token);
     if (!audienceAllows(claims?.aud, connectorResourceUrl())) {
       console.warn('[connector] refused a token issued for another audience');
       return { ok: false, reason: 'invalid' };
     }
-    const result: ConnectorAuth = {
-      userId: auth.userId,
-      clientId: auth.clientId,
-      scopes: Array.isArray(auth.scopes) ? auth.scopes : [],
-      token,
-    };
+    const result: ConnectorAuth = { ...verifiedAuth, token };
     // Never cache past the token's own expiry.
     const expMs = claims?.exp ? claims.exp * 1000 : Infinity;
     verified.set(key, { auth: result, until: Math.min(now + CACHE_TTL_MS, expMs) });
