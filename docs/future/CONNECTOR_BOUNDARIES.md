@@ -211,9 +211,9 @@ Host on **Hono API** ([server/app.ts](../../server/app.ts)), not SPA:
 
 ---
 
-## v1 MCP tool catalog (read-only)
+## MCP tool catalog (read-only)
 
-Seven tools — scoped per guardrails above:
+Eight tools — scoped per guardrails above:
 
 | Tool | Parameters | Notes |
 |---|---|---|
@@ -224,8 +224,18 @@ Seven tools — scoped per guardrails above:
 | `list_notes_in_space` | `spaceId`, `cursor` | Member-view parity; excludes others' locked notes |
 | `list_study_thread_connections` | `noteId` **or** `spaceId` | Study-thread graph |
 | `get_shared_note` | `shareToken` (required) | Explicit share-link lookup only |
+| `find_by_passage` | `passage` (required), `limit`, `cursor` | Added in v1.1. Your notes citing an overlapping passage (`findNotesCitingReference`, the query behind `/api/notes/by-reference`), plus your Bible-reader highlights on it. **Highlights carry the reference, translation and your own words only** — never `scripturePassageExcerpt`, `sourceSnippet` or `anchorQuote`, which can hold Bible text. Owner-only. |
 
 Optional later: `get_thread` by id if agents need it.
+
+### Prompts (v1.1)
+
+Four ready-made prompts appear in the assistant's "+" menu (`server/connector/prompts.ts`):
+`study_passage`, `prepare_for_group`, `recent_study`, `trace_theme`. They are only text — no Plus
+check, no call against the daily limit; the tools they lead to stay gated. Every prompt carries one
+stance: start from what the person wrote and quote it, say whose words are whose, don't present the
+assistant's reading as theirs, say so when notes are thin rather than filling the gap, and point back
+to the passage. Copy reviewed with `/theologian-agent` (Oct 2026); re-review if it changes.
 
 Each tool: Zod schema → `beforeCall` (disconnect, access, per-minute + daily limits) →
 `connectorReadService` → `requireSpaceAccess` where applicable. All annotated `readOnlyHint: true`.
@@ -307,7 +317,8 @@ Both MCP tools and `GET /api/connector/*` call these functions — **no duplicat
 | Phase | Adds |
 |---|---|
 | **v1** | Read tools + OAuth + Settings page (built, withheld) |
-| **v1.1** | API keys + CLI if asked for; `search`/`fetch` aliases for ChatGPT deep research |
+| **v1.1** | `find_by_passage` + prompts (built) |
+| **Next** | `search`/`fetch` aliases for ChatGPT deep research; a recent-study tool; search across shared spaces; API keys + CLI if asked for |
 | **v1.5** | MCP Apps (interactive Connector in Claude) + Connectors Directory listing; still read-only |
 | **Inbound SDK** | Partner apps → Harvous; separate OAuth app registry — **not** Connector |
 

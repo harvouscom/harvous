@@ -18,10 +18,19 @@ const handler = () => {
   return text.slice(start, end);
 };
 
+/** The queries live in `findNotesCitingReference`, shared with the Connector's find_by_passage. */
+const finder = () => {
+  const text = readFileSync(resolve(process.cwd(), 'server/utils/notes-by-reference.ts'), 'utf8');
+  const start = text.indexOf('export async function findNotesCitingReference');
+  expect(start).toBeGreaterThan(-1);
+  return text.slice(start);
+};
+
 describe('GET /api/notes/by-reference', () => {
   it('scopes every Notes read to the caller', () => {
-    const body = handler();
-    const scoped = body.split('eq(Notes.userId, auth.userId)').length - 1;
+    expect(handler()).toContain('findNotesCitingReference(auth.userId,');
+    const body = finder();
+    const scoped = body.split('eq(Notes.userId, userId)').length - 1;
     const reads = body.split('.from(').length - 1;
     expect(reads).toBeGreaterThan(0);
     // One userId predicate per query — a `.from(` without one is the bug.
@@ -42,13 +51,12 @@ describe('GET /api/notes/by-reference', () => {
   });
 
   it('excludes encrypted bodies it cannot read anyway', () => {
-    expect(handler()).toContain('eq(Notes.contentEncrypted, false)');
+    expect(finder()).toContain('eq(Notes.contentEncrypted, false)');
   });
 
   it('prefilters in SQL so it never scans a whole library', () => {
-    const body = handler();
-    expect(body).toContain('like(Notes.content');
-    expect(body).toContain('parsed.book');
+    expect(finder()).toContain('like(Notes.content');
+    expect(handler()).toContain('parsed.book');
   });
 
   it('rejects an unparseable reference with the validator’s own wording', () => {

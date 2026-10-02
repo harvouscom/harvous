@@ -14,13 +14,13 @@ const source = (file: string) =>
 const moduleFiles = readdirSync(dir).filter((f) => f.endsWith('.ts'));
 
 describe('the Connector stays read-only (docs/future/CONNECTOR_BOUNDARIES.md)', () => {
-  it('ships exactly seven tools, every one annotated read-only', () => {
-    expect(CONNECTOR_TOOL_NAMES).toHaveLength(7);
+  it('ships exactly eight tools, every one annotated read-only', () => {
+    expect(CONNECTOR_TOOL_NAMES).toHaveLength(8);
     const tools = source('tools.ts');
     const registrations = tools.match(/server\.registerTool\(/g) ?? [];
-    expect(registrations).toHaveLength(7);
+    expect(registrations).toHaveLength(8);
     const readOnlySpreads = tools.match(/\.\.\.READ_ONLY \}/g) ?? [];
-    expect(readOnlySpreads).toHaveLength(7);
+    expect(readOnlySpreads).toHaveLength(8);
     expect(tools).toContain('readOnlyHint: true');
     expect(tools).toContain('destructiveHint: false');
   });

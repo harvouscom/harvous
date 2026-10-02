@@ -74,6 +74,10 @@ vi.mock('../../utils/space-study-threads', () => ({ listStudyThreadsForSpace: vi
 vi.mock('../../utils/study-thread-space', () => ({ collectStudyThreadGraphForScope: vi.fn() }));
 vi.mock('../../utils/study-thread-note-rows', () => ({ fetchStudyThreadNoteRows: vi.fn() }));
 vi.mock('../../utils/shared-note-lookup', () => ({ findPublicSharedNoteByToken: vi.fn() }));
+const findNotesCitingReference = vi.fn();
+vi.mock('../../utils/notes-by-reference', () => ({
+  findNotesCitingReference: (...a: unknown[]) => findNotesCitingReference(...a),
+}));
 
 const reads = await import('../read-service');
 
@@ -217,5 +221,66 @@ describe('share links', () => {
     expect(reads.shareTokenFrom('https://app.harvous.com/shared/note/AbCdEf123456')).toBe('AbCdEf123456');
     expect(reads.shareTokenFrom('AbCdEf123456')).toBe('AbCdEf123456');
     expect(reads.shareTokenFrom('https://evil.example/x')).toBeNull();
+  });
+});
+
+describe('find_by_passage', () => {
+  const citing = (overrides: Record<string, unknown> = {}) => ({
+    id: 'note_r8',
+    title: 'Romans 8 study',
+    updatedAt: new Date('2026-09-01T00:00:00Z'),
+    content: '<p>No condemnation.</p>',
+    contentEncrypted: false,
+    references: ['Romans 8:28-30'],
+    ...overrides,
+  });
+
+  it('returns notes that cite an overlapping range, with the references they cite', async () => {
+    findNotesCitingReference.mockResolvedValue([citing()]);
+    selectResults.push([]); // highlights
+    const r = await reads.findByPassage(ME, { passage: 'romans 8', limit: 10 });
+    expect(r.passage).toBe('Romans 8:1-39'); // canonical form of the whole chapter
+    expect(findNotesCitingReference).toHaveBeenCalledWith(ME, 'Romans 8:1-39', 'Romans');
+    expect(r.notes[0]).toMatchObject({ id: 'note_r8', locked: false, references: ['Romans 8:28-30'] });
+    expect(r.notes[0].snippet).toContain('No condemnation');
+  });
+
+  it('shows a locked note as metadata only', async () => {
+    findNotesCitingReference.mockResolvedValue([citing({ contentEncrypted: true, content: null })]);
+    selectResults.push([]);
+    const r = await reads.findByPassage(ME, { passage: 'Romans 8', limit: 10 });
+    expect(r.notes[0]).toMatchObject({ locked: true, snippet: null });
+  });
+
+  it('includes overlapping highlights in the person’s own words, and drops ones outside the passage', async () => {
+    findNotesCitingReference.mockResolvedValue([]);
+    selectResults.push([
+      { reference: 'Romans 8:28', translation: 'NET', miniNoteBody: 'Even this.', notesBody: '', parentNoteId: null, createdAt: new Date() },
+      { reference: 'Romans 8:1', translation: 'NET', miniNoteBody: '', notesBody: '', parentNoteId: 'note_x', createdAt: new Date() },
+      { reference: 'Romans 9:1', translation: 'NET', miniNoteBody: 'Not this chapter.', notesBody: '', parentNoteId: null, createdAt: new Date() },
+    ]);
+    const r = await reads.findByPassage(ME, { passage: 'Romans 8', limit: 10 });
+    expect(r.highlights).toHaveLength(2);
+    expect(r.highlights[0]).toMatchObject({ reference: 'Romans 8:28', kind: 'note', note: 'Even this.' });
+    expect(r.highlights[1]).toMatchObject({ reference: 'Romans 8:1', kind: 'highlight', note: null, onNoteId: 'note_x' });
+    expect(JSON.stringify(r)).not.toMatch(/scripturePassageExcerpt|sourceSnippet|anchorQuote/);
+  });
+
+  it('refuses something that is not a Bible reference, readably', async () => {
+    await expect(reads.findByPassage(ME, { passage: 'grace and mercy', limit: 10 })).rejects.toMatchObject({
+      code: 'bad_request',
+      message: expect.stringContaining('Romans 8'),
+    });
+    expect(findNotesCitingReference).not.toHaveBeenCalled();
+  });
+
+  it('keeps highlights to the first page', async () => {
+    findNotesCitingReference.mockResolvedValue(Array.from({ length: 30 }, (_, i) => citing({ id: `note_${i}` })));
+    selectResults.push([]);
+    const first = await reads.findByPassage(ME, { passage: 'Romans 8', limit: 10 });
+    expect(first.nextCursor).toBeTruthy();
+    const second = await reads.findByPassage(ME, { passage: 'Romans 8', limit: 10, cursor: first.nextCursor });
+    expect(second.notes[0].id).toBe('note_10');
+    expect(second.highlights).toEqual([]);
   });
 });

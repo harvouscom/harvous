@@ -31,6 +31,7 @@ vi.mock('../read-service', () => ({
   listNotesInSpace: vi.fn(),
   listStudyThreadConnections: vi.fn(),
   getSharedNote: vi.fn(),
+  findByPassage: vi.fn(),
 }));
 
 const { default: connector } = await import('../mcp-route');
@@ -80,12 +81,13 @@ describe('POST /mcp', () => {
     expect(touch).toHaveBeenCalledWith('user_1', 'client_1', 'Claude');
   });
 
-  it('lists exactly the seven read-only tools', async () => {
+  it('lists exactly the eight read-only tools', async () => {
     const res = await rpc('tools/list');
     const body = await res.json();
     const tools = body.result.tools as Array<{ name: string; annotations: { readOnlyHint: boolean } }>;
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
+        'find_by_passage',
         'get_note',
         'get_shared_note',
         'list_notes_in_space',
@@ -97,6 +99,21 @@ describe('POST /mcp', () => {
     );
     expect(tools.every((t) => t.annotations.readOnlyHint === true)).toBe(true);
     // Listing tools is free and needs no subscription.
+    expect(hasAccess).not.toHaveBeenCalled();
+    expect(consume).not.toHaveBeenCalled();
+  });
+
+  it('lists four prompts, and fills one in without a subscription or a tool call', async () => {
+    hasAccess.mockResolvedValue(false);
+    const list = await (await rpc('prompts/list')).json();
+    expect(list.result.prompts.map((p: { name: string }) => p.name).sort()).toEqual(
+      ['prepare_for_group', 'recent_study', 'study_passage', 'trace_theme'],
+    );
+    const got = await (await rpc('prompts/get', { name: 'study_passage', arguments: { passage: 'Romans 8' } })).json();
+    const text = got.result.messages[0].content.text as string;
+    expect(text).toContain('Romans 8');
+    expect(text).toContain('find_by_passage');
+    expect(text).toContain("Don't present your own interpretation as mine");
     expect(hasAccess).not.toHaveBeenCalled();
     expect(consume).not.toHaveBeenCalled();
   });

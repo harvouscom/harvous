@@ -21,7 +21,11 @@ import {
   StudyThreadEntries,
   eq,
   and,
+  or,
+  ne,
+  like,
   isNull,
+  isNotNull,
   desc,
   first,
 } from '../db';
@@ -43,11 +47,15 @@ import { collectStudyThreadGraphForScope } from '../utils/study-thread-space';
 import { fetchStudyThreadNoteRows } from '../utils/study-thread-note-rows';
 import { findPublicSharedNoteByToken } from '../utils/shared-note-lookup';
 import { extractScripturePillsFromHtml } from '../utils/crossref-gaps';
+import { findNotesCitingReference } from '../utils/notes-by-reference';
+import { canonicalizeServiceReference } from '../utils/church-service-passage';
+import { parseScriptureReference } from '@/utils/scripture-detector';
+import { verseKeysFromScriptureReference } from '@/utils/scripture-verse-keys';
 import { parseNoteSecondaryCollections } from '../utils/note-secondary-collections';
 import { normalizeServerNoteId } from '../utils/normalize-note-id';
 import { isValidShareToken } from '@/utils/ids';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
-import { MAX_GRAPH_NODES } from './config';
+import { MAX_GRAPH_NODES, MAX_PASSAGE_HIGHLIGHTS } from './config';
 import {
   ConnectorRefusal,
   NOTE_NOT_FOUND,
@@ -519,4 +527,131 @@ export async function getSharedNote(
     },
     userId,
   );
+}
+
+// ─── find_by_passage ───────────────────────────────────────────────────────────
+
+export interface PassageHighlight {
+  /** The verse(s) highlighted, as stored ("Romans 8:28"). */
+  reference: string;
+  translation: string | null;
+  /** `note` when the person wrote something on it; `highlight` when they only marked it. */
+  kind: 'highlight' | 'note';
+  /** The person's own words on it. Never Bible text. */
+  note: string | null;
+  /** The note it was made in, when it wasn't made while reading. */
+  onNoteId: string | null;
+  createdAt: string | null;
+}
+
+/**
+ * The person's own highlights and annotations overlapping a passage.
+ *
+ * Selects only allowlisted columns: `scripturePassageExcerpt`, `sourceSnippet` and
+ * `anchorQuote` can all hold Bible text, so they are never read. `mapStudyRow` is not
+ * reused for the same reason. Word lookups share this table as `entryKindRaw = 'reference'`
+ * and are left out, as the reader leaves them out.
+ */
+async function passageHighlights(
+  userId: string,
+  book: string,
+  verseKeys: Set<string>,
+): Promise<PassageHighlight[]> {
+  const chapters = [...new Set([...verseKeys].map((k) => Number(k.split('|')[1])))];
+  if (chapters.length === 0) return [];
+  // One prefix per chapter — served by StudyThreadEntries_userId_scriptureReferenceIndex.
+  const chapterMatch = or(
+    ...chapters.flatMap((ch) => [
+      like(StudyThreadEntries.scriptureReference, `${book} ${ch}:%`),
+      eq(StudyThreadEntries.scriptureReference, `${book} ${ch}`),
+    ]),
+  );
+  const rows = await db
+    .select({
+      reference: StudyThreadEntries.scriptureReference,
+      translation: StudyThreadEntries.scripturePassageTranslation,
+      miniNoteBody: StudyThreadEntries.miniNoteBody,
+      notesBody: StudyThreadEntries.notesBody,
+      parentNoteId: StudyThreadEntries.parentNoteId,
+      createdAt: StudyThreadEntries.createdAt,
+    })
+    .from(StudyThreadEntries)
+    .where(
+      and(
+        eq(StudyThreadEntries.userId, userId),
+        eq(StudyThreadEntries.isArchived, false),
+        ne(StudyThreadEntries.entryKindRaw, 'reference'),
+        isNotNull(StudyThreadEntries.scriptureReference),
+        chapterMatch,
+      ),
+    )
+    .orderBy(desc(StudyThreadEntries.createdAt))
+    .limit(MAX_PASSAGE_HIGHLIGHTS * 4);
+
+  const out: PassageHighlight[] = [];
+  for (const row of rows) {
+    if (!row.reference) continue;
+    if (!verseKeysFromScriptureReference(row.reference).some((k) => verseKeys.has(k))) continue;
+    const note = (row.miniNoteBody || row.notesBody || '').trim() || null;
+    out.push({
+      reference: row.reference,
+      translation: row.translation?.trim() || null,
+      kind: note ? 'note' : 'highlight',
+      note,
+      onNoteId: row.parentNoteId ?? null,
+      createdAt: row.createdAt ? row.createdAt.toISOString() : null,
+    });
+    if (out.length >= MAX_PASSAGE_HIGHLIGHTS) break;
+  }
+  return out;
+}
+
+export async function findByPassage(
+  userId: string,
+  args: { passage: string } & Page,
+): Promise<{
+  passage: string;
+  notes: Array<NoteSummary & { references: string[] }>;
+  highlights: PassageHighlight[];
+  nextCursor: string | null;
+}> {
+  const unreadable = new ConnectorRefusal(
+    'bad_request',
+    `I couldn't read "${args.passage.trim().slice(0, 80)}" as a Bible reference. Try something like "Romans 8" or "John 3:16".`,
+  );
+  const canonical = canonicalizeServiceReference(args.passage);
+  if (!canonical.ok || !canonical.reference) throw unreadable;
+  const passage = canonical.reference;
+  const parsed = parseScriptureReference(passage);
+  const verseKeys = new Set(verseKeysFromScriptureReference(passage));
+  if (!parsed || verseKeys.size === 0) throw unreadable;
+
+  const scope = { passage };
+  const offset = decodeCursor(args.cursor, 'find_by_passage', scope);
+  const [matches, highlights] = await Promise.all([
+    findNotesCitingReference(userId, passage, parsed.book),
+    // Highlights ride along on the first page only.
+    offset === 0 ? passageHighlights(userId, parsed.book, verseKeys) : Promise.resolve([]),
+  ]);
+
+  const page = matches.slice(offset, offset + args.limit + 1);
+  return {
+    passage,
+    notes: page.slice(0, args.limit).map((m) => ({
+      ...toNoteSummary(
+        {
+          id: m.id,
+          title: m.title,
+          content: m.content,
+          contentEncrypted: m.contentEncrypted,
+          updatedAt: m.updatedAt,
+          authorUserId: userId,
+        },
+        userId,
+      ),
+      references: m.references,
+    })),
+    highlights,
+    nextCursor: nextCursorFor('find_by_passage', scope, offset, args.limit, page.length),
+  };
 }

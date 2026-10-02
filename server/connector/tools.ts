@@ -41,6 +41,7 @@ export const CONNECTOR_TOOL_NAMES = [
   'list_notes_in_space',
   'list_study_thread_connections',
   'get_shared_note',
+  'find_by_passage',
 ] as const;
 
 const cursor = z.string().max(512).optional().describe('From a previous result’s nextCursor, to get the next page.');
@@ -211,5 +212,24 @@ export function registerConnectorTools(server: McpServer, ctx: ToolContext): voi
       annotations: { title: 'Read a shared link', ...READ_ONLY },
     },
     (args) => run(ctx, 'get_shared_note', async () => noteResult(await reads.getSharedNote(userId, args))),
+  );
+
+  server.registerTool(
+    'find_by_passage',
+    {
+      title: 'Find by passage',
+      description:
+        'Everything this person has written or highlighted on a Bible passage: their notes that cite ' +
+        'it (ranges understood — "Romans 8" finds a note on Romans 8:28–30) and their highlights and ' +
+        'annotations from reading it. Use this, not search_notes, whenever they name a book, chapter or ' +
+        'verse. Returns references and their own words only, never verse text.',
+      inputSchema: {
+        passage: z.string().trim().min(2).max(120).describe('A Bible reference, e.g. "Romans 8", "John 3:16" or "Exodus 6:28–7:7".'),
+        limit: limit(PAGE_MAX, 10),
+        cursor,
+      },
+      annotations: { title: 'Find by passage', ...READ_ONLY },
+    },
+    (args) => run(ctx, 'find_by_passage', async () => json(await reads.findByPassage(userId, args))),
   );
 }
