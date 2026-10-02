@@ -261,7 +261,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAddonsPage')),
   });
 
-  // Settings › Claude & ChatGPT (the Connector, part of Plus). Registered even while the
+  // Settings › Connector (the Connector, part of Plus). Registered even while the
   // feature is withheld: the page itself answers "not available" for anyone without it.
   const prototypeSettingsConnectorRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,

@@ -6,13 +6,13 @@ import { SETTINGS_CATEGORIES } from '../settingsCategories';
 
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 
-describe('Claude & ChatGPT in the settings list', () => {
+describe('Connector in the settings list', () => {
   it('is a real category, so it is listed for everyone once launched', () => {
     expect(SETTINGS_CATEGORIES.some((c) => c.key === 'connector')).toBe(true);
   });
 
-  it('while withheld, appears only for preview accounts', () => {
-    expect(isFeatureWithheld('connector')).toBe(true);
+  it('is launched, so it is listed for everyone; the preview gate only applies if re-withheld', () => {
+    expect(isFeatureWithheld('connector')).toBe(false);
     const text = source('spa/src/pages/prototype/settings/settingsCategories.ts');
     expect(text).toContain("!isFeatureWithheld('connector') || Boolean(data?.connectorPreview)");
   });

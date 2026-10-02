@@ -24615,7 +24615,7 @@ button.proto-feed-sheet__stat:hover {
   padding-right: 16px;
 }
 
-/* Settings › Claude & ChatGPT — numbered setup steps, in SettingsRow's leading slot. */
+/* Settings › Connector — numbered setup steps, in SettingsRow's leading slot. */
 .proto-connector-step__num {
   display: inline-grid;
   place-items: center;

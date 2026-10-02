@@ -20,7 +20,7 @@ export type ConnectorStatusResponse = {
 
 export const CONNECTOR_STATUS_KEY = ['connector', 'status'] as const;
 
-/** Settings › Claude & ChatGPT. Only for accounts holding `connector` (callers gate on it). */
+/** Settings › Connector. Only for accounts holding `connector` (callers gate on it). */
 export function useConnectorStatus(enabled: boolean) {
   const authReady = useAuthReady();
   return useQuery({

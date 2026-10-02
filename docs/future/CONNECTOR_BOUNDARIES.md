@@ -6,7 +6,7 @@ Section 4 and [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADM
 outbound Connector).
 
 **Status (October 2026):** **v1 built** in `server/connector/` — MCP + Clerk OAuth, the seven read
-tools below, limits, and Settings › Claude & ChatGPT. Shipped **withheld** (`WITHHELD_FEATURES`)
+tools below, limits, and Settings › Connector. Shipped **withheld** (`WITHHELD_FEATURES`)
 behind a preview allowlist (`CONNECTOR_PREVIEW_USER_IDS`). Personal API keys, `/api/connector/*`
 REST and the CLI are **deferred** until someone asks. Folded into Plus rather than sold as the
 $5/mo add-on this doc originally assumed; where the text below says "subscription", read "Plus".
@@ -32,7 +32,7 @@ $5/mo add-on this doc originally assumed; where the text below says "subscriptio
 
 | Layer | Name |
 |---|---|
-| In-app page | **Claude & ChatGPT** (Settings) |
+| In-app page | **Connector** (Settings, puzzle-piece icon, matching harvous.com) |
 | Internal name | **Connector** (`server/connector/`) |
 | Claude Connectors Directory | **Harvous** |
 | URL | `https://mcp.harvous.com/mcp` |

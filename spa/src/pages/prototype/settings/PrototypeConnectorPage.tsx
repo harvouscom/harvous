@@ -9,7 +9,7 @@ import { useConnectorClientAccess } from '../../../hooks/mutations/useConnectorC
 import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
 
 /**
- * Settings › Claude & ChatGPT — the Connector, part of Harvous Plus.
+ * Settings › Connector — the Connector, part of Harvous Plus.
  *
  * Web-only for now, like Reminders: native has no matching row yet.
  *

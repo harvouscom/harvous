@@ -97,10 +97,10 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'addons',
-    title: 'Plan & add-ons',
+    title: 'Plan',
     route: prototypeHref('settings/addons'),
     icon: 'plus',
-    footnote: 'Your plan, what it includes, and add-ons.',
+    footnote: 'Your plan and what it includes.',
   },
   /*
    * Web-only, like Reminders. Listed for everyone once launched (the page describes the
@@ -109,9 +109,9 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
    */
   {
     key: 'connector',
-    title: 'Claude & ChatGPT',
+    title: 'Connector',
     route: prototypeHref('settings/connector'),
-    icon: 'link',
+    icon: 'puzzle-piece',
     footnote: 'Use your study in Claude, ChatGPT, and other AI apps.',
   },
   {
@@ -141,7 +141,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
 
 /**
  * The categories this account sees. Static except for one row: while `connector` is
- * withheld, Claude & ChatGPT appears only for preview accounts (`connectorPreview`, from
+ * withheld, Connector appears only for preview accounts (`connectorPreview`, from
  * the subscription status); after launch it is listed for everyone, as the rest are.
  */
 export function useSettingsCategories(): SettingsCategory[] {

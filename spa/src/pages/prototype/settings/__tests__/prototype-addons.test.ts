@@ -57,10 +57,9 @@ describe('Connector is part of Plus, not a second subscription', () => {
     expect(source).not.toMatch(/cancelBilling\.mutate\((?:true|false)\)/);
   });
 
-  it('links Plus holders to the Claude & ChatGPT page, gated on the feature key', () => {
-    const source = addonsSource();
-    expect(source).toContain("useHasFeature('connector')");
-    expect(source).toContain("settings/connector");
+  it('lists Connector as part of Plus rather than linking to it as a separate row', () => {
+    // The Connector has its own settings page; the Plan page only says it is included.
+    expect(addonsSource()).not.toContain("settings/connector");
   });
 
   it('does not claim the founding price outside /upgrade, where the cap is live', () => {

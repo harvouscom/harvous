@@ -199,7 +199,7 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     hasSharedSpaces,
     /**
      * This account is on the Connector preview list and holds the key, so the app may show
-     * Settings › Claude & ChatGPT while `connector` is still withheld (the client's own
+     * Settings › Connector while `connector` is still withheld (the client's own
      * check answers "no" for everyone then). False once launched — `useHasFeature` takes over.
      */
     connectorPreview:

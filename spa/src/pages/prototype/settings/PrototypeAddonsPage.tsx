@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { prototypeHref } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
 import SafeSubscriptionDetailsButton from '@/components/react/SafeSubscriptionDetailsButton';
 import { getSharedSpacesAddonFeatureBullets } from '@/lib/shared-spaces-limits';
@@ -23,7 +22,6 @@ import {
 import { useBillingCancel } from '../../../hooks/mutations/useBillingCancel';
 import { useBillingManage } from '../../../hooks/queries/useBillingManage';
 import { useSubscriptionStatus } from '../../../hooks/queries/useSubscriptionStatus';
-import { useHasFeature } from '../../../hooks/useHasFeature';
 import { api } from '../../../lib/api';
 import ProtoConfirmDialog from '../ProtoConfirmDialog';
 import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
@@ -97,9 +95,6 @@ export default function PrototypeAddonsPage() {
   const { data: manage, isLoading: manageLoading } = useBillingManage(
     hasSharedSpaces && canManageBilling,
   );
-  // Connector is part of Plus, not a product of its own — there is nothing to buy or cancel
-  // here, only a way into the page that connects Claude and ChatGPT.
-  const connector = useHasFeature('connector');
   const isFounding = Boolean(subscription?.isFounding);
   const billing = manage?.billing ?? subscription?.billing ?? null;
   const paymentMethod = manage?.paymentMethod ?? null;
@@ -165,17 +160,6 @@ export default function PrototypeAddonsPage() {
         <div className="proto-settings-plan__body">
           <PlanFeatureList items={featureBullets} />
 
-          {connector.has || subscription?.connectorPreview ? (
-            <SettingsGroup>
-              <SettingsRow
-                label="Claude & ChatGPT"
-                sublabel="Use your study in the AI apps you already use"
-                leadingIcon="link"
-                trailing="chevron"
-                onClick={() => navigate({ to: prototypeHref('settings/connector') })}
-              />
-            </SettingsGroup>
-          ) : null}
 
           {/* Empty since 3.0 — see the constant. A heading with no list under it reads as a
               rendering bug, not as restraint. */}
