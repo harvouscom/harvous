@@ -272,7 +272,7 @@ export default function PrototypeConnectorPage() {
   return (
     <SettingsShell>
       <SettingsIntro>
-        Ask Claude, ChatGPT, or another AI app about your notes. Apps can&rsquo;t change or
+        Ask Claude, ChatGPT, or another AI app about your notes. They can&rsquo;t change or
         delete anything you&rsquo;ve written.
       </SettingsIntro>
 
@@ -280,7 +280,7 @@ export default function PrototypeConnectorPage() {
           trailing the setup guide. */}
       <SettingsGroup>
         <SettingsToggleRow
-          label="Let apps start notes"
+          label="Let AI apps start notes"
           sublabel="Pick up a chat about Scripture as a new note."
           checked={data?.preferences?.allowStartNotes ?? false}
           disabled={!data || setAllowStartNotes.isPending}
@@ -290,7 +290,7 @@ export default function PrototypeConnectorPage() {
 
       {hasClients ? (
         <>
-          <SectionLabel>Connected apps</SectionLabel>
+          <SectionLabel>Connected AI apps</SectionLabel>
           <SettingsGroup>
             {clients.map((client) => (
               <SettingsRow
@@ -313,7 +313,7 @@ export default function PrototypeConnectorPage() {
         </>
       ) : null}
 
-      <SectionLabel>{hasClients ? 'Connect another app' : 'Connect an app'}</SectionLabel>
+      <SectionLabel>{hasClients ? 'Connect another AI app' : 'Connect an AI app'}</SectionLabel>
       <div style={{ marginBottom: 12 }}>
         <SettingsCopyRow
           value={data?.mcpUrl ?? (isLoading ? 'Loading…' : '—')}
@@ -348,7 +348,7 @@ export default function PrototypeConnectorPage() {
       ) : null}
       {app === 'grok' ? <GrokBotToken mcpUrl={data?.mcpUrl} active={data?.token ?? null} /> : null}
       <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '-8px 0 20px' }}>
-        Other apps — Cursor, Claude Code, and most that support MCP — can add your URL as a remote
+        Other AI apps — Cursor, Claude Code, and most that support MCP — can add your URL as a remote
         server and sign in the same way.
       </p>
       {isError ? (
@@ -369,7 +369,7 @@ export default function PrototypeConnectorPage() {
 
 
       <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '4px 0 0' }}>
-        Apps can read your study, and start a new note if you allow it. They can&rsquo;t change or
+        AI apps can read your study, and start a new note if you allow it. They can&rsquo;t change or
         delete anything.
         Locked notes stay locked, and Scripture is shared as references only.
       </p>

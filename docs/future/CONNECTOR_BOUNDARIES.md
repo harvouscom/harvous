@@ -191,7 +191,7 @@ OAuth both resolve to Clerk `userId`).
     1,000 reads.
   - The app-wide note-create rate limit.
   - Plus, as for every tool.
-- **Opt-in.** Settings › Connector › "Let apps start notes" (`ConnectorPreferences`) is **off by
+- **Opt-in.** Settings › Connector › "Let AI apps start notes" (`ConnectorPreferences`) is **off by
   default**; until it's on, the tool refuses with where to turn it on. Turning it off is allowed even
   after Plus lapses.
 - **Offered, not pushed.** `SERVER_INSTRUCTIONS` lets an assistant offer once per conversation, at a

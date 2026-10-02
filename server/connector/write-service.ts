@@ -6,7 +6,7 @@
  * It can never name an existing note, so it can never change or delete one.
  *
  * Guardrails (docs/future/CONNECTOR_BOUNDARIES.md), each checked before anything is written:
- * Plus (beforeCall), the person's "Let apps start notes" switch, NOTES_STARTED_PER_DAY, and
+ * Plus (beforeCall), the person's "Let AI apps start notes" switch, NOTES_STARTED_PER_DAY, and
  * the app-wide note-create rate limit. tools-contract.test.ts pins what this file may write.
  */
 
@@ -77,7 +77,7 @@ export async function startNote(userId: string, clientId: string, input: StartNo
   if (!(await allowsStartNotes(userId))) {
     throw new ConnectorRefusal(
       'turned_off',
-      'Starting notes from apps is off. The person can turn it on in Harvous: Settings › Connector › "Let apps start notes".',
+      'Starting notes from AI apps is off. The person can turn it on in Harvous: Settings › Connector › "Let AI apps start notes".',
     );
   }
 

@@ -15,7 +15,7 @@ vi.mock('../../db', () => {
 
 const { allowsStartNotes } = await import('../preferences');
 
-describe('Let apps start notes', () => {
+describe('Let AI apps start notes', () => {
   it('is off until the person turns it on', async () => {
     rows = [];
     expect(await allowsStartNotes('u')).toBe(false);

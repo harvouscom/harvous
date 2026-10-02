@@ -6,7 +6,7 @@
  *   POST /api/user/connector/clients/:clientId/restore Allow it again
  *   POST   /api/user/connector/token                  Create a personal token (replaces any old one); shown once
  *   DELETE /api/user/connector/token                  Revoke it
- *   PUT    /api/user/connector/preferences            { allowStartNotes } — the "Let apps start notes" switch
+ *   PUT    /api/user/connector/preferences            { allowStartNotes } — the "Let AI apps start notes" switch
  *
  * Session-authenticated like the rest of /api/*. Kept apart from the deferred
  * `/api/connector/*` data API, which would be Bearer-key authenticated and read notes; this
