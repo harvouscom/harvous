@@ -61,7 +61,7 @@ import { isStudyThreadNamingColumnMissing } from '../utils/pg-undefined-relation
 import { rateLimit, rateLimitNoteCreate } from '@/utils/rate-limit';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { canonicalizeServiceReference } from '../utils/church-service-passage';
-import { matchNotesToReference } from '../utils/notes-by-reference';
+import { findNotesCitingReference } from '../utils/notes-by-reference';
 import { findKeywordsInText } from '@/utils/bible-study-keywords';
 import { conceptOverlaps } from '@/utils/bible-study-concept-overlaps';
 import { rankThreadSuggestions, scoreThreadKeywordOverlap } from '@/utils/thread-suggestion-ranking';
@@ -2376,57 +2376,11 @@ route.get('/api/notes/by-reference', requireAuth, async (c) => {
       return c.json({ error: 'A scripture reference is required', code: 'BAD_REQUEST' }, 400);
     }
 
-    // Prefilter in SQL on the book name so this never scans a user's whole
-    // library: a pill for this passage always carries the book in its markup.
-    const pillNotes = await db
-      .select({
-        id: Notes.id,
-        title: Notes.title,
-        content: Notes.content,
-        updatedAt: Notes.updatedAt,
-      })
-      .from(Notes)
-      .where(
-        and(
-          eq(Notes.userId, auth.userId),
-          ne(Notes.noteType, 'scripture'),
-          eq(Notes.contentEncrypted, false),
-          like(Notes.content, '%data-scripture-reference%'),
-          like(Notes.content, `%${parsed.book}%`),
-        ),
-      );
-
-    const legacyRows = await db
-      .select({
-        id: NoteScriptureReferences.noteId,
-        title: Notes.title,
-        updatedAt: Notes.updatedAt,
-        reference: ScriptureMetadata.reference,
-      })
-      .from(NoteScriptureReferences)
-      .innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id))
-      .innerJoin(
-        ScriptureMetadata,
-        eq(ScriptureMetadata.noteId, NoteScriptureReferences.scriptureNoteId),
-      )
-      .where(
-        and(
-          eq(Notes.userId, auth.userId),
-          ne(Notes.noteType, 'scripture'),
-          eq(ScriptureMetadata.book, parsed.book),
-        ),
-      );
-
-    const matches = matchNotesToReference({
-      reference,
-      pillNotes,
-      legacyNotes: legacyRows.map((row) => ({
-        id: row.id,
-        title: row.title,
-        updatedAt: row.updatedAt,
-        reference: row.reference ?? '',
-      })),
-    });
+    // The queries live in findNotesCitingReference (shared with the Connector's
+    // find_by_passage). This response carries only id, title and date, as it always has.
+    const matches = (await findNotesCitingReference(auth.userId, reference, parsed.book)).map(
+      ({ id, title, updatedAt }) => ({ id, title, updatedAt }),
+    );
 
     return c.json({
       success: true,

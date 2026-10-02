@@ -35,6 +35,9 @@ export const IP_REQUESTS_PER_MINUTE = 120;
 /** A note body longer than this is cut, with `truncated: true` on the result. */
 export const MAX_BODY_CHARS = 60_000;
 
+/** Reader highlights returned by find_by_passage (first page only). */
+export const MAX_PASSAGE_HIGHLIGHTS = 50;
+
 /** Study-thread graphs are capped at this many notes, as the app's thread view is. */
 export const MAX_GRAPH_NODES = 200;
 
@@ -57,8 +60,9 @@ export const SERVER_INSTRUCTIONS = [
   'they organize them into, and the connections they draw between notes.',
   'Everything here is read-only — nothing you do can change their study.',
   'Scripture appears as references (for example "Romans 8:28"), not as verse text.',
-  'Locked notes return only their title and dates. Search before fetching: most',
-  'questions start with search_notes and then get_note on the results that matter.',
+  'Locked notes return only their title and dates. When the person names a book, chapter',
+  'or verse, use find_by_passage — it understands ranges and includes their Bible highlights.',
+  'For words and themes, start with search_notes. Then get_note on the results that matter.',
 ].join(' ');
 
 const DEFAULT_RESOURCE_URL = 'https://mcp.harvous.com/mcp';

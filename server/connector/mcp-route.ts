@@ -24,6 +24,7 @@ import { authenticateConnectorRequest, unauthorizedResponse, type ConnectorAuth 
 import { hasConnectorAccess, notSubscribedMessage } from './access';
 import { authorizationServerMetadata, protectedResourceMetadata } from './oauth-metadata';
 import { registerConnectorTools } from './tools';
+import { registerConnectorPrompts } from './prompts';
 import { ConnectorRefusal } from './shapes';
 import {
   allowIpRequest,
@@ -167,7 +168,7 @@ connector.post('/mcp', async (c) => {
 
   const server = new McpServer(serverInfo(), {
     instructions: SERVER_INSTRUCTIONS,
-    capabilities: { tools: {} },
+    capabilities: { tools: {}, prompts: {} },
   });
   registerConnectorTools(server, {
     userId: auth.userId,
@@ -175,6 +176,7 @@ connector.post('/mcp', async (c) => {
     afterCall: (tool, outcome, ms) =>
       console.info(`[connector] tool=${tool} user=${auth.userId} client=${auth.clientId} outcome=${outcome} ms=${ms}`),
   });
+  registerConnectorPrompts(server);
 
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
