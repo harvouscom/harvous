@@ -99,7 +99,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     key: 'addons',
     title: 'Plan',
     route: prototypeHref('settings/addons'),
-    icon: 'plus',
+    icon: 'id-card',
     footnote: 'Your plan and what it includes.',
   },
   /*

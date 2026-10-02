@@ -71,6 +71,7 @@ import imageSvg from '@fortawesome/fontawesome-free/svgs/solid/image.svg?raw';
 import personSvg from '@fortawesome/fontawesome-free/svgs/solid/person.svg?raw';
 import bookOpenSvg from '@fortawesome/fontawesome-free/svgs/solid/book-open.svg?raw';
 import bookOpenReaderSvg from '@fortawesome/fontawesome-free/svgs/solid/book-open-reader.svg?raw';
+import idCardSvg from '@fortawesome/fontawesome-free/svgs/solid/id-card.svg?raw';
 import idCardClipSvg from '@fortawesome/fontawesome-free/svgs/solid/id-card-clip.svg?raw';
 import linesLeaningSvg from '@fortawesome/fontawesome-free/svgs/solid/lines-leaning.svg?raw';
 import locationDotSvg from '@fortawesome/fontawesome-free/svgs/solid/location-dot.svg?raw';
@@ -207,6 +208,8 @@ const icons = {
   tags: svgRootCurrentColor(tagsSvg),
   glasses: svgRootCurrentColor(glassesSvg),
   play: svgRootCurrentColor(playSvg),
+  /** Settings › Plan — membership, neutral across personal and church plans. */
+  'id-card': svgRootCurrentColor(idCardSvg),
   'id-card-clip': svgRootCurrentColor(idCardClipSvg),
   'lines-leaning': withCurrentColor(linesLeaningSvg),
   'location-dot': svgRootCurrentColor(locationDotSvg),
