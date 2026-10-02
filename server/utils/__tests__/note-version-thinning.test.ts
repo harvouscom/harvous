@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FREE_HISTORY_WINDOW_DAYS } from '@/lib/billing-plans';
+import { FREE_HISTORY_VISIBLE_DAYS, FREE_HISTORY_WINDOW_DAYS } from '@/lib/billing-plans';
 import {
   NOTE_VERSION_RETENTION_LATEST_COUNT,
   NOTE_VERSION_RETENTION_MAX_AGE_MS,
@@ -133,8 +133,9 @@ describe('startsNewEditingSession', () => {
 });
 
 describe('thinning guards', () => {
-  it('never thins inside the window a free account can see', () => {
-    expect(NOTE_VERSION_RETENTION_MAX_AGE_MS).toBeGreaterThanOrEqual(FREE_HISTORY_WINDOW_DAYS * DAY);
+  it('never thins inside the window a free account can see, grace week included', () => {
+    expect(NOTE_VERSION_RETENTION_MAX_AGE_MS).toBeGreaterThanOrEqual(FREE_HISTORY_VISIBLE_DAYS * DAY);
+    expect(FREE_HISTORY_VISIBLE_DAYS).toBeGreaterThan(FREE_HISTORY_WINDOW_DAYS);
   });
 
   it('treats only routine saves as thinnable', () => {

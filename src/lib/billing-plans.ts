@@ -102,6 +102,17 @@ export function isUnlimited(limit: number | null | undefined): boolean {
 export const FREE_HISTORY_WINDOW_DAYS = 90;
 
 /**
+ * A soft landing on top of the free window. Study that turns 90 days old stays in view for
+ * this many more days, with a countdown ("leaves your history in 3 days"), before it tucks
+ * behind Plus — so nobody loses sight of something without a heads-up first. The window
+ * people are told about is still `FREE_HISTORY_WINDOW_DAYS`; enforcement uses the sum.
+ */
+export const FREE_HISTORY_GRACE_DAYS = 7;
+
+/** What enforcement actually hides behind: the promised window plus the grace. */
+export const FREE_HISTORY_VISIBLE_DAYS = FREE_HISTORY_WINDOW_DAYS + FREE_HISTORY_GRACE_DAYS;
+
+/**
  * How many people can ever claim the founding offer.
  *
  * Enforced twice on purpose: Polar's `max_redemptions` on the discount is the

@@ -23,6 +23,20 @@ deleted on either plan, upgrading reveals older history, and canceling hides it 
 deliberately against the free-tier guardrail in `HARVOUS_4.md`. Do not extend the pattern to notes,
 highlights, or anything else a person wrote.
 
+**Soft landing (October 2026).** Study that turns 90 days old stays in view for a 7-day grace
+(`FREE_HISTORY_GRACE_DAYS`) before it tucks behind Plus, so nothing leaves sight without warning.
+While something is in that last week, Home shows one dismissible line ("Your study from Jul 2–5
+leaves your history in 4 days"), dismissed per batch, and a persistent reminder toast at most once a
+week. The trail's end edge carries the real count ("42 earlier · Plus") from
+`GET /api/user/history-window`. Counts cover what the person made, notes and highlights; the
+"is anything hidden" probe covers every windowed source (it used to miss highlights, reading,
+visits and review answers, and told those people their study "begins here").
+
+Open, not decided: (1) the version-thinning job deletes old autosaves past the latest 100 that are
+older than the visible window, so "kept, not deleted" is not literally true for those; (2) shared
+-space activity uses a flat 180-day floor for everyone while personal history is 90, and copy only
+mentions 90.
+
 ### What changed at 3.0, and why
 
 Set at the 3.0 cutover, replacing $5/mo · Founding $30/yr, then simplified again to

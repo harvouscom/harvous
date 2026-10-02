@@ -163,6 +163,7 @@ import { useHarvousIdentity } from '../hooks/useHarvousIdentity';
 import PrototypeGuestModeRow from '../pages/prototype/PrototypeGuestModeRow';
 import { useGuestAdoption } from '../hooks/useGuestAdoption';
 import { useGuestExitPrompt } from '../hooks/useGuestExitPrompt';
+import { useHistoryWindowReminder } from '../hooks/useHistoryWindowReminder';
 
 /** Local cache of the zone we last told the account about, so a reload is not a write. */
 const TZ_SYNCED_KEY = 'harvous-proto-tz-synced';
@@ -455,6 +456,8 @@ export default function SimplifiedPrototypeLayout() {
 function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: string; isGuest?: boolean }) {
   // Speaks once, on the way out, and only for a guest who has made something.
   useGuestExitPrompt(isGuest);
+  // Free accounts only: a weekly heads-up while study is in its last week of view.
+  useHistoryWindowReminder();
   const queryClient = useQueryClient();
   const chromeRouter = useRouter();
   const { homeSpaceId } = usePrototypeHomeSpaceId();

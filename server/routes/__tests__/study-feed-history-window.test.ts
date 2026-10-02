@@ -51,23 +51,29 @@ describe('study feed history window', () => {
     const text = source();
     const guardMatch = text.match(/if \(wantsOwn && personalFloor && nextCursor === null\) \{/);
     expect(guardMatch).not.toBeNull();
-    expect(text).toContain('hasOlderPersonalStudyFeedHistory(auth.userId, personalFloor)');
+    expect(text).toContain('hasOlderPersonalHistory(auth.userId, personalFloor)');
   });
 
-  it('probes notes before versions and stops on the first hit', () => {
-    const text = source();
-    const start = text.indexOf('async function hasOlderPersonalStudyFeedHistory');
-    const end = text.indexOf('\nroute.get(', start);
-    const body = text.slice(start, end);
-    expect(body.indexOf('.from(Notes)')).toBeGreaterThan(-1);
+  /*
+   * The probe used to ask only about notes and saves, so someone whose only older study was
+   * highlights or reading was told their study "begins here" while that history was hidden.
+   * It now lives in history-window-status.ts and must cover every personally windowed source.
+   */
+  it('probes every personally windowed source, cheaply, stopping on the first hit', () => {
+    const util = readFileSync(resolve(process.cwd(), 'server/utils/history-window-status.ts'), 'utf8');
+    const start = util.indexOf('export async function hasOlderPersonalHistory');
+    const body = util.slice(start, util.indexOf('\n}\n', start));
+    for (const table of ['Notes', 'NoteVersions', 'StudyThreadEntries', 'ReadingEvents', 'NoteVisitEvents', 'ReviewEvents']) {
+      expect(body, table).toContain(`.from(${table})`);
+    }
     expect(body.indexOf('.from(Notes)')).toBeLessThan(body.indexOf('.from(NoteVersions)'));
-    expect(body).toContain('if (noteHit.length > 0) return true;');
-    expect(body).toContain(".limit(1)");
+    expect(body).toContain('if (await probe()) return true;');
+    expect(body.split('.limit(1)').length - 1).toBe(6);
   });
 
   it('never lets a Plus reader’s query carry a personal floor', () => {
     const text = source();
-    expect(text).toContain('const personalFloor = hasFullHistory\n      ? null');
+    expect(text).toContain('const personalFloor = hasFullHistory ? null : freeHistoryFloor(');
   });
 
   it('sends lockedBefore on the wire, alongside nextCursor', () => {

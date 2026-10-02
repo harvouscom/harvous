@@ -46,13 +46,16 @@ const sessionsPage = (
   });
 
 describe('history window', () => {
-  it('gives free accounts 90 days and Plus no window', () => {
-    expect(NOW.getTime() - SINCE.getTime()).toBe(90 * DAY);
+  // 90 days promised, plus the 7-day grace week (FREE_HISTORY_GRACE_DAYS) before anything hides.
+  it('gives free accounts 90 days plus a grace week, and Plus no window', () => {
+    expect(NOW.getTime() - SINCE.getTime()).toBe(97 * DAY);
     expect(historyVisibleSince(NOW, true)).toBeNull();
   });
 
   it('locks only a version replaced before the window opened', () => {
-    expect(isReplacedBeforeWindow(ago(91 * DAY), SINCE)).toBe(true);
+    expect(isReplacedBeforeWindow(ago(98 * DAY), SINCE)).toBe(true);
+    // Inside the grace week: past 90 days but still in view.
+    expect(isReplacedBeforeWindow(ago(93 * DAY), SINCE)).toBe(false);
     expect(isReplacedBeforeWindow(SINCE, SINCE)).toBe(false);
     expect(isReplacedBeforeWindow(null, SINCE)).toBe(false);
     expect(isReplacedBeforeWindow(ago(400 * DAY), null)).toBe(false);
@@ -110,7 +113,7 @@ describe('buildNoteHistorySessionsPage', () => {
 
   it('dates the first session on a later page by the version above the cursor', () => {
     const rows = [row(2, ago(100 * DAY))];
-    expect(sessionsPage(rows, { currentVersionId: 'v9', successorCreatedAt: ago(95 * DAY) }).locked).not.toBeNull();
+    expect(sessionsPage(rows, { currentVersionId: 'v9', successorCreatedAt: ago(99 * DAY) }).locked).not.toBeNull();
     expect(sessionsPage(rows, { currentVersionId: 'v9', successorCreatedAt: ago(80 * DAY) }).sessions).toHaveLength(1);
   });
 

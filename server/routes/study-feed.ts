@@ -30,7 +30,7 @@
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { hasFeatureWithReconcile } from '../middleware/require-feature';
-import { FREE_HISTORY_WINDOW_DAYS } from '@/lib/billing-plans';
+import { hasOlderPersonalHistory, freeHistoryFloor } from '../utils/history-window-status';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import {
@@ -131,43 +131,6 @@ async function source<T>(
   }
 }
 
-/**
- * Does a free account have personal study older than its floor? One cheap existence check per
- * table, `userId`-indexed (`Notes_userIdIndex`, `NoteVersions_authorId_createdAtIndex`) and
- * short-circuited on the first hit — not a third full source fan-out. Called only once the
- * trail has already run out, so this never runs on a page that still has more to give up.
- */
-async function hasOlderPersonalStudyFeedHistory(userId: string, before: Date): Promise<boolean> {
-  const noteHit = await source(
-    () =>
-      db
-        .select({ id: Notes.id })
-        .from(Notes)
-        .where(and(eq(Notes.userId, userId), lt(Notes.createdAt, before)))
-        .limit(1),
-    () => false,
-    'older notes probe',
-  );
-  if (noteHit.length > 0) return true;
-
-  const versionHit = await source(
-    () =>
-      db
-        .select({ id: NoteVersions.id })
-        .from(NoteVersions)
-        .where(
-          and(
-            eq(NoteVersions.authorId, userId),
-            eq(NoteVersions.source, 'save'),
-            lt(NoteVersions.createdAt, before),
-          ),
-        )
-        .limit(1),
-    () => false,
-    'older versions probe',
-  );
-  return versionHit.length > 0;
-}
 
 route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
   try {
@@ -188,9 +151,8 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
      * round-trip per request — see `syncEntitlementsFromProvider`'s doc comment.
      */
     const hasFullHistory = await hasFeatureWithReconcile(auth, 'full_history', { throttle: true });
-    const personalFloor = hasFullHistory
-      ? null
-      : new Date(Date.now() - FREE_HISTORY_WINDOW_DAYS * DAY_MS);
+    // The free window plus its grace week — see FREE_HISTORY_GRACE_DAYS.
+    const personalFloor = hasFullHistory ? null : freeHistoryFloor(new Date());
     const sharedFloor = new Date(Date.now() - FEED_WINDOW_DAYS * DAY_MS);
 
     /*
@@ -610,7 +572,9 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
      */
     let lockedBefore: string | null = null;
     if (wantsOwn && personalFloor && nextCursor === null) {
-      const older = await hasOlderPersonalStudyFeedHistory(auth.userId, personalFloor);
+      // Every windowed source, not just notes and saves: someone whose only older study was
+      // highlights or reading used to be told their study "begins here".
+      const older = await hasOlderPersonalHistory(auth.userId, personalFloor);
       if (older) lockedBefore = personalFloor.toISOString();
     }
 

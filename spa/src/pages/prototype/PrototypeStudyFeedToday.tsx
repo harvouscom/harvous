@@ -27,6 +27,7 @@ import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeDailyPassageCard, { dailyPassageShowsCard } from './PrototypeDailyPassageCard';
 import PrototypeRecallCarousel from './PrototypeRecallCarousel';
 import PrototypeReviewSection from './PrototypeReviewSection';
+import PrototypeHistoryLeavingSection from './PrototypeHistoryLeavingSection';
 import PrototypeStrengthenThreadRow from './PrototypeStrengthenThreadRow';
 import { continueReadingEyebrow, continueReadingMeta } from '@/utils/prototype-home-trends';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
@@ -186,6 +187,10 @@ export default function PrototypeStudyFeedToday({
         * null and the section collapses.
         */}
       <PrototypeReviewSection />
+
+      {/* The free history window's soft landing — renders only while something is in its
+          last week of view, and only for free accounts. */}
+      <PrototypeHistoryLeavingSection />
 
       {/* Both of these decide for themselves whether they have anything to show, so the
           section wrapper is theirs to fill or collapse — the same contract Home relies on. */}
