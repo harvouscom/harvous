@@ -10,7 +10,7 @@ auth/orgs: [`docs/CLERK_ARCHITECTURE.md`](../CLERK_ARCHITECTURE.md).
 | Product | Price | What's in it |
 |---|---|---|
 | **Free** | $0 | Private study, forever. Unlimited notes, 90 days of history (older history kept, not shown), Remember surfaces, Compete free track. **Join** shared spaces — hosting is paid. |
-| **Harvous Plus** | **$6/mo · $36/yr** | **Review**, unlimited history, Shared Spaces hosting, and the **Connector** (read-only MCP access from Claude, ChatGPT and other AI apps); themed seasons fold in later. Both intervals listed. Challenges and Connector are built but withheld until launch — see `WITHHELD_FEATURES`. |
+| **Harvous Plus** | **$6/mo · $36/yr** | **Review**, unlimited history, Shared Spaces hosting, and the **Connector** (MCP access from Claude, ChatGPT and other AI apps: read your study, start a new note); themed seasons fold in later. Both intervals listed. Challenges and Connector are built but withheld until launch — see `WITHHELD_FEATURES`. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
 Plus a **30-day money-back guarantee** on Plus (cancel anytime). There is deliberately **no free
@@ -116,7 +116,7 @@ Plus when it ships). **Compete** stays free to play. Hosting Shared Spaces is Pl
 | **Review** | Active personal practice — questions built from *your* own notes, passages and highlights, at your pace | **Always paid; individual subscription** |
 | **Compete** | Themed seasons, study guides, leaderboards | Current season **free track**; **Season Pass** for full guide + archive |
 | **Group Sharing** | Unlimited owned shared spaces (host/admin for small groups — roster, optional cohort Compete) | Paid (live today as Premium / `unlimited` tier); members join spaces free and buy **Review** on their own |
-| **Connector** | Read-only reference to your notes, spaces, threads, and study connections from Claude, ChatGPT, Cursor, and other MCP clients | **Included in Plus** — see Section 4 |
+| **Connector** | Your notes, spaces, threads and study connections in Claude, ChatGPT, Cursor and other MCP clients, plus starting a new note from a chat | **Included in Plus** — see Section 4 |
 | **Church org** | Curriculum distribution, multiple leaders, admin | Future; pricing TBD — see Section 7 |
 
 **Naming:** Internal North Star pillar **Learn** powers customer-facing **Review**. **Compete** is a
@@ -243,7 +243,7 @@ allowlist (`CONNECTOR_PREVIEW_USER_IDS`) until it has been dogfooded in producti
 **External / directory name:** **Harvous**.
 
 **Canonical boundaries:** [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md) — tools, guardrails,
-auth, and permanent read-only scope.
+auth, and scope (read-only plus one create, `start_note`).
 
 **Positioning:** *"Use your study in Claude, ChatGPT, and other AI apps."* This is outbound
 (Harvous data flowing *out* to other tools), distinct from the deferred inbound Harvous SDK (other
@@ -254,7 +254,7 @@ apps writing content *into* Harvous — see
 
 - A remote **MCP server** at `https://mcp.harvous.com/mcp` (Claude, ChatGPT, Cursor, other MCP
   clients), signed in with Clerk OAuth.
-- **Read-only, query-shaped** tools only — the seven in
+- **Query-shaped** tools, read-only except `start_note`. They are listed in
   [CONNECTOR_BOUNDARIES.md](./CONNECTOR_BOUNDARIES.md). **No bulk "export all notes" endpoint.**
 - Settings › Connector: the URL to paste, connected apps with Disconnect, today's usage.
 - **Deferred until asked for:** personal API keys, `/api/connector/*` REST, the npm CLI.
@@ -268,8 +268,12 @@ Query-shaped access preserves the reason to keep capture, organization, and Reme
 Harvous. Grounded in the "not infrastructure" and "not locked in" principles already in
 [HARVOUS_SDK_AND_FUTURE_ROADMAP.md](./HARVOUS_SDK_AND_FUTURE_ROADMAP.md) Section 4.
 
-**Permanent read-only:** the Connector does **not** gain create/edit/delete tools. Writes stay in
-the Harvous app (and the deferred inbound SDK for partners).
+**Read-only, plus one create (Oct 2026):** the Connector never gains edit or delete tools. The one
+exception is `start_note`: it starts a *new*, empty note with the AI's summary in a labeled card, so
+you can pick up a chat in Harvous. That pulls study *into* Harvous rather than draining it out, so it
+strengthens the retention argument above rather than weakening it. Its guardrails are in
+CONNECTOR_BOUNDARIES.md. Every other write stays in the Harvous app (and the deferred inbound SDK
+for partners).
 
 ### Limits (live in `server/connector/config.ts`)
 

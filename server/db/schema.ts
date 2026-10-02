@@ -1615,10 +1615,6 @@ export const ConnectorClients = pgTable(
 );
 
 /**
- * Tool calls per person per UTC day — the daily cap, and the "Today: N of 1,000" line.
- * In Postgres rather than memory so it survives deploys and holds across machines.
- */
-/**
  * Personal Connector tokens — for apps that take a fixed `Authorization: Bearer` header and
  * cannot run a sign-in (Grok Bot). `hvous_…`, shown once at creation; only the sha256 is kept.
  * One active token per person (a partial unique index in add-connector-schema.ts). A token's
@@ -1642,6 +1638,10 @@ export const ConnectorApiKeys = pgTable(
   ],
 );
 
+/**
+ * Tool calls per person per UTC day — the daily cap, and the "Today: N of 1,000" line.
+ * In Postgres rather than memory so it survives deploys and holds across machines.
+ */
 export const ConnectorUsageDays = pgTable(
   'ConnectorUsageDays',
   {
@@ -1649,10 +1649,37 @@ export const ConnectorUsageDays = pgTable(
     /** UTC calendar day, `YYYY-MM-DD`. */
     day: text('day').notNull(),
     toolCalls: integer('toolCalls').notNull().default(0),
+    /** Notes started by `start_note` that day — its own cap, separate from reads. */
+    notesStarted: integer('notesStarted').notNull().default(0),
     updatedAt: ts('updatedAt').notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.day] })],
 );
+
+/**
+ * The "From your Claude chat" card on a note an AI app started (`start_note`). A side table,
+ * like ResourceMetadata, so the AI's words never enter the note's own content: the body starts
+ * empty and stays the person's. Deleting the row removes the card; `Notes.addedBy`
+ * (`mcp-<app>`) still records where the note started.
+ */
+export const NoteChatOrigins = pgTable('NoteChatOrigins', {
+  noteId: text('noteId').primaryKey(),
+  userId: text('userId').notNull(),
+  /** Display name: "Claude", "ChatGPT", "Grok", "Muse", or the app's own name. */
+  appName: text('appName').notNull(),
+  summary: text('summary').notNull(),
+  /** JSON array of canonical references. */
+  passages: text('passages').notNull().default('[]'),
+  question: text('question'),
+  createdAt: ts('createdAt').notNull(),
+});
+
+/** Per-person Connector settings. A table, not UserMetadata columns (the full-row literal trap). */
+export const ConnectorPreferences = pgTable('ConnectorPreferences', {
+  userId: text('userId').primaryKey(),
+  allowStartNotes: boolean('allowStartNotes').notNull().default(true),
+  updatedAt: ts('updatedAt').notNull(),
+});
 
 // ─── ClerkUserMapping (pk_live → pk_test read-time resolution) ─────────────────
 

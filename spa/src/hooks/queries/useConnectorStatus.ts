@@ -20,6 +20,8 @@ export type ConnectorStatusResponse = {
   clients: ConnectorClient[];
   usage: { today: number; dailyLimit: number; resetsAt: string };
   token: ConnectorPersonalToken | null;
+  /** Older servers omit it; treat absent as the default (on). */
+  preferences?: { allowStartNotes: boolean };
 };
 
 export const CONNECTOR_STATUS_KEY = ['connector', 'status'] as const;

@@ -23,7 +23,8 @@ export class ConnectorRefusal extends Error {
       | 'rate_limited'
       | 'daily_limit'
       | 'bad_cursor'
-      | 'bad_request',
+      | 'bad_request'
+      | 'turned_off',
     message: string,
   ) {
     super(message);

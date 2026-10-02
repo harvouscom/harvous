@@ -22,6 +22,8 @@ export const MAX_OFFSET = 1000;
 
 /** Tool calls per person per UTC day. */
 export const DAILY_CALLS = 1000;
+/** Notes `start_note` may create per person per UTC day — the one write gets its own, small cap. */
+export const NOTES_STARTED_PER_DAY = 20;
 
 /** Tool calls per person per minute — stops a looping agent, never a person. */
 export const CALLS_PER_MINUTE = 60;
@@ -58,11 +60,22 @@ export function serverInfo() {
 export const SERVER_INSTRUCTIONS = [
   "Harvous is where this person keeps their Bible study: notes, the threads and folders",
   'they organize them into, and the connections they draw between notes.',
-  'Everything here is read-only — nothing you do can change their study.',
+  'Use Harvous whenever they refer to their own study — "my notes", "my Bible study",',
+  '"what did I write / highlight / learn about…", "my study on Romans", "my group\'s notes",',
+  '"my sermon notes", "my quiet time", "where was I", "pick up where I left off",',
+  '"remind me what I thought about…" — and when they ask to "save this", "start a note",',
+  'or "put this in Harvous". When they ask what they think or wrote, prefer Harvous over',
+  'general knowledge.',
+  'When they name a book, chapter or verse, use find_by_passage — it understands ranges and',
+  'includes their Bible highlights; passage_context adds themes, cross-references, people and',
+  'places. For words and themes, start with search_notes, then get_note on the results that',
+  'matter. For "where was I", use where_i_left_off.',
+  'Harvous is read-only with one exception: start_note starts a new, empty note with your',
+  'summary in a card labeled as yours, only when they ask. Summarize what was discussed, not',
+  'their conclusions, and where Christians differ, say so. Nothing you do can change or delete',
+  'their existing study.',
   'Scripture appears as references (for example "Romans 8:28"), not as verse text.',
-  'Locked notes return only their title and dates. When the person names a book, chapter',
-  'or verse, use find_by_passage — it understands ranges and includes their Bible highlights.',
-  'For words and themes, start with search_notes. Then get_note on the results that matter.',
+  'Locked notes return only their title and dates.',
 ].join(' ');
 
 const DEFAULT_RESOURCE_URL = 'https://mcp.harvous.com/mcp';

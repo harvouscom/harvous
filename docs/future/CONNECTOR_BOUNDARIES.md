@@ -84,7 +84,7 @@ See [LOCKED_NOTES_ENCRYPTION.md](../LOCKED_NOTES_ENCRYPTION.md).
 | Topic | Decision |
 |---|---|
 | **Pagination / scraping** | Paginated list/search, max page **25** (50 for `list_spaces`), cursors stop at offset **1,000**; **1,000 tool calls/day**, **60/min**; **no export endpoint**. Numbers live in `server/connector/config.ts`. |
-| **Writes** | **Never** — Connector stays **read-only permanently**. Creates/edits stay in the Harvous app (and deferred inbound SDK for partner writes). |
+| **Writes** | **Read-only, plus one create** (Oct 2026). `start_note` starts a new, empty note; nothing can edit or delete. Guardrails below under *start_note*. Every other create and edit stays in the Harvous app. |
 
 ### Discovery and launch
 
@@ -166,11 +166,35 @@ layer). Reference: Dotflowy teardown / MCP 2026-07-28 RC direction.
 **Do not:** cookie/session auth on `/mcp`; team/shared keys in v1; a second identity system (keys and
 OAuth both resolve to Clerk `userId`).
 
-### 5. Agent-native — reuse read path, read-only forever
+### 5. Agent-native — reuse read path; read-only plus one create
 
 - Tools call **`connectorReadService`**, not raw Drizzle and not parallel DB logic.
-- **No write tools, ever** — [redesign-exploration.md](./redesign-exploration.md) write-MCP ideas are
-  superseded by this doc.
+- **One write, deliberately:** `start_note` (`server/connector/write-service.ts`). "Read-only
+  forever" existed so an AI app couldn't drain study *out* of Harvous or rewrite it; starting a note
+  pulls study *in* and touches nothing that exists. No other write tools —
+  [redesign-exploration.md](./redesign-exploration.md) write-MCP ideas stay superseded.
+
+### start_note — the guardrails (Oct 2026)
+
+- **Create-only.** It takes no note id, so it can't be pointed at an existing note. It creates one
+  note in My Home's unorganized thread. `tools-contract.test.ts` pins that `write-service.ts` only
+  inserts into `Notes` and `NoteChatOrigins`, and only updates `UserMetadata` (the note counter) and
+  `Threads` (touched).
+- **The body starts empty.** The app's words go in a side-table card (`NoteChatOrigins`): a summary,
+  the passages as references, and the open question, labeled "From your Claude chat". This keeps the
+  promise that Harvous doesn't write your notes. The author can remove the card;
+  `Notes.addedBy = 'mcp-<app>'` keeps "Started in Claude" in the side panel.
+- **Asked every time.** The tool is not marked read-only (`readOnlyHint: false`,
+  `destructiveHint: false`), so clients confirm each call.
+- **Limits.**
+  - 20 notes a day (`NOTES_STARTED_PER_DAY`, `ConnectorUsageDays.notesStarted`), separate from the
+    1,000 reads.
+  - The app-wide note-create rate limit.
+  - Plus, as for every tool.
+- **An off switch.** Settings › Connector › "Let apps start notes" (`ConnectorPreferences`), on by
+  default. Turning it off is allowed even after Plus lapses.
+- **Your writing counts as yours.** The Study Bible layer counts `mcp-*` notes as the person's own
+  writing (`study-bible-layer.ts`), because the body is theirs.
 
 ---
 
@@ -225,9 +249,12 @@ Host on **Hono API** ([server/app.ts](../../server/app.ts)), not SPA:
 
 ---
 
-## MCP tool catalog (read-only)
+## MCP tool catalog
 
-Ten tools — scoped per guardrails above:
+Fourteen tools: thirteen read-only and one create, scoped per the guardrails above. Descriptions lead
+with the words people actually use ("what did I write about…", "where was I?", "save this to
+Harvous"), because that wording is how an assistant picks a tool. `tools-contract.test.ts` pins the
+key phrases, and `SERVER_INSTRUCTIONS` lists them.
 
 | Tool | Parameters | Notes |
 |---|---|---|
@@ -242,6 +269,10 @@ Ten tools — scoped per guardrails above:
 
 | `search` | `query` | ChatGPT deep research / company knowledge. A Bible reference runs `find_by_passage`, anything else `search_notes`; returns `{ results: [{ id, title, url }] }`. |
 | `fetch` | `id` | ChatGPT counterpart of `get_note`: `{ id, title, text, url, metadata }`. Locked notes return the locked message only. |
+| `where_i_left_off` | none | Added Oct 2026. Returns the note most recently worked with (`pickContinueNote`), the chapter to keep reading (`deriveContinueReading`) and 5 recent notes, from the same inputs Home uses. Owner-only. |
+| `list_notes_in_thread` | `threadId`, `limit`, `cursor` | Added Oct 2026. `requireThreadReadAccess`, then the member or personal thread query. Others' locked notes are dropped. |
+| `passage_context` | `passage` | Added Oct 2026. `getPassageContext`: theme labels, cross-references as reference strings, people and place names, and your related notes. No verse text. |
+| `start_note` | `title`, `summary`, `passages[]`, `question?` | Added Oct 2026. **The one create.** See *start_note — the guardrails*. |
 
 ChatGPT's research modes use only tools named exactly `search` and `fetch`, and cite only results
 with a non-empty `url` (https://developers.openai.com/api/docs/mcp). `url` is
@@ -252,8 +283,9 @@ Optional later: `get_thread` by id if agents need it.
 
 ### Prompts (v1.1)
 
-Four ready-made prompts appear in the assistant's "+" menu (`server/connector/prompts.ts`):
-`study_passage`, `prepare_for_group`, `recent_study`, `trace_theme`. They are only text — no Plus
+Six ready-made prompts appear in the assistant's "+" menu (`server/connector/prompts.ts`):
+`study_passage`, `prepare_for_group`, `recent_study`, `trace_theme`, and (Oct 2026) `pick_up` and
+`start_note_from_chat`. They are only text — no Plus
 check, no call against the daily limit; the tools they lead to stay gated. Every prompt carries one
 stance: start from what the person wrote and quote it, say whose words are whose, don't present the
 assistant's reading as theirs, say so when notes are thin rather than filling the gap, and point back
@@ -356,7 +388,7 @@ Both MCP tools and `GET /api/connector/*` call these functions — **no duplicat
 - [x] Tools call `connectorReadService`, not raw Drizzle
 - [x] Every tool scopes to authenticated `userId`
 - [x] Business refusals → `isError: true`; protocol errors → JSON-RPC codes
-- [x] No write tools, no bulk export, no locked-note plaintext
+- [x] No edit or delete tools (one create: `start_note`), no bulk export, no locked-note plaintext
 - [x] `.well-known` routes public and path-suffixed (`/mcp`)
 - [x] Clerk CIMD on (dev + live)
 - [ ] DNS, Fly secrets, schema, backfill (see *Going live*)

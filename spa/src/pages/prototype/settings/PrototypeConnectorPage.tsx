@@ -12,7 +12,9 @@ import {
   type CreatedConnectorToken,
 } from '../../../hooks/mutations/useConnectorToken';
 import { connectorSetupMessage } from '../../../lib/connector-setup-copy';
-import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
+import { connectorAppFromClientName } from '@/utils/connector-app-name';
+import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShell, SettingsToggleRow } from './SettingsShell';
+import { useSetAllowStartNotes } from '../../../hooks/mutations/useConnectorPreferences';
 
 /**
  * Settings › Connector — the Connector, part of Harvous Plus.
@@ -107,14 +109,8 @@ const TRY_ASKING = [
 
 /** Apps name themselves on connect ("Anthropic/ClaudeAI"); show the name people know. */
 export function displayAppName(raw: string): string {
-  const name = raw.trim();
-  if (/claude/i.test(name)) return 'Claude';
-  if (/chatgpt|openai/i.test(name)) return 'ChatGPT';
-  if (/cursor/i.test(name)) return 'Cursor';
-  if (/muse|meta[\s_-]?ai/i.test(name)) return 'Muse';
-  if (/grok|xai/i.test(name)) return 'Grok';
-  const last = name.split('/').pop()?.trim();
-  return last || 'Unknown app';
+  const app = connectorAppFromClientName(raw);
+  return app.slug === 'app' && app.name === 'an AI app' ? 'Unknown app' : app.name;
 }
 
 function StepNumber({ n }: { n: number }) {
@@ -233,6 +229,7 @@ export default function PrototypeConnectorPage() {
   const preview = isFeatureWithheld('connector');
   const { data, isLoading, isError, isFetched } = useConnectorStatus(connector.has || preview);
   const access = useConnectorClientAccess();
+  const setAllowStartNotes = useSetAllowStartNotes();
   const [app, setApp] = useState<AppKey>('claude');
   const allowed = connector.has || (preview && Boolean(data));
   // Plus already includes this — someone holding Plus during the preview is early, not unpaid.
@@ -275,8 +272,8 @@ export default function PrototypeConnectorPage() {
   return (
     <SettingsShell>
       <SettingsIntro>
-        Ask Claude, ChatGPT, or another AI app about your notes. They can read your study; they
-        can&rsquo;t change it.
+        Ask Claude, ChatGPT, or another AI app about your notes, and start a new note from a
+        chat. Apps can&rsquo;t change or delete anything you&rsquo;ve written.
       </SettingsIntro>
 
       {hasClients ? (
@@ -358,9 +355,20 @@ export default function PrototypeConnectorPage() {
         In Claude, Harvous also adds ready-made prompts to the + menu.
       </p>
 
+      <SectionLabel>Starting notes</SectionLabel>
+      <SettingsGroup>
+        <SettingsToggleRow
+          label="Let apps start notes"
+          sublabel="“Save this to Harvous” starts a new note. The page is yours."
+          checked={data?.preferences?.allowStartNotes ?? true}
+          disabled={!data || setAllowStartNotes.isPending}
+          onChange={(next) => setAllowStartNotes.mutate(next)}
+        />
+      </SettingsGroup>
+
       <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '4px 0 0' }}>
-        Read-only. Apps can&rsquo;t add, edit, or delete anything. Locked notes stay locked, and
-        Scripture is shared as references only.
+        Apps can read your study and start a new note. They can&rsquo;t change or delete anything.
+        Locked notes stay locked, and Scripture is shared as references only.
       </p>
     </SettingsShell>
   );

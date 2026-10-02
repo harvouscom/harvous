@@ -42,7 +42,7 @@ import {
 } from '../../../lib/push-reminders';
 import { profileQueryKey, useProfile } from '../../../hooks/queries/useProfile';
 import PrototypeInstallWebAppSheet from '../PrototypeInstallWebAppSheet';
-import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
+import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell, SettingsToggleRow } from './SettingsShell';
 
 /** Debounce on the schedule writes: a run of taps on the hour select is one edit, not six. */
 const SAVE_DEBOUNCE_MS = 500;
@@ -58,55 +58,6 @@ function zoneLabel(timezone: string | null | undefined): string | null {
   if (!timezone) return null;
   const tail = timezone.split('/').pop();
   return tail ? tail.replace(/_/g, ' ') : timezone;
-}
-
-function ToggleRow({
-  label,
-  sublabel,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  sublabel?: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <div className={`proto-note-row proto-note-row--static${disabled ? ' proto-note-row--disabled' : ''}`}>
-      <span className="proto-settings-list-row__main">
-        <span className="pds-list-title" style={{ color: 'var(--pds-text-primary)' }}>{label}</span>
-        {sublabel ? (
-          <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>{sublabel}</span>
-        ) : null}
-      </span>
-      <span className="proto-settings-list-row__trailing">
-        <span
-          className="proto-fte-switch"
-          // An "on" switch at full strength directly under "Notifications are blocked" reads
-          // as a contradiction. Dimming says the setting is real but not currently in effect.
-          style={disabled ? { opacity: 0.4 } : undefined}
-          data-on={checked ? 'true' : 'false'}
-          role="switch"
-          aria-checked={checked}
-          aria-disabled={disabled}
-          aria-label={label}
-          tabIndex={disabled ? -1 : 0}
-          onClick={() => !disabled && onChange(!checked)}
-          onKeyDown={(e) => {
-            if (disabled) return;
-            if (e.key === ' ' || e.key === 'Enter') {
-              e.preventDefault();
-              onChange(!checked);
-            }
-          }}
-        >
-          <span className="proto-fte-switch__thumb" />
-        </span>
-      </span>
-    </div>
-  );
 }
 
 function CadenceSegmented({
@@ -460,14 +411,14 @@ export default function PrototypeRemindersPage() {
 
       {settings.cadence === 'twice-weekly' ? (
         <SettingsGroup>
-          <ToggleRow
+          <SettingsToggleRow
             label="Sunday morning"
             sublabel="Before church, with the day's verse."
             checked={settings.sunday}
             disabled={scheduleDisabled}
             onChange={(sunday) => save({ ...settings, sunday })}
           />
-          <ToggleRow
+          <SettingsToggleRow
             label="Midweek"
             sublabel={`On ${midweekDayLabel(settings.midweekDay)}.`}
             checked={settings.midweek}
@@ -496,7 +447,7 @@ export default function PrototypeRemindersPage() {
           nowhere. Off by default; at most once a day, in daytime, never while in the app. */}
       {profile?.connectedOrgId ? (
         <SettingsGroup>
-          <ToggleRow
+          <SettingsToggleRow
             label="New from your church"
             sublabel="When channels you follow share something. At most once a day."
             checked={Boolean(settings.churchUpdates)}

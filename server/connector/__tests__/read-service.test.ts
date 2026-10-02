@@ -8,6 +8,7 @@ function chain(): unknown {
   for (const m of ['from', 'where', 'limit', 'orderBy', 'innerJoin', 'offset']) c[m] = () => c;
   c.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
     Promise.resolve(rows).then(resolve, reject);
+  c.catch = (reject: (e: unknown) => unknown) => Promise.resolve(rows).catch(reject);
   return c;
 }
 
@@ -18,6 +19,8 @@ vi.mock('../../db', () => {
     Notes: table,
     ScriptureMetadata: table,
     StudyThreadEntries: table,
+    UserMetadata: table,
+    ReadingEvents: table,
     ...Object.fromEntries(
       ['eq', 'and', 'or', 'ne', 'not', 'isNull', 'isNotNull', 'desc', 'asc', 'inArray', 'notInArray', 'count', 'like', 'gt', 'gte', 'lt', 'lte'].map(
         (k) => [k, () => null],
@@ -67,8 +70,30 @@ vi.mock('../../utils/dashboard-data', () => {
     getMemberOfSpaces: (...a: unknown[]) => getMemberOfSpaces(...a),
     getNotesForSpace: vi.fn(),
     getNotesForSharedSpace: vi.fn(),
+    getNotesForThread: (...a: unknown[]) => getNotesForThread(...a),
+    getNotesForThreadForMember: (...a: unknown[]) => getNotesForThreadForMember(...a),
   };
 });
+const getNotesForThread = vi.fn();
+const getNotesForThreadForMember = vi.fn();
+const requireThreadReadAccess = vi.fn();
+const { SharedSpaceLifecycleError } = vi.hoisted(() => ({ SharedSpaceLifecycleError: class extends Error {} }));
+vi.mock('../../utils/shared-space-lifecycle', () => ({
+  requireThreadReadAccess: (...a: unknown[]) => requireThreadReadAccess(...a),
+  SharedSpaceLifecycleError,
+}));
+const getPassageContext = vi.fn();
+vi.mock('../../utils/scripture-knowledge', () => ({
+  getPassageContext: (...a: unknown[]) => getPassageContext(...a),
+}));
+const getUserNoteVisitAggregate = vi.fn();
+vi.mock('../../utils/record-note-visit', () => ({
+  getUserNoteVisitAggregate: (...a: unknown[]) => getUserNoteVisitAggregate(...a),
+}));
+vi.mock('../../utils/record-reading-event', () => ({
+  // One row per chapter already; the real collapse is tested with record-reading-event.
+  collapseReadingHistory: (rows: Array<Record<string, unknown>>) => rows.map((r) => ({ ...r, lastReadAt: null })),
+}));
 vi.mock('../../utils/search-notes-query', () => ({ searchNoteRows: vi.fn(), classifySearchScope: vi.fn() }));
 vi.mock('../../utils/space-study-threads', () => ({ listStudyThreadsForSpace: vi.fn() }));
 vi.mock('../../utils/study-thread-space', () => ({ collectStudyThreadGraphForScope: vi.fn() }));
@@ -308,5 +333,76 @@ describe('ChatGPT search / fetch', () => {
     const doc = await reads.fetchForResearch(ME, 'note_1');
     expect(doc.metadata).toEqual({ locked: 'true' });
     expect(doc.text).not.toContain('ciphertext');
+  });
+});
+
+describe('list_notes_in_thread', () => {
+  it('lists a shared thread as a member sees it, dropping other members’ locked notes', async () => {
+    requireThreadReadAccess.mockResolvedValue({ thread: { id: 'thread_r', title: 'Romans series', spaceId: 'space_g' } });
+    requireSpaceAccess.mockResolvedValue({ space: { id: 'space_g', type: 'shared', title: 'Group' } });
+    getNotesForThreadForMember.mockResolvedValue({
+      notes: [
+        note({ id: 'mine', authorUserId: ME }),
+        note({ id: 'theirs_open', authorUserId: THEM }),
+        note({ id: 'theirs_locked', authorUserId: THEM, contentEncrypted: true }),
+      ],
+      hasMore: false,
+    });
+    const out = await reads.listNotesInThread(ME, { threadId: 'thread_r', limit: 20 });
+    expect(out.thread).toEqual({ id: 'thread_r', title: 'Romans series' });
+    expect(out.notes.map((n) => n.id)).toEqual(['mine', 'theirs_open']);
+    expect(getNotesForThread).not.toHaveBeenCalled();
+  });
+
+  it('refuses a thread the person cannot read', async () => {
+    requireThreadReadAccess.mockRejectedValue(new SharedSpaceLifecycleError('nope'));
+    await expect(reads.listNotesInThread(ME, { threadId: 'thread_x', limit: 20 })).rejects.toMatchObject({ code: 'not_found' });
+  });
+});
+
+describe('passage_context', () => {
+  it('returns names and references for the knowledge layer, and never verse text', async () => {
+    getPassageContext.mockResolvedValue({
+      themes: [{ topicId: 't', slug: 'hope', label: 'Hope', relevance: 1 }],
+      crossReferences: [
+        { book: 'Genesis', chapterStart: 50, chapterEnd: 50, verseStart: 20, verseEnd: 20, votes: 9 },
+        { book: 'Exodus', chapterStart: 6, chapterEnd: 7, verseStart: 28, verseEnd: 7, votes: 3 },
+      ],
+      people: [{ id: 'p', slug: 'paul', name: 'Paul' }],
+      places: [{ id: 'r', slug: 'rome', name: 'Rome' }],
+      relatedNotes: [{ noteId: 'note_9', title: 'Suffering', reason: 'Cross-reference' }],
+    });
+    const out = await reads.passageContext(ME, { passage: 'romans 8:28' });
+    expect(out).toEqual({
+      passage: 'Romans 8:28',
+      themes: ['Hope'],
+      crossReferences: ['Genesis 50:20', 'Exodus 6:28-7:7'],
+      people: ['Paul'],
+      places: ['Rome'],
+      yourRelatedNotes: [{ id: 'note_9', title: 'Suffering', reason: 'Cross-reference', url: 'https://app.harvous.com/note/note_9' }],
+    });
+    expect(getPassageContext).toHaveBeenCalledWith(ME, [{ book: 'Romans', chapter: 8, verse: 28 }], { relatedLimit: 8 });
+    expect(JSON.stringify(out)).not.toMatch(/"(text|verseText|html)"/);
+  });
+
+  it('refuses something that is not a reference', async () => {
+    await expect(reads.passageContext(ME, { passage: 'grace' })).rejects.toMatchObject({ code: 'bad_request' });
+  });
+});
+
+describe('where_i_left_off', () => {
+  it('picks the note most recently worked with, edited or read, and the chapter to keep reading', async () => {
+    const day = (n: number) => new Date(Date.UTC(2026, 9, n));
+    getUserNoteVisitAggregate.mockResolvedValue([{ noteId: 'note_read', count: 2, lastVisitedAt: day(5).toISOString() }]);
+    selectResults.push(
+      [note({ id: 'note_edit', updatedAt: day(3), createdAt: day(1) }), note({ id: 'note_read', updatedAt: day(1), createdAt: day(1) })],
+      [{ lastReadPosition: JSON.stringify({ book: 'Romans', bookOrder: 44, chapter: 8, translation: 'NET', readAt: day(5).toISOString() }) }],
+      [{ book: 'Romans', bookOrder: 44, chapter: 8, dwellBucket: 'read', createdAt: day(5) }],
+    );
+    const out = await reads.whereILeftOff(ME);
+    expect(out.continueNote?.id).toBe('note_read');
+    expect(out.continueNote?.url).toBe('https://app.harvous.com/note/note_read');
+    expect(out.continueReading).toMatchObject({ reference: 'Romans 9', reason: 'next' });
+    expect(out.recentNotes.map((n) => n.id)).toEqual(['note_edit']);
   });
 });

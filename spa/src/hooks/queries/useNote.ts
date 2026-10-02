@@ -92,7 +92,22 @@ export interface StudyThreadEntryDetail {
   isOwnHighlight?: boolean;
 }
 
+/**
+ * The card an AI app's `start_note` left on a note: the app's summary, the passages and the
+ * open question. The author's only — the server never sends it on a shared view.
+ */
+export interface NoteChatOrigin {
+  /** "Claude", "ChatGPT", "Grok", "Muse", or the app's own name. */
+  appName: string;
+  summary: string;
+  passages: string[];
+  question?: string | null;
+  createdAt: string;
+}
+
 export interface NoteDetail {
+  /** Present only on a note an AI app started, until its author removes the card. */
+  chatOrigin?: NoteChatOrigin | null;
   id: string;
   title: string | null;
   content: string | null;
@@ -200,6 +215,7 @@ export interface NoteDetail {
 
 interface NoteDetailResponse {
   success: boolean;
+  chatOrigin?: NoteChatOrigin;
   note: Omit<NoteDetail, 'threads' | 'tags' | 'spaces' | 'linkedFromNotes' | 'linkedToNotes' | 'studyThreads'>;
   threads: NoteDetail['threads'];
   tags?: NoteDetail['tags'];
@@ -603,6 +619,7 @@ export function getNoteQueryOptions(noteId: string, contextSpaceId?: string | nu
               collectionPinned: organization.collectionPinned,
             }
           : {}),
+        chatOrigin: res.chatOrigin ?? null,
         threads: res.threads ?? [],
         tags: res.tags ?? [],
         linkedFromNotes: Array.isArray(res.linkedFromNotes) ? res.linkedFromNotes : [],

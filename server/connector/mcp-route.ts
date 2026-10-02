@@ -172,6 +172,7 @@ connector.post('/mcp', async (c) => {
   });
   registerConnectorTools(server, {
     userId: auth.userId,
+    clientId: auth.clientId,
     beforeCall: createBeforeCall(auth),
     afterCall: (tool, outcome, ms) =>
       console.info(`[connector] tool=${tool} user=${auth.userId} client=${auth.clientId} outcome=${outcome} ms=${ms}`),

@@ -85,10 +85,10 @@ describe('POST /mcp', () => {
     expect(touch).toHaveBeenCalledWith('user_1', 'client_1', 'Claude');
   });
 
-  it('lists exactly the ten read-only tools', async () => {
+  it('lists fourteen tools: start_note the one that is not read-only', async () => {
     const res = await rpc('tools/list');
     const body = await res.json();
-    const tools = body.result.tools as Array<{ name: string; annotations: { readOnlyHint: boolean } }>;
+    const tools = body.result.tools as Array<{ name: string; annotations: { readOnlyHint: boolean; destructiveHint: boolean } }>;
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
         'fetch',
@@ -97,23 +97,28 @@ describe('POST /mcp', () => {
         'get_note',
         'get_shared_note',
         'list_notes_in_space',
+        'list_notes_in_thread',
         'list_spaces',
         'list_study_thread_connections',
         'list_threads_in_space',
+        'passage_context',
         'search_notes',
+        'start_note',
+        'where_i_left_off',
       ].sort(),
     );
-    expect(tools.every((t) => t.annotations.readOnlyHint === true)).toBe(true);
+    expect(tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name)).toEqual(['start_note']);
+    expect(tools.every((t) => t.annotations.destructiveHint === false)).toBe(true);
     // Listing tools is free and needs no subscription.
     expect(hasAccess).not.toHaveBeenCalled();
     expect(consume).not.toHaveBeenCalled();
   });
 
-  it('lists four prompts, and fills one in without a subscription or a tool call', async () => {
+  it('lists six prompts, and fills one in without a subscription or a tool call', async () => {
     hasAccess.mockResolvedValue(false);
     const list = await (await rpc('prompts/list')).json();
     expect(list.result.prompts.map((p: { name: string }) => p.name).sort()).toEqual(
-      ['prepare_for_group', 'recent_study', 'study_passage', 'trace_theme'],
+      ['pick_up', 'prepare_for_group', 'recent_study', 'start_note_from_chat', 'study_passage', 'trace_theme'],
     );
     const got = await (await rpc('prompts/get', { name: 'study_passage', arguments: { passage: 'Romans 8' } })).json();
     const text = got.result.messages[0].content.text as string;

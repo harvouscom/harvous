@@ -194,6 +194,14 @@ const importDesignGalleryRoute = import.meta.env.DEV
     })
   : null;
 
+const connectorDesignRoute = import.meta.env.DEV
+  ? createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/__dev/connector-design',
+      component: lazyRouteComponent(() => import('./pages/dev/ConnectorDesignPage')),
+    })
+  : null;
+
 function buildClassicRedirectRoutes() {
   const classicRootRedirect =
     !isDedicatedPrototypeHost() && !isStatusHost()
@@ -312,6 +320,7 @@ function buildRouteTree() {
     ...(sharedSpacesDesignGalleryRoute ? [sharedSpacesDesignGalleryRoute] : []),
     ...(churchDesignGalleryRoute ? [churchDesignGalleryRoute] : []),
     ...(importDesignGalleryRoute ? [importDesignGalleryRoute] : []),
+    ...(connectorDesignRoute ? [connectorDesignRoute] : []),
     buildPrototypeRouteBranch(rootRoute),
     notFoundRoute,
   ]);

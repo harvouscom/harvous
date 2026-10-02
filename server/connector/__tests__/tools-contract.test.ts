@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CONNECTOR_TOOL_NAMES } from '../tools';
-import { PAGE_MAX, SPACES_PAGE_MAX } from '../config';
+import { PAGE_MAX, SERVER_INSTRUCTIONS, SPACES_PAGE_MAX } from '../config';
 
 const dir = resolve(process.cwd(), 'server/connector');
 const raw = (file: string) => readFileSync(resolve(dir, file), 'utf8');
@@ -13,31 +13,37 @@ const source = (file: string) =>
     .replace(/^\s*\/\/.*$/gm, '');
 const moduleFiles = readdirSync(dir).filter((f) => f.endsWith('.ts'));
 
-describe('the Connector stays read-only (docs/future/CONNECTOR_BOUNDARIES.md)', () => {
-  it('ships exactly ten tools, every one annotated read-only', () => {
-    expect(CONNECTOR_TOOL_NAMES).toHaveLength(10);
+describe('the Connector stays read-only, plus one create (docs/future/CONNECTOR_BOUNDARIES.md)', () => {
+  it('ships fourteen tools: thirteen read-only, and start_note the one create', () => {
+    expect(CONNECTOR_TOOL_NAMES).toHaveLength(14);
     const tools = source('tools.ts');
-    const registrations = tools.match(/server\.registerTool\(/g) ?? [];
-    expect(registrations).toHaveLength(10);
-    const readOnlySpreads = tools.match(/\.\.\.READ_ONLY \}/g) ?? [];
-    expect(readOnlySpreads).toHaveLength(10);
+    expect(tools.match(/server\.registerTool\(/g) ?? []).toHaveLength(14);
+    expect(tools.match(/\.\.\.READ_ONLY \}/g) ?? []).toHaveLength(13);
+    expect(tools.match(/\.\.\.CREATES_A_NOTE \}/g) ?? []).toHaveLength(1);
+    expect(tools).toMatch(/'start_note',\s*\{[\s\S]*?\.\.\.CREATES_A_NOTE \}/);
     expect(tools).toContain('readOnlyHint: true');
     expect(tools).toContain('destructiveHint: false');
+    expect(tools).not.toContain('destructiveHint: true');
   });
 
-  it('never imports a helper that writes as a side effect', () => {
+  it('never imports a helper that writes as a side effect — write-service may make the thread a note needs', () => {
     for (const file of moduleFiles) {
       const text = source(file);
-      for (const writer of ['ensurePersonalHomeSpace', 'healScriptureNoteThreadsFromParents', 'ensureUnorganizedThread']) {
+      const banned = ['ensurePersonalHomeSpace', 'healScriptureNoteThreadsFromParents'];
+      if (file !== 'write-service.ts') banned.push('ensureUnorganizedThread');
+      for (const writer of banned) {
         expect(text, `${file} must not use ${writer}`).not.toContain(writer);
       }
     }
   });
 
-  it('only usage.ts and tokens.ts write, and only the Connector’s own bookkeeping tables', () => {
+  it('writes only from its own modules, and only to the tables each one owns', () => {
     const writers: Record<string, string[]> = {
       'usage.ts': ['ConnectorClients', 'ConnectorUsageDays'],
       'tokens.ts': ['ConnectorApiKeys'],
+      'preferences.ts': ['ConnectorPreferences'],
+      // start_note: insert one note and its card; bump the note counter and touch the thread.
+      'write-service.ts': ['Notes', 'NoteChatOrigins', 'UserMetadata', 'Threads'],
     };
     for (const file of moduleFiles.filter((f) => !(f in writers))) {
       expect(source(file), file).not.toMatch(/(db|tx)\s*\.(insert|update|delete)\(/);
@@ -46,6 +52,28 @@ describe('the Connector stays read-only (docs/future/CONNECTOR_BOUNDARIES.md)', 
       for (const m of source(file).matchAll(/(db|tx)\s*\.(insert|update|delete)\((\w+)\)/g)) {
         expect(tables, file).toContain(m[3]);
       }
+    }
+  });
+
+  it('start_note can only create: it never updates or deletes a note', () => {
+    const write = source('write-service.ts');
+    expect(write).not.toMatch(/\.delete\(/);
+    expect(write).not.toMatch(/\.update\(Notes\)/);
+    expect(write).toMatch(/\.insert\(Notes\)/);
+    // It takes no note id, so it cannot be pointed at an existing note.
+    const tools = source('tools.ts');
+    const registration = tools.slice(tools.indexOf("server.registerTool(\n    'start_note'"));
+    expect(registration).toContain('...CREATES_A_NOTE }');
+    expect(registration.slice(0, registration.indexOf('...CREATES_A_NOTE }'))).not.toMatch(/noteId|spaceId|threadId/);
+  });
+
+  it('routes by the words people use: the key phrases stay in the instructions and descriptions', () => {
+    for (const phrase of ['my notes', 'my Bible study', 'where was I', 'pick up where I left off', 'save this', 'start a note']) {
+      expect(SERVER_INSTRUCTIONS, phrase).toContain(phrase);
+    }
+    const tools = raw('tools.ts');
+    for (const phrase of ['what did I write about', 'Romans 8', 'where was I?', 'save this to Harvous', 'cross-references']) {
+      expect(tools, phrase).toContain(phrase);
     }
   });
 
