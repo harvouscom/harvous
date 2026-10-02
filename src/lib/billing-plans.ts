@@ -74,11 +74,10 @@ export type FeatureKey = (typeof FEATURE_KEYS)[number];
  * launching by accident. Nothing is deleted: five routes, two pages and four templates stay
  * exactly as they are. See docs/future/CHALLENGES_AS_SUGGESTIONS.md.
  *
- * `connector` is here until the MCP server has been dogfooded in production. Launching it is
- * deleting it from this list; preview accounts reach it through `CONNECTOR_PREVIEW_USER_IDS`
- * (server/connector/access.ts), which reads entitlement rows directly.
+ * `connector` sat here through its production dogfood (preview accounts reached it through
+ * `CONNECTOR_PREVIEW_USER_IDS`) and was launched to every Plus subscriber in October 2026.
  */
-export const WITHHELD_FEATURES: readonly FeatureKey[] = ['challenges', 'connector'];
+export const WITHHELD_FEATURES: readonly FeatureKey[] = ['challenges'];
 
 /** Is this feature switched off for everyone, regardless of what they hold? */
 export function isFeatureWithheld(key: FeatureKey): boolean {

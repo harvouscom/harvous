@@ -146,12 +146,9 @@ describe('pricing model', () => {
     );
   });
 
-  /*
-   * Withheld until the MCP server has been dogfooded in production. Launching it is deleting
-   * 'connector' from WITHHELD_FEATURES — and this test with it, on purpose.
-   */
-  it('connector is withheld until launch', () => {
-    expect(isFeatureWithheld('connector')).toBe(true);
+  // Launched October 2026 after a production dogfood: every Plus subscriber holds it, live.
+  it('connector is launched — not withheld', () => {
+    expect(isFeatureWithheld('connector')).toBe(false);
     expect(isFeatureKey('connector')).toBe(true);
   });
 
