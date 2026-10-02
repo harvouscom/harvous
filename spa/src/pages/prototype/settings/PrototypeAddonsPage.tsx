@@ -165,7 +165,7 @@ export default function PrototypeAddonsPage() {
         <div className="proto-settings-plan__body">
           <PlanFeatureList items={featureBullets} />
 
-          {connector.has ? (
+          {connector.has || subscription?.connectorPreview ? (
             <SettingsGroup>
               <SettingsRow
                 label="Claude & ChatGPT"

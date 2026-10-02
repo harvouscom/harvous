@@ -54,9 +54,14 @@ export function isLegacyScriptureNote(noteType: string | null | undefined): bool
   return noteType === 'scripture';
 }
 
+/**
+ * `stripHtmlForPreview` joins adjacent blocks with nothing between them ("…for ArkNow what…"),
+ * so mark every block and line boundary with a space first.
+ */
 export function snippetFromHtml(html: string | null | undefined): string | null {
   if (!html?.trim()) return null;
-  const text = stripHtmlForPreview(html, SNIPPET_CHARS).trim();
+  const spaced = html.replace(/<\/(p|div|li|h[1-6]|blockquote|pre)>|<br\s*\/?>/gi, '$& ');
+  const text = stripHtmlForPreview(spaced, SNIPPET_CHARS).replace(/\s+/g, ' ').trim();
   return text || null;
 }
 

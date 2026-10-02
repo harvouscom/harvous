@@ -3,7 +3,7 @@ import { prototypeSettingsAccountRouteTo } from '@/lib/prototype-path';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
-import { SETTINGS_CATEGORIES } from './settingsCategories';
+import { useSettingsCategories } from './settingsCategories';
 import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
 import SettingsAdminShortcut from './SettingsAdminShortcut';
 
@@ -18,6 +18,7 @@ export default function PrototypeSettingsIndex() {
   const { isMobileSidebar } = useProtoShell();
   const navigate = useNavigate();
   const { data: profile } = useProfile();
+  const categories = useSettingsCategories();
 
   if (!isMobileSidebar) {
     // Typed route — string hrefs from SETTINGS_CATEGORIES can miss the route tree and
@@ -35,7 +36,7 @@ export default function PrototypeSettingsIndex() {
   return (
     <SettingsShell>
       <SettingsGroup>
-        {SETTINGS_CATEGORIES.map((cat) => (
+        {categories.map((cat) => (
           <SettingsRow
             key={cat.key}
             label={cat.title}

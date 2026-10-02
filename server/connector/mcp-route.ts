@@ -18,7 +18,8 @@ import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { SERVER_INFO, SERVER_INSTRUCTIONS } from './config';
+import { SERVER_INSTRUCTIONS, serverInfo } from './config';
+import { CONNECTOR_ICON_PNG_BASE64 } from './icon';
 import { authenticateConnectorRequest, unauthorizedResponse, type ConnectorAuth } from './auth';
 import { hasConnectorAccess, notSubscribedMessage } from './access';
 import { authorizationServerMetadata, protectedResourceMetadata } from './oauth-metadata';
@@ -121,6 +122,20 @@ connector.get('/.well-known/oauth-authorization-server', async (c) => {
   }
 });
 
+// The connector's own icon, full-bleed, so clients don't fall back to the padded site favicon.
+const iconBytes = Buffer.from(CONNECTOR_ICON_PNG_BASE64, 'base64');
+function serveIcon() {
+  return new Response(iconBytes, {
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=86400',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+}
+connector.get('/icon.png', serveIcon);
+connector.get('/favicon.ico', serveIcon);
+
 connector.on(['GET', 'DELETE'], '/mcp', (c) =>
   c.json(
     { jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed. This server is stateless: POST only.' }, id: null },
@@ -150,7 +165,7 @@ connector.post('/mcp', async (c) => {
   const clientName = initializeClientName(parsedBody);
   if (clientName) void touchConnectorClient(auth.userId, auth.clientId, clientName);
 
-  const server = new McpServer(SERVER_INFO, {
+  const server = new McpServer(serverInfo(), {
     instructions: SERVER_INSTRUCTIONS,
     capabilities: { tools: {} },
   });
