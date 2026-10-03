@@ -57,7 +57,7 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
     expect(bullets[2]).toBe('Review exercises');
     expect(bullets[3]).toBe('Unlimited shared spaces');
     // Connector, launched into Plus Oct 2026 — sold only because it is switched on.
-    expect(bullets).toContain('Use your study in Claude and ChatGPT');
+    expect(bullets).toContain('Use your study in AI apps like Claude and ChatGPT');
     expect(bullets).toHaveLength(8);
   });
 
