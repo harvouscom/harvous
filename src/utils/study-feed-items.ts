@@ -95,6 +95,8 @@ export interface StudyFeedNoteItem extends StudyFeedItemBase, StudyFeedNoteSubje
   scriptureRefs: string[];
   /** How many saves the bucket collapsed, on `note-updated` only. */
   saveCount?: number;
+  /** A locked note: no snippet (its body is ciphertext), and the card says "Locked" instead. */
+  locked?: boolean;
 }
 
 export interface StudyFeedHighlightItem extends StudyFeedItemBase {

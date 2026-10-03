@@ -20,6 +20,7 @@ import Icon from '@/components/react/Icon';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import { PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 import type { ShellMode } from '../../hooks/useShellModeNav';
+import { playSound } from '@/utils/sounds';
 
 /* Reading sits beside Activity; composing is the far end of the row. */
 const MODE_INDEX: Record<ShellMode, number> = { activity: 0, reader: 1, note: 2 };
@@ -125,6 +126,8 @@ export default function ShellModeSegmented({
            */
           onClick={() => {
             if (mode !== 'activity') {
+              // The mode bar's detent, heard only when the mode actually changes.
+              playSound('nav.select');
               onOpenActivity();
               return;
             }
@@ -157,7 +160,9 @@ export default function ShellModeSegmented({
           aria-label={mode === 'reader' ? 'Bible' : 'Read the Bible'}
           disabled={disabled}
           onClick={() => {
-            if (mode !== 'reader') onOpenReader();
+            if (mode === 'reader') return;
+            playSound('nav.select');
+            onOpenReader();
           }}
         >
           <Icon name="book-open" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
@@ -178,7 +183,10 @@ export default function ShellModeSegmented({
           title={noteLabel}
           aria-label={noteLabel}
           disabled={noteDisabled}
-          onClick={onOpenNote}
+          onClick={() => {
+            if (mode !== 'note') playSound('nav.select');
+            onOpenNote();
+          }}
         >
           <Icon name="pen-to-square" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
         </button>

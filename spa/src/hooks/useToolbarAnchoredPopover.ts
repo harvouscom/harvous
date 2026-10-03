@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROTO_POPOVER_MOTION_MS } from '../layouts/proto-motion';
+import { playSound } from '@/utils/sounds';
 
 function popoverMotionMs(): number {
   if (typeof window === 'undefined') return PROTO_POPOVER_MOTION_MS;
@@ -25,15 +26,17 @@ export function useToolbarAnchoredPopover() {
   const openFrom = useCallback(
     (el: HTMLElement | null) => {
       if (!el) return;
+      if (!anchorRect || exiting) playSound('nav.open');
       clearExitTimer();
       setExiting(false);
       setAnchorRect(el.getBoundingClientRect());
     },
-    [clearExitTimer],
+    [anchorRect, exiting, clearExitTimer],
   );
 
   const dismiss = useCallback(() => {
     if (!anchorRect || exiting) return;
+    playSound('nav.close');
     setExiting(true);
     timerRef.current = setTimeout(() => {
       setAnchorRect(null);

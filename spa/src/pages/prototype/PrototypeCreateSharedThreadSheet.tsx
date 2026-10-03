@@ -12,6 +12,7 @@ import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
+import { playSound } from '@/utils/sounds';
 
 type Props = {
   open: boolean;
@@ -90,6 +91,7 @@ export default function PrototypeCreateSharedThreadSheet({
       await setCurrent.mutateAsync({ spaceId, threadId: thread.id });
       setCreatedThread(null);
       setTitle('');
+      playSound('organize.filed');
       onOpenChange(false);
       onCreated({ ...thread, isPinned: true });
       try {

@@ -183,6 +183,16 @@ export const RATE_LIMITS = {
   IMPORT_NOTE_CREATE_PER_HOUR: {
     maxRequests: 1500,
     windowMs: 60 * 60 * 1000
+  },
+  /**
+   * Lock-PIN checks (verify, change, remove). A lock PIN is four digits — 10,000 guesses
+   * cover every one — so this bucket is sized for a person mistyping, not for throughput.
+   * Every PIN endpoint draws from ONE shared bucket (see `rateLimitMiddleware`), so an
+   * attacker cannot rotate between verify and change to triple their guesses.
+   */
+  LOCK_PIN: {
+    maxRequests: 10,
+    windowMs: 15 * 60 * 1000
   }
 } as const;
 
@@ -312,7 +322,10 @@ export function tryConsumeImportNoteCreates(
  * their own, larger buckets — see RATE_LIMITS.NOTE_SAVE and RATE_LIMITS.NOTE_VISIT for why
  * writes the user did not explicitly ask for cannot share WRITE.
  */
-export type RateLimitType = 'read' | 'write' | 'note-save' | 'note-visit';
+export type RateLimitType = 'read' | 'write' | 'note-save' | 'note-visit' | 'lock-pin';
+
+/** Shared bucket key for every lock-PIN endpoint — one budget, whichever path is called. */
+const LOCK_PIN_BUCKET = 'lock-pin';
 
 /**
  * Middleware function for rate limiting API endpoints
@@ -324,6 +337,18 @@ export function rateLimitMiddleware(
   ip?: string
 ): { allowed: boolean; error?: string; remaining?: number; resetTime?: number } {
   const isInviteEndpoint = endpoint.includes('members/invite');
+  if (type === 'lock-pin') {
+    const result = checkRateLimit(userId, LOCK_PIN_BUCKET, RATE_LIMITS.LOCK_PIN, ip);
+    if (!result.allowed) {
+      return {
+        allowed: false,
+        error: 'Too many PIN attempts. Try again in a few minutes.',
+        remaining: result.remaining,
+        resetTime: result.resetTime
+      };
+    }
+    return { allowed: true, remaining: result.remaining, resetTime: result.resetTime };
+  }
   const config = isInviteEndpoint
     ? RATE_LIMITS.INVITE
     : type === 'read'

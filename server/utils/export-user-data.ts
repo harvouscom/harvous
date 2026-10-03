@@ -29,6 +29,20 @@ export type ExportFormat = 'csv-threads' | 'markdown' | 'text';
 /** Folder label used for notes with no primary collection. */
 const UNSORTED_FOLDER = 'Unsorted';
 
+/**
+ * What a locked note exports as. Its stored body is AES-GCM ciphertext keyed by the
+ * user's PIN, which the server never has — so a readable export can't contain its text,
+ * and base64 in a Markdown file reads as corruption. The backup zip keeps the ciphertext
+ * in `manifest.json` so nothing is lost.
+ */
+export const LOCKED_NOTE_EXPORT_PLACEHOLDER = 'This note is locked. Unlock it in Harvous to export its text.';
+
+/** The body to write for a note: its HTML, or the placeholder when it is locked. */
+export function exportableNoteBody(note: { content: string | null; contentEncrypted?: boolean | null }): string {
+  if (note.contentEncrypted) return `<p>${LOCKED_NOTE_EXPORT_PLACEHOLDER}</p>`;
+  return note.content || '';
+}
+
 /** Coerce a DB timestamp (Date | string | null) to an ISO string for portable meta. */
 function isoOrNull(value: Date | string | null | undefined): string | null {
   if (value == null) return null;
@@ -44,6 +58,7 @@ export async function generateUserExport(
       id: Notes.id,
       title: Notes.title,
       content: Notes.content,
+      contentEncrypted: Notes.contentEncrypted,
       primaryCollection: Notes.primaryCollection,
       secondaryCollections: Notes.secondaryCollections,
       spaceId: Notes.spaceId,
@@ -150,7 +165,7 @@ export async function generateUserExport(
         scriptureReference: scripture?.reference || null,
         scriptureTranslation: scripture?.translation || null,
       },
-      note.content || '',
+      exportableNoteBody(note),
       highlights,
     ).trim();
   };
@@ -166,7 +181,7 @@ export async function generateUserExport(
       const tags = noteTagsMap.get(note.id) || [];
       const secondary = parseNoteSecondaryCollections(note.secondaryCollections);
       const highlights = studyRowsToPortableHighlights(studyThreadsByNote.get(note.id) || []);
-      const plainContent = htmlToPlainText(note.content || '');
+      const plainContent = htmlToPlainText(exportableNoteBody(note));
       rows.push([
         escapeCSV(note.primaryCollection || UNSORTED_FOLDER),
         escapeCSV(secondary.join('; ')),
@@ -219,6 +234,7 @@ export async function generateUserBackupZip(
       id: Notes.id,
       title: Notes.title,
       content: Notes.content,
+      contentEncrypted: Notes.contentEncrypted,
       primaryCollection: Notes.primaryCollection,
       secondaryCollections: Notes.secondaryCollections,
       spaceId: Notes.spaceId,
@@ -314,7 +330,15 @@ export async function generateUserBackupZip(
 
   const zip = new JSZip();
   const usedPaths = new Set<string>();
-  const manifestNotes: Array<{ id: string; file: string; primaryCollection: string | null; secondaryCollections: string[] }> = [];
+  const manifestNotes: Array<{
+    id: string;
+    file: string;
+    primaryCollection: string | null;
+    secondaryCollections: string[];
+    /** Locked notes only: the ciphertext, still sealed with the account PIN. */
+    locked?: true;
+    encryptedContent?: string;
+  }> = [];
 
   for (const note of allNotes) {
     const tags = noteTagsMap.get(note.id) || [];
@@ -344,7 +368,7 @@ export async function generateUserBackupZip(
         scriptureReference: scripture?.reference || null,
         scriptureTranslation: scripture?.translation || null,
       },
-      note.content || '',
+      exportableNoteBody(note),
       highlights,
     );
     zip.file(filePath, md);
@@ -353,6 +377,7 @@ export async function generateUserBackupZip(
       file: filePath,
       primaryCollection: note.primaryCollection || null,
       secondaryCollections: secondary,
+      ...(note.contentEncrypted ? { locked: true, encryptedContent: note.content || '' } : {}),
     });
   }
 

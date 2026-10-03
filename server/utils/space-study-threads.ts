@@ -21,6 +21,7 @@ import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
 import { noteConnectionEndpointsLive } from './live-note-connections';
 import { resolveStudyThreadClusterNaming } from './study-thread-cluster-naming';
 import { sortStudyThreadClustersByTitle } from '@/utils/sorting';
+import { noteBodyUnlessLocked } from './note-lock-guards';
 
 export async function listStudyThreadsForSpace(userId: string, spaceIdNorm: string) {
   // Load this user's NoteConnections in this space, keeping only rows whose notes both still
@@ -142,7 +143,7 @@ export async function listStudyThreadsForSpace(userId: string, spaceIdNorm: stri
     .select({
       id: Notes.id,
       title: Notes.title,
-      content: Notes.content,
+      content: noteBodyUnlessLocked,
       noteType: Notes.noteType,
       updatedAt: Notes.updatedAt,
       studyThreadTitle: Notes.studyThreadTitle,

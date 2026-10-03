@@ -26,6 +26,7 @@ import { useState } from 'react';
 import { useCompleteThreadPlan } from '../../hooks/mutations/useCompleteThreadPlan';
 import { viewerProgressLabel } from '../../hooks/queries/useThreadNotes';
 import { protoRelativeCaption } from './proto-time';
+import { playSound } from '@/utils/sounds';
 
 export default function PrototypeThreadPlanProgress({
   threadId,
@@ -67,6 +68,10 @@ export default function PrototypeThreadPlanProgress({
             completePlan.mutate(
               { threadId, completed: !viewerCompletedAt },
               {
+                // Finishing is heard; taking it back is not.
+                onSuccess: (_data, variables) => {
+                  if (variables.completed) playSound('study.finished');
+                },
                 onError: (err: any) =>
                   setError(err?.message || 'Could not update your progress.'),
               },
@@ -135,7 +140,12 @@ export function PrototypeThreadPlanFinishRow({
           setError(null);
           completePlan.mutate(
             { threadId, completed: !viewerCompletedAt },
-            { onError: (err: any) => setError(err?.message || 'Could not update your progress.') },
+            {
+              onSuccess: (_data, variables) => {
+                if (variables.completed) playSound('study.finished');
+              },
+              onError: (err: any) => setError(err?.message || 'Could not update your progress.'),
+            },
           );
         }}
       >

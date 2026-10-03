@@ -1,7 +1,7 @@
 # Locked Notes with Encryption
 
-**Status:** Implemented  
-**Last Updated:** February 2026
+**Status:** Implemented (built Feb 2026; switched off in the Harvous 2 shell May 2026; back on, web only, Oct 2026)  
+**Last Updated:** October 2026
 
 This feature is live. See [FEATURES.md](./FEATURES.md#-locked-notes--encryption--implemented) for the user-facing summary.
 
@@ -9,7 +9,7 @@ This feature is live. See [FEATURES.md](./FEATURES.md#-locked-notes--encryption-
 
 ## Overview
 
-Lock individual notes with a **single account-level 4-digit PIN** so that content is encrypted on the client and only you (and God) can read it. The PIN is set and changed in **Profile → Lock PIN**; any note can be locked or unlocked with that same PIN. The server and database only ever see ciphertext. Use cases include prayer notes, confessions, and “things only God knows.”
+Lock individual notes with a **single account-level 4-digit PIN** so that content is encrypted on the client and only you (and God) can read it. The PIN is set, changed and removed in **Settings › Lock PIN**; a note is locked and unlocked from its **⋯ menu** (or Mod+Shift+L). One PIN entry opens every locked note for an **unlock session** (below). The server and database only ever see ciphertext. Use cases include prayer notes, confessions, and “things only God knows.”
 
 ---
 
@@ -59,23 +59,29 @@ How Harvous’s encryption compares to common alternatives (as of 2025–2026; c
 
 ## Threat Model
 
-**Protected against:** Accidental sharing or screen share; someone with temporary device access; DB leak or server compromise (server never sees plaintext for locked notes).
+**Protected against:** Accidental sharing, public links and co-editing (all refused server-side for locked notes); someone glancing at the screen or picking up an unlocked device after the session has ended; anything that reads the server's plaintext views — search, Review, exports, link previews and connected AI apps (the Connector returns title and dates only).
 
-**Not protected against:** Device compromise while the note is unlocked; user forgets PIN (no recovery).
+**Not protected against:**
+
+- **Offline guessing of the ciphertext.** A 4-digit PIN has 10,000 values. Anyone holding a locked note's blob — a database leak, or someone signed in as you, who can read it through the API — can try all of them offline; at 310k PBKDF2 iterations that is minutes, not years. The server's PIN verifier (`lockPinHash`) is a cheaper target still. The PBKDF2 cost and the server rate limit (10 PIN checks per 15 minutes, shared across verify / change / remove) slow *online* guessing only. A longer passphrase option is the real fix if this needs to hold against a determined attacker.
+- Device compromise while a note is open; a forgotten PIN (no recovery).
 
 ---
 
 ## Architecture
 
 - **Client-only encryption.** Encrypt/decrypt in the browser; server and DB only see ciphertext.
-- **Account-level PIN.** One PIN per account, set and changed in Profile → Lock PIN. A **verifier** (hash + salt) is stored in `UserMetadata` so the server can verify the PIN when locking; the PIN itself is never stored or transmitted. Key for each note is derived from PIN + per-note salt and kept only in memory during the session.
-- **API contract:** Create/update/update-content accept optional `contentEncrypted`; when true, `content` is stored as-is. Reads return ciphertext; client decrypts after PIN. **Lock PIN APIs:** `POST /api/user/set-lock-pin` (set or change PIN), `POST /api/user/verify-lock-pin` (verify before locking), `GET /api/user/locked-notes` (list locked note IDs for change-PIN re-encrypt flow).
+- **Unlock session** ([note-unlock-state.ts](../src/utils/note-unlock-state.ts)). Entering the PIN once opens every locked note: the PIN is held in memory (never persisted) and each note's gate decrypts with it automatically. The session ends after **5 minutes without activity** (keys and pointer presses slide the window), when the tab has been **hidden for 15 seconds** (a grace, so a note's last save — encrypted asynchronously — can finish), on unload, on **Lock now**, and whenever a note is locked.
+- **Saves of an open locked note** are encrypted in `useUpdateNote` with the session PIN and a fresh salt/IV. With no session there is no key, and the save refuses rather than sending plaintext. The editor writes **no local drafts** for a locked note, and its unload flush goes through the encrypting save instead of the plaintext keepalive PUT. Locked bodies never enter a query cache as plaintext.
+- **Server backstops.** `PUT /api/notes/update`, `update-content` and sync push refuse a non-ciphertext body for a locked note (`LOCKED_NOTE_NEEDS_CIPHERTEXT`, checked by shape in [note-lock-blob.ts](../src/utils/note-lock-blob.ts)); only the author may lock or unlock (`LOCK_AUTHOR_ONLY`); a note in a shared space can't be locked (`LOCKED_NOTE_IN_SHARED_SPACE`) — see [note-lock-guards.ts](../server/utils/note-lock-guards.ts). List payloads blank a locked note's body, and exports write a placeholder (the backup zip keeps the ciphertext in `manifest.json`).
+- **Account-level PIN.** One PIN per account, set, changed and removed in Settings › Lock PIN. Removing it is allowed only when no note is still locked (`HAS_LOCKED_NOTES`). A **verifier** (hash + salt) is stored in `UserMetadata` so the server can verify the PIN when locking; the PIN itself is never stored or transmitted. Key for each note is derived from PIN + per-note salt and kept only in memory during the session.
+- **API contract:** Create/update/update-content accept optional `contentEncrypted`; when true, `content` is stored as-is. Reads return ciphertext; client decrypts after PIN. **Lock PIN APIs:** `POST /api/user/set-lock-pin` (set, or change with `currentPin`; setting over an existing PIN is refused), `POST /api/user/verify-lock-pin` (verify before locking), `POST /api/user/remove-lock-pin` (only with no locked notes), `GET /api/user/locked-notes` (list locked note IDs for the change-PIN re-encrypt flow). All three POSTs share the `lock-pin` rate-limit bucket.
 
 ---
 
 ## Database
 
-**Table:** [db/config.ts](../db/config.ts) – `Notes`
+**Table:** [server/db/schema.ts](../server/db/schema.ts) – `Notes`
 
 - `contentEncrypted` – boolean, default `false`. When true, `content` holds the base64 blob (salt || IV || ciphertext).
 
@@ -102,10 +108,14 @@ How Harvous’s encryption compares to common alternatives (as of 2025–2026; c
 - [src/utils/note-unlock-state.ts](../src/utils/note-unlock-state.ts) – in-memory unlock state
 - [src/utils/lock-pin-server.ts](../src/utils/lock-pin-server.ts) – server-side PIN hashing/verification (set-lock-pin, verify-lock-pin)
 - [src/components/react/LockNoteButton.tsx](../src/components/react/LockNoteButton.tsx), [PinEntryPanel.tsx](../src/components/react/PinEntryPanel.tsx), [InlinePinUnlock.tsx](../src/components/react/InlinePinUnlock.tsx), [LockPinPanel.tsx](../src/components/react/LockPinPanel.tsx) (profile)
-- APIs: create, update, update-content, details, recent; [dashboard-data](../src/utils/dashboard-data.ts), [search](../src/pages/api/search.ts); user/set-lock-pin, user/verify-lock-pin, user/locked-notes, get-profile (hasLockPinSet)
-- Schema: [db/config.ts](../db/config.ts) – `contentEncrypted` on Notes; `lockPinSalt`, `lockPinHash` on UserMetadata
+- [src/utils/note-lock-actions.ts](../src/utils/note-lock-actions.ts) – lock / remove-lock writes; [note-lock-blob.ts](../src/utils/note-lock-blob.ts) – ciphertext shape check
+- Harvous 2 shell: [PrototypePinPanels.tsx](../spa/src/pages/prototype/PrototypePinPanels.tsx) (listener + cache refresh) and [PrototypePinSheet.tsx](../spa/src/pages/prototype/PrototypePinSheet.tsx) (lazy sheet); ⋯ menu items in [PrototypeNoteMoreMenu.tsx](../spa/src/pages/prototype/PrototypeNoteMoreMenu.tsx); Settings › Lock PIN at `settings/lock-pin`
+- APIs: [server/routes/notes.ts](../server/routes/notes.ts) (create, update, update-content), [server/routes/user.ts](../server/routes/user.ts) (lock PIN), [server/routes/sync.ts](../server/routes/sync.ts); [dashboard-data](../server/utils/dashboard-data.ts), [search](../server/utils/search-notes-query.ts), [export](../server/utils/export-user-data.ts)
+- Schema: [server/db/schema.ts](../server/db/schema.ts) – `contentEncrypted` on Notes; `lockPinSalt`, `lockPinHash` on UserMetadata
 
-Optional future enhancements (e.g. remove lock PIN, session PIN) are documented in [docs/future/LOCKED_NOTES_ENCRYPTION.md](future/LOCKED_NOTES_ENCRYPTION.md).
+**Native (not yet):** the Swift app syncs `contentEncrypted` but has no decryption or PIN entry — `SettingsLockPINView` is a stub and `.lockNote` is a no-op. Native parity (CryptoKit AES-GCM + PBKDF2 with the same parameters, a PIN sheet, optional Face ID) is its own piece of work.
+
+Remaining future ideas are in [docs/future/LOCKED_NOTES_ENCRYPTION.md](future/LOCKED_NOTES_ENCRYPTION.md).
 
 ---
 

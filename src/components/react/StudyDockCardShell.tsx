@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import { onProtoViewportSettle } from '@/utils/proto-viewport-settle';
+import { playSound } from '@/utils/sounds';
 import '@/styles/study-dock-card.css';
 
 const NARROW_BREAKPOINT = 420;
@@ -191,12 +192,20 @@ export default function StudyDockCardShell({
 
   const handleDismiss = useCallback(() => {
     if (isExiting) return;
+    playSound('nav.close');
     setIsExiting(true);
     exitTimerRef.current = setTimeout(() => {
       exitTimerRef.current = null;
       onDismiss();
     }, DOCK_EXIT_MS);
   }, [isExiting, onDismiss]);
+
+  /* Every way a card opens or folds — the card itself, its title, its header button — comes
+     through here, so each is heard the same: a breath in to open, falling shut to fold. */
+  const toggleExpanded = useCallback(() => {
+    playSound(expanded ? 'nav.close' : 'nav.open');
+    onToggleExpanded();
+  }, [expanded, onToggleExpanded]);
 
   const titleClass = `study-dock-card__header-title${
     headerTitleIsButton && expanded ? ' study-dock-card__header-title--button' : ''
@@ -240,7 +249,7 @@ export default function StudyDockCardShell({
               ? undefined
               : (e) => {
                   /* Keyboard activation only — mouse expand runs on mousedown (preventDefault there suppresses click). */
-                  if (e.detail === 0) onToggleExpanded();
+                  if (e.detail === 0) toggleExpanded();
                 }
           }
           onMouseDown={
@@ -251,7 +260,7 @@ export default function StudyDockCardShell({
                   if ((e.target as HTMLElement).closest('.study-dock-card__header-actions')) return;
                   e.preventDefault();
                   e.stopPropagation();
-                  onToggleExpanded();
+                  toggleExpanded();
                 }
           }
           onKeyDown={
@@ -260,7 +269,7 @@ export default function StudyDockCardShell({
               : (e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    onToggleExpanded();
+                    toggleExpanded();
                   }
                 }
           }
@@ -296,7 +305,7 @@ export default function StudyDockCardShell({
                 type="button"
                 className={titleClass}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={onToggleExpanded}
+                onClick={toggleExpanded}
                 aria-expanded={expanded}
               >
                 {headerTitle}
@@ -326,10 +335,10 @@ export default function StudyDockCardShell({
                 <button
                   type="button"
                   className="study-dock-card__header-btn"
-                  onMouseDown={(e) => runHeaderPointerAction(e, onToggleExpanded)}
+                  onMouseDown={(e) => runHeaderPointerAction(e, toggleExpanded)}
                   onClick={(e) => {
                     stopHeaderActionClickBubble(e);
-                    if (e.detail === 0) onToggleExpanded();
+                    if (e.detail === 0) toggleExpanded();
                   }}
                   aria-expanded={expanded}
                   aria-label={expanded ? 'Collapse' : 'Expand'}

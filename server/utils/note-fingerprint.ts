@@ -42,6 +42,7 @@ import {
   isStudyThreadEntriesTableMissing,
   isNoteConnectionsTableMissing,
 } from './pg-undefined-relation';
+import { noteBodyUnlessLocked } from './note-lock-guards';
 
 // ─── pure scoring ────────────────────────────────────────────────────────────────
 
@@ -218,7 +219,7 @@ export async function computeAndStoreNoteFingerprint(
     const note = (
       await db
         .select({
-          content: Notes.content,
+          content: noteBodyUnlessLocked,
           title: Notes.title,
           noteType: Notes.noteType,
           isPinned: Notes.isPinned,

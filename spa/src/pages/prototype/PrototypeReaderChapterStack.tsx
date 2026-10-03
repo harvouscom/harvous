@@ -32,6 +32,7 @@ import { useEffect, useMemo, type CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { adjacentChapter } from '@/utils/bible-book-chapters';
 import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleChapter';
+import { playSound } from '@/utils/sounds';
 
 /**
  * How many chapters show an edge.
@@ -137,7 +138,11 @@ export default function PrototypeReaderChapterStack({
             type="button"
             className="pds-reader-stack__edge"
             style={{ '--edge-depth': depth } as CSSProperties}
-            onClick={() => onSelect(e.book, e.chapter)}
+            onClick={() => {
+              // A page turned: the whoosh forward reading on, backward turning back.
+              playSound(direction === 'ahead' ? 'nav.forward' : 'nav.back');
+              onSelect(e.book, e.chapter);
+            }}
             aria-label={direction === 'ahead' ? `Read on to ${label}` : `Back to ${label}`}
           >
             {/* The whole name, not a bare number: an edge above Leviticus 1 says "Exodus 40",

@@ -12,6 +12,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
+import { toast } from '@/utils/toast';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import ShellModeSegmented from './ShellModeSegmented';
 import { useNote } from '../../hooks/queries/useNote';
@@ -281,6 +282,40 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     toolbarNote?.userId === identityUserId &&
     !toolbarNote?.contentEncrypted;
 
+  /*
+    Lock lives in the ⋯ menu, for the author's own plain notes only. Not offered while the
+    note sits in any shared space: the server refuses (LOCKED_NOTE_IN_SHARED_SPACE), and a
+    note other people can read is not one a PIN can hide.
+  */
+  const noteLocked = toolbarNote?.contentEncrypted === true;
+  /*
+    Decided from what is already known, so the item is there the first time ⋯ opens.
+    Waiting for the full detail (owner id, space list) hid it on a cold open for as long as
+    that fetch took. Anything still unknown counts as allowed: the server is the gate
+    (LOCK_AUTHOR_ONLY, LOCKED_NOTE_IN_SHARED_SPACE) and its refusal arrives as a toast.
+  */
+  const knownForeignOwner =
+    Boolean(toolbarNote?.userId) && Boolean(identityUserId) && toolbarNote?.userId !== identityUserId;
+  const knownInSharedSpace = (toolbarNote?.spaces?.length ?? 0) > 0 || isSharedContext;
+  const canLockNote =
+    !isGuest &&
+    !isDraftNoteRoute &&
+    !readOnlyForeignNote &&
+    Boolean(toolbarNoteId) &&
+    !knownForeignOwner &&
+    (toolbarNote?.noteType ?? 'default') === 'default' &&
+    (noteLocked || !knownInSharedSpace);
+
+  // Load ahead, not on open: fetch the PIN sheet chunk while the note is being read, so
+  // Lock note never waits on the network after the click.
+  useEffect(() => {
+    if (!canLockNote) return;
+    const load = () => void import('./PrototypePinSheet');
+    const idle = (window as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    if (idle) idle(load);
+    else window.setTimeout(load, 1500);
+  }, [canLockNote]);
+
   useEffect(() => {
     setHistoryOpen(false);
   }, [toolbarNoteId]);
@@ -433,9 +468,13 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   }, [isMobileSidebar, findPopover.openFrom]);
 
   const openSharePopover = useCallback(() => {
+    if (noteLocked) {
+      toast.info('Remove the lock first to share it.');
+      return;
+    }
     const anchor = isMobileSidebar ? overflowMenuButtonRef.current : shareButtonRef.current;
     sharePopover.openFrom(anchor);
-  }, [isMobileSidebar, sharePopover.openFrom]);
+  }, [isMobileSidebar, noteLocked, sharePopover.openFrom]);
 
   useEffect(() => {
     if (!contextualCapabilities.canShare && sharePopover.isOpen) {
@@ -640,11 +679,21 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                   ref={shareButtonRef}
                   type="button"
                   className="proto-toolbar-icon-btn"
-                  title={toolbarNote.isPublic ? 'This note has a share link' : 'Share note'}
+                  title={
+                    noteLocked
+                      ? 'Locked notes can’t be shared'
+                      : toolbarNote.isPublic
+                        ? 'This note has a share link'
+                        : 'Share note'
+                  }
                   aria-label={toolbarNote.isPublic ? 'Manage share link' : 'Share note'}
                   aria-haspopup="dialog"
                   aria-expanded={sharePopover.isOpen && !sharePopover.exiting}
-                  onClick={() => sharePopover.toggleFrom(shareButtonRef.current)}
+                  onClick={() =>
+                    noteLocked
+                      ? toast.info('Remove the lock first to share it.')
+                      : sharePopover.toggleFrom(shareButtonRef.current)
+                  }
                 >
                   <Icon name="share" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
                   {toolbarNote.isPublic ? (
@@ -686,6 +735,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 overflowActions={isMobileSidebar}
                 isPublic={!!toolbarNote?.isPublic}
                 readOnlyForeign={readOnlyForeignNote}
+                lockState={canLockNote ? (noteLocked ? 'locked' : 'unlocked') : undefined}
                 menuButtonRef={overflowMenuButtonRef}
                 onHistory={
                   canShowHistory && toolbarNoteId

@@ -25,6 +25,7 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
+import { playSound } from '@/utils/sounds';
 
 export default function AccountMenu({ iconSize, disabled = false }: { iconSize: number; disabled?: boolean }) {
   const clerk = useClerk();
@@ -164,6 +165,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               onFocus={prefetchSettingsOpenPath}
               onClick={() => {
                 setOpen(false);
+                playSound('nav.open');
                 storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);
                 // Desktop: open Account detail directly so the settings Outlet never
                 // briefly hits TanStack's default Not Found during the index redirect.
