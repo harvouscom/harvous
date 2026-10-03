@@ -33,6 +33,7 @@ import { hasFeatureWithReconcile } from '../middleware/require-feature';
 import { hasOlderPersonalHistory, freeHistoryFloor } from '../utils/history-window-status';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
+import { noteBodyUnlessLocked } from '../utils/note-lock-guards';
 import {
   NoteVersions,
   NoteVisitEvents,
@@ -54,6 +55,7 @@ import {
   isNull,
   lt,
   ne,
+  sql,
   type SQL,
 } from '../db';
 import {
@@ -201,7 +203,9 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
           .select({
             id: Notes.id,
             title: Notes.title,
-            content: Notes.content,
+            // A locked note's body is ciphertext; the feed shows its title and nothing else.
+            content: noteBodyUnlessLocked,
+            locked: Notes.contentEncrypted,
             noteType: Notes.noteType,
             primaryCollection: Notes.primaryCollection,
             createdAt: Notes.createdAt,
@@ -221,7 +225,9 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
           .select({
             noteId: NoteVersions.noteId,
             title: NoteVersions.title,
-            content: NoteVersions.content,
+            // Versions saved while locked hold ciphertext too (NoteVersions keeps the flag).
+            content: sql<string>`case when ${NoteVersions.contentEncrypted} then '' else ${NoteVersions.content} end`,
+            locked: NoteVersions.contentEncrypted,
             createdAt: NoteVersions.createdAt,
           })
           .from(NoteVersions)

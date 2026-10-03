@@ -249,6 +249,12 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChurchPage')),
   });
 
+  const prototypeSettingsLockPinRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'lock-pin',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeLockPinPage')),
+  });
+
   const prototypeSettingsSharingRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'sharing',
@@ -387,6 +393,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
       prototypeSettingsRemindersRoute,
       prototypeSettingsReviewExercisesRoute,
       prototypeSettingsChurchRoute,
+      prototypeSettingsLockPinRoute,
       prototypeSettingsSharingRoute,
       prototypeSettingsAddonsRoute,
       prototypeSettingsConnectorRoute,

@@ -45,6 +45,8 @@ import {
   serializeNoteSecondaryCollections,
 } from '../utils/note-secondary-collections';
 import { handleAPIError } from '@/utils/error-handling';
+import { isEncryptedNoteBlob } from '@/utils/note-lock-blob';
+import { refuseLockToggle } from '../utils/note-lock-guards';
 import { formatNoteDefaultTitle } from '@/utils/date-formatting';
 import { isTiptapBodyEmpty } from '@/utils/prototype-note-empty';
 import { tryConsumeNoteCreates, MAX_NOTE_CREATES_PER_SYNC_PUSH, getClientIP } from '@/utils/rate-limit';
@@ -717,6 +719,18 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
 
     const existing = first(await db.select().from(Notes).where(and(eq(Notes.id, entityId), eq(Notes.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Note not found' };
+    const syncTargetEncrypted =
+      typeof data.contentEncrypted === 'boolean' ? data.contentEncrypted : existing.contentEncrypted;
+    const syncLockRefusal = await refuseLockToggle({
+      noteId: entityId,
+      requested: data.contentEncrypted,
+      current: existing.contentEncrypted === true,
+      actorRole: 'author',
+    });
+    if (syncLockRefusal) return { success: false, error: `${syncLockRefusal.code}: ${syncLockRefusal.error}` };
+    if (syncTargetEncrypted && data.content !== undefined && !isEncryptedNoteBlob(data.content)) {
+      return { success: false, error: 'LOCKED_NOTE_NEEDS_CIPHERTEXT: a locked note only accepts an encrypted body' };
+    }
     if (
       syncCanonicalUpdateRequiresExpectedVersion(data) &&
       !Number.isInteger(data.expectedVersion)

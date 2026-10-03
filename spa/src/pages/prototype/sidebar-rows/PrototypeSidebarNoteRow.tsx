@@ -117,7 +117,10 @@ export function PrototypeSidebarNoteRow({
 
   const iso = row.updatedAt ?? row.createdAt ?? null;
   const rel = protoRelativeCaptionAbbrev(iso);
-  const preview = stripHtmlPreview(row.content, 80);
+  // A locked note's body is ciphertext (and the list payload blanks it anyway) — the
+  // row says what it is instead of previewing it.
+  const locked = row.contentEncrypted === true;
+  const preview = locked ? 'Locked' : stripHtmlPreview(row.content, 80);
   const rowTitle = stripServerAutoUntitledNoteTitleForDisplay(row.title?.trim() ?? '') || 'New Note';
   const title = rowTitle;
   const pinned = row.isPinned === true;
@@ -283,6 +286,11 @@ export function PrototypeSidebarNoteRow({
           </span>
         ) : null}
         <span className="pds-list-title proto-note-row__title-text">{title}</span>
+        {locked ? (
+          <span className="proto-note-row__pin proto-note-row__lock" aria-label="Locked" role="img">
+            <Icon name="lock" size={11} aria-hidden />
+          </span>
+        ) : null}
         {/* No "Current" chip on a trail row — the filled check orb in the spine
             already says which note you are on. */}
         {trailLayout && pinned ? (
