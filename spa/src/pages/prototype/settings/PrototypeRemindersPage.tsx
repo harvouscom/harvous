@@ -43,6 +43,7 @@ import {
 import { profileQueryKey, useProfile } from '../../../hooks/queries/useProfile';
 import PrototypeInstallWebAppSheet from '../PrototypeInstallWebAppSheet';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
+import { playSound } from '@/utils/sounds';
 
 /** Debounce on the schedule writes: a run of taps on the hour select is one edit, not six. */
 const SAVE_DEBOUNCE_MS = 500;
@@ -93,11 +94,16 @@ function ToggleRow({
           aria-disabled={disabled}
           aria-label={label}
           tabIndex={disabled ? -1 : 0}
-          onClick={() => !disabled && onChange(!checked)}
+          onClick={() => {
+            if (disabled) return;
+            playSound('nav.toggle');
+            onChange(!checked);
+          }}
           onKeyDown={(e) => {
             if (disabled) return;
             if (e.key === ' ' || e.key === 'Enter') {
               e.preventDefault();
+              playSound('nav.toggle');
               onChange(!checked);
             }
           }}
@@ -141,7 +147,10 @@ function CadenceSegmented({
             role="radio"
             aria-checked={value === cadence}
             className={`proto-appearance-segmented__btn${value === cadence ? ' proto-appearance-segmented__btn--active' : ''}`}
-            onClick={() => onChange(cadence)}
+            onClick={() => {
+              if (value !== cadence) playSound('nav.select');
+              onChange(cadence);
+            }}
           >
             {reminderCadenceLabel(cadence)}
           </button>
@@ -183,7 +192,10 @@ function DaySegmented({
             role="radio"
             aria-checked={value === day}
             className={`proto-appearance-segmented__btn${value === day ? ' proto-appearance-segmented__btn--active' : ''}`}
-            onClick={() => onChange(day)}
+            onClick={() => {
+              if (value !== day) playSound('nav.select');
+              onChange(day);
+            }}
           >
             {midweekDayLabel(day)}
           </button>

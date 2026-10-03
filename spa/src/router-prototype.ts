@@ -243,6 +243,12 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     ),
   });
 
+  const prototypeSettingsSoundsRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'sounds',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSoundsPage')),
+  });
+
   const prototypeSettingsChurchRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'church',
@@ -386,6 +392,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
       prototypeSettingsAppearanceRoute,
       prototypeSettingsRemindersRoute,
       prototypeSettingsReviewExercisesRoute,
+      prototypeSettingsSoundsRoute,
       prototypeSettingsChurchRoute,
       prototypeSettingsSharingRoute,
       prototypeSettingsAddonsRoute,

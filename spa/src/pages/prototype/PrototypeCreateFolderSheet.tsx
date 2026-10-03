@@ -22,6 +22,7 @@ import {
 } from './PrototypeAddNotesSheet';
 import { useAssociateNoteWithSpace } from '../../hooks/mutations/useSpaceNoteAssociation';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
+import { playSound } from '@/utils/sounds';
 
 export interface PrototypeCreateFolderSheetProps {
   open: boolean;
@@ -129,6 +130,7 @@ export default function PrototypeCreateFolderSheet({
           });
         }
       }
+      playSound('organize.filed');
       onOpenChange(false);
       onCreated(name);
       try {

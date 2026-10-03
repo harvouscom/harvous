@@ -4,6 +4,7 @@
  * Covers note/highlight rows (`button.proto-note-row__main`), folder drill rows
  * (`button.proto-note-row`), and 2-up collection grids (`button.proto-collection-card`).
  */
+import { playSound } from '@/utils/sounds';
 
 export const SIDEBAR_LIST_ROW_SELECTOR =
   'button.proto-note-row__main, button.proto-note-row, button.proto-collection-card';
@@ -100,6 +101,9 @@ export function moveListRowFocus(
   const next = rows[nextIndex];
   if (!next) return false;
 
+  // A tick per row actually moved to — nothing at the end of the list. A held key is throttled
+  // by the sound layer.
+  if (next !== active) playSound('nav.select');
   focusListControl(next, container, nextIndex, rows.length);
   return true;
 }

@@ -76,6 +76,17 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: 'arrows-rotate',
     footnote: 'Which kinds of question Review asks you.',
   },
+  /*
+   * Web-only as well: the sounds are synthesized in the browser (`src/utils/sounds.ts`), and the
+   * native apps have none. A third entry the native list does not carry until they do.
+   */
+  {
+    key: 'sounds',
+    title: 'Sounds',
+    route: prototypeHref('settings/sounds'),
+    icon: 'volume-low',
+    footnote: 'When the app plays a sound, on this device.',
+  },
   // lockPin temporarily hidden while note lock is disabled in the prototype.
   // The route itself is unregistered too (see spa/src/router.tsx — no
   // prototypeSettingsLockPinRoute) so it isn't reachable by direct URL either.

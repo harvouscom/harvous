@@ -6,6 +6,7 @@ import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { useSettingsCategories } from './settingsCategories';
 import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
 import SettingsAdminShortcut from './SettingsAdminShortcut';
+import { playSound } from '@/utils/sounds';
 
 /**
  * Index for /prototype/settings.
@@ -48,7 +49,10 @@ export default function PrototypeSettingsIndex() {
                   ? lockPinLabel
                   : undefined
             }
-            onClick={() => navigate({ to: cat.route as '/settings/account' })}
+            onClick={() => {
+              playSound('nav.forward');
+              navigate({ to: cat.route as '/settings/account' });
+            }}
           />
         ))}
       </SettingsGroup>

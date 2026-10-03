@@ -54,6 +54,7 @@ import type {
 } from '../../hooks/queries/usePrototypeChapterHighlights';
 import { useUpdateTranslation } from '../../hooks/mutations/useUpdateTranslation';
 import { TRANSLATIONS } from '@/data/translations';
+import { playSound } from '@/utils/sounds';
 
 /**
  * Verse numbers a stored reference covers: "Exodus 5:3" → [3], "Exodus 5:3-5" → [3,4,5].
@@ -424,6 +425,61 @@ export default function PrototypeReadPage() {
       compareTranslation,
       isGuest,
       homeSpaceId,
+    ],
+  );
+
+  /*
+   * A highlight made with a tap is heard — once, as a small wooden detent, and only when it is a
+   * new one. The same write recolours an existing highlight, and a run of swatch taps is
+   * choosing a colour, not making something.
+   *
+   * Decided here, before the write, from the rows already painted: the mutation's own
+   * new-or-recolour check is private to its optimistic update and the server says neither.
+   * Matched the way that check matches — reference and span — so the two cannot disagree.
+   *
+   * A wrapper with every parameter spelled out rather than a sixth one on `applyHighlight`:
+   * the pane passes as many as it has, and an options argument appended after optional
+   * positionals lands in whichever slot the caller stopped at.
+   *
+   * Annotate is not wrapped. It opens the highlight dock, and the dock is where that gesture
+   * goes; a detent for the row under it would be a second sound for one tap.
+   */
+  const lastHighlightChimeRef = useRef(0);
+  const highlightFromTap = useCallback(
+    (
+      selection: { start: number; end: number },
+      accent: StudyHighlightAccentKey,
+      excerpt: string,
+      fullPassageText?: string,
+      inTranslation?: string,
+    ): Promise<string | null> => {
+      const { start, end } = selection;
+      const reference =
+        start === end ? `${book} ${chapter}:${start}` : `${book} ${chapter}:${start}-${end}`;
+      const spanKey = spanKeyForSelection(excerpt, fullPassageText ?? excerpt) ?? null;
+      const painted =
+        (inTranslation && inTranslation === compareTranslation
+          ? compareChapterHighlights
+          : chapterHighlights) ?? [];
+      const isNew = !painted.some(
+        (row) => row.scriptureReference === reference && (row.spanKey ?? null) === spanKey,
+      );
+      const now = Date.now();
+      if (isNew && (isGuest || homeSpaceId) && now - lastHighlightChimeRef.current > 600) {
+        lastHighlightChimeRef.current = now;
+        playSound('highlight.created');
+      }
+      return applyHighlight(selection, accent, excerpt, fullPassageText, inTranslation);
+    },
+    [
+      applyHighlight,
+      book,
+      chapter,
+      chapterHighlights,
+      compareChapterHighlights,
+      compareTranslation,
+      homeSpaceId,
+      isGuest,
     ],
   );
 
@@ -927,7 +983,7 @@ export default function PrototypeReadPage() {
           highlights={highlights}
           versePaints={versePaints}
           spanHighlights={spanHighlights}
-          onHighlight={applyHighlight}
+          onHighlight={highlightFromTap}
           // Annotate records the highlight; the pane opens the highlight dock over it, so the
           // dock lifecycle stays with the surface that owns the selection.
           onAnnotate={applyHighlight}

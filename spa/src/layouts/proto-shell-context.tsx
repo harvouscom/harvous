@@ -20,8 +20,10 @@ import {
 } from './proto-motion';
 import {
   isSameLibraryPanelView,
+  libraryMoveSound,
   type LibraryPanelView,
 } from '../pages/prototype/library-panel/library-panel-view';
+import { playSound } from '@/utils/sounds';
 import {
   clearPersistedDrilldowns,
   readPersistedSidebarNav,
@@ -804,6 +806,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const threadPanelExpandedRef = useRef(threadPanelExpanded);
   threadPanelExpandedRef.current = threadPanelExpanded;
   const [reviewDock, setReviewDock] = useState<ReviewDockState | null>(null);
+  /* Whether the dock is up, for the sound of opening or closing it — read outside the updaters,
+     which StrictMode runs twice. */
+  const reviewDockOpenRef = useRef(false);
+  reviewDockOpenRef.current = reviewDock !== null;
   const [expandedSidebarTool, setExpandedSidebarTool] = useState<string | null>(null);
   const [expandedSidebarExiting, setExpandedSidebarExiting] = useState(false);
   /**
@@ -1109,8 +1115,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setSidebarSelectedIdsState([]);
   }, []);
 
-  const beginLibraryPanelClose = useCallback(() => {
+  /**
+   * `reason: 'navigate'` when the close is the panel getting out of the way of somewhere it just
+   * sent the reader — opening a result. That is heard as going somewhere, not as closing, and
+   * only once: the sound layer keeps one per gesture, and a close already under way is silent.
+   * Browser Back reaches this with no gesture behind it, and the sound layer drops it.
+   */
+  const beginLibraryPanelClose = useCallback((reason?: 'navigate') => {
     if (!libraryPanelViewRef.current) return;
+    if (!libraryPanelExitTimerRef.current) {
+      playSound(reason === 'navigate' ? 'nav.forward' : 'nav.close');
+    }
     if (libraryPanelExitTimerRef.current) clearTimeout(libraryPanelExitTimerRef.current);
     setLibraryPanelExiting(true);
     /* Two geometries, two durations: the desktop panel morphs back into the chip,
@@ -1133,9 +1148,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
        * already up keeps the switch where it is: creating a folder from My Home reopens the
        * panel onto that folder, and the folder is in Home.
        */
-      if (!libraryPanelViewRef.current || libraryPanelExitTimerRef.current) {
+      const fresh = !libraryPanelViewRef.current || Boolean(libraryPanelExitTimerRef.current);
+      if (fresh) {
         resetLibraryListScope();
       }
+      /* A fresh open breathes in; one that lands on a panel already up is a move within it. */
+      const moveSound = fresh ? 'nav.open' : libraryMoveSound(libraryPanelViewRef.current, view);
+      if (moveSound) playSound(moveSound);
       /*
        * Take focus off the note before the panel goes up. A selection's floating bar in the
        * note underneath otherwise stays put, on top of the panel, still offering to act on
@@ -1163,6 +1182,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
 
   /** In-panel drill. Opens the panel if it is somehow closed, but never adds history. */
   const setLibraryPanelView = useCallback((view: LibraryPanelView) => {
+    /* Read from the ref before the write, not inside the updater, which StrictMode runs twice. */
+    const moveSound = libraryMoveSound(libraryPanelViewRef.current, view);
+    if (moveSound) playSound(moveSound);
     if (libraryPanelExitTimerRef.current) clearTimeout(libraryPanelExitTimerRef.current);
     libraryPanelExitTimerRef.current = null;
     setLibraryPanelExiting(false);
@@ -1173,7 +1195,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     (options?: { preserveHistory?: boolean }) => {
       if (!libraryPanelViewRef.current) return;
       if (!options?.preserveHistory) popLibraryPanelHistory();
-      beginLibraryPanelClose();
+      beginLibraryPanelClose(options?.preserveHistory ? 'navigate' : undefined);
     },
     [beginLibraryPanelClose, popLibraryPanelHistory],
   );
@@ -1364,6 +1386,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    */
   const setSidebarListSpaceScope = useCallback((scope: SidebarListSpaceScope) => {
     if (sidebarListSpaceScopeRef.current === scope) return;
+    playSound('nav.toggle');
     sidebarListSpaceScopeRef.current = scope;
     setSidebarListSpaceScopeState(scope);
     exitSidebarSelectMode();
@@ -1728,6 +1751,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       if (shouldClearStaleComposeDraftOnSessionStart(composeSessionEpochRef.current)) {
         clearNoteDraft(PROTOTYPE_DRAFT_NOTE_ID);
       }
+      // A fresh sheet. Held ⇧N repeats are dropped by the sound layer.
+      playSound('nav.open');
       setComposePersistedNoteIdState(null);
       setComposeDraftActive(true);
       const target = options?.targetSpaceId?.trim();
@@ -1768,6 +1793,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    */
   const openReviewDock = useCallback(
     (itemId?: string | null, options?: { expanded?: boolean }) => {
+      if (!reviewDockOpenRef.current) playSound('nav.open');
       setReviewDock((current) => ({
         itemId: itemId !== undefined ? itemId : (current?.itemId ?? null),
         expanded: options?.expanded ?? true,
@@ -1776,7 +1802,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
-  const closeReviewDock = useCallback(() => setReviewDock(null), []);
+  const closeReviewDock = useCallback(() => {
+    if (reviewDockOpenRef.current) playSound('nav.close');
+    setReviewDock(null);
+  }, []);
   const setReviewDockExpanded = useCallback((expanded: boolean) => {
     setReviewDock((current) => (current ? { ...current, expanded } : current));
   }, []);
@@ -1791,7 +1820,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  /* A note laid over the page breathes in. Also called from effects (a note page restoring its
+     stack), which have no gesture behind them, and the sound layer drops those. */
   const stackNote = useCallback((origin: PaperStackOrigin, noteId?: string) => {
+    playSound('nav.open');
     setPaperStack({ origin, noteId, open: true });
   }, []);
   const setStackSheetOpen = useCallback((open: boolean) => {

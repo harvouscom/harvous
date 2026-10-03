@@ -8,6 +8,8 @@ import {
 } from '../../lib/proto-collapse-scroll';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
+import PrototypeReviewSittingCard from './PrototypeReviewSittingCard';
+import { nextSittingAt, pickSittingHead } from './review-sitting-head';
 import {
   reviewSampleDayKey,
   useReviewAccessLevel,
@@ -15,6 +17,7 @@ import {
   useReviewItems,
   useReviewItemsSummary,
   useReviewSample,
+  useReviewSession,
   type SampleExerciseKind,
 } from '../../hooks/queries/useReview';
 import { REVIEW_MAX_ATTEMPTS, REVIEW_INBOX_MAX_ROWS } from '@/utils/review-item-kinds';
@@ -39,9 +42,6 @@ import {
   REVIEW_SEE_LESS_COPY,
   REVIEW_COMING_BACK_HEADING,
   REVIEW_SET_ASIDE_HEADING,
-  REVIEW_TODAY_DONE_COPY,
-  reviewNextReturnCopy,
-  reviewTodayProgressCopy,
   REVIEW_SECTION_TITLE,
   REVIEW_EMPTY_NOTHING_YET_TITLE,
   REVIEW_EMPTY_NOTHING_YET_BODY,
@@ -57,22 +57,6 @@ import { recallChip } from './PrototypeRecallStateChip';
 import { collapsedReviewRows } from './review-collapsed-rows';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
 import { useDismissibleReviewSample } from './use-dismissible-review-sample';
-
-/**
- * What the one fold says when it is closed.
- *
- * It used to read "N more", which was `min(8, rows) - 2` and could not move: the inbox refilled
- * to eight on every read, including with the items just answered. So the number stood still
- * while the reader worked, directly above "18 coming back later", which climbed as they did.
- * Between them they said, accurately, that nothing you do here makes any difference.
- *
- * Progress through today's sitting instead — a finite thing that ends. Falls back to "See all"
- * when the server sent no day, which is the label it always had.
- */
-function foldedLabel(today: { answered: number; goal: number } | null): string {
-  if (!today || today.goal <= 0) return REVIEW_SEE_ALL_COPY;
-  return reviewTodayProgressCopy(today.answered, today.goal);
-}
 
 /**
  * The task line, with the exercise it is wearing named in front of it.
@@ -125,6 +109,12 @@ export default function PrototypeReviewSection() {
     enabled: expanded || nothingActive,
   });
   const challengesQuery = useHomeChallenges();
+  /*
+   * The sitting the dock will ask, already warm — Home fetches it with its other queries
+   * (`use-home-surface-data.ts`), under the same key. Read here only to pick the card's question,
+   * so that what the card shows is exactly what Begin opens.
+   */
+  const sessionQuery = useReviewSession();
   const hasAnyFeature = accessLevel === 'full' || challengesFeature.has;
   /*
    * Which verse, in which translation, asked which way — the three things the sample card can
@@ -219,7 +209,12 @@ export default function PrototypeReviewSection() {
   const setAside = everyItem
     ? everyItem.filter((item) => item.status === 'paused' || item.status === 'archived')
     : [];
-  const items = (expanded ? (dueActive ?? inboxItems) : inboxItems).slice(0, REVIEW_INBOX_MAX_ROWS);
+  /* The card's question — see `pickSittingHead` for why it is not simply the shelf's first. */
+  const head = pickSittingHead(sessionQuery.data?.items, inboxItems);
+  /* Never listed twice: the card is where the head is, so the rows start after it. */
+  const items = (expanded ? (dueActive ?? inboxItems) : inboxItems)
+    .filter((item) => item.id !== head?.id)
+    .slice(0, REVIEW_INBOX_MAX_ROWS);
   const activeChallenges = (challengesQuery.data?.challenges ?? []).filter(
     (c) => c.status === 'active',
   );
@@ -234,14 +229,18 @@ export default function PrototypeReviewSection() {
     moreThanShown || expanded || comingBackCount > 0 || setAside.length > 0;
 
   const hasRows =
-    reviewRows.length > 0 || Boolean(challengeRow) || comingBackCount > 0 || setAside.length > 0;
+    Boolean(head) ||
+    reviewRows.length > 0 ||
+    Boolean(challengeRow) ||
+    comingBackCount > 0 ||
+    setAside.length > 0;
 
   /*
    * Today is finished — the one state the shelf could never reach, because a sitting that
    * refilled itself had no end and `!hasRows` returned null rather than saying so.
    */
   const doneForToday = Boolean(
-    today && today.goal > 0 && today.answered >= today.goal && reviewRows.length === 0,
+    today && today.goal > 0 && today.answered >= today.goal && inboxItems.length === 0,
   );
 
   const coldStart = inboxQuery.data?.coldStart ?? null;
@@ -274,17 +273,17 @@ export default function PrototypeReviewSection() {
 
   const openInDock = (itemId: string) => openReviewDock(itemId);
 
-  const nextUp = comingBack.length ? describeNextDue(comingBack[0].dueAt) : null;
+  const nextReturn = doneForToday ? describeNextDue(nextSittingAt(summaryItems, nowMs)) : null;
 
   return (
     <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
-      {doneForToday ? (
-        /* Said once, quietly, and not as a row that can be pressed — there is nothing to press.
-           The next return is named because "done" without "and then?" is a dead end. */
-        <p className="proto-review-section__done">
-          {REVIEW_TODAY_DONE_COPY}
-          {nextUp ? ` ${reviewNextReturnCopy(nextUp)}` : ''}
-        </p>
+      {head || doneForToday ? (
+        <PrototypeReviewSittingCard
+          head={doneForToday ? null : head}
+          today={today}
+          nextReturn={nextReturn}
+          onBegin={openInDock}
+        />
       ) : null}
       {reviewRows.map((item) => (
         <PrototypeReviewRow
@@ -320,18 +319,11 @@ export default function PrototypeReviewSection() {
       ) : null}
 
       {/*
-        * Progress lives in the lane, not on the control.
-        *
-        * The fold only exists when there is something behind it, and the day's progress has to
-        * outlast that: answer down to the last two questions and there is nothing left to open,
-        * which is exactly the moment a reader most wants to see how close they are. Same slot,
-        * never both at once — a statement when there is nothing to open, the fold's own label
-        * when there is, so the lane never carries two things saying the same thing.
+        * The fold says only "See all". Today's progress is on the card above, which outlives the
+        * fold — answer down to the last question and there is nothing left to open, which is
+        * exactly when a reader most wants to see how close they are — and the lane must never
+        * carry two things saying the same number.
         */}
-      {!canExpand && !doneForToday && today && today.goal > 0 ? (
-        <p className="proto-review-section__progress">{foldedLabel(today)}</p>
-      ) : null}
-
       {canExpand ? (
         <button
           type="button"
@@ -345,7 +337,7 @@ export default function PrototypeReviewSection() {
             setExpanded((open) => !open);
           }}
         >
-          <span>{expanded ? REVIEW_SEE_LESS_COPY : foldedLabel(today)}</span>
+          <span>{expanded ? REVIEW_SEE_LESS_COPY : REVIEW_SEE_ALL_COPY}</span>
           <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
         </button>
       ) : null}

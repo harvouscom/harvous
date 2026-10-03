@@ -24,7 +24,7 @@
  * textarea has no autofocus, because a card that appears while you are typing and takes the
  * caret is the interruption this whole feature is supposed not to be.
  */
-import { maxAttemptsFor } from '@/utils/review-item-kinds';
+import { maxAttemptsFor, type ReviewOutcome } from '@/utils/review-item-kinds';
 import { describeNextDue } from '@/utils/review-scheduling';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import {
@@ -54,6 +54,7 @@ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highli
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { reviewRungIsGraded } from '@/utils/review-prompts';
 import { toast } from '@/utils/toast';
+import { playSound, warmSounds, type SoundMoment } from '@/utils/sounds';
 import { fillFraming } from '@/utils/review-framing';
 /*
  * For `.scripture-pill-chrome__trans-chip` on the header's translation badge. Imported here the
@@ -195,6 +196,16 @@ const ILLUSTRATED_RUNGS: Partial<Record<string, 'portrait' | 'place' | 'theme'>>
 /* The rungs whose answer is a verse's opening, asked with the reference and a gap. */
 const OPENING_LINE_RUNGS = new Set(['verse.recognize', 'chapter.verse']);
 
+/**
+ * What an answer sounds like, by the verdict the card is about to say: a soft chord for "You had
+ * it", one warm note for "Got there", the low muted chord for "Not this time". Never a buzzer.
+ */
+const VERDICT_SOUND: Record<ReviewOutcome, SoundMoment> = {
+  recalled: 'review.right',
+  almost: 'review.almost',
+  revealed: 'review.miss',
+};
+
 export default function PrototypeReviewDock() {
   const {
     reviewDock,
@@ -209,6 +220,13 @@ export default function PrototypeReviewDock() {
   const navigate = useNavigate();
 
   const open = Boolean(reviewDock);
+  /*
+   * Read by the answer's reply, which can land after the card was closed: the component stays
+   * mounted and renders null, so the reply still runs, and a chord from a dock that is no longer
+   * there is a sound with nothing to belong to.
+   */
+  const openRef = useRef(open);
+  openRef.current = open;
   const sessionQuery = useReviewSession({ enabled: open });
   const sessionItems = useMemo(() => sessionQuery.data?.items ?? [], [sessionQuery.data]);
   /*
@@ -664,6 +682,7 @@ export default function PrototypeReviewDock() {
   useEffect(() => {
     const opening = open && !wasOpen.current;
     wasOpen.current = open;
+    if (opening) warmSounds();
     if (opening && sittingIsStale(sessionQuery.dataUpdatedAt)) void sessionQuery.refetch();
   }, [open, sessionQuery]);
 
@@ -793,6 +812,7 @@ export default function PrototypeReviewDock() {
               // The altered rung answers with an index, not an option, so it never entered
               // `missed` — a word tapped wrongly stayed live and unmarked on the second go.
               if (Number.isInteger(graded?.wordIndex)) setSpentWords((w) => [...w, graded!.wordIndex!]);
+              if (openRef.current) playSound('review.tryAgain');
               return;
             }
             // Marked, and shown as marked before the card moves on. Only where the server
@@ -906,6 +926,14 @@ export default function PrototypeReviewDock() {
              * leaves the queue optimistically, so anything on a timer was competing with a
              * refetch to decide what the card showed.
              */
+            /*
+             * Heard as the verdict is shown. The answer that moves an item into holding gets
+             * the fuller chord instead of the usual one, never both. A practice pass sounds
+             * like any other answer: the sound is about the answer, not the schedule.
+             */
+            if (openRef.current) {
+              playSound(crossedToDurable ? 'review.holding' : VERDICT_SOUND[data.outcome ?? value]);
+            }
             handOver();
           },
         },
@@ -1327,6 +1355,17 @@ export default function PrototypeReviewDock() {
                 type="button"
                 className="proto-settings-btn proto-settings-btn--compact"
                 onClick={() => {
+                  /*
+                   * The end of a sitting is heard here, on the tap that reaches it, rather than
+                   * in an effect on the empty state: deferring, pausing and skipping an
+                   * unbuildable question empty the queue too, and a refetch would re-enter that
+                   * state without anyone finishing anything. The pointer is already null after
+                   * an answer, so "next" resolves to the session's head — and a re-ask was
+                   * appended to the session before this tap could happen.
+                   */
+                  if (!settling && sessionItems.length === 0 && sitting.answered > 0) {
+                    playSound('review.sittingDone');
+                  }
                   setReviewDockResult(null);
                   setHeldItem(null);
                 }}

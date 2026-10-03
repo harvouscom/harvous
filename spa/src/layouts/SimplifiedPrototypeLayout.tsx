@@ -33,6 +33,7 @@ import { useAuthReady } from '../hooks/useAuthReady';
 import { api } from '../lib/api';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
+import { playSound } from '@/utils/sounds';
 /*
  * The Library panel and everything it browses — off the critical path.
  *
@@ -671,6 +672,8 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     const stack = paperStack;
     if (!stack) return;
     const { origin } = stack;
+    // Back to the page underneath — the same whoosh as going in, played the other way.
+    playSound('nav.back');
 
     if (origin.kind === 'noteDock') {
       if (paperStackExiting) return;
@@ -770,7 +773,12 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     clearPaperStack();
   }, [paperStack, homeSpaceId, clearPaperStack]);
 
+  const dismissPaperStack = useCallback(() => {
+    playSound('nav.close');
+    clearPaperStack();
+  }, [clearPaperStack]);
   const handleFlipSheetUp = useCallback(() => {
+    playSound('nav.forward');
     setStackSheetOpen(true);
     const href = stackedNoteHrefRef.current;
     stackedNoteHrefRef.current = null;
@@ -1277,7 +1285,9 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
                 exiting={paperStackExiting}
                 onFlipDown={handleFlipSheetDown}
                 onFlipUp={handleFlipSheetUp}
-                onDismiss={clearPaperStack}
+                /* The sound lives on the button's wiring, not in `clearPaperStack`, which effects
+                   call on every route and space change. */
+                onDismiss={dismissPaperStack}
                 onSuggestionNevermind={handleSuggestionNevermind}
                 onSuggestionIgnore={handleSuggestionIgnore}
                 /* Parked: the URL is the origin's own address, so the Outlet IS the reader

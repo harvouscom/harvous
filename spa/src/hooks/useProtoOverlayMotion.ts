@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROTO_VOTD_SHEET_MOTION_MS } from '../layouts/proto-motion';
+import { playSound } from '@/utils/sounds';
 
 function overlayMotionMs(exitMs?: number): number {
   const ms = exitMs ?? PROTO_VOTD_SHEET_MOTION_MS;
@@ -47,6 +48,21 @@ export function useProtoOverlayMotion(open: boolean, options?: { exitMs?: number
   }, [open, mounted, clearExitTimer, exitMs]);
 
   useEffect(() => () => clearExitTimer(), [clearExitTimer]);
+
+  /*
+   * The breath of a sheet opening and falling shut, for every sheet that moves through here.
+   *
+   * On a change of `open` only: a sheet that mounts already open was not opened by anyone just
+   * now, and StrictMode's second run of this effect sees no change. Sheets that open by
+   * themselves — a welcome, a letter — have no gesture behind them, and the sound layer drops
+   * those.
+   */
+  const soundedOpenRef = useRef(open);
+  useEffect(() => {
+    if (open === soundedOpenRef.current) return;
+    soundedOpenRef.current = open;
+    playSound(open ? 'nav.open' : 'nav.close');
+  }, [open]);
 
   return { mounted, exiting };
 }

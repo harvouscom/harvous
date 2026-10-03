@@ -25,7 +25,8 @@ import { InitialsTiles, MarkedExercise, WordTicks } from '../../prototype/review
 import { BookShelf, SpeakerScene, TagSlotScene } from '../../prototype/review-exercises/IllustratedScenes';
 import ProtoLoadingDots from '../../prototype/ProtoLoadingDots';
 import PrototypeReviewSample from '../../prototype/PrototypeReviewSample';
-import type { ReviewSampleView, SampleExerciseKind } from '../../../hooks/queries/useReview';
+import PrototypeReviewSittingCard from '../../prototype/PrototypeReviewSittingCard';
+import type { ReviewItemView, ReviewSampleView, SampleExerciseKind } from '../../../hooks/queries/useReview';
 import {
   REVIEW_ALTERED_CAPTION,
   REVIEW_ATTEMPT_PLACEHOLDER,
@@ -721,6 +722,12 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
     note: 'PrototypeReviewSample, the one Review question a free account is offered, on Home. The same stage and pieces as the dock; the chooser swaps between the four ways of asking.',
     card: <SampleShowcase />,
   },
+  {
+    id: 'sitting',
+    title: 'The sitting card (Home)',
+    note: 'PrototypeReviewSittingCard, the head of Review on Activity: the next question under its subject, today so far, and one gray button. Begin before anything is answered, Keep going after, and the day’s full stop once the sitting is done.',
+    card: <SittingShowcase />,
+  },
 ];
 
 /*
@@ -766,6 +773,71 @@ function SampleShowcase() {
         onNotNow={none}
         onExerciseChange={setKind}
       />
+    </div>
+  );
+}
+
+const SITTING_HEAD: ReviewItemView = {
+  id: 'gallery-head',
+  kind: 'note',
+  prompt: 'Pick a passage you cited in Adoption, not slavery.',
+  task: 'Pick a passage you cited',
+  exercise: { id: 'choice', label: 'Choose', icon: 'list', typed: false },
+  framing: null,
+  promptKey: 'note.passage',
+  recallState: 'fragile',
+  status: 'active',
+  origin: 'user',
+  dueAt: '2026-10-02T09:00:00.000Z',
+  reviewCount: 1,
+  ladderStep: 1,
+  noteTitle: 'Adoption, not slavery',
+  secondaryNoteTitle: null,
+  noteLabel: null,
+  noteContext: null,
+  noteWrittenAt: null,
+  scriptureReference: 'Romans 8:15',
+  noteId: 'note_gallery',
+  challengeId: null,
+  sourceLabel: 'Written on Sunday',
+  sourceAt: null,
+  cue: null,
+  translation: 'NET',
+};
+
+/** The card as Activity shows it: the first thing in the Review lane's panel, rows under it. */
+function SittingShowcase() {
+  const panel = (children: ReactNode) => (
+    <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-home-section__list">
+      {children}
+    </div>
+  );
+  return (
+    <div style={{ display: 'grid', gap: 16, paddingInline: 12 }}>
+      {panel(
+        <PrototypeReviewSittingCard
+          head={SITTING_HEAD}
+          today={{ answered: 0, goal: 6 }}
+          nextReturn={null}
+          onBegin={none}
+        />,
+      )}
+      {panel(
+        <PrototypeReviewSittingCard
+          head={{ ...SITTING_HEAD, noteTitle: 'Romans 8', exercise: { id: 'blanks', label: 'Blanks', icon: 'i-cursor', typed: true }, prompt: 'Fill in the missing words from Romans 8:15.' }}
+          today={{ answered: 3, goal: 6 }}
+          nextReturn={null}
+          onBegin={none}
+        />,
+      )}
+      {panel(
+        <PrototypeReviewSittingCard
+          head={null}
+          today={{ answered: 6, goal: 6 }}
+          nextReturn="tomorrow"
+          onBegin={none}
+        />,
+      )}
     </div>
   );
 }

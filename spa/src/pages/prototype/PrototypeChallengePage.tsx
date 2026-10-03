@@ -37,6 +37,7 @@ import {
 import { prototypeChallengesRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { encodeNoteSlug } from '@/utils/ids';
 import type { ChallengeStep } from '@/utils/challenge-templates';
+import { playSound } from '@/utils/sounds';
 
 export default function PrototypeChallengePage() {
   const navigate = useNavigate();
@@ -117,7 +118,15 @@ export default function PrototypeChallengePage() {
         artifactNoteId,
         response: response.trim() || undefined,
       },
-      { onSuccess: () => setResponse('') },
+      {
+        onSuccess: (data) => {
+          setResponse('');
+          /* The last step finishing the whole thing is the one heard, even if it was skipped —
+             the challenge is done either way. A skipped step on its own is not a completion. */
+          if (data?.challenge?.status === 'completed') playSound('challenge.finished');
+          else if (status === 'done') playSound('challenge.step');
+        },
+      },
     );
   };
 

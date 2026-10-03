@@ -9,6 +9,7 @@ import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { prefetchSettingsCategoryChunks } from './prefetch-settings-chunks';
 import { isSettingsCloseBlocked } from './settings-close-guard';
 import { useSettingsCategories } from './settingsCategories';
+import { playSound } from '@/utils/sounds';
 
 function isSettingsIndexPath(pathname: string) {
   const settingsRoot = prototypeSettingsRouteTo();
@@ -35,11 +36,13 @@ export default function PrototypeSettingsLayout() {
     // would abandon work the user can't see from anywhere else. The header's close
     // button stays available as the deliberate way out.
     if (isSettingsCloseBlocked()) return;
+    playSound('nav.close');
     const to = readSettingsOpenerPath();
     navigate({ to: to as '/', replace: true });
   }, [navigate]);
 
   const goToSettingsList = useCallback(() => {
+    playSound('nav.back');
     navigate({ to: prototypeSettingsRouteTo(), replace: true });
   }, [navigate]);
 
@@ -73,7 +76,10 @@ export default function PrototypeSettingsLayout() {
               className="proto-settings__nav-item"
               data-active={active ? 'true' : 'false'}
               aria-current={active ? 'page' : undefined}
-              onClick={() => navigate({ to: cat.route as '/settings/account', replace: true })}
+              onClick={() => {
+                if (!active) playSound('nav.select');
+                navigate({ to: cat.route as '/settings/account', replace: true });
+              }}
             >
               <span className="proto-settings__nav-icon" aria-hidden>
                 <Icon name={cat.icon} size={15} />
