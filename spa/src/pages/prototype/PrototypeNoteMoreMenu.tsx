@@ -1,6 +1,10 @@
 /**
- * Note toolbar "more" menu — pin, delete, save-a-copy, and leaving a shared space
- * (native MacNoteShareMoreToolbar parity). Note lock/unlock is temporarily disabled.
+ * Note toolbar "more" menu — pin, lock, delete, save-a-copy, and leaving a shared space
+ * (native MacNoteShareMoreToolbar parity).
+ *
+ * Lock items only dispatch `focusLockNote`: the open note's LockNoteButton (mounted by
+ * CardFullEditable) owns the live body and the unlock session, and decides whether that
+ * needs the PIN sheet. The toolbar decides *whether* a lock is offered (`lockState`).
  *
  * "Share to a space…" used to live here as a submenu with its own Shared-with / Add-to
  * lists. It was a second implementation of a question the note itself now answers: the
@@ -12,12 +16,14 @@
  * `Remove from this space` stays: it is scoped to the space you are *reading in*, which
  * this menu knows and the row deliberately does not treat as special.
  */
-import { useEffect, useMemo, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
+import { getLockSessionRevision, isNoteUnlocked, subscribeLockSession } from '@/utils/note-unlock-state';
+import { useProfile } from '../../hooks/queries/useProfile';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -82,6 +88,8 @@ export interface PrototypeNoteMoreMenuProps {
   onShare?: () => void;
   /** Opens version history; only passed for the note's author on a saved, unlocked note. */
   onHistory?: () => void;
+  /** Omitted when this note can't be locked (not yours, shared, a draft, not a plain note). */
+  lockState?: 'locked' | 'unlocked';
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
 }
 
@@ -100,6 +108,7 @@ export default function PrototypeNoteMoreMenu({
   onFind,
   onShare,
   onHistory,
+  lockState,
   menuButtonRef,
 }: PrototypeNoteMoreMenuProps) {
   const { isGuest } = useHarvousIdentity();
@@ -121,6 +130,23 @@ export default function PrototypeNoteMoreMenu({
     [queryClient, spaceId, noteId, pinNote.isPending, deleteNote.isPending],
   );
   const pinned = pinOverride ?? pinnedFromCache;
+  useSyncExternalStore(subscribeLockSession, getLockSessionRevision, getLockSessionRevision);
+  // Already loaded for Settings; handing it over saves the lock a profile round trip.
+  const { data: profile } = useProfile();
+  const lockOpenNow = lockState === 'locked' && isNoteUnlocked(noteId);
+
+  const sendLock = (removeLock: boolean) => {
+    setOpen(false);
+    window.dispatchEvent(
+      new CustomEvent('focusLockNote', {
+        detail: {
+          contentId: noteId,
+          ...(removeLock ? { removeLock: true } : {}),
+          ...(typeof profile?.hasLockPinSet === 'boolean' ? { hasLockPinSet: profile.hasLockPinSet } : {}),
+        },
+      }),
+    );
+  };
 
   useEffect(() => {
     setPinOverride(null);
@@ -386,6 +412,30 @@ export default function PrototypeNoteMoreMenu({
                 </span>
                 <span className="proto-menu-item__label">{pinned ? 'Unpin note' : 'Pin note'}</span>
               </button> : null}
+              {lockState === 'unlocked' ? (
+                <button type="button" role="menuitem" className="proto-menu-item" onClick={() => sendLock(false)}>
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="lock" size={iconSize} />
+                  </span>
+                  <span className="proto-menu-item__label">Lock note</span>
+                </button>
+              ) : null}
+              {lockOpenNow ? (
+                <button type="button" role="menuitem" className="proto-menu-item" onClick={() => sendLock(false)}>
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="lock" size={iconSize} />
+                  </span>
+                  <span className="proto-menu-item__label">Lock now</span>
+                </button>
+              ) : null}
+              {lockState === 'locked' ? (
+                <button type="button" role="menuitem" className="proto-menu-item" onClick={() => sendLock(true)}>
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="unlock" size={iconSize} />
+                  </span>
+                  <span className="proto-menu-item__label">Remove lock</span>
+                </button>
+              ) : null}
               {currentSharedSpaceId && canRemoveFromCurrentSpace ? (
                 <button
                   type="button"

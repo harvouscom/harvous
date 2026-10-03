@@ -125,10 +125,13 @@ function NoteSearchResultItem({
     stripServerAutoUntitledNoteTitleForDisplay(loaded?.title ?? result.title) || 'New Note';
   const iso = loaded?.updatedAt ?? loaded?.createdAt ?? null;
   const rel = iso ? protoRelativeCaptionAbbrev(iso) : undefined;
+  const locked = loaded?.contentEncrypted === true;
   const preview =
-    result.ftsExcerpt ??
-    (loaded?.content ? stripHtmlForListPreview(loaded.content, 80) : result.subtitle) ??
-    undefined;
+    locked
+      ? 'Locked'
+      : (result.ftsExcerpt ??
+        (loaded?.content ? stripHtmlForListPreview(loaded.content, 80) : result.subtitle) ??
+        undefined);
   const pinned = loaded?.isPinned === true;
 
   const pick = result.noteId ? selection?.for('note', result.noteId, title) : null;
@@ -166,6 +169,11 @@ function NoteSearchResultItem({
             </span>
           ) : null}
           <span className="pds-list-title proto-note-row__title-text">{title}</span>
+          {locked ? (
+            <span className="proto-note-row__pin proto-note-row__lock" aria-label="Locked" role="img">
+              <Icon name="lock" size={11} aria-hidden />
+            </span>
+          ) : null}
         </div>
         <SearchRecencyPreview rel={rel} preview={preview || undefined} />
       </button>

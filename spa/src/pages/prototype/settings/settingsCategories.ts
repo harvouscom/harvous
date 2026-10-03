@@ -76,18 +76,18 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: 'arrows-rotate',
     footnote: 'Which kinds of question Review asks you.',
   },
-  // lockPin temporarily hidden while note lock is disabled in the prototype.
-  // The route itself is unregistered too (see spa/src/router.tsx — no
-  // prototypeSettingsLockPinRoute) so it isn't reachable by direct URL either.
-  // Full list of note-lock off-switches, none of which have been removed —
-  // this can all be turned back on by re-adding the route:
-  //   - spa/src/router.tsx: prototypeSettingsLockPinRoute (removed, not just unlisted)
-  //   - spa/src/pages/prototype/PrototypePinPanels.tsx: returns null
-  //   - spa/src/pages/prototype/PrototypeNoteMoreMenu.tsx: lock/unlock omitted
-  //   - native/Harvous/ContentView.swift:501: `case .lockNote: break`
-  //   - native/Harvous/Views/iPadRootView.swift:380: same
-  // Retained and still wired: LockPinPanel, PinEntryPanel, InlinePinUnlock,
-  // LockNoteButton, and the `contentEncrypted` read paths in server/routes/og.ts.
+  /*
+   * Web-only for now. Native shows a locked note's title but can't open it yet — no
+   * decryption or PIN entry in the Swift app (`SettingsLockPINView` is a stub and
+   * `.lockNote` is a no-op in ContentView / iPadRootView). That is its own piece of work.
+   */
+  {
+    key: 'lockPin',
+    title: 'Lock PIN',
+    route: prototypeHref('settings/lock-pin'),
+    icon: 'lock',
+    footnote: 'One PIN for every locked note.',
+  },
   {
     key: 'sharing',
     title: 'Sharing',

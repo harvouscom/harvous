@@ -1037,7 +1037,11 @@ export const NOTE_LIST_CONTENT_MAX_CHARS = 2000;
  */
 const NOTE_LIST_SELECT = {
   ...NOTE_SELECT_COLUMNS,
-  content: sql<string>`left(${Notes.content}, ${NOTE_LIST_CONTENT_MAX_CHARS})`,
+  // A locked note's body is ciphertext: no list row can preview it, and a 2000-char cut of
+  // it can't be decrypted either, so it is never worth the bytes. `contentLength` stays the
+  // real length, which marks the blank as a truncated seed — the editor waits for the
+  // detail fetch rather than treating '' as the whole note.
+  content: sql<string>`case when ${Notes.contentEncrypted} then '' else left(${Notes.content}, ${NOTE_LIST_CONTENT_MAX_CHARS}) end`,
   contentLength: sql<number>`length(${Notes.content})`,
 } as const;
 

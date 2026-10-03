@@ -225,3 +225,20 @@ describe('MAX_NOTE_CREATES_PER_SYNC_PUSH', () => {
     expect(MAX_NOTE_CREATES_PER_SYNC_PUSH).toBe(50);
   });
 });
+
+describe('lock-pin bucket', () => {
+  it('shares one small budget across every PIN endpoint', () => {
+    const user = `pin-user-${Math.random()}`;
+    const paths = ['/api/user/verify-lock-pin', '/api/user/set-lock-pin', '/api/user/remove-lock-pin'];
+    for (let i = 0; i < RATE_LIMITS.LOCK_PIN.maxRequests; i++) {
+      expect(rateLimitMiddleware(user, paths[i % paths.length], 'lock-pin').allowed).toBe(true);
+    }
+    // Rotating to another PIN endpoint doesn't buy more guesses.
+    for (const path of paths) {
+      const blocked = rateLimitMiddleware(user, path, 'lock-pin');
+      expect(blocked.allowed).toBe(false);
+      expect(blocked.error).toMatch(/Too many PIN attempts/);
+    }
+  });
+
+});
