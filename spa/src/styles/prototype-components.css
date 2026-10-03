@@ -24642,3 +24642,15 @@ button.proto-feed-sheet__stat:hover {
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
+
+/* Settings › Connector › Connected AI apps: the app's mark in a small tile, in primary ink. */
+.proto-connector-client-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
+}

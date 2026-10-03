@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { displayAppName } from '../PrototypeConnectorPage';
+import { appsStillToSetUp, displayAppName, setupAppForClient } from '../PrototypeConnectorPage';
 
 const source = () =>
   readFileSync(resolve(process.cwd(), 'spa/src/pages/prototype/settings/PrototypeConnectorPage.tsx'), 'utf8');
@@ -37,5 +37,28 @@ describe('setup guide', () => {
 
   it('only shows usage once there is some', () => {
     expect(source()).toContain('data.usage.today > 0');
+  });
+});
+
+describe('setup tabs', () => {
+  it('drops the tab for an app that is connected', () => {
+    expect(appsStillToSetUp([{ name: 'Anthropic/ClaudeAI', disconnected: false }])).toEqual(['chatgpt', 'grok', 'muse']);
+  });
+  it('keeps the tab for a disconnected app, and ignores apps without one', () => {
+    expect(
+      appsStillToSetUp([
+        { name: 'openai-mcp', disconnected: true },
+        { name: 'Cursor', disconnected: false },
+        { name: 'Personal token', disconnected: false },
+      ]),
+    ).toEqual(['claude', 'chatgpt', 'grok', 'muse']);
+  });
+  it('has nothing left to set up once all four are connected', () => {
+    const all = ['Claude', 'ChatGPT', 'Grok', 'meta-ai-muse'].map((name) => ({ name, disconnected: false }));
+    expect(appsStillToSetUp(all)).toEqual([]);
+  });
+  it('maps a connected app to its tab', () => {
+    expect(setupAppForClient('Grok Bot')).toBe('grok');
+    expect(setupAppForClient('Cursor')).toBeNull();
   });
 });
