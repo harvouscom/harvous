@@ -18,7 +18,7 @@
  * than the arrival it undoes. The noteDock morph's no-rect fallback is
  * `PROTO_RESOURCE_MORPH_MS` ↔ `--pds-duration-morph`.
  */
-import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import type { PaperStackState } from '../../layouts/proto-shell-context';
@@ -30,6 +30,9 @@ import {
   RECALL_NEVERMIND_COPY,
   RECALL_PUT_DOWN_COPY,
 } from './proto-recall-copy';
+
+/** How long the flip-back cue holds — matches `pds-paper-stack-return` in the stylesheet. */
+const PAPER_STACK_RETURN_CUE_MS = 1800;
 
 export default function PrototypePaperStack({
   stack,
@@ -85,8 +88,12 @@ export default function PrototypePaperStack({
   const suggestionName =
     (origin.base.type === 'originCard' ? origin.base.title?.trim() : '') || origin.label;
   /** `New Note` is what every other surface calls a note with no title yet — rows, search,
-      the mention picker. The edge is one more of those, so it uses the same word. */
-  const parkedLabel = stripServerAutoUntitledNoteTitleForDisplay(stack.noteTitle ?? '') || 'New Note';
+      the mention picker. The edge is one more of those, so it uses the same word — unless
+      the note was started from a passage, which says which draft this is where "New Note"
+      would be true of all of them. */
+  const parkedLabel =
+    stripServerAutoUntitledNoteTitleForDisplay(stack.noteTitle ?? '') ||
+    (origin.noteReference ? `Note on ${origin.noteReference}` : 'New Note');
 
   /*
    * The chapter is revealed out of the dock's rectangle, not scaled up from it.
@@ -124,6 +131,63 @@ export default function PrototypePaperStack({
     el.style.setProperty('--pds-morph-inset-bottom', `${Math.max(0, box.height - top - morph.height)}px`);
   }, [morph]);
 
+  /*
+   * Flipping back to the chapter marks the verse you left from.
+   *
+   * The reader kept its scroll, so the verse is on screen — but after a few minutes in a
+   * note, "on screen" is a page of text and nothing saying which line was yours. So the rest
+   * of the chapter steps back for a moment, the same recede a card or a selection uses, and
+   * then comes up again on its own: a cue, not a state, so there is nothing to tap away.
+   *
+   * Skipped when the reader is already showing a focus — a saved note flips down onto the
+   * live route, which lands on the `v` in its address and dims for itself.
+   */
+  const fromVerse = origin.base.type === 'reader' ? origin.base.fromVerse : undefined;
+  const fromVerseEnd = origin.base.type === 'reader' ? origin.base.fromVerseEnd : undefined;
+  const wasOpenRef = useRef(stack.open);
+  useEffect(() => {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = stack.open;
+    if (!wasOpen || stack.open || origin.kind !== 'reader' || !fromVerse) return;
+    const end = fromVerseEnd && fromVerseEnd > fromVerse ? fromVerseEnd : fromVerse;
+    let frame = 0;
+    let tries = 0;
+    let marked: { list: HTMLElement; verses: HTMLElement[] } | null = null;
+    const clear = () => {
+      if (!marked) return;
+      marked.list.removeAttribute('data-stack-return');
+      for (const v of marked.verses) v.removeAttribute('data-stack-return-target');
+      marked = null;
+    };
+    const find = () => {
+      const list = rootRef.current?.querySelector<HTMLElement>(
+        '.pds-paper-stack__base .pds-reader__verses',
+      );
+      const targets = list
+        ? [...list.querySelectorAll<HTMLElement>('[data-reader-verse]')].filter((el) => {
+            const n = Number(el.dataset.readerVerse);
+            return n >= fromVerse && n <= end;
+          })
+        : [];
+      if (!list || targets.length === 0) {
+        // The live reader may still be mounting; give it about a second, then let it go.
+        if (++tries < 60) frame = requestAnimationFrame(find);
+        return;
+      }
+      if (list.dataset.focus === 'true') return;
+      for (const v of targets) v.setAttribute('data-stack-return-target', 'true');
+      list.setAttribute('data-stack-return', 'true');
+      marked = { list, verses: targets };
+    };
+    frame = requestAnimationFrame(find);
+    const timer = window.setTimeout(clear, PAPER_STACK_RETURN_CUE_MS);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+      clear();
+    };
+  }, [stack.open, origin.kind, fromVerse, fromVerseEnd]);
+
   return (
     <div
       className="pds-paper-stack"
@@ -160,6 +224,7 @@ export default function PrototypePaperStack({
               chapter={origin.base.chapter}
               translation={origin.base.translation}
               focusVerse={origin.base.fromVerse}
+              focusVerseEnd={origin.base.fromVerseEnd}
             />
           </PrototypeMainPaneShell>
         ) : collapses ? (

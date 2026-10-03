@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { Editor } from '@tiptap/core';
+import { getMarkRange, type Editor } from '@tiptap/core';
 import {
   confirmScriptureDraftView,
   confirmAnyScriptureDraftView,
@@ -17,7 +17,12 @@ import { isTiptapViewReady } from '@/utils/tiptap-helpers';
 import { onProtoViewportSettle } from '@/utils/proto-viewport-settle';
 import { mapSliceIndexToDocPos, scriptureSliceStart } from '@/utils/scripture-pill-position';
 import { suggestBooksForTypedReference } from '@/utils/scripture-book-suggest';
-import { getCachedVersePeek, getVersePeek } from '@/utils/verse-peek';
+import { getCachedVersePeek, getVersePeek, verseHtmlToPeekText } from '@/utils/verse-peek';
+import { fetchVerseHtml, getCachedVerseHtml } from '@/utils/fetch-verse-html';
+import {
+  SCRIPTURE_DRAFT_CONFIRMED_EVENT,
+  type ScriptureDraftConfirmedDetail,
+} from '@/utils/scripture-draft-events';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { getCachedPassageHistory, getPassageHistory, passageHistoryLabel } from '@/utils/passage-history';
@@ -57,10 +62,29 @@ interface VersePeekState {
   below: boolean;
 }
 
+/** The "Quote" offer beside a pill that was just typed. */
+interface QuoteOfferState {
+  reference: string;
+  /** The caret when the offer was made; it moving anywhere else is what withdraws the offer. */
+  caret: number;
+  top: number;
+  left: number;
+  loading: boolean;
+}
+
+/** How long a quote offer waits for a tap before it steps away on its own. */
+const QUOTE_OFFER_MS = 8000;
+
 export interface ScriptureDraftChromeWebProps {
   editor: Editor;
   /** The note being edited — left out of the passage-history count. */
   sourceNoteId?: string | null;
+  /**
+   * Put the words of a pill that was just typed into the note, as a quote under it. Omitted,
+   * the offer never shows. The editor owns the insert — it is the same one the passage dock's
+   * quote uses, with its attribution and save plumbing — so this only supplies the words.
+   */
+  onQuote?: (payload: { excerpt: string; reference: string; translation: string }) => void;
 }
 
 /**
@@ -74,8 +98,17 @@ export interface ScriptureDraftChromeWebProps {
  * blocks iOS text entry next to it. Every control here takes `pointerdown` with preventDefault so
  * the caret never leaves the draft.
  */
-export default function ScriptureDraftChromeWeb({ editor, sourceNoteId = null }: ScriptureDraftChromeWebProps) {
+export default function ScriptureDraftChromeWeb({
+  editor,
+  sourceNoteId = null,
+  onQuote,
+}: ScriptureDraftChromeWebProps) {
   const [confirm, setConfirm] = useState<DraftConfirmState | null>(null);
+  const [quoteOffer, setQuoteOffer] = useState<QuoteOfferState | null>(null);
+  const quoteOfferRef = useRef<QuoteOfferState | null>(null);
+  quoteOfferRef.current = quoteOffer;
+  const onQuoteRef = useRef(onQuote);
+  onQuoteRef.current = onQuote;
   const [bookSuggestion, setBookSuggestion] = useState<BookSuggestionState | null>(null);
   const [peek, setPeek] = useState<VersePeekState | null>(null);
   const sourceNoteIdRef = useRef(sourceNoteId);
@@ -288,7 +321,116 @@ export default function ScriptureDraftChromeWeb({ editor, sourceNoteId = null }:
     // acceptBook reads only refs and the editor, so the closure captured here never goes stale.
   }, [editor]);
 
-  if (!confirm && !bookSuggestion && !peek) return null;
+  /*
+   * Offer the words, right after a reference is typed.
+   *
+   * A typed pill named the passage and stopped there: to see what it said you tapped it, and
+   * to keep the words in the note you opened the dock and quoted from it. The verse peek
+   * already showed the words while the draft was open — this is the moment after, when the
+   * pill exists and the question is whether you want them on the page. Only for a pill typed
+   * from scratch (`isNew`); re-confirming an edited pill is not asking for anything.
+   *
+   * An offer, not a step: it goes the moment the caret moves (you kept writing, which is an
+   * answer) or after a few seconds, and nothing is inserted unless it is tapped.
+   */
+  useEffect(() => {
+    if (!onQuoteRef.current) return;
+    const dom = editor.view.dom as HTMLElement;
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    const clear = () => {
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = null;
+      quoteOfferRef.current = null;
+      setQuoteOffer(null);
+    };
+    const onConfirmed = (e: Event) => {
+      const detail = (e as CustomEvent<ScriptureDraftConfirmedDetail>).detail;
+      if (!detail?.isNew || !onQuoteRef.current) return;
+      // After the confirm's own transaction has painted, so the pill has a box to sit beside.
+      requestAnimationFrame(() => {
+        const placed = placeQuoteOffer(editor);
+        if (!placed) return;
+        setQuoteOffer({ reference: detail.reference, loading: false, ...placed });
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(clear, QUOTE_OFFER_MS);
+      });
+    };
+    /*
+     * Withdrawn by what YOU do next, not by what the editor does. A confirm is followed by the
+     * editor's own transactions — the trailing space, the pending-translation pass, the draft
+     * id swap on first save — and treating those as "the caret moved" took the offer away
+     * before it could be seen. So the caret is carried through every transaction, and only a
+     * key or a click in the editor counts as an answer.
+     */
+    const onTransaction = ({
+      transaction,
+    }: {
+      transaction: { docChanged: boolean; mapping: { map: (p: number) => number } };
+    }) => {
+      if (!quoteOfferRef.current || !transaction.docChanged) return;
+      // Functional: the quote's own insert is a transaction, and a copy of the offer taken
+      // from the ref here would bring it back after `takeQuoteOffer` had cleared it.
+      setQuoteOffer((offer) => {
+        if (!offer) return offer;
+        const caret = transaction.mapping.map(offer.caret);
+        return caret === offer.caret ? offer : { ...offer, caret };
+      });
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!quoteOfferRef.current || quoteOfferRef.current.loading) return;
+      // Modifier presses on their own are not an answer — they are the start of a shortcut.
+      if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+      // Nor is a space: the double-space that confirms a draft can land its second space after
+      // the confirm, and that space was part of making the pill, not a reply to the offer.
+      if (e.key === ' ') return;
+      clear();
+    };
+    const onPointerDown = () => {
+      if (quoteOfferRef.current && !quoteOfferRef.current.loading) clear();
+    };
+    dom.addEventListener(SCRIPTURE_DRAFT_CONFIRMED_EVENT, onConfirmed);
+    dom.addEventListener('keydown', onKeyDown, true);
+    dom.addEventListener('pointerdown', onPointerDown, true);
+    editor.on('transaction', onTransaction);
+    editor.on('blur', clear);
+    return () => {
+      if (hideTimer) clearTimeout(hideTimer);
+      dom.removeEventListener(SCRIPTURE_DRAFT_CONFIRMED_EVENT, onConfirmed);
+      dom.removeEventListener('keydown', onKeyDown, true);
+      dom.removeEventListener('pointerdown', onPointerDown, true);
+      if (!editor.isDestroyed) {
+        editor.off('transaction', onTransaction);
+        editor.off('blur', clear);
+      }
+    };
+  }, [editor]);
+
+  const takeQuoteOffer = async () => {
+    const offer = quoteOfferRef.current;
+    const quote = onQuoteRef.current;
+    if (!offer || offer.loading || !quote || !isTiptapViewReady(editor)) return;
+    // The translation is read now, not when the offer was made: typing "ESV" after a pill
+    // re-labels it a moment after the confirm, and the quote should be in the version the
+    // pill ended up in.
+    const pill = pillBeforePos(editor, offer.caret);
+    const translation: string = pill?.translation || getEffectiveDefaultTranslation();
+    const loading = { ...offer, loading: true };
+    quoteOfferRef.current = loading;
+    setQuoteOffer(loading);
+    const html =
+      getCachedVerseHtml(offer.reference, translation) ??
+      (await fetchVerseHtml(offer.reference, translation));
+    quoteOfferRef.current = null;
+    setQuoteOffer(null);
+    // "This verse is not included in the … translation." arrives as italic HTML, not a 404 —
+    // and quoting that sentence into someone's note as Scripture would be worse than nothing.
+    if (!html || /^\s*<p><em>/.test(html)) return;
+    const excerpt = verseHtmlToPeekText(html);
+    if (!excerpt) return;
+    quote({ excerpt, reference: offer.reference, translation });
+  };
+
+  if (!confirm && !bookSuggestion && !peek && !quoteOffer) return null;
 
   return createPortal(
     <>
@@ -336,6 +478,29 @@ export default function ScriptureDraftChromeWeb({ editor, sourceNoteId = null }:
             </button>
           ))}
         </div>
+      )}
+      {quoteOffer && (
+        <button
+          type="button"
+          className="scripture-quote-offer"
+          aria-label={`Quote ${quoteOffer.reference} into this note`}
+          title="Add the verse text as a quote"
+          aria-busy={quoteOffer.loading || undefined}
+          style={{ position: 'fixed', top: quoteOffer.top, left: quoteOffer.left, zIndex: 99999 }}
+          // Same as the ✓: keep the caret, and the iOS keyboard, in the editor.
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void takeQuoteOffer();
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+          // Keyboard activation only (`detail` 0) — a pointer already answered on pointerdown.
+          onClick={(e) => {
+            if (e.detail === 0) void takeQuoteOffer();
+          }}
+        >
+          {quoteOffer.loading ? 'Quoting…' : 'Quote'}
+        </button>
       )}
       {confirm && (
         <button
@@ -487,4 +652,47 @@ function placePeek(
     maxWidth: Math.min(420, vw - left - 8),
     below,
   };
+}
+
+/** The scripture pill ending at or just before `pos` — the confirm leaves a space after it,
+    and a double-space confirm can leave two. */
+function pillBeforePos(
+  editor: Editor,
+  pos: number,
+): { from: number; to: number; translation: string | null } | null {
+  const { state } = editor;
+  const markType = state.schema.marks.scripturePill;
+  if (!markType) return null;
+  for (let at = pos; at >= Math.max(1, pos - 3); at--) {
+    const $at = state.doc.resolve(at);
+    const mark = $at.nodeBefore?.marks.find((m) => m.type === markType);
+    if (!mark) continue;
+    const range = getMarkRange(state.doc.resolve(at - 1), markType);
+    if (!range) return null;
+    return { ...range, translation: (mark.attrs.translation as string | null) ?? null };
+  }
+  return null;
+}
+
+/** Where the quote offer goes: just past the pill that was typed, centred on its line. */
+function placeQuoteOffer(editor: Editor): { caret: number; top: number; left: number } | null {
+  if (!isTiptapViewReady(editor)) return null;
+  const caret = editor.state.selection.from;
+  const pill = pillBeforePos(editor, caret);
+  if (!pill) return null;
+  try {
+    const end = editor.view.coordsAtPos(pill.to);
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    const ox = vv?.offsetLeft ?? 0;
+    const oy = vv?.offsetTop ?? 0;
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 9999;
+    return {
+      caret,
+      top: (end.top + end.bottom) / 2 + oy,
+      // Past the space the confirm leaves, so the chip does not sit on the caret.
+      left: Math.min(end.right + 14, vw - 90) + ox,
+    };
+  } catch {
+    return null;
+  }
 }

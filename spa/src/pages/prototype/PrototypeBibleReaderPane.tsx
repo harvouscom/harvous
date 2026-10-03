@@ -430,7 +430,16 @@ export interface PrototypeBibleReaderPaneProps {
    * paper stack — a note is already open above it, so offering to start another there
    * would stack a sheet on a sheet.
    */
-  onStartNote?: (range: { start: number; end: number }) => void;
+  onStartNote?: (range: {
+    start: number;
+    end: number;
+    /** The words selected — a dragged phrase when there is one, else the whole verses. */
+    text?: string;
+    /** The selected column's version when it is the comparison; absent for the page's own. */
+    translation?: string;
+    /** The highlight already on the selection, if any — its colour and its annotation. */
+    highlight?: { accent: string; annotation?: string };
+  }) => void;
   /** Open the passage-context dock for a reference. Omitted on the paper stack's base. */
   onOpenDock?: (reference: string) => void;
   /** Session face from the inspector; unset follows the Appearance default. */
@@ -2035,7 +2044,20 @@ export default function PrototypeBibleReaderPane({
                 <MenuAction
                   icon="note-sticky"
                   label="Note"
-                  onClick={() => onStartNote({ start: selection.start, end: selection.end })}
+                  onClick={() =>
+                    onStartNote({
+                      start: selection.start,
+                      end: selection.end,
+                      text: selectedText,
+                      translation: actionTranslation,
+                      highlight: existingHighlight
+                        ? {
+                            accent: existingHighlight.accent,
+                            annotation: existingHighlight.miniNoteBody,
+                          }
+                        : undefined,
+                    })
+                  }
                 />
               </>
             ) : null}

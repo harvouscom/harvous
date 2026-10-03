@@ -1085,6 +1085,43 @@ button[disabled] {
   }
 }
 
+/* "Quote" beside a pill that was just typed — an offer, so it reads as quiet as the peek it
+   follows, not as the accent-filled ✓. Centred on the pill's line like the ✓. */
+.scripture-quote-offer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid var(--pds-accent-subtle-border, rgba(56, 105, 230, 0.2));
+  background: var(--pds-bg-popover-solid, #fff);
+  box-shadow: var(--pds-shadow-popover, 0 2px 8px rgba(0, 0, 0, 0.12));
+  color: var(--pds-text-secondary, rgba(60, 60, 67, 0.75));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateY(-50%);
+  animation: scripture-book-suggest-in 160ms ease-out both;
+}
+
+.scripture-quote-offer:hover {
+  color: var(--pds-text-primary, rgba(0, 0, 0, 0.88));
+}
+
+.scripture-quote-offer[aria-busy='true'] {
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scripture-quote-offer {
+    animation: none;
+  }
+}
+
 /* One line of the verse above a draft that would commit — what confirming will grab. Text only,
    never a control: it takes no taps, and nothing here offers to insert the passage. */
 .scripture-verse-peek {

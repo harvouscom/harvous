@@ -35,6 +35,26 @@ describe('buildScripturePillWithQuoteHtml', () => {
     expect(html).not.toMatch(/<p>a < b/);
   });
 
+  it('opens with the reader\'s own annotation under the quote, escaped, then a line to type on', () => {
+    const html = buildScripturePillWithQuoteHtml(
+      'John 3:16',
+      'NET',
+      { reference: 'John 3:16', text: 'For God so loved', accent: 'warmAmber' },
+      'Love <first>\n\nthen giving',
+    );
+    expect(html).toMatch(/<\/blockquote><p>Love &lt;first&gt;<\/p><p>then giving<\/p><p><\/p>$/);
+  });
+
+  it('adds nothing for a blank annotation', () => {
+    const html = buildScripturePillWithQuoteHtml(
+      'John 3:16',
+      'NET',
+      { reference: 'John 3:16', text: 'For God so loved' },
+      '   ',
+    );
+    expect(html).toMatch(/<\/blockquote><p><\/p>$/);
+  });
+
   it('falls back to a neutral accent rather than inventing one', () => {
     const html = buildScripturePillWithQuoteHtml('John 3:16', 'NET', {
       reference: 'John 3:16',

@@ -33,6 +33,11 @@ export function buildScripturePillWithQuoteHtml(
   reference: string,
   translation: string,
   quote?: { reference: string; text: string; accent?: string | null } | null,
+  /**
+   * Words of the reader's own to open the note with, under the quote — the annotation they
+   * had already written on this highlight. Plain text; one paragraph per line.
+   */
+  lead?: string | null,
 ): string {
   const pill = buildVotdScripturePillHtml(reference, translation);
   if (!quote?.text?.trim() || !quote.reference?.trim()) return pill;
@@ -44,7 +49,13 @@ export function buildScripturePillWithQuoteHtml(
     ` data-scripture-quote-reference="${escapeHtmlAttr(quoteRef)}"` +
     ` data-scripture-quote-translation="${escapeHtmlAttr(t)}">` +
     `<p>${escapeHtmlText(quote.text.trim())}</p></blockquote>`;
+  const leadHtml = (lead ?? '')
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `<p>${escapeHtmlText(line)}</p>`)
+    .join('');
   // An empty paragraph after it, or the caret lands inside the quote and the reader's first
   // sentence is typed into Scripture.
-  return `${pill}${blockquote}<p></p>`;
+  return `${pill}${blockquote}${leadHtml}<p></p>`;
 }
