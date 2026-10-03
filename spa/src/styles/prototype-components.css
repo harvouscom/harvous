@@ -24662,6 +24662,9 @@ button.proto-feed-sheet__stat:hover {
    to the page colour, the accent tile, the price large, a single list of accent checks.
    The billing rows below stay settings rows. */
 .proto-plan-card {
+  /* The secondary text token is half-transparent ink, which washes out over the sky.
+     Secondary lines here use a solid, softer ink instead. */
+  --proto-plan-card-soft-ink: color-mix(in oklab, var(--pds-text-primary) 72%, var(--pds-bg-page));
   position: relative;
   isolation: isolate;
   display: flex;
@@ -24769,7 +24772,7 @@ button.proto-feed-sheet__stat:hover {
 .proto-plan-card__price span {
   font-size: 0.4em;
   letter-spacing: -0.01em;
-  color: var(--pds-text-secondary);
+  color: var(--proto-plan-card-soft-ink);
 }
 
 .proto-plan-card__note {
@@ -24782,7 +24785,7 @@ button.proto-feed-sheet__stat:hover {
 .proto-plan-card__tagline {
   margin: 6px 0 0;
   font-size: 15px;
-  color: var(--pds-text-secondary);
+  color: var(--proto-plan-card-soft-ink);
 }
 
 .proto-plan-card__list {
