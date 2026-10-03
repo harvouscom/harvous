@@ -1790,8 +1790,15 @@ export async function getThreadsForSpaceBySpaceId(spaceId: string) {
     const threadIds = threads.map(t => t.id);
     let noteCountsMap = new Map<string, number>();
     if (threadIds.length > 0) {
+      // Locked notes count only in personal spaces: in a shared one they are invisible to
+      // everyone but their owner, so a count that includes them leaks that they exist.
       const noteCounts = await db.select({ threadId: NoteThreads.threadId, count: count() })
-        .from(NoteThreads).where(inArray(NoteThreads.threadId, threadIds))
+        .from(NoteThreads)
+        .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
+        .where(and(
+          inArray(NoteThreads.threadId, threadIds),
+          sql`(${Notes.contentEncrypted} = false OR EXISTS (SELECT 1 FROM ${Spaces} WHERE ${Spaces.id} = ${spaceId} AND ${Spaces.type} = 'personal'))`,
+        ))
         .groupBy(NoteThreads.threadId);
       noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
     }

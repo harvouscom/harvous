@@ -35,6 +35,7 @@ import {
   inArray,
   isNull,
   or,
+  sql,
 } from '../db';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
@@ -129,7 +130,9 @@ app.get('/api/church/content', requireAuth, async (c) => {
         reviewNote: ChurchContentSubmissions.reviewNote,
         publishedAt: ChurchContentSubmissions.publishedAt,
         createdAt: ChurchContentSubmissions.createdAt,
-        noteTitle: Notes.title,
+        // A note locked after it was submitted: its author sees their own title, a reviewer
+        // sees nothing of it (submitting refuses locked notes, but locking later is allowed).
+        noteTitle: sql<string | null>`CASE WHEN ${Notes.contentEncrypted} AND ${ChurchContentSubmissions.authorUserId} <> ${auth.userId} THEN NULL ELSE ${Notes.title} END`,
         channelTitle: Spaces.title,
         channelColor: Spaces.color,
       })

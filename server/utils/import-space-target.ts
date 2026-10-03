@@ -11,7 +11,7 @@
  * Imported notes land in the room unattached — putting one on a Sunday stays a
  * deliberate act through published material.
  */
-import { db, and, eq, inArray, isNull, SpaceNotes } from '../db';
+import { db, and, eq, inArray, isNull, Notes, SpaceNotes } from '../db';
 import { canAuthorInSpace, type SpaceRole } from './space-access';
 
 export type ImportSpaceTargetDecision =
@@ -54,9 +54,20 @@ export async function addImportedNotesToSpace(
     .from(SpaceNotes)
     .where(and(eq(SpaceNotes.spaceId, spaceId), inArray(SpaceNotes.noteId, [...noteIds]), isNull(SpaceNotes.removedAt)));
   const have = new Set(present.map((row) => row.noteId));
+  /*
+    Only the importer's own, unlocked notes may enter a room. "Duplicate" import results carry
+    the id of a note that already exists, and a portable-markdown export writes the id of
+    locked notes too — so re-importing your own export would otherwise put a locked note in a
+    shared space, where it can never be saved again (and its title reaches reviewers).
+  */
+  const eligible = await db
+    .select({ id: Notes.id })
+    .from(Notes)
+    .where(and(inArray(Notes.id, [...new Set(noteIds)]), eq(Notes.userId, actorId), eq(Notes.contentEncrypted, false)));
+  const allowed = new Set(eligible.map((row) => row.id));
   const now = new Date();
   const rows = [...new Set(noteIds)]
-    .filter((id) => !have.has(id))
+    .filter((id) => !have.has(id) && allowed.has(id))
     .map((noteId) => ({
       id: `sn_${crypto.randomUUID()}`,
       spaceId,
