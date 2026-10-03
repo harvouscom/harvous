@@ -12,7 +12,11 @@ import {
   type CreatedConnectorToken,
 } from '../../../hooks/mutations/useConnectorToken';
 import { connectorSetupMessage } from '../../../lib/connector-setup-copy';
-import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
+import { connectorAppFromClientName } from '@/utils/connector-app-name';
+import Icon from '@/components/react/Icon';
+import { AiAppMark } from './ai-app-marks';
+import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShell, SettingsToggleRow } from './SettingsShell';
+import { useSetAllowStartNotes } from '../../../hooks/mutations/useConnectorPreferences';
 
 /**
  * Settings › Connector — the Connector, part of Harvous Plus.
@@ -107,31 +111,60 @@ const TRY_ASKING = [
 
 /** Apps name themselves on connect ("Anthropic/ClaudeAI"); show the name people know. */
 export function displayAppName(raw: string): string {
-  const name = raw.trim();
-  if (/claude/i.test(name)) return 'Claude';
-  if (/chatgpt|openai/i.test(name)) return 'ChatGPT';
-  if (/cursor/i.test(name)) return 'Cursor';
-  if (/muse|meta[\s_-]?ai/i.test(name)) return 'Muse';
-  if (/grok|xai/i.test(name)) return 'Grok';
-  const last = name.split('/').pop()?.trim();
-  return last || 'Unknown app';
+  const app = connectorAppFromClientName(raw);
+  return app.slug === 'app' && app.name === 'an AI app' ? 'Unknown app' : app.name;
+}
+
+/** The setup tab a connected app covers, or null for any other app (Cursor, a token…). */
+export function setupAppForClient(name: string): AppKey | null {
+  const slug = connectorAppFromClientName(name).slug;
+  return (APP_ORDER as readonly string[]).includes(slug) ? (slug as AppKey) : null;
+}
+
+/**
+ * The setup tabs still worth showing: an app that is connected (and not disconnected) has
+ * nothing left to set up, so its steps would only be noise above its own row.
+ */
+export function appsStillToSetUp(clients: readonly Pick<ConnectorClient, 'name' | 'disconnected'>[]): AppKey[] {
+  const connected = new Set(
+    clients.filter((c) => !c.disconnected).map((c) => setupAppForClient(c.name)).filter(Boolean),
+  );
+  return APP_ORDER.filter((app) => !connected.has(app));
+}
+
+/** The app's mark on its Connected row; a generic puzzle piece for apps without one. */
+function ClientMark({ client }: { client: ConnectorClient }) {
+  const app = setupAppForClient(client.name);
+  return (
+    <span className="proto-connector-client-mark" aria-hidden="true">
+      {app ? <AiAppMark app={app} size={16} /> : <Icon name={client.clientId.startsWith('token:') ? 'key' : 'puzzle-piece'} size={14} />}
+    </span>
+  );
 }
 
 function StepNumber({ n }: { n: number }) {
   return <span className="proto-connector-step__num">{n}</span>;
 }
 
-function AppPicker({ value, onChange }: { value: AppKey; onChange: (app: AppKey) => void }) {
-  const activeIndex = Math.max(0, APP_ORDER.indexOf(value));
+function AppPicker({
+  apps,
+  value,
+  onChange,
+}: {
+  apps: readonly AppKey[];
+  value: AppKey;
+  onChange: (app: AppKey) => void;
+}) {
+  const activeIndex = Math.max(0, apps.indexOf(value));
   return (
     <div style={{ marginBottom: 12 }}>
       <div
         className="proto-appearance-segmented proto-seg-track"
         role="radiogroup"
         aria-label="Which app"
-        style={{ '--proto-seg-count': APP_ORDER.length, '--proto-seg-index': activeIndex } as CSSProperties}
+        style={{ '--proto-seg-count': apps.length, '--proto-seg-index': activeIndex } as CSSProperties}
       >
-        {APP_ORDER.map((app) => (
+        {apps.map((app) => (
           <button
             key={app}
             type="button"
@@ -140,7 +173,10 @@ function AppPicker({ value, onChange }: { value: AppKey; onChange: (app: AppKey)
             className={`proto-appearance-segmented__btn${value === app ? ' proto-appearance-segmented__btn--active' : ''}`}
             onClick={() => onChange(app)}
           >
-            {SETUP[app].label}
+            <span className="proto-connector-app-tab">
+              <AiAppMark app={app} />
+              {SETUP[app].label}
+            </span>
           </button>
         ))}
       </div>
@@ -233,6 +269,7 @@ export default function PrototypeConnectorPage() {
   const preview = isFeatureWithheld('connector');
   const { data, isLoading, isError, isFetched } = useConnectorStatus(connector.has || preview);
   const access = useConnectorClientAccess();
+  const setAllowStartNotes = useSetAllowStartNotes();
   const [app, setApp] = useState<AppKey>('claude');
   const allowed = connector.has || (preview && Boolean(data));
   // Plus already includes this — someone holding Plus during the preview is early, not unpaid.
@@ -271,21 +308,37 @@ export default function PrototypeConnectorPage() {
 
   const clients = data?.clients ?? [];
   const hasClients = clients.length > 0;
+  const setupApps = appsStillToSetUp(clients);
+  // The chosen tab, unless that app has since connected — then the first one still to set up.
+  const activeApp: AppKey | null = setupApps.includes(app) ? app : (setupApps[0] ?? null);
 
   return (
     <SettingsShell>
       <SettingsIntro>
-        Ask Claude, ChatGPT, or another AI app about your notes. They can read your study; they
-        can&rsquo;t change it.
+        Ask Claude, ChatGPT, or another AI app about your notes. They can&rsquo;t change or
+        delete anything you&rsquo;ve written.
       </SettingsIntro>
+
+      {/* The one setting that changes what apps may do, so it leads the page rather than
+          trailing the setup guide. */}
+      <SettingsGroup>
+        <SettingsToggleRow
+          label="Let AI apps start notes"
+          sublabel="Pick up a chat about Scripture as a new note."
+          checked={data?.preferences?.allowStartNotes ?? false}
+          disabled={!data || setAllowStartNotes.isPending}
+          onChange={(next) => setAllowStartNotes.mutate(next)}
+        />
+      </SettingsGroup>
 
       {hasClients ? (
         <>
-          <SectionLabel>Connected apps</SectionLabel>
+          <SectionLabel>Connected AI apps</SectionLabel>
           <SettingsGroup>
             {clients.map((client) => (
               <SettingsRow
                 key={client.clientId}
+                leadingNode={<ClientMark client={client} />}
                 label={displayAppName(client.name)}
                 sublabel={clientSublabel(client)}
                 value={client.disconnected ? 'Allow again' : 'Disconnect'}
@@ -304,7 +357,7 @@ export default function PrototypeConnectorPage() {
         </>
       ) : null}
 
-      <SectionLabel>{hasClients ? 'Connect another app' : 'Connect an app'}</SectionLabel>
+      <SectionLabel>{hasClients ? 'Connect another AI app' : 'Connect an AI app'}</SectionLabel>
       <div style={{ marginBottom: 12 }}>
         <SettingsCopyRow
           value={data?.mcpUrl ?? (isLoading ? 'Loading…' : '—')}
@@ -314,32 +367,40 @@ export default function PrototypeConnectorPage() {
           disabled={!data?.mcpUrl}
         />
       </div>
-      <AppPicker value={app} onChange={setApp} />
-      <SettingsGroup>
-        {SETUP[app].steps.map((step, i) => (
-          <SettingsRow
-            key={`${app}-${step.label}`}
-            label={step.label}
-            sublabel={step.sublabel}
-            leadingNode={<StepNumber n={i + 1} />}
-            trailing={step.href ? 'chevron' : 'none'}
-            onClick={step.href ? () => window.open(step.href, '_blank', 'noopener,noreferrer') : undefined}
-          />
-        ))}
-      </SettingsGroup>
-      {app === 'muse' && data?.mcpUrl ? (
-        <div style={{ margin: '-8px 0 20px' }}>
-          <SettingsCopyRow
-            value="Setup message for Muse"
-            copyValue={connectorSetupMessage(data.mcpUrl)}
-            copyLabel="Copy message"
-            layout="field"
-          />
-        </div>
+      {activeApp ? (
+        <>
+          <AppPicker apps={setupApps} value={activeApp} onChange={setApp} />
+          <SettingsGroup>
+            {SETUP[activeApp].steps.map((step, i) => (
+              <SettingsRow
+                key={`${activeApp}-${step.label}`}
+                label={step.label}
+                sublabel={step.sublabel}
+                leadingNode={<StepNumber n={i + 1} />}
+                trailing={step.href ? 'chevron' : 'none'}
+                onClick={step.href ? () => window.open(step.href, '_blank', 'noopener,noreferrer') : undefined}
+              />
+            ))}
+          </SettingsGroup>
+          {activeApp === 'muse' && data?.mcpUrl ? (
+            <div style={{ margin: '-8px 0 20px' }}>
+              <SettingsCopyRow
+                value="Setup message for Muse"
+                copyValue={connectorSetupMessage(data.mcpUrl)}
+                copyLabel="Copy message"
+                layout="field"
+              />
+            </div>
+          ) : null}
+        </>
       ) : null}
-      {app === 'grok' ? <GrokBotToken mcpUrl={data?.mcpUrl} active={data?.token ?? null} /> : null}
+      {/* Grok Bot's token lives under the Grok tab, but stays reachable to revoke once Grok is
+          connected and its tab has gone. */}
+      {activeApp === 'grok' || (!setupApps.includes('grok') && data?.token) ? (
+        <GrokBotToken mcpUrl={data?.mcpUrl} active={data?.token ?? null} />
+      ) : null}
       <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '-8px 0 20px' }}>
-        Other apps — Cursor, Claude Code, and most that support MCP — can add your URL as a remote
+        Other AI apps — Cursor, Claude Code, and most that support MCP — can add your URL as a remote
         server and sign in the same way.
       </p>
       {isError ? (
@@ -358,9 +419,11 @@ export default function PrototypeConnectorPage() {
         In Claude, Harvous also adds ready-made prompts to the + menu.
       </p>
 
+
       <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '4px 0 0' }}>
-        Read-only. Apps can&rsquo;t add, edit, or delete anything. Locked notes stay locked, and
-        Scripture is shared as references only.
+        AI apps can read your study, and start a new note if you allow it. They can&rsquo;t change or
+        delete anything.
+        Locked notes stay locked, and Scripture is shared as references only.
       </p>
     </SettingsShell>
   );
