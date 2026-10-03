@@ -34,6 +34,27 @@ The main locked notes implementation is documented in [../LOCKED_NOTES_ENCRYPTIO
 
 ---
 
+## Follow-ups from the Oct 2026 re-enable (open)
+
+Found by an audit of spaces, church and the Connector when locked notes came back on web (PR #227). None leaks to another person; all are owner-only reads of data derived from a locked note's body, or ideas for making the feature stronger.
+
+**Derived data survives locking.** Locking keeps `NoteScriptureReferences`, `ScriptureMetadata`, tags and `StudyThreadEntries` made from the plaintext. The fixes so far filter each read; the cleaner fix is to delete (or null) derived rows when a note is locked, and re-derive on unlock/remove-lock.
+
+**Owner-only reads that still include locked notes** (filter `contentEncrypted = false`, or blank the body-derived field):
+- `server/routes/spaces.ts` `study-threads/by-scripture`, personal branch (the sibling `study-thread-highlights` already filters).
+- `server/routes/study-feed.ts` personal highlight rows: `anchorQuote` / `sourceSnippet` come from inside locked notes.
+- `server/utils/crossref-gaps.ts`: the legacy-junction and `ScriptureMetadata` scans include locked notes (the pill half filters).
+
+**Moving a Thread into a shared space.** `spaces.ts` add-thread / add-items (threads) and sync thread mutations set `Threads.spaceId` without checking the thread for locked members. Member note lists are safe (they join `SpaceNotes`); only counts were affected and are now filtered. Consider refusing the move while the thread holds a locked note.
+
+**Open church submissions when a note is locked.** `refuseLockToggle` only looks at `SpaceNotes`. Locking should withdraw the note's open `ChurchContentSubmissions` (next to `clearAllCoEditForNote` in `note-version-service.ts`) instead of only hiding the title in the review list.
+
+**Defense in depth.** `church-review-suggestions.ts` reads channel note titles and scripture refs with no lock filter, relying on the "never in a shared space" invariant. A test forbids the string `Notes.content` in that file, so a filter has to be written another way (a join on a locked-note subquery).
+
+**Strength.** A 4-digit PIN can be guessed offline in minutes by anyone holding a note's ciphertext; a longer passphrase option is the real fix (see the trade-off in `../LOCKED_NOTES_ENCRYPTION.md`).
+
+**Native.** Native syncs `contentEncrypted` but cannot open locked notes; a stop-gap "Locked" view is in progress, and full parity (CryptoKit AES-GCM + PBKDF2, PIN sheet, optional Face ID) is its own piece of work.
+
 ## References
 
 - [../LOCKED_NOTES_ENCRYPTION.md](../LOCKED_NOTES_ENCRYPTION.md) – Current implementation (account-level PIN, crypto, APIs)
