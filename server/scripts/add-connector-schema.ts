@@ -35,6 +35,40 @@ export const ADDITIVE_CONNECTOR_DDL = [
     "updatedAt" timestamptz NOT NULL,
     CONSTRAINT "ConnectorUsageDays_userId_day_pk" PRIMARY KEY ("userId", "day")
   )`,
+  // Personal tokens, for apps that take a fixed token instead of a sign-in (Grok Bot).
+  // Only a hash is stored; the token itself is shown once, at creation.
+  `CREATE TABLE IF NOT EXISTS "ConnectorApiKeys" (
+    "id" text PRIMARY KEY,
+    "userId" text NOT NULL,
+    "keyHash" text NOT NULL,
+    "keyPrefix" text NOT NULL,
+    "createdAt" timestamptz NOT NULL,
+    "lastUsedAt" timestamptz,
+    "revokedAt" timestamptz
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ConnectorApiKeys_keyHashUnique" ON "ConnectorApiKeys" ("keyHash")`,
+  // At most one active token per person, enforced by the database, not just the route.
+  `CREATE UNIQUE INDEX IF NOT EXISTS "ConnectorApiKeys_activePerUser" ON "ConnectorApiKeys" ("userId") WHERE "revokedAt" IS NULL`,
+  `ALTER TABLE "ConnectorApiKeys" ENABLE ROW LEVEL SECURITY`,
+  // start_note: its own daily cap, the AI's card on a started note, and the off switch.
+  `ALTER TABLE "ConnectorUsageDays" ADD COLUMN IF NOT EXISTS "notesStarted" integer NOT NULL DEFAULT 0`,
+  `CREATE TABLE IF NOT EXISTS "NoteChatOrigins" (
+    "noteId" text PRIMARY KEY,
+    "userId" text NOT NULL,
+    "appName" text NOT NULL,
+    "summary" text NOT NULL,
+    "passages" text NOT NULL DEFAULT '[]',
+    "question" text,
+    "createdAt" timestamptz NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "NoteChatOrigins_userId" ON "NoteChatOrigins" ("userId")`,
+  `ALTER TABLE "NoteChatOrigins" ENABLE ROW LEVEL SECURITY`,
+  `CREATE TABLE IF NOT EXISTS "ConnectorPreferences" (
+    "userId" text PRIMARY KEY,
+    "allowStartNotes" boolean NOT NULL DEFAULT false,
+    "updatedAt" timestamptz NOT NULL
+  )`,
+  `ALTER TABLE "ConnectorPreferences" ENABLE ROW LEVEL SECURITY`,
   // Supabase exposes every public table to PostgREST; the API reads these through the
   // service connection, never through anon/authenticated roles.
   `ALTER TABLE "ConnectorClients" ENABLE ROW LEVEL SECURITY`,

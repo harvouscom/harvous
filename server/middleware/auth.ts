@@ -139,7 +139,8 @@ export async function clerkAuth(c: Context, next: Next) {
   // `verifyToken` refuses an `at+jwt` header, but `assertHeaderType` returns early when
   // `typ` is absent, so that is the only thing standing between the two today. Refuse
   // machine tokens by shape before verifying, and by claim after (see `client_id` below).
-  if (isMachineToken(token)) {
+  // A Connector personal token (hvous_…) is read-only access for one app; never a session.
+  if (isMachineToken(token) || token.startsWith('hvous_')) {
     c.set('auth', NULL_AUTH);
     return next();
   }

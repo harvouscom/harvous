@@ -223,8 +223,22 @@ export default function PrototypeReviewSection() {
   const reviewRows = expanded ? items : collapsedReviewRows(items);
   const today = inboxQuery.data?.today ?? null;
   const moreThanShown = items.length > reviewRows.length;
-  /* The bar opens the other two sections as well, so it shows whenever any of the three has
-     something in it — including when today is finished and only the later ones remain. */
+  /*
+   * Whether today has rows the closed lane is not showing — measured on the closed lane, so it
+   * holds while the fold is open (opened, every row is shown and `moreThanShown` is always false).
+   */
+  /* The card holds the head, so it is not behind the fold either. */
+  const inboxShown = inboxItems.filter((item) => item.id !== head?.id).slice(0, REVIEW_INBOX_MAX_ROWS);
+  const moreToday = inboxShown.length > collapsedReviewRows(inboxShown).length;
+  /*
+   * The bar opens the other two sections as well, so it shows whenever any of the three has
+   * something in it — including when today is finished and only the later ones remain.
+   *
+   * But it only says "See all" (or how far through today) while there is more of today behind
+   * it. Once today is all on screen or done, "See all" promised more questions and opened onto
+   * none — the reader pressed it and found only things not due yet. Then the bar names what it
+   * actually opens: what is coming back later, else what was set aside.
+   */
   const canExpand =
     moreThanShown || expanded || comingBackCount > 0 || setAside.length > 0;
 
@@ -337,7 +351,15 @@ export default function PrototypeReviewSection() {
             setExpanded((open) => !open);
           }}
         >
-          <span>{expanded ? REVIEW_SEE_LESS_COPY : REVIEW_SEE_ALL_COPY}</span>
+          <span>
+            {expanded
+              ? REVIEW_SEE_LESS_COPY
+              : moreToday
+                ? REVIEW_SEE_ALL_COPY
+                : comingBackCount > 0
+                  ? REVIEW_COMING_BACK_HEADING
+                  : REVIEW_SET_ASIDE_HEADING}
+          </span>
           <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
         </button>
       ) : null}

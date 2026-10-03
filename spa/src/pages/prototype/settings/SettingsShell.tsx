@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
+import { playSound } from '@/utils/sounds';
 
 /**
  * Optional intro under the settings header. Prefer omitting when the nav title
@@ -323,6 +324,61 @@ export function SettingsGroup({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+    </div>
+  );
+}
+
+/** An on/off row: Reminders' toggles, Connector's "Let apps start notes". */
+export function SettingsToggleRow({
+  label,
+  sublabel,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  sublabel?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <div className={`proto-note-row proto-note-row--static${disabled ? ' proto-note-row--disabled' : ''}`}>
+      <span className="proto-settings-list-row__main">
+        <span className="pds-list-title" style={{ color: 'var(--pds-text-primary)' }}>{label}</span>
+        {sublabel ? (
+          <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>{sublabel}</span>
+        ) : null}
+      </span>
+      <span className="proto-settings-list-row__trailing">
+        <span
+          className="proto-fte-switch"
+          // An "on" switch at full strength directly under "Notifications are blocked" reads
+          // as a contradiction. Dimming says the setting is real but not currently in effect.
+          style={disabled ? { opacity: 0.4 } : undefined}
+          data-on={checked ? 'true' : 'false'}
+          role="switch"
+          aria-checked={checked}
+          aria-disabled={disabled}
+          aria-label={label}
+          tabIndex={disabled ? -1 : 0}
+          onClick={() => {
+            if (disabled) return;
+            playSound('nav.toggle');
+            onChange(!checked);
+          }}
+          onKeyDown={(e) => {
+            if (disabled) return;
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.preventDefault();
+              playSound('nav.toggle');
+              onChange(!checked);
+            }
+          }}
+        >
+          <span className="proto-fte-switch__thumb" />
+        </span>
+      </span>
     </div>
   );
 }

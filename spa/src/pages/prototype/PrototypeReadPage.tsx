@@ -12,7 +12,7 @@ import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
 import { bookFromSlug, bookSlug } from '@/utils/bible-book-chapters';
-import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
+import { buildScripturePillWithQuoteHtml } from '../../lib/votd-scripture-pill-html';
 import { useProfile } from '../../hooks/queries/useProfile';
 import { getNoteQueryOptions } from '../../hooks/queries/useNote';
 import {
@@ -511,11 +511,17 @@ export default function PrototypeReadPage() {
    * This chapter as the paper a note stacks over. `returnTo` is where flipping the note down
    * lands — this chapter, at the verse the note was started from, in this translation — and
    * it is captured now so it still points here after the note's own URL has changed.
+   *
+   * The label names the verse too when there is one. "Proverbs 8" said which chapter was
+   * behind the note but not where in it, and the strip hides the chapter's text on purpose —
+   * so the label is the only thing left that can answer "where was I?".
    */
   const readerOrigin = useCallback(
-    (fromVerse: number | undefined): PaperStackOrigin => ({
+    (fromVerse: number | undefined, fromVerseEnd?: number): PaperStackOrigin => ({
       kind: 'reader',
-      label: `${book} ${chapter}`,
+      label: fromVerse
+        ? `${book} ${chapter}:${fromVerse}${fromVerseEnd && fromVerseEnd > fromVerse ? `-${fromVerseEnd}` : ''}`
+        : `${book} ${chapter}`,
       icon: 'scroll',
       returnTo: {
         to: prototypeReadRouteTo(),
@@ -523,7 +529,7 @@ export default function PrototypeReadPage() {
         params: { book: bookSlug(book), chapter: String(chapter) },
         search: { v: fromVerse ? String(fromVerse) : undefined, t: translation },
       },
-      base: { type: 'reader', book, chapter, translation, fromVerse },
+      base: { type: 'reader', book, chapter, translation, fromVerse, fromVerseEnd },
     }),
     [book, chapter, translation],
   );
@@ -535,16 +541,47 @@ export default function PrototypeReadPage() {
    * shell stacks the editor above the reader, so the chapter stays mounted behind it and
    * flipping back is a move rather than a page load. The pill is seeded so the note is
    * already anchored to what was selected.
+   *
+   * And the words under it, as a quote. The pill alone named the passage but not what it
+   * said, so the first thing a new note asked of you was a tap to remember what you had just
+   * selected — with the chapter now behind the sheet. The quote is exactly the selection (a
+   * dragged phrase stays a phrase), in the version it was selected in, which is also the
+   * version the pill now carries: a verse picked in the comparison column was being filed
+   * under the page's translation.
+   *
+   * A highlight already on those words comes too: the quote takes its colour, and an
+   * annotation written on it opens the note. That annotation was the first thing you wrote
+   * about this passage; starting the note without it asked you to write it twice.
    */
   const handleStartNote = useCallback(
-    ({ start, end }: { start: number; end: number }) => {
+    ({
+      start,
+      end,
+      text,
+      translation: selectedTranslation,
+      highlight,
+    }: {
+      start: number;
+      end: number;
+      text?: string;
+      translation?: string;
+      highlight?: { accent: string; annotation?: string };
+    }) => {
       const reference =
         start === end ? `${book} ${chapter}:${start}` : `${book} ${chapter}:${start}-${end}`;
+      const inTranslation = selectedTranslation ?? translation;
       beginPrototypeComposeSession({
         targetSpaceId: homeSpaceId ?? undefined,
-        seed: { contentHtml: buildVotdScripturePillHtml(reference, translation) },
+        seed: {
+          contentHtml: buildScripturePillWithQuoteHtml(
+            reference,
+            inTranslation,
+            text ? { reference, text, accent: highlight?.accent ?? null } : null,
+            highlight?.annotation,
+          ),
+        },
       });
-      stackNote(readerOrigin(start));
+      stackNote({ ...readerOrigin(start, end), noteReference: reference });
     },
     [homeSpaceId, beginPrototypeComposeSession, stackNote, readerOrigin, book, chapter, translation],
   );

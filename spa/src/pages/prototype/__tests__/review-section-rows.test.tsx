@@ -368,6 +368,37 @@ describe('what it shows a subscriber', () => {
     expect(screen.queryByRole('button', { name: /Begin|Keep going/ })).not.toBeInTheDocument();
   });
 
+  it('does not offer "See all" when everything due is already on screen', () => {
+    /* Two rows and something coming back later: the fold opens only the later ones, so it says
+       so rather than promising more questions that are not there. */
+    inbox.data = {
+      items: ['a', 'b'].map((id) => reviewItem(id, `Question ${id}`)),
+      hasMore: false,
+    };
+    summaryItems.data = {
+      items: [
+        ...['a', 'b'].map((id) => reviewItem(id, `Question ${id}`)),
+        { ...reviewItem('later', 'Later'), dueAt: new Date(Date.now() + 86_400_000).toISOString() },
+      ],
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.queryByText('See all')).not.toBeInTheDocument();
+    expect(screen.getByText('Coming back later')).toBeInTheDocument();
+  });
+
+  it('names what is behind the fold once today is done', () => {
+    inbox.data = { items: [], hasMore: false, today: { answered: 5, goal: 5 } };
+    summaryItems.data = {
+      items: [
+        { ...reviewItem('later', 'Later'), dueAt: new Date(Date.now() + 86_400_000).toISOString() },
+      ],
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText(/Done for today/)).toBeInTheDocument();
+    expect(screen.queryByText('5 of 5 today')).not.toBeInTheDocument();
+    expect(screen.getByText('Coming back later')).toBeInTheDocument();
+  });
+
   it('offers one fold, not a stack of them', () => {
     /* Three bars — "N more", "N coming back later", "N set aside" — under two rows of study. */
     inbox.data = {

@@ -5957,7 +5957,10 @@ html.harvous-prototype-route
   display: flex;
   flex-direction: column;
   width: min(860px, 100%);
-  height: min(80vh, 720px);
+  /* As tall as the section needs, up to the old fixed height; past that the detail scrolls.
+     The nav sits in the same grid row, so it is the floor: the window never gets shorter
+     than the list of sections, and short pages like Plan lose the empty band under them. */
+  height: auto;
   max-height: min(80vh, 720px);
   border-radius: var(--pds-shell-frame-radius);
   border: 0.5px solid var(--pds-border-modal-highlight);
@@ -6012,7 +6015,7 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 }
 
 .proto-settings-modal__body {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   overflow: hidden;
   display: flex;
@@ -6022,7 +6025,6 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 .proto-settings-modal__body .proto-settings {
   flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
 }
 
 /* ─── Settings sheet (narrow) ─────────────────────────────────────────────── */
@@ -20509,7 +20511,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   align-items: center;
   justify-content: center;
   gap: var(--pds-space-2);
-  padding: 0 var(--pds-space-5);
+  /* Clear of the dismiss on BOTH sides, not just the one it sits on, so the label stays
+     centred on the paper rather than on whatever is left of it. Without this a long note
+     title on a phone ran under the × and off the edge of the paper. */
+  --pds-paper-stack-edge-controls: calc(28px + var(--pds-space-2));
+  padding: 0 calc(var(--pds-space-5) + var(--pds-paper-stack-edge-controls));
   border: none;
   background: none;
   cursor: pointer;
@@ -20524,6 +20530,22 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .pds-paper-stack__edge .pds-caption {
   color: inherit;
   font-weight: 600;
+  /* Captions elsewhere refuse to shrink (`flex: 0 0 auto`); this one has to, or it cannot
+     ellipsize. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pds-paper-stack__edge svg {
+  flex-shrink: 0;
+}
+
+/* Two controls at the end of a suggestion's band, so twice the clearance. */
+.pds-paper-stack__edge-row--suggestion .pds-paper-stack__edge {
+  --pds-paper-stack-edge-controls: calc(2 * (28px + var(--pds-space-2)));
 }
 
 .pds-paper-stack__edge:hover {
@@ -20555,11 +20577,14 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
     color 0.12s ease;
 }
 
-/* On a pointer device it stays out of the way until you are looking at the band; on touch
-   there is no hover to reveal it with, so it is simply always there. */
+/* On a pointer device it stays quiet until you are looking at the band; on touch there is
+   no hover to raise it with, so it is simply always there. */
 @media (hover: hover) {
+  /* Quiet at rest rather than hidden: hidden, nothing said the chapter could be put down at
+     all, and the band read as a permanent fixture. Half strength is enough to be found and
+     still lets the label lead. */
   .pds-paper-stack__edge-dismiss {
-    opacity: 0;
+    opacity: 0.5;
   }
 
   .pds-paper-stack__edge-row:hover .pds-paper-stack__edge-dismiss,
@@ -20728,6 +20753,127 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .pds-paper-stack__sheet[data-stacked='false'] .pds-reader__column {
   background-color: var(--pds-bg-page);
   background-image: none;
+}
+
+/*
+ * ...and the band shows that paper's top, not wherever it happens to be scrolled to.
+ *
+ * The paper behind keeps its scroll position — that is what makes the flip a move — so the
+ * band showed whatever lines sat at the top of the scroller: half a verse cut off by the
+ * toolbar, a verse number, and the edge's label laid straight across the words. The label
+ * is the band's title line and needs clean paper to sit on.
+ *
+ * So the layer behind lays a strip of its own paper over its first band of height, above
+ * its content. Sized in the layer's unscaled space (the layer is drawn at the back scale,
+ * hence the divide) and given the paper's lip as well, so it covers the band whether or not
+ * the layer has been pulled up by it; any overshoot is under the front paper. Same width and
+ * fill as the paper behind, so it reads as that paper's blank top margin, not as a patch.
+ *
+ * Keyed off which layer is behind, like the fill above. Not on a noteDock origin, which has
+ * no paper behind.
+ */
+.pds-paper-stack:not([data-origin-kind='noteDock']):not(
+    :has(.pds-paper-stack__sheet[data-stacked='false'])
+  )
+  .pds-paper-stack__base::after,
+.pds-paper-stack__sheet[data-stacked='false']::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+  z-index: var(--pds-z-sticky);
+  width: min(var(--pds-paper-column), 100% - 2 * var(--pds-paper-column-gutter-narrow));
+  /* The band, the lip, the hover nudge (the paper in front gives way by that much more) and a
+     margin on top. Measured exactly, the strip ended a few pixels short of the front paper once
+     the parked layer's lip and scale were both applied, and a line of the parked note showed
+     through under the label. Overshoot costs nothing: it is under the paper in front. */
+  height: calc(
+    (
+        var(--pds-paper-stack-peek) + var(--pds-editor-paper-inset-top) +
+          var(--pds-paper-stack-hover-nudge) + var(--pds-space-4)
+      ) /
+      var(--pds-paper-stack-back-scale)
+  );
+  background-color: var(--pds-bg-page);
+  pointer-events: none;
+  /* Faded in rather than switched on. The strip appears the moment a layer goes behind, and
+     at that moment the sheet coming over it is still on its way: switched on, the top of the
+     chapter blanked a beat before anything arrived to explain it. Fading over the same
+     duration as the flip lands the strip as the sheet does. No fade on the way out — a layer
+     coming forward is about to be read, and should be whole at once. */
+  animation: pds-paper-stack-strip-in var(--pds-duration-paper-stack) var(--pds-ease-standard)
+    backwards;
+}
+
+@keyframes pds-paper-stack-strip-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * The chapter is clipped to its own scroller, explicitly.
+ *
+ * `overflow: hidden` on the scroller and on its layer should already do this, and inside the
+ * stack it did not: the verse list is its own composited layer (positioned, `z-index: 1`,
+ * opacity transitions) under a transformed parent, and the line half-scrolled past the top
+ * painted on above the paper — the sliced row of letters sitting in the band. `clip-path`
+ * is applied after compositing, so it holds. On the scroller rather than the layer: the
+ * layer casts the band's shadow upward from its top edge, and clipping the layer would cut
+ * that off with the text.
+ */
+.pds-paper-stack .pds-reader__scroll {
+  clip-path: inset(0);
+}
+
+/*
+ * The paper in FRONT fades its text out at the band instead of slicing it.
+ *
+ * The front paper's scroller starts flush with the band, so a scrolled page met it with a
+ * line cut through the middle of its letters — the half-glyph row right under the label.
+ * A short wash of the front paper's own fill over its top edge lets lines dissolve into the
+ * paper as they scroll up, the way a page edge reads, rather than being guillotined by it.
+ *
+ * Painted with the same two layers the stacked papers are built from (opaque canvas, then
+ * the translucent sheet), each fading out, so at rest — scrolled to the top, nothing under
+ * it but paper — it cannot be seen at all. Keyed to whichever layer is in front, like the
+ * shadow strip; this is that layer's `::after`, which only the paper behind otherwise uses.
+ */
+.pds-paper-stack:not([data-origin-kind='noteDock'])
+  .pds-paper-stack__sheet[data-stacked='true']::after,
+.pds-paper-stack:has(.pds-paper-stack__sheet[data-stacked='false']) .pds-paper-stack__base::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+  z-index: var(--pds-z-sticky);
+  width: min(var(--pds-paper-column), 100% - 2 * var(--pds-paper-column-gutter-narrow));
+  height: var(--pds-space-6);
+  background-image:
+    linear-gradient(var(--pds-paper-sheet), transparent),
+    linear-gradient(var(--pds-canvas-default), transparent);
+  pointer-events: none;
+}
+
+/*
+ * The flip-back cue: the rest of the chapter steps back and returns, once.
+ *
+ * Set for a moment by the stack when the note flips down (see `PrototypePaperStack`). The
+ * recede is the reader's own — the same 0.32 a card or a selection dims the chapter to — so
+ * this is the gesture the reader already uses for "this passage", played once rather than
+ * held. Opacity only: no tint, which would read as a highlight you saved.
+ */
+.pds-reader__verses[data-stack-return='true'] .pds-reader__verse:not([data-stack-return-target]) {
+  animation: pds-paper-stack-return 1800ms var(--pds-ease-standard);
+}
+
+@keyframes pds-paper-stack-return {
+  15%,
+  60% {
+    opacity: 0.32;
+  }
 }
 
 /*
@@ -20970,9 +21116,17 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   /* The clip reveal too: it is the largest move the stack makes. Without motion the
      chapter is simply there, which is the correct answer to "no animations please". */
   .pds-paper-stack[data-morph='true'] .pds-paper-stack__sheet,
-  .pds-paper-stack__collapse {
+  .pds-paper-stack__collapse,
+  .pds-paper-stack__base::after,
+  .pds-paper-stack__sheet::after {
     animation: none;
     transition: none;
+  }
+
+  /* The flip-back cue is a fade, not a move, but it is still motion arriving unasked —
+     without it the verse is still where the reader kept it. */
+  .pds-reader__verses[data-stack-return='true'] .pds-reader__verse:not([data-stack-return-target]) {
+    animation: none;
   }
 
   .pds-reader__verse,
@@ -24679,6 +24833,19 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /* Settings › Connector — numbered setup steps, in SettingsRow's leading slot. */
+/* Settings › Connector app tabs: the app's mark, then its name. The mark stays in the
+   primary ink (black on light) on every tab, selected or not. */
+.proto-connector-app-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.proto-connector-app-tab svg {
+  color: var(--pds-text-primary);
+}
+
 .proto-connector-step__num {
   display: inline-grid;
   place-items: center;
@@ -24691,4 +24858,175 @@ button.proto-feed-sheet__stat:hover {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+}
+
+/* Settings › Connector › Connected AI apps: the app's mark in a small tile, in primary ink. */
+.proto-connector-client-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
+}
+
+/* ─── Settings › Plan — the pricing card ─────────────────────────────────────
+   The Plus card from harvous.com/pricing, in app tokens: a watercolour sky behind a fade
+   to the page colour, the accent tile, the price large, a single list of accent checks.
+   The billing rows below stay settings rows. */
+.proto-plan-card {
+  /* The secondary text token is half-transparent ink, which washes out over the sky.
+     Secondary lines here use a solid, softer ink instead. */
+  --proto-plan-card-soft-ink: color-mix(in oklab, var(--pds-text-primary) 72%, var(--pds-bg-page));
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 28px;
+  padding: clamp(22px, 4vw, 32px);
+  border-radius: 24px;
+  background: var(--pds-bg-section);
+  overflow: hidden;
+}
+
+/* Plan is a fill-height page: the card grows into whatever height the nav gives the
+   window, so there is no empty band under it, and the page's bottom inset matches its
+   top (24px) instead of the shell's 64px. With billing rows below, there is no spare
+   height and the card simply sits at its own size. */
+.proto-settings__content:has(> .proto-settings-plan) {
+  padding-bottom: 24px !important;
+}
+
+.proto-settings-plan {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.proto-plan-card {
+  flex: 1 0 auto;
+}
+
+.proto-plan-card:last-child {
+  margin-bottom: 0;
+}
+
+.proto-plan-card__sky {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* The fade: the sky shows through at the top and gives way to the page by the list. */
+.proto-plan-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--pds-bg-page) 35%, transparent),
+    color-mix(in oklab, var(--pds-bg-page) 88%, transparent) 45%
+  );
+}
+
+.proto-plan-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.proto-plan-card__name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-plan-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--pds-bg-accent-button);
+  color: #fff;
+}
+
+.proto-plan-card__badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  background: color-mix(in oklab, var(--pds-bg-page) 70%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.proto-plan-card__price {
+  margin: 22px 0 0;
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: clamp(40px, 7vw, 54px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--pds-text-primary);
+}
+
+.proto-plan-card__price span {
+  font-size: 0.4em;
+  letter-spacing: -0.01em;
+  color: var(--proto-plan-card-soft-ink);
+}
+
+.proto-plan-card__note {
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+.proto-plan-card__tagline {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--proto-plan-card-soft-ink);
+}
+
+.proto-plan-card__list {
+  display: grid;
+  gap: 10px;
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proto-plan-card__list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+.proto-plan-card__check {
+  flex: none;
+  color: var(--pds-accent-indicator);
+  transform: translateY(1px);
+}
+
+.proto-plan-card__cta {
+  width: 100%;
+  margin-top: 28px;
 }

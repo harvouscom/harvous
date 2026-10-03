@@ -317,7 +317,10 @@ export function noteWrittenTouches(
   // Installed, shared and seeded content. `Notes.addedBy` defaults to 'user', so first-party
   // create, update, offline sync and web import all keep the touch — a web import *is* the
   // reader's own writing.
-  if ((note.addedBy ?? 'user') !== 'user') return [];
+  // A note an AI app started (`mcp-<app>`, Connector start_note) is the exception: its body
+  // starts empty and everything in it is theirs; the app's words live in a separate card.
+  const addedBy = note.addedBy ?? 'user';
+  if (addedBy !== 'user' && !addedBy.startsWith('mcp-')) return [];
   // Onboarding threads and the Welcome folder, on the same terms as every other usage count.
   if (!isCountableUserNote(note)) return [];
 
