@@ -1085,8 +1085,6 @@ button[disabled] {
   }
 }
 
-/* One line of the verse above a draft that would commit — what confirming will grab. Text only,
-   never a control: it takes no taps, and nothing here offers to insert the passage. */
 /* "Quote" beside a pill that was just typed — an offer, so it reads as quiet as the peek it
    follows, not as the accent-filled ✓. Centred on the pill's line like the ✓. */
 .scripture-quote-offer {
@@ -1124,6 +1122,8 @@ button[disabled] {
   }
 }
 
+/* One line of the verse above a draft that would commit — what confirming will grab. Text only,
+   never a control: it takes no taps, and nothing here offers to insert the passage. */
 .scripture-verse-peek {
   display: flex;
   align-items: baseline;
