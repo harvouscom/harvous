@@ -40,7 +40,7 @@
 }
 
 .proto-chat-origin__more:hover {
-  background: var(--pds-bg-hover, rgba(0, 0, 0, 0.05));
+  background: var(--pds-bg-row-hover);
   color: var(--pds-text-secondary);
 }
 
@@ -52,7 +52,7 @@
   min-width: 140px;
   padding: 4px;
   border-radius: 10px;
-  background: var(--pds-bg-surface, var(--pds-paper-sheet));
+  background: var(--pds-bg-popover-solid);
   box-shadow: 0 8px 24px -8px rgba(20, 18, 12, 0.25), 0 0 0 0.5px var(--pds-paper-rule);
 }
 
@@ -69,7 +69,7 @@
 }
 
 .proto-chat-origin__menu-item:hover {
-  background: var(--pds-bg-hover, rgba(0, 0, 0, 0.05));
+  background: var(--pds-bg-row-hover);
 }
 
 .proto-chat-origin__summary {

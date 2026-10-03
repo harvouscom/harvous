@@ -184,7 +184,7 @@ export default function ConnectorDesignPage() {
 }
 
 const DEV_CSS = `
-.dev-connector { min-height: 100vh; padding: 48px 24px 64px; background: var(--pds-bg-canvas, var(--pds-bg-app)); color: var(--pds-text-primary); box-sizing: border-box; }
+.dev-connector { min-height: 100vh; padding: 48px 24px 64px; background: var(--pds-bg-page); color: var(--pds-text-primary); box-sizing: border-box; }
 .dev-connector__header { max-width: 1280px; margin: 0 auto 24px; }
 .dev-connector__flow, .dev-connector__variants { max-width: 1280px; margin: 0 auto; display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); align-items: start; }
 .dev-col-label { color: var(--pds-text-tertiary); margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
