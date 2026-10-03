@@ -113,6 +113,8 @@ async function resolveClaimedNotes(
         isNull(SpaceNotes.removedAt),
         isNull(Spaces.deletedAt),
         eq(Spaces.orgId, orgId),
+        // Congregants see these titles; a locked note is never theirs to see.
+        eq(Notes.contentEncrypted, false),
       ),
     )
     .orderBy(asc(SpaceNotes.spaceId));
