@@ -208,7 +208,17 @@ self.addEventListener('fetch', (event) => {
   if (!url.origin.includes(self.location.origin)) {
     return;
   }
-  
+
+  // The Vite dev server's own module paths. None of these exist in a built app (assets there
+  // live under /assets/ with hashed names), so this only ever applies on localhost — where
+  // the stray-CSS rule below was answering `/@fs/.../global.css` cache-first. A browser that
+  // had visited the dev server once then kept that stylesheet while the JS around it moved
+  // on: new components rendered with none of their styles, and only on that one device.
+  if (/^\/(?:@fs|@vite|@id|src|node_modules)\//.test(url.pathname)
+      || url.pathname === '/@react-refresh') {
+    return;
+  }
+
   // Auth routes - always network-first with credentials
   if (url.pathname.startsWith('/sign-in') || url.pathname.startsWith('/sign-up')) {
     event.respondWith(
