@@ -394,8 +394,9 @@ describe('what it shows a subscriber', () => {
       ],
     };
     render(<PrototypeReviewSection />);
-    expect(screen.getByText(/Done for today/)).toBeInTheDocument();
-    expect(screen.queryByText('5 of 5 today')).not.toBeInTheDocument();
+    // The card says the day is done, and says the count once; the fold names what it opens.
+    expect(screen.getByText("That's today's sitting")).toBeInTheDocument();
+    expect(screen.getAllByText('5 of 5 today')).toHaveLength(1);
     expect(screen.getByText('Coming back later')).toBeInTheDocument();
   });
 
