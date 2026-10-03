@@ -414,7 +414,7 @@ export async function getRelatedNoteCandidates(userId: string): Promise<RelatedN
     .select({ noteId: ScriptureMetadata.noteId, book: ScriptureMetadata.book, chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse })
     .from(ScriptureMetadata)
     .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
-    .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture')));
+    .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), eq(Notes.contentEncrypted, false)));
 }
 
 /**
@@ -473,8 +473,8 @@ export async function getRelatedNotesForPassages(
         .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
         .where(
           excludeNoteId
-            ? and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), ne(ScriptureMetadata.noteId, excludeNoteId))
-            : and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture')),
+            ? and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), eq(Notes.contentEncrypted, false), ne(ScriptureMetadata.noteId, excludeNoteId))
+            : and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), eq(Notes.contentEncrypted, false)),
         );
 
   const verseToNotes = new Map<string, Set<string>>();

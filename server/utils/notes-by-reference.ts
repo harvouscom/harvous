@@ -153,7 +153,15 @@ export async function findNotesCitingReference(
     .from(NoteScriptureReferences)
     .innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id))
     .innerJoin(ScriptureMetadata, eq(ScriptureMetadata.noteId, NoteScriptureReferences.scriptureNoteId))
-    .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), eq(ScriptureMetadata.book, book)));
+    .where(
+      and(
+        eq(Notes.userId, userId),
+        ne(Notes.noteType, 'scripture'),
+        // Locking keeps the reference rows; a locked note must not surface through them.
+        eq(Notes.contentEncrypted, false),
+        eq(ScriptureMetadata.book, book),
+      ),
+    );
 
   const legacyNotes = legacyRows.map((row) => ({
     id: row.id,
