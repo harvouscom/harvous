@@ -24673,6 +24673,28 @@ button.proto-feed-sheet__stat:hover {
   overflow: hidden;
 }
 
+/* Plan is a fill-height page: the card grows into whatever height the nav gives the
+   window, so there is no empty band under it, and the page's bottom inset matches its
+   top (24px) instead of the shell's 64px. With billing rows below, there is no spare
+   height and the card simply sits at its own size. */
+.proto-settings__content:has(> .proto-settings-plan) {
+  padding-bottom: 24px !important;
+}
+
+.proto-settings-plan {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.proto-plan-card {
+  flex: 1 0 auto;
+}
+
+.proto-plan-card:last-child {
+  margin-bottom: 0;
+}
+
 .proto-plan-card__sky {
   position: absolute;
   inset: 0;

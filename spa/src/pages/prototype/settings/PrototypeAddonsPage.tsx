@@ -156,7 +156,7 @@ export default function PrototypeAddonsPage() {
   }
 
   return (
-    <SettingsShell wide>
+    <SettingsShell wide fillHeight>
       <div className="proto-settings-plan">
         <section className="proto-plan-card" aria-label={PLAN_NAME}>
           {/* The same watercolour sky as /upgrade and the Plus card on harvous.com/pricing. */}
