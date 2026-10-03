@@ -5,6 +5,7 @@ import SafeSubscriptionDetailsButton from '@/components/react/SafeSubscriptionDe
 import { getSharedSpacesAddonFeatureBullets } from '@/lib/shared-spaces-limits';
 import {
   formatPlanPrice,
+  getPlans,
   planFor,
   PLUS_COMING_SOON_FEATURE_BULLETS,
   PLUS_FOUNDING_BADGE,
@@ -45,8 +46,13 @@ export function planCardPrice(options: {
   canManageBilling: boolean;
 }): { primary: string; secondary: string | null; note: string | null } {
   if (!options.hasPlus) {
-    const month = monthPlan ? `${formatPlanPrice(monthPlan)}/mo` : null;
-    const year = yearPlan ? `${formatPlanPrice(yearPlan)}/yr` : null;
+    // From the plan definitions, not `planFor`: that only answers once a billing product is
+    // configured, and the price is a fact about the plan, not about the environment.
+    const listed = getPlans().filter((p) => p.key === 'plus' && p.listed);
+    const monthDef = listed.find((p) => p.interval === 'month');
+    const yearDef = listed.find((p) => p.interval === 'year');
+    const month = monthDef ? `${formatPlanPrice(monthDef)}/mo` : null;
+    const year = yearDef ? `${formatPlanPrice(yearDef)}/yr` : null;
     return { primary: month ?? year ?? '', secondary: month && year ? year : null, note: null };
   }
   if (options.billing) {
