@@ -5957,7 +5957,10 @@ html.harvous-prototype-route
   display: flex;
   flex-direction: column;
   width: min(860px, 100%);
-  height: min(80vh, 720px);
+  /* As tall as the section needs, up to the old fixed height; past that the detail scrolls.
+     The nav sits in the same grid row, so it is the floor: the window never gets shorter
+     than the list of sections, and short pages like Plan lose the empty band under them. */
+  height: auto;
   max-height: min(80vh, 720px);
   border-radius: var(--pds-shell-frame-radius);
   border: 0.5px solid var(--pds-border-modal-highlight);
@@ -6012,7 +6015,7 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 }
 
 .proto-settings-modal__body {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   overflow: hidden;
   display: flex;
@@ -6022,7 +6025,6 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 .proto-settings-modal__body .proto-settings {
   flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
 }
 
 /* ─── Settings sheet (narrow) ─────────────────────────────────────────────── */
