@@ -19,11 +19,17 @@
  * source test pins (`review-dock-held-item.test.ts`).
  */
 import type { ReactNode } from 'react';
+import ProtoLoadingDots from '../ProtoLoadingDots';
 
 export interface ExerciseStageAction {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /**
+   * The answer is on its way to being marked. The button keeps its size and shows dots, so the
+   * tap reads as landing; disabled alone looked like the card had stopped responding.
+   */
+  pending?: boolean;
 }
 
 export interface ExerciseStageProps {
@@ -83,10 +89,17 @@ export function ExerciseStage({
                 <button
                   type="button"
                   className="proto-settings-btn proto-settings-btn--compact rx-primary"
-                  disabled={primary.disabled}
+                  disabled={primary.disabled || primary.pending}
+                  data-pending={primary.pending ? '' : undefined}
+                  aria-busy={primary.pending || undefined}
                   onClick={primary.onClick}
                 >
-                  {primary.label}
+                  <span className="rx-primary__label">{primary.label}</span>
+                  {primary.pending ? (
+                    <span className="rx-primary__dots">
+                      <ProtoLoadingDots />
+                    </span>
+                  ) : null}
                 </button>
               ) : null}
             </div>

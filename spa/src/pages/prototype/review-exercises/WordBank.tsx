@@ -32,15 +32,29 @@ export function bankUsage(bank: readonly string[], values: readonly (string | un
   return used;
 }
 
-/** The gap a tapped tile goes to: the first empty one the server has not already filled. */
+/**
+ * The gap a tapped tile goes to: the first empty one the server has not already filled, else
+ * the first still marked wrong from the last Check.
+ *
+ * The fallback is the retry. After a miss every gap is full, so a tapped tile went nowhere and
+ * the reader had to find each red word and tap it back to the tray before a new one would land.
+ * A wrong word is the one place a new word is plainly meant to go, so it is swapped in place and
+ * the old word returns to the tray on its own (usage is derived — see `bankUsage`).
+ */
 export function nextOpenGap(
   total: number,
   values: readonly (string | undefined)[],
   given: ReadonlyMap<number, string>,
+  isMissed?: (index: number) => boolean,
 ): number | null {
   for (let i = 0; i < total; i++) {
     if (given.has(i)) continue;
     if (!values[i]?.trim()) return i;
+  }
+  if (!isMissed) return null;
+  for (let i = 0; i < total; i++) {
+    if (given.has(i)) continue;
+    if (isMissed(i)) return i;
   }
   return null;
 }

@@ -78,6 +78,14 @@ describe('nextOpenGap', () => {
     expect(nextOpenGap(3, ['a', '', ''], new Map([[1, 'b']]))).toBe(2);
     expect(nextOpenGap(2, ['a', 'b'], new Map())).toBeNull();
   });
+
+  it('swaps into the first gap still marked wrong once every gap is full', () => {
+    const wrong = (index: number) => index === 1 || index === 2;
+    expect(nextOpenGap(3, ['a', 'b', 'c'], new Map(), wrong)).toBe(1);
+    // An empty gap still wins over a wrong one, and a given gap is never swapped.
+    expect(nextOpenGap(3, ['a', 'b', ''], new Map(), wrong)).toBe(2);
+    expect(nextOpenGap(3, ['a', 'b', 'c'], new Map([[1, 'b']]), wrong)).toBe(2);
+  });
 });
 
 describe('placing words', () => {
