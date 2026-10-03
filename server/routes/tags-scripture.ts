@@ -33,6 +33,7 @@ import { parseVerseSearchParams, searchBibleVerses } from '../utils/scripture-ve
 import { nowISO } from '../db/dates';
 import { updateCanonicalNoteInTransaction } from '../utils/note-version-service';
 import { broadcastCanonicalNoteInvalidation } from '../utils/broadcast-shared-space-note';
+import { BIBLE_TEXT_REVISION_TAG } from '@/utils/bible-text-revision';
 import {
   dedupeNoteTagsForResponse,
   getOrCreateTag,
@@ -381,7 +382,7 @@ app.get('/api/scripture/book', async (c) => {
     return c.json({
       book,
       translation,
-      version: `${translation}:${rows.length}`,
+      version: `${translation}:${rows.length}:${BIBLE_TEXT_REVISION_TAG}`,
       chapters,
     });
   } catch (error) {

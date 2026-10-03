@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
+import { scriptureBookUrl } from '@/utils/bible-text-revision';
 import {
   MAX_OFFLINE_TRANSLATIONS,
   canAddPack,
@@ -97,10 +98,7 @@ export function useBiblePacks() {
 
         const result = await downloadPack(
           translationId,
-          async (book) => {
-            const params = new URLSearchParams({ book, translation: translationId });
-            return api.get(`/api/scripture/book?${params.toString()}`);
-          },
+          async (book) => api.get(scriptureBookUrl(book, translationId)),
           {
             signal: controller.signal,
             onProgress: (p) => {
