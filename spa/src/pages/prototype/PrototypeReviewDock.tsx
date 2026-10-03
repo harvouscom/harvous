@@ -386,6 +386,35 @@ export default function PrototypeReviewDock() {
     if (!verdict.parts) return verdict.state;
     return verdict.parts[index] ? 'right' : 'wrong';
   };
+  /*
+   * The answer as it was when it was marked, on the rungs answered a part at a time — a word per
+   * gap, a piece per place in the order, a pick per row of a match.
+   *
+   * A mark belongs to what it was given to, not to the place. Changing a part after a miss kept
+   * the place red, so the reader's correction read as another mistake before they had checked it
+   * — every edit looked like an error. A part that has changed since it was marked is unmarked
+   * until the next Check.
+   */
+  const [markedAnswer, setMarkedAnswer] = useState<{
+    words?: string[];
+    order?: number[];
+    pairs?: number[];
+  } | null>(null);
+  const gapState = (index: number): 'right' | 'wrong' | undefined => {
+    const marked = markedAnswer?.words;
+    if (marked && (blanks[index] ?? '') !== (marked[index] ?? '')) return undefined;
+    return partState(index);
+  };
+  const orderState = (position: number): 'right' | 'wrong' | undefined => {
+    const marked = markedAnswer?.order;
+    if (marked && placed[position] !== marked[position]) return undefined;
+    return partState(position);
+  };
+  const matchState = (row: number): 'right' | 'wrong' | undefined => {
+    const marked = markedAnswer?.pairs;
+    if (marked && (matchPicks[row] ?? null) !== (marked[row] ?? null)) return undefined;
+    return partState(row);
+  };
 
   /*
    * One line after a miss, said as specifically as the answer allows: how many parts landed
@@ -605,6 +634,7 @@ export default function PrototypeReviewDock() {
     setMissed([]);
     setSpentWords([]);
     setVerdict(null);
+    setMarkedAnswer(null);
     setAttemptsTotal(null);
     setHints([]);
     /*
@@ -773,6 +803,9 @@ export default function PrototypeReviewDock() {
               setHeldItem(item);
               if (data.attempts) setAttemptsTotal(data.attempts.total);
               setVerdict({ state: 'wrong', option: picked, parts: data.parts, reached: data.reached });
+              setMarkedAnswer(
+                graded ? { words: graded.words, order: graded.order, pairs: graded.pairs } : null,
+              );
               /*
                * One thing to go on. A `blank` hint is applied to the gap it names rather than
                * printed as a line — the reader watches the word appear where it belongs, which
@@ -805,6 +838,9 @@ export default function PrototypeReviewDock() {
                 parts: data.parts,
                 reached: data.reached,
               });
+              setMarkedAnswer(
+                graded ? { words: graded.words, order: graded.order, pairs: graded.pairs } : null,
+              );
               // The last wrong pick is spent like the ones before it, and reads the same.
               if (!data.correct && graded?.option) setMissed((m) => [...m, graded.option!]);
               if (!data.correct && Number.isInteger(graded?.wordIndex)) {
@@ -962,7 +998,27 @@ export default function PrototypeReviewDock() {
       {retryLine}
     </>
   ) : null;
-  const missedNow = verdict?.state === 'wrong';
+  /*
+   * The band is red while the marked answer is still what is on the card. Once the reader has
+   * started changing it, the red is about an answer that is no longer there — the line still
+   * says there is another go, but the card stops looking like it is in error.
+   */
+  const sameAsMarked = (now: readonly unknown[], marked: readonly unknown[] | undefined) =>
+    !marked ||
+    (now.length <= marked.length &&
+      marked.every((part, index) => (now[index] ?? null) === (part ?? null)));
+  const changedSinceMarked = Boolean(
+    markedAnswer &&
+      !(
+        // A gap the server filled in as a hint is its change, not the reader's.
+        (markedAnswer.words ?? []).every(
+          (word, index) => givenBlanks.has(index) || (blanks[index] ?? '') === (word ?? ''),
+        ) &&
+        sameAsMarked(placed, markedAnswer.order) &&
+        sameAsMarked(matchPicks, markedAnswer.pairs)
+      ),
+  );
+  const missedNow = verdict?.state === 'wrong' && !changedSinceMarked;
   /* Only ever what came back from marking — the page holds no answer key. */
   const correctOption = verdict?.state === 'right' ? verdict.option : null;
   /* The option on its way to the server, so a tap is seen to land before the reply does. */
@@ -1472,7 +1528,7 @@ export default function PrototypeReviewDock() {
                 blankLengths={clozeExercise.blankLengths}
                 values={blanks}
                 given={givenBlanks}
-                partState={partState}
+                partState={gapState}
                 disabled={outcome.isPending}
                 onClear={(index) => {
                   const next = [...blanks];
@@ -1485,6 +1541,7 @@ export default function PrototypeReviewDock() {
             missed={missedNow}
             primary={{
               label: REVIEW_CHECK_COPY,
+              pending: outcome.isPending,
               disabled: outcome.isPending || !gapsFilled(clozeExercise.blankLengths.length),
               onClick: () => submitGaps(clozeExercise.blankLengths.length),
             }}
@@ -1494,7 +1551,12 @@ export default function PrototypeReviewDock() {
               values={blanks}
               disabled={outcome.isPending}
               onPlace={(word) => {
-                const at = nextOpenGap(clozeExercise.blankLengths.length, blanks, givenBlanks);
+                const at = nextOpenGap(
+                  clozeExercise.blankLengths.length,
+                  blanks,
+                  givenBlanks,
+                  (index) => gapState(index) === 'wrong',
+                );
                 if (at === null) return;
                 const next = [...blanks];
                 next[at] = word;
@@ -1522,7 +1584,7 @@ export default function PrototypeReviewDock() {
                 blankLengths={clozeExercise.blankLengths}
                 values={blanks}
                 given={givenBlanks}
-                partState={partState}
+                partState={gapState}
                 disabled={outcome.isPending}
                 onChange={(index, value) => {
                   const next = [...blanks];
@@ -1539,6 +1601,7 @@ export default function PrototypeReviewDock() {
             missed={missedNow}
             primary={{
               label: REVIEW_CHECK_COPY,
+              pending: outcome.isPending,
               disabled: outcome.isPending || !gapsFilled(clozeExercise.blankLengths.length),
               onClick: () => submitGaps(clozeExercise.blankLengths.length),
             }}
@@ -1556,7 +1619,7 @@ export default function PrototypeReviewDock() {
                     left={matchExercise.left}
                     right={matchExercise.right}
                     picks={picks}
-                    partState={partState}
+                    partState={matchState}
                     disabled={outcome.isPending}
                     onClear={(row) =>
                       setMatchPicks((current) => {
@@ -1571,6 +1634,7 @@ export default function PrototypeReviewDock() {
                 missed={missedNow}
                 primary={{
                   label: REVIEW_CHECK_COPY,
+                  pending: outcome.isPending,
                   disabled: outcome.isPending || placedRight.length !== matchExercise.left.length,
                   onClick: () =>
                     answer('almost', { pairs: picks as number[] }, null, {
@@ -1600,7 +1664,7 @@ export default function PrototypeReviewDock() {
               <OrderSlots
                 phrases={sequenceExercise.phrases}
                 placed={placed}
-                partState={partState}
+                partState={orderState}
                 disabled={outcome.isPending}
                 onRemove={(position) => setPlaced((current) => current.filter((_, i) => i !== position))}
               />
@@ -1609,6 +1673,7 @@ export default function PrototypeReviewDock() {
             missed={missedNow}
             primary={{
               label: REVIEW_CHECK_COPY,
+              pending: outcome.isPending,
               disabled: outcome.isPending || placed.length !== sequenceExercise.phrases.length,
               onClick: () =>
                 answer('almost', { order: placed }, null, { phrases: sequenceExercise.phrases }),
@@ -1701,7 +1766,7 @@ export default function PrototypeReviewDock() {
                 letters={initialsExercise.segments.letters}
                 values={blanks}
                 given={givenBlanks}
-                partState={partState}
+                partState={gapState}
                 disabled={outcome.isPending}
                 onChange={(index, value) => {
                   const next = [...blanks];
@@ -1719,6 +1784,7 @@ export default function PrototypeReviewDock() {
             missed={missedNow}
             primary={{
               label: REVIEW_CHECK_COPY,
+              pending: outcome.isPending,
               disabled:
                 outcome.isPending || !gapsFilled(initialsExercise.segments.blankLengths.length),
               onClick: () => submitGaps(initialsExercise.segments!.blankLengths.length),
@@ -1739,6 +1805,7 @@ export default function PrototypeReviewDock() {
             missed={missedNow}
             primary={{
               label: REVIEW_CHECK_COPY,
+              pending: outcome.isPending,
               disabled: outcome.isPending || !attempt.trim(),
               onClick: () => answer('almost', { text: attempt, promptKey: item.promptKey }),
             }}
@@ -1765,6 +1832,7 @@ export default function PrototypeReviewDock() {
             missed={missedNow}
             primary={{
               label: REVIEW_CHECK_COPY,
+              pending: outcome.isPending,
               disabled: outcome.isPending || !gapsFilled(keywordsExercise.count),
               onClick: () => submitGaps(keywordsExercise.count),
             }}
@@ -1776,7 +1844,7 @@ export default function PrototypeReviewDock() {
                   <input
                     type="text"
                     className="proto-review-dock__blank"
-                    data-answer={partState(index)}
+                    data-answer={gapState(index)}
                     style={{ width: '9ch' }}
                     value={blanks[index] ?? ''}
                     onChange={(event) => {
@@ -2090,6 +2158,7 @@ export default function PrototypeReviewDock() {
             missed={missedNow}
             primary={{
               label: REVIEW_CHECK_COPY,
+              pending: outcome.isPending,
               disabled: outcome.isPending || !attempt.trim(),
               onClick: () => answer('almost', { text: attempt, promptKey: item.promptKey }),
             }}

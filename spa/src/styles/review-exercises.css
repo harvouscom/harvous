@@ -1307,6 +1307,35 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   font-size: 14px;
 }
 
+/*
+ * Marking. The label keeps the button's width and the dots sit over it, so nothing moves when
+ * the verdict lands; the disabled dimming is lifted because this is work, not a refusal.
+ */
+.rx-primary {
+  position: relative;
+}
+
+.rx-primary[data-pending] .rx-primary__label {
+  visibility: hidden;
+}
+
+.rx-primary__dots {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rx-primary__dots .load-more-indicator__dot {
+  background-color: currentColor;
+}
+
+.rx-primary[data-pending]:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
 /* ── The result, on the same card ─────────────────────────────────────── */
 
 /*

@@ -38,6 +38,7 @@ import {
   type ReviewOutcome,
 } from '@/utils/review-item-kinds';
 import { describeNextReturn } from '@/utils/review-scheduling';
+import { REVIEW_REASK_OUTCOMES } from '@/utils/review-dock-state';
 import { describeDislike } from '@/utils/review-exercise-feedback';
 import { REVIEW_EXERCISE_FAMILIES } from '@/utils/review-exercise-families';
 import {
@@ -628,9 +629,21 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
      */
     const updated = leech ? (await stepBackReviewItem(auth.userId, applied)) ?? applied : applied;
 
-    const [truth, [view]] = await Promise.all([
+    /*
+     * The row as it will be asked next, built only when the page will ask it again.
+     *
+     * Its one reader is the dock's re-ask: a graded miss comes back once at the tail of the
+     * sitting, wearing the question built from the post-answer row (see `shouldReaskInSitting`).
+     * Every other answer threw the view away — and building it is the heaviest step left in this
+     * route (framing, node states, thread titles, the note label pool), so a right answer waited
+     * on a second of work nobody read before the card could say it was right.
+     */
+    const willReask = graded != null && REVIEW_REASK_OUTCOMES.has(verdict ?? outcome);
+    const [truth, view] = await Promise.all([
       truthPending,
-      buildReviewItemViews(auth.userId, [updated]),
+      willReask
+        ? buildReviewItemViews(auth.userId, [updated]).then(([built]) => built)
+        : Promise.resolve(undefined),
     ]);
 
     return c.json({
@@ -653,7 +666,7 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
       ...(graded?.parts ? { parts: graded.parts } : {}),
       ...(graded?.reached ? { reached: graded.reached } : {}),
       attempts: { used: attemptNumber, total: maxAttempts },
-      item: view,
+      ...(view ? { item: view } : {}),
       ...(truth ? { truth: { verseText: truth } } : {}),
       ...(leech ? { leech: true, stalled } : {}),
       next: {

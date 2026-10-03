@@ -65,6 +65,13 @@ export function GapLine({
                 value={values[index] ?? ''}
                 onChange={(event) => onChange(index, event.target.value)}
                 /*
+                 * A word marked wrong is selected on the way in, so typing replaces it rather
+                 * than adding to it — the retry is a new word, not an edit of the missed one.
+                 */
+                onFocus={(event) => {
+                  if (partState(index) === 'wrong') event.currentTarget.select();
+                }}
+                /*
                  * Enter moves to the next gap still empty, and submits from the last one — the
                  * tap rungs have had A-F bound since they shipped and the typed ones had
                  * nothing, so filling in a verse ended with a reach for the mouse.

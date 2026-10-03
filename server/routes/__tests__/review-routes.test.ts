@@ -523,6 +523,18 @@ describe('the ladder wrap and the truth restore', () => {
   });
 });
 
+describe('the answer round trip', () => {
+  it('builds the next view only for an answer the page will ask again', () => {
+    /* The view's one reader is the re-ask after a graded miss. Built for every answer, it held
+       a right answer's verdict behind the heaviest step in the route. */
+    const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
+    const outcome = route.slice(route.indexOf("'/api/review/items/:id/outcome'"));
+    const finalized = outcome.slice(outcome.indexOf('const { item: applied'), outcome.indexOf('handleAPIError'));
+    expect(finalized).toContain('REVIEW_REASK_OUTCOMES.has(verdict ?? outcome)');
+    expect(finalized).toMatch(/willReask\s*\?\s*buildReviewItemViews/);
+  });
+});
+
 describe('the altered rung', () => {
   it('ships the altered words and nothing that says which one', () => {
     /*
