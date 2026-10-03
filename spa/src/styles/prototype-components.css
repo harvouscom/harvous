@@ -5957,7 +5957,10 @@ html.harvous-prototype-route
   display: flex;
   flex-direction: column;
   width: min(860px, 100%);
-  height: min(80vh, 720px);
+  /* As tall as the section needs, up to the old fixed height; past that the detail scrolls.
+     The nav sits in the same grid row, so it is the floor: the window never gets shorter
+     than the list of sections, and short pages like Plan lose the empty band under them. */
+  height: auto;
   max-height: min(80vh, 720px);
   border-radius: var(--pds-shell-frame-radius);
   border: 0.5px solid var(--pds-border-modal-highlight);
@@ -6012,7 +6015,7 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 }
 
 .proto-settings-modal__body {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   overflow: hidden;
   display: flex;
@@ -6022,7 +6025,6 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 .proto-settings-modal__body .proto-settings {
   flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
 }
 
 /* ─── Settings sheet (narrow) ─────────────────────────────────────────────── */
@@ -24653,4 +24655,163 @@ button.proto-feed-sheet__stat:hover {
   border-radius: 8px;
   background: var(--pds-bg-chip);
   color: var(--pds-text-primary);
+}
+
+/* ─── Settings › Plan — the pricing card ─────────────────────────────────────
+   The Plus card from harvous.com/pricing, in app tokens: a watercolour sky behind a fade
+   to the page colour, the accent tile, the price large, a single list of accent checks.
+   The billing rows below stay settings rows. */
+.proto-plan-card {
+  /* The secondary text token is half-transparent ink, which washes out over the sky.
+     Secondary lines here use a solid, softer ink instead. */
+  --proto-plan-card-soft-ink: color-mix(in oklab, var(--pds-text-primary) 72%, var(--pds-bg-page));
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 28px;
+  padding: clamp(22px, 4vw, 32px);
+  border-radius: 24px;
+  background: var(--pds-bg-section);
+  overflow: hidden;
+}
+
+/* Plan is a fill-height page: the card grows into whatever height the nav gives the
+   window, so there is no empty band under it, and the page's bottom inset matches its
+   top (24px) instead of the shell's 64px. With billing rows below, there is no spare
+   height and the card simply sits at its own size. */
+.proto-settings__content:has(> .proto-settings-plan) {
+  padding-bottom: 24px !important;
+}
+
+.proto-settings-plan {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.proto-plan-card {
+  flex: 1 0 auto;
+}
+
+.proto-plan-card:last-child {
+  margin-bottom: 0;
+}
+
+.proto-plan-card__sky {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* The fade: the sky shows through at the top and gives way to the page by the list. */
+.proto-plan-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--pds-bg-page) 35%, transparent),
+    color-mix(in oklab, var(--pds-bg-page) 88%, transparent) 45%
+  );
+}
+
+.proto-plan-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.proto-plan-card__name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-plan-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--pds-bg-accent-button);
+  color: #fff;
+}
+
+.proto-plan-card__badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  background: color-mix(in oklab, var(--pds-bg-page) 70%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.proto-plan-card__price {
+  margin: 22px 0 0;
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: clamp(40px, 7vw, 54px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--pds-text-primary);
+}
+
+.proto-plan-card__price span {
+  font-size: 0.4em;
+  letter-spacing: -0.01em;
+  color: var(--proto-plan-card-soft-ink);
+}
+
+.proto-plan-card__note {
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+.proto-plan-card__tagline {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--proto-plan-card-soft-ink);
+}
+
+.proto-plan-card__list {
+  display: grid;
+  gap: 10px;
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proto-plan-card__list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+.proto-plan-card__check {
+  flex: none;
+  color: var(--pds-accent-indicator);
+  transform: translateY(1px);
+}
+
+.proto-plan-card__cta {
+  width: 100%;
+  margin-top: 28px;
 }
