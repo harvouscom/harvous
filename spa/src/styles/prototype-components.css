@@ -24692,6 +24692,69 @@ button.proto-feed-sheet__stat:hover {
   border-radius: 0;
 }
 
+/*
+ * The sitting card — the head of Review on Activity.
+ *
+ * The one place on the page that asks something of the reader, and it used to be shaped exactly
+ * like the lanes around it. The question is set larger than anything else on the sheet, in the
+ * body face (the reading face is for Scripture, and this is a question about the reader's own
+ * study), with the day's progress and one gray button under it. Neutral throughout: the only
+ * colour is the progress fill the dock already uses.
+ *
+ * It is the panel's first child, so the rows beneath draw their own hairline above themselves
+ * and the card needs no divider of its own.
+ */
+.proto-review-sitting {
+  display: grid;
+  gap: 6px;
+  padding: var(--pds-space-4) var(--pds-space-4) var(--pds-space-3);
+}
+
+.proto-review-sitting__eyebrow,
+.proto-review-sitting__source {
+  margin: 0;
+}
+
+.proto-review-sitting__prompt {
+  margin: 2px 0 0;
+  font-family: var(--pds-font-body);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--pds-text-primary);
+  text-wrap: pretty;
+  /* A long question is a reason to open it, not to push the rest of Activity down. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.proto-review-sitting__source {
+  color: var(--pds-text-tertiary);
+}
+
+/* The dock's own bar, a touch heavier at this size and rounded so it reads as a gauge rather
+   than as a rule across the card. */
+.proto-review-sitting__bar {
+  height: 3px;
+  margin-top: var(--pds-space-2);
+  border-radius: 2px;
+}
+
+.proto-review-sitting__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-2);
+  min-height: 30px;
+}
+
+.proto-review-sitting[data-state='done'] .proto-review-sitting__prompt {
+  font-size: 16px;
+}
+
 /* The sample: one question in the section, for an account without the feature. */
 .proto-review-sample {
   display: grid;

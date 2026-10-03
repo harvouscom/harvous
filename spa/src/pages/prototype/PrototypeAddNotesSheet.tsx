@@ -34,6 +34,7 @@ import { noteParamSlug } from './proto-route-slugs';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import { fuzzyMatches } from './fuzzy-search';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import { playSound } from '@/utils/sounds';
 
 export type AddNotesListScope = 'unsorted' | 'all';
 
@@ -758,6 +759,7 @@ export default function PrototypeAddNotesSheet({
           spaceId,
         });
       }
+      playSound('organize.filed');
       onOpenChange(false);
       onAdded?.();
       try {

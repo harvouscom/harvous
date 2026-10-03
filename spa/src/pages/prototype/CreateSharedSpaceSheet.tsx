@@ -46,6 +46,7 @@ import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
 import ProtoSpaceMeetingFields from './ProtoSpaceMeetingFields';
 import ProtoSelectMenu, { type ProtoSelectOption } from './ProtoSelectMenu';
 import { useChurchMinistries } from '../../hooks/queries/useChurchMinistries';
+import { playSound } from '@/utils/sounds';
 
 type CoverPickerMode = 'none' | 'color' | 'image';
 
@@ -242,6 +243,9 @@ export default function CreateSharedSpaceSheet({
         await queryClient.refetchQueries({ queryKey: getNavigationQueryKey(userId) });
       }
 
+      /* Heard first: the sheet closing, the sidebar opening and the switch into the new space
+         all follow in the same tick, and only the creation should be heard over them. */
+      playSound('space.created');
       onOpenChange(false);
       ensureSidebarExpanded();
       onCreated?.(result.space.id);

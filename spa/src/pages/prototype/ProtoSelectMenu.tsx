@@ -27,6 +27,7 @@ import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import { PROTO_MENU_CHECK_ICON_SIZE } from './proto-toolbar-tokens';
+import { playSound } from '@/utils/sounds';
 
 const FALLBACK_WIDTH = 220;
 const FALLBACK_HEIGHT = 240;
@@ -474,6 +475,10 @@ export default function ProtoSelectMenu<T extends string | number>(
                         aria-checked={checked}
                         className="proto-menu-item"
                         onClick={() => {
+                          /* A tick for a box, a detent for a choice — and nothing for re-picking
+                             what was already chosen, which changes nothing. */
+                          if (props.multiple) playSound('nav.toggle');
+                          else if (!checked) playSound('nav.select');
                           if (props.multiple) {
                             const next = checked
                               ? chosen.filter((v) => v !== option.value)

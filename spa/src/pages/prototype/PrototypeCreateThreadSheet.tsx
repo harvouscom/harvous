@@ -15,6 +15,7 @@ import { PrototypeAddNotesPicker } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { trackThreadCreated } from '@/utils/analytics';
 import { markOnboardingStepDone } from './useOnboardingState';
+import { playSound } from '@/utils/sounds';
 
 const MIN_THREAD_NOTES = 2;
 
@@ -93,6 +94,7 @@ export default function PrototypeCreateThreadSheet({
         title,
         userOverride: true,
       });
+      playSound('organize.filed');
       onOpenChange(false);
       onCreated(first);
       // The checklist's "connect two notes" step. Reported from here rather than derived on

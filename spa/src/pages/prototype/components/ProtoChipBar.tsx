@@ -1,4 +1,5 @@
 import Icon, { type IconName } from '@/components/react/Icon';
+import { playSound } from '@/utils/sounds';
 
 export type ProtoChipOption<T extends string> = {
   id: T;
@@ -31,7 +32,11 @@ export default function ProtoChipBar<T extends string>({
             role="tab"
             aria-selected={selected}
             className={`proto-chip${selected ? ' proto-chip--selected' : ''}`}
-            onClick={() => onSelect(opt.id)}
+            onClick={() => {
+              // Only a change is heard; the chip already chosen changes nothing.
+              if (!selected) playSound('nav.select');
+              onSelect(opt.id);
+            }}
           >
             {opt.iconName ? <Icon name={opt.iconName as IconName} size={11} aria-hidden /> : null}
             {opt.label}

@@ -17,6 +17,7 @@ import {
   useProtoAnchoredPopoverPosition,
   type ProtoAnchoredPopoverStrategy,
 } from './useProtoAnchoredPopoverPosition';
+import { playSound } from '@/utils/sounds';
 
 export type { ProtoAnchoredPopoverStrategy as ProtoPopoverPlacement };
 
@@ -128,6 +129,7 @@ export default function PrototypeConnectNoteSheet({
             } catch {
               /* ignore */
             }
+            playSound('organize.filed');
             onOpenChange(false);
             try {
               window.toast?.success('Note connected');
@@ -146,6 +148,8 @@ export default function PrototypeConnectNoteSheet({
         { parentNoteId, linkedNoteId, spaceId },
         {
           onSuccess: (data) => {
+            // Already connected is not a connection made: nothing landed anywhere new.
+            if (!data?.alreadyLinked) playSound('organize.filed');
             onOpenChange(false);
             try {
               if (data?.alreadyLinked) {

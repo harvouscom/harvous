@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
+import { playSound } from '@/utils/sounds';
 
 /**
  * Optional intro under the settings header. Prefer omitting when the nav title
@@ -361,11 +362,16 @@ export function SettingsToggleRow({
           aria-disabled={disabled}
           aria-label={label}
           tabIndex={disabled ? -1 : 0}
-          onClick={() => !disabled && onChange(!checked)}
+          onClick={() => {
+            if (disabled) return;
+            playSound('nav.toggle');
+            onChange(!checked);
+          }}
           onKeyDown={(e) => {
             if (disabled) return;
             if (e.key === ' ' || e.key === 'Enter') {
               e.preventDefault();
+              playSound('nav.toggle');
               onChange(!checked);
             }
           }}

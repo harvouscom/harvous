@@ -63,6 +63,7 @@ const allItems = { data: undefined as undefined | { items: unknown[] } };
  * hand them the same rows.
  */
 const summaryItems = { data: undefined as undefined | { items: unknown[] } };
+const session = { data: undefined as undefined | { items: unknown[] } };
 vi.mock('../../../hooks/queries/useReview', () => ({
   // Plus from the feature flag; these tests do not connect anyone to a church.
   useReviewAccessLevel: () =>
@@ -77,6 +78,8 @@ vi.mock('../../../hooks/queries/useReview', () => ({
   // Fetched only once the reader unfolds the section.
   useReviewItems: () => allItems,
   useReviewItemsSummary: () => summaryItems,
+  // The sitting the dock will ask — the card's question is its first that is also on the shelf.
+  useReviewSession: () => session,
   // The sample is for an account without the feature; these rows all have it.
   useReviewSample: (opts: { enabled: boolean }) => ({
     data: opts?.enabled === false ? undefined : sample.data,
@@ -150,6 +153,7 @@ function challenge(id: string) {
 beforeEach(() => {
   navigate.mockClear();
   openReviewDock.mockClear();
+  session.data = undefined;
   identity.isGuest = false;
   church.connected = false;
   (inbox as { isSettled?: boolean }).isSettled = true;
@@ -194,22 +198,60 @@ describe('who sees the Review section', () => {
 });
 
 describe('what it shows a subscriber', () => {
-  it('leads with what is being reviewed, and puts the doing underneath', () => {
+  it('leads each row with what is being reviewed, and puts the doing underneath', () => {
     /*
      * The inverse of what this asserted before. The question used to be the title, which left a
      * shelf of rows all asking things with no visible subject; Home has always read the other
      * way round, and Review now matches it. The full instruction is in the dock.
+     *
+     * Rows only. The sitting card above them asks its one question in full — under its subject,
+     * which is the thing this rule was protecting.
      */
+    inbox.data = {
+      items: [
+        reviewItem('head', 'What did you notice first?'),
+        reviewItem('r1', 'Pick a passage you cited in Adoption, not slavery.'),
+      ],
+      hasMore: false,
+    };
+    const { container } = render(<PrototypeReviewSection />);
+    const rows = container.querySelector('.proto-home-section__list')!;
+    const rowText = [...rows.children]
+      .filter((child) => !child.classList.contains('proto-review-sitting'))
+      .map((child) => child.textContent ?? '')
+      .join(' ');
+    expect(rowText).toContain('Adoption, not slavery');
+    expect(rowText).toMatch(/Pick a passage you cited/);
+    expect(rowText).not.toContain('Pick a passage you cited in Adoption, not slavery.');
+  });
+
+  it('asks the question the dock will open, not just the shelf’s first', () => {
+    inbox.data = {
+      items: [reviewItem('a', 'Question a'), reviewItem('b', 'Question b')],
+      hasMore: false,
+    };
+    session.data = { items: [reviewItem('b', 'Question b, as the dock asks it'), reviewItem('a', 'Question a')] };
+    const { container } = render(<PrototypeReviewSection />);
+    expect(container.querySelector('.proto-review-sitting__prompt')?.textContent).toBe(
+      'Question b, as the dock asks it',
+    );
+    screen.getByRole('button', { name: 'Begin' }).click();
+    expect(openReviewDock).toHaveBeenCalledWith('b');
+  });
+
+  it('asks the next question on the card, under what it is about', () => {
     inbox.data = {
       items: [reviewItem('r1', 'Pick a passage you cited in Adoption, not slavery.')],
       hasMore: false,
     };
-    render(<PrototypeReviewSection />);
-    expect(screen.getByText('Adoption, not slavery')).toBeInTheDocument();
-    expect(screen.getByText(/Pick a passage you cited/)).toBeInTheDocument();
-    expect(
-      screen.queryByText('Pick a passage you cited in Adoption, not slavery.'),
-    ).not.toBeInTheDocument();
+    const { container } = render(<PrototypeReviewSection />);
+    const card = container.querySelector('.proto-review-sitting')!;
+    expect(card.querySelector('.proto-review-sitting__eyebrow')?.textContent).toBe(
+      'Adoption, not slavery',
+    );
+    expect(card.querySelector('.proto-review-sitting__prompt')?.textContent).toBe(
+      'Pick a passage you cited in Adoption, not slavery.',
+    );
   });
 
   it('names the note on a folder question, whose answer is not the note', () => {
@@ -236,6 +278,8 @@ describe('what it shows a subscriber', () => {
      */
     inbox.data = {
       items: [
+        // The card's question; the rows are chosen from what comes after it.
+        reviewItem('head', 'Question head', 'Head task'),
         reviewItem('a', 'Question a', 'Task a'),
         reviewItem('b', 'Question b', 'Task b'),
         { ...reviewItem('c', 'Question c', 'Task c'), kind: 'verse' },
@@ -250,6 +294,7 @@ describe('what it shows a subscriber', () => {
   it('treats a highlight as a passage and a Thread as a note', () => {
     inbox.data = {
       items: [
+        reviewItem('head', 'Question head', 'Head task'),
         { ...reviewItem('a', 'Question a', 'Task a'), kind: 'thread' },
         { ...reviewItem('b', 'Question b', 'Task b'), kind: 'highlight' },
       ],
@@ -301,13 +346,17 @@ describe('what it shows a subscriber', () => {
     expect(screen.getByText('3 of 5 today')).toBeInTheDocument();
   });
 
-  it('falls back to the old label when the server sent no day', () => {
+  it('labels the fold "See all", and says the day once, on the card', () => {
+    /* The progress moved from the fold's label to the card, which outlives the fold; the lane
+       never carries two things saying the same number. */
     inbox.data = {
-      items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)),
+      items: ['a', 'b', 'c', 'd'].map((id) => reviewItem(id, `Question ${id}`)),
       hasMore: true,
+      today: { answered: 1, goal: 4 },
     };
     render(<PrototypeReviewSection />);
     expect(screen.getByText('See all')).toBeInTheDocument();
+    expect(screen.getAllByText('1 of 4 today')).toHaveLength(1);
   });
 
   it('says the day is finished rather than rendering nothing at all', () => {
@@ -315,7 +364,8 @@ describe('what it shows a subscriber', () => {
        an empty one returned null rather than saying so. */
     inbox.data = { items: [], hasMore: false, today: { answered: 5, goal: 5 } };
     render(<PrototypeReviewSection />);
-    expect(screen.getByText(/Done for today/)).toBeInTheDocument();
+    expect(screen.getByText("That's today's sitting")).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Begin|Keep going/ })).not.toBeInTheDocument();
   });
 
   it('does not offer "See all" when everything due is already on screen', () => {
@@ -344,8 +394,9 @@ describe('what it shows a subscriber', () => {
       ],
     };
     render(<PrototypeReviewSection />);
-    expect(screen.getByText(/Done for today/)).toBeInTheDocument();
-    expect(screen.queryByText('5 of 5 today')).not.toBeInTheDocument();
+    // The card says the day is done, and says the count once; the fold names what it opens.
+    expect(screen.getByText("That's today's sitting")).toBeInTheDocument();
+    expect(screen.getAllByText('5 of 5 today')).toHaveLength(1);
     expect(screen.getByText('Coming back later')).toBeInTheDocument();
   });
 
@@ -427,13 +478,19 @@ describe('opening a question', () => {
      * become a destination a second time.
      */
     inbox.data = {
-      items: [reviewItem('r1', 'Pick a passage you cited in Adoption.', 'Pick a passage you cited')],
+      items: [
+        { ...reviewItem('head', 'What did you notice first?'), noteTitle: 'Grace upon grace' },
+        reviewItem('r1', 'Pick a passage you cited in Adoption.', 'Pick a passage you cited'),
+      ],
       hasMore: false,
     };
     render(<PrototypeReviewSection />);
     // The row's title is the subject now; tapping it is what opens the dock.
     screen.getByText('Adoption, not slavery').click();
     expect(openReviewDock).toHaveBeenCalledWith('r1');
+    // And Begin opens the card's own question.
+    screen.getByRole('button', { name: 'Begin' }).click();
+    expect(openReviewDock).toHaveBeenLastCalledWith('head');
     expect(navigate).not.toHaveBeenCalled();
   });
 });
@@ -620,7 +677,8 @@ describe('a church reader without Plus', () => {
       hasMore: false,
     };
     render(<PrototypeReviewSection />);
-    expect(screen.getByText(/Answer your church’s question/)).toBeInTheDocument();
+    // Their church's question is the card's: asked in full.
+    expect(screen.getByText('Who did Jesus call first?')).toBeInTheDocument();
     expect(screen.getByText('Review your own study too')).toBeInTheDocument();
     expect(screen.getByText('Plus')).toBeInTheDocument();
   });

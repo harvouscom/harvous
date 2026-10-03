@@ -77,6 +77,17 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     footnote: 'Which kinds of question Review asks you.',
   },
   /*
+   * Web-only as well: the sounds are synthesized in the browser (`src/utils/sounds.ts`), and the
+   * native apps have none. A third entry the native list does not carry until they do.
+   */
+  {
+    key: 'sounds',
+    title: 'Sounds',
+    route: prototypeHref('settings/sounds'),
+    icon: 'volume-low',
+    footnote: 'When the app plays a sound, on this device.',
+  },
+  /*
    * Web-only for now. Native shows a locked note's title but can't open it yet — no
    * decryption or PIN entry in the Swift app (`SettingsLockPINView` is a stub and
    * `.lockNote` is a no-op in ContentView / iPadRootView). That is its own piece of work.
