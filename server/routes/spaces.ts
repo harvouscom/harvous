@@ -176,6 +176,7 @@ import {
   SHARED_NOTE_ORGANIZATION_MUTATION_KEYS,
 } from '../utils/shared-note-serializer';
 import { CONTENT_APPROVAL_REQUIRED_CODE, contentApprovalRequired } from '../utils/church-content';
+import { noteBodyUnlessLocked } from '../utils/note-lock-guards';
 
 const route = new Hono();
 
@@ -805,7 +806,7 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
     await runBoundedExpiredSpaceMaintenance();
 
     const allNotesRaw = await db.select({
-      id: Notes.id, title: Notes.title, content: Notes.content,
+      id: Notes.id, title: Notes.title, content: noteBodyUnlessLocked,
       threadId: Notes.threadId, spaceId: Notes.spaceId,
       simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType,
       createdAt: Notes.createdAt, updatedAt: Notes.updatedAt,
@@ -2110,7 +2111,9 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
     const useFTS = q.length >= MIN_SEARCH_QUERY_LENGTH;
     const searchPattern = `%${q}%`;
     const tsQuery = sql`plainto_tsquery('english', ${q})`;
-    const noteTsVector = sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || COALESCE(${Notes.content}, ''))`;
+    // A locked note's body is ciphertext: match it on title and tags only, never on the blob.
+    const searchableBody = sql`CASE WHEN ${Notes.contentEncrypted} THEN '' ELSE COALESCE(${Notes.content}, '') END`;
+    const noteTsVector = sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${searchableBody})`;
 
     /*
       Tag matches are scoped to the searcher's own tags, matching /api/search.
@@ -2132,7 +2135,7 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
             or(
               ...(useFTS ? [sql`${noteTsVector} @@ ${tsQuery}`] : []),
               sql`COALESCE(${Notes.title}, '') ILIKE ${searchPattern}`,
-              sql`COALESCE(${Notes.content}, '') ILIKE ${searchPattern}`,
+              sql`${searchableBody} ILIKE ${searchPattern}`,
               tagMatchSql,
             ),
           ]
@@ -2145,7 +2148,7 @@ route.get('/api/spaces/:spaceId/connect-note-candidates', requireAuth, async (c)
         noteType: Notes.noteType,
         updatedAt: Notes.updatedAt,
         createdAt: Notes.createdAt,
-        content: Notes.content,
+        content: noteBodyUnlessLocked,
         userId: Notes.userId,
         contentEncrypted: Notes.contentEncrypted,
       })

@@ -24,6 +24,7 @@ import {
   or,
   ne,
   like,
+  sql,
   isNull,
   isNotNull,
   desc,
@@ -597,6 +598,12 @@ async function passageHighlights(
         ne(StudyThreadEntries.entryKindRaw, 'reference'),
         isNotNull(StudyThreadEntries.scriptureReference),
         chapterMatch,
+        // A highlight made inside a locked note carries words from it (the mini-note) and
+        // the note's id; the connector returns neither for a locked note.
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${Notes}
+          WHERE ${Notes.id} = ${StudyThreadEntries.parentNoteId} AND ${Notes.contentEncrypted} = true
+        )`,
       ),
     )
     .orderBy(desc(StudyThreadEntries.createdAt))
