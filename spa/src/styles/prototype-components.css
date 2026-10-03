@@ -6650,7 +6650,9 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   margin-top: 14px;
 }
 
-.proto-pin-entry__footer--inline {
+/* Doubled class: the base `.proto-pin-entry__footer` rule sits later in this file and would
+   otherwise re-centre the inline footer under left-aligned digits. */
+.proto-pin-entry__footer.proto-pin-entry__footer--inline {
   display: flex;
   justify-content: flex-start;
   margin-top: 16px;
@@ -6796,6 +6798,50 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   color: var(--pds-text-secondary);
 }
 
+/* Lock glyph tile. Neutral while asking; it takes the accent fill only once the lock has
+   actually changed — the accent means "done/right", never decoration. */
+.proto-pin-entry__glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 14px;
+  border-radius: 16px;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-secondary);
+  transition:
+    background 240ms ease,
+    color 240ms ease,
+    transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.proto-pin-entry[data-success] .proto-pin-entry__glyph {
+  background: var(--pds-bg-accent-button);
+  transform: scale(1.08);
+}
+
+/* The shackle: lifted and swung clear when open, seated in the body when closed. Pivots on
+   its right leg like a real one. */
+.proto-lock-glyph {
+  display: block;
+  overflow: visible;
+}
+
+.proto-lock-glyph__shackle {
+  transform-box: view-box;
+  transform-origin: 16.5px 11px;
+  transition: transform 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.proto-lock-glyph[data-state='open'] .proto-lock-glyph__shackle {
+  transform: translateY(-2.5px) rotate(22deg);
+}
+
+.proto-lock-glyph[data-state='closed'] .proto-lock-glyph__shackle {
+  transform: none;
+}
+
 .proto-pin-entry__title {
   margin: 0;
   font-size: 17px;
@@ -6806,7 +6852,7 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 }
 
 .proto-pin-entry__subtitle {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   font-size: 13px;
   line-height: 1.45;
   color: var(--pds-text-secondary);
@@ -6818,30 +6864,186 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   display: flex;
   justify-content: center;
   gap: 10px;
-  margin-top: 20px;
+  margin-top: 22px;
 }
 
 .proto-pin-entry__digit {
   width: 52px;
   height: 58px;
+  padding: 0;
   border: 0.5px solid var(--pds-border-control);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--pds-bg-control);
   color: var(--pds-text-primary);
+  caret-color: transparent;
   text-align: center;
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 26px;
+  font-weight: 700;
   font-family: var(--pds-font-body);
   outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease,
+    transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* The slot the next digit goes into reads as the live one even before it is clicked. */
+.proto-pin-entry__digit[data-next='true'],
 .proto-pin-entry__digit:focus {
   border-color: var(--pds-accent-focus-border);
   box-shadow: 0 0 0 2px var(--pds-accent-focus-ring);
 }
 
+.proto-pin-entry__digit[data-filled='true'] {
+  background: var(--pds-bg-control-hover);
+  animation: proto-pin-digit-pop 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 .proto-pin-entry__digit:disabled {
-  opacity: 0.6;
+  opacity: 1;
+}
+
+@keyframes proto-pin-digit-pop {
+  0% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Working: the filled slots breathe in turn while the key is derived and saved, so the
+   ~half-second of PBKDF2 + round trip reads as progress rather than a stall. */
+.proto-pin-entry__digits[data-busy='true'] .proto-pin-entry__digit {
+  border-color: var(--pds-border-control);
+  box-shadow: none;
+  animation: proto-pin-digit-wait 900ms ease-in-out infinite;
+}
+
+.proto-pin-entry__digits[data-busy='true'] .proto-pin-entry__digit:nth-child(2) {
+  animation-delay: 110ms;
+}
+
+.proto-pin-entry__digits[data-busy='true'] .proto-pin-entry__digit:nth-child(3) {
+  animation-delay: 220ms;
+}
+
+.proto-pin-entry__digits[data-busy='true'] .proto-pin-entry__digit:nth-child(4) {
+  animation-delay: 330ms;
+}
+
+@keyframes proto-pin-digit-wait {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  40% {
+    transform: translateY(-3px);
+    opacity: 0.55;
+  }
+}
+
+/* Wrong PIN: one short head-shake. Keyed remount replays it on every miss. */
+.proto-pin-entry__digits[data-shake='true'] {
+  animation: proto-pin-shake 360ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.proto-pin-entry__digits[data-shake='true'] .proto-pin-entry__digit {
+  border-color: color-mix(in oklch, var(--pds-destructive) 55%, transparent);
+}
+
+@keyframes proto-pin-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-7px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+/* The sheet's own rhythm: the glyph tile, then the words, then the digits. */
+.proto-pin-entry--sheet {
+  padding: 26px 22px 0;
+}
+
+.proto-pin-entry--sheet[data-success] {
+  padding-bottom: 26px;
+}
+
+.proto-pin-entry--sheet[data-success] .proto-pin-entry__title,
+.proto-pin-entry--sheet[data-success] .proto-pin-entry__subtitle {
+  animation: proto-pin-fade-up 260ms ease both;
+}
+
+@keyframes proto-pin-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.proto-pin-entry__quiet {
+  appearance: none;
+  margin: 0;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--pds-radius-button);
+  background: transparent;
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-pin-entry__quiet:hover:not(:disabled) {
+  background: var(--pds-bg-control-hover);
+  color: var(--pds-text-primary);
+}
+
+.proto-pin-entry__quiet:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-pin-entry__glyph,
+  .proto-lock-glyph__shackle,
+  .proto-pin-entry__digit {
+    transition: none;
+  }
+
+  .proto-pin-entry__digit[data-filled='true'],
+  .proto-pin-entry__digits[data-busy='true'] .proto-pin-entry__digit,
+  .proto-pin-entry__digits[data-shake='true'],
+  .proto-pin-entry--sheet[data-success] .proto-pin-entry__title,
+  .proto-pin-entry--sheet[data-success] .proto-pin-entry__subtitle {
+    animation: none;
+  }
+
+  .proto-pin-entry[data-success] .proto-pin-entry__glyph {
+    transform: none;
+  }
+
+  .proto-pin-entry__digits[data-busy='true'] .proto-pin-entry__digit {
+    opacity: 0.6;
+  }
 }
 
 .proto-pin-entry__error {
@@ -6895,6 +7097,34 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   justify-content: center;
   margin-top: 20px;
   padding: 0 20px 20px;
+}
+
+/* The PIN gate in place of a locked note's body — sits on the paper, so no card chrome. */
+.proto-pin-entry--inline {
+  padding: 48px 16px 32px;
+}
+
+.proto-pin-entry--inline .proto-pin-entry__digits:not([data-busy='true']) .proto-pin-entry__digit:disabled {
+  opacity: 0.45;
+}
+
+/* The lock / remove-lock sheet: centered popover on desktop, bottom sheet on touch.
+   Same surface as the other centered sheets (`.proto-connect-note-popover`). */
+.proto-pin-sheet {
+  width: min(340px, calc(100vw - 32px));
+  background: var(--pds-bg-popover-solid);
+  border-radius: 14px;
+  border: 0.5px solid var(--pds-border-control-strong);
+  box-shadow: var(--pds-shadow-popover);
+}
+
+.proto-pin-sheet.proto-pin-sheet--drawer {
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* ─── Sidebar floating stack (migration pill + daily passage) ─────────────── */
@@ -25029,4 +25259,12 @@ button.proto-feed-sheet__stat:hover {
 .proto-plan-card__cta {
   width: 100%;
   margin-top: 28px;
+}
+
+/* Activity card for a locked note: says so, in the same quiet voice as the list's "Locked". */
+.proto-feed-said__locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--pds-text-tertiary);
 }

@@ -99,7 +99,14 @@ function Substance({ item, onOpen, onIntent }: { item: StudyFeedItem } & RowHand
           </span>
           <span className="proto-feed-said__time">{studyFeedClockTime(item.at)}</span>
         </span>
-        {snippet ? <span className="proto-feed-said__body">{snippet}</span> : null}
+        {'locked' in item && item.locked ? (
+          <span className="proto-feed-said__body proto-feed-said__locked">
+            <Icon name="lock" size={10} aria-hidden />
+            Locked
+          </span>
+        ) : snippet ? (
+          <span className="proto-feed-said__body">{snippet}</span>
+        ) : null}
         {shared ? (
           <span className="proto-feed-said__by">
             <span className="proto-feed-said__author">{shared.actor.displayName}</span>

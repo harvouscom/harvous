@@ -4,6 +4,7 @@ import Icon from './Icon';
 import { validatePin, encryptContent, decryptContent } from '@/utils/note-encryption';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
 import { toast } from '@/utils/toast';
+import { lockAllNotes } from '@/utils/note-unlock-state';
 
 interface LockPinPanelProps {
   onClose?: () => void;
@@ -14,7 +15,12 @@ interface LockPinPanelProps {
   appearance?: 'classic' | 'prototype';
 }
 
-type Step = 'set' | 'confirm' | 'changeCurrent' | 'changeNew' | 'changeConfirm' | 'reencrypting';
+type Step = 'set' | 'confirm' | 'changeCurrent' | 'changeNew' | 'changeConfirm' | 'reencrypting' | 'removeCurrent';
+
+/** Tell the shell the account PIN changed, so profile ("Set"/"Not set") and open notes refresh. */
+function announcePinChanged(): void {
+  window.dispatchEvent(new CustomEvent('lockPinSet'));
+}
 
 export default function LockPinPanel({
   onClose,
@@ -25,7 +31,17 @@ export default function LockPinPanel({
 }: LockPinPanelProps) {
   const [hasLockPinSet, setHasLockPinSet] = useState<boolean | null>(null);
   const [step, setStep] = useState<Step>('set');
-  const [pin, setPin] = useState<string[]>(['', '', '', '']);
+  const [pin, setPinState] = useState<string[]>(['', '', '', '']);
+  /**
+   * The digits as of the last keystroke, not the last render. Key events can arrive faster
+   * than React re-renders (fast typing, autofill), and building each digit on the rendered
+   * `pin` dropped all but the last — the fourth never completed the PIN.
+   */
+  const pinRef = useRef<string[]>(['', '', '', '']);
+  const setPin = (next: string[]) => {
+    pinRef.current = next;
+    setPinState(next);
+  };
   const [pendingPin, setPendingPin] = useState<string | null>(null);
   const [error, setError] = useState<string | undefined>();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -73,7 +89,7 @@ export default function LockPinPanel({
     const digit = value.replace(/\D/g, '').slice(-1);
     if (!digit) return;
     if (error) setError(undefined);
-    const newPin = [...pin];
+    const newPin = [...pinRef.current];
     newPin[index] = digit;
     setPin(newPin);
     if (index < 3) inputRefs.current[index + 1]?.focus();
@@ -85,6 +101,7 @@ export default function LockPinPanel({
         else if (step === 'changeCurrent') handleVerifyCurrentPin(fullPin);
         else if (step === 'changeNew') handleChangeNewPin(fullPin);
         else if (step === 'changeConfirm' && pendingPin) handleChangeConfirmPin(fullPin);
+        else if (step === 'removeCurrent') handleRemovePin(fullPin);
       }
     }
   };
@@ -121,6 +138,7 @@ export default function LockPinPanel({
       setHasLockPinSet(true);
       const existing = getCachedProfileData();
       if (existing) updateCachedProfileData({ ...existing, hasLockPinSet: true });
+      announcePinChanged();
       toast.success('Lock PIN set');
       if (inline) {
         setStep('changeCurrent');
@@ -177,6 +195,9 @@ export default function LockPinPanel({
   };
 
   const dismissWithToast = () => {
+    // Every locked note now opens with the new PIN; the session's PIN is the old one.
+    lockAllNotes();
+    announcePinChanged();
     toast.success('Lock PIN changed');
     if (inline) {
       setStep('changeCurrent');
@@ -272,6 +293,54 @@ export default function LockPinPanel({
     }
   };
 
+  /**
+   * Remove the account PIN. The server allows it only when no note is still locked —
+   * the PIN is the only key to their text — so the 409 is the expected answer while
+   * any remain, and its count is what to tell the person.
+   */
+  const handleRemovePin = async (currentPin: string) => {
+    if (!validatePin(currentPin)) {
+      setError('PIN must be exactly 4 digits');
+      return;
+    }
+    setIsProcessing(true);
+    setError(undefined);
+    try {
+      const response = await fetch('/api/user/remove-lock-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ currentPin })
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string; code?: string; lockedCount?: number };
+      if (!response.ok) {
+        if (data.code === 'HAS_LOCKED_NOTES') {
+          const n = data.lockedCount ?? 0;
+          throw new Error(
+            n === 1
+              ? 'One note is still locked. Remove its lock first.'
+              : `${n} notes are still locked. Remove their locks first.`
+          );
+        }
+        throw new Error(response.status === 401 ? 'That isn’t your lock PIN.' : data.error || 'Could not remove your PIN.');
+      }
+      setHasLockPinSet(false);
+      const existing = getCachedProfileData();
+      if (existing) updateCachedProfileData({ ...existing, hasLockPinSet: false });
+      lockAllNotes();
+      announcePinChanged();
+      toast.success('Lock PIN removed');
+      setStep('set');
+      setPendingPin(null);
+      clearPin();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not remove your PIN.');
+      clearPinDigitsOnly();
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleCancel = () => {
     setStep(hasLockPinSet ? 'changeCurrent' : 'set');
     setPendingPin(null);
@@ -302,6 +371,8 @@ export default function LockPinPanel({
             ? 'Confirm your PIN'
             : step === 'changeCurrent'
               ? 'Change lock PIN'
+              : step === 'removeCurrent'
+                ? 'Remove lock PIN'
               : step === 'changeNew'
                 ? 'Enter new PIN'
                 : step === 'changeConfirm'
@@ -313,11 +384,13 @@ export default function LockPinPanel({
       : step === 'reencrypting'
         ? 'Re-encrypting your locked notes with the new PIN.'
         : isSetFlow && step === 'set'
-          ? 'This PIN is for your entire Harvous account. You will use it to lock and unlock notes.'
+          ? 'One PIN for your whole account. It locks and unlocks every protected note.'
           : isSetFlow && step === 'confirm'
             ? 'Enter your PIN again to confirm.'
             : step === 'changeCurrent'
               ? 'Enter your current PIN, then set a new one.'
+              : step === 'removeCurrent'
+                ? 'Enter your PIN to remove it. Only possible once no note is locked.'
               : step === 'changeNew'
                 ? 'Enter a new 4-digit PIN.'
                 : step === 'changeConfirm'
@@ -333,7 +406,9 @@ export default function LockPinPanel({
           : step === 'confirm'
             ? 'Enter it again to confirm.'
             : step === 'changeCurrent'
-              ? 'Enter your current PIN to continue.'
+              ? 'To change it, enter your current PIN.'
+              : step === 'removeCurrent'
+                ? 'Enter your PIN to remove it. Unlock every locked note first.'
               : step === 'changeNew'
                 ? 'Choose a new 4-digit PIN.'
                 : step === 'changeConfirm'
@@ -407,7 +482,7 @@ export default function LockPinPanel({
               : { color: 'var(--color-pebble-grey)', fontSize: '0.75rem', textWrap: 'balance', marginTop: '1rem', minWidth: 0, maxWidth: '100%' }
           }
         >
-          If you forget your PIN, locked note content cannot be recovered.
+          There’s no way to recover a forgotten PIN — locked notes can’t be opened without it.
         </p>
       ) : null}
     </>
@@ -437,6 +512,21 @@ export default function LockPinPanel({
             </>
           )}
           {pinInputs}
+          {inline && step === 'changeCurrent' ? (
+            <div className="proto-pin-entry__footer proto-pin-entry__footer--inline">
+              <button
+                type="button"
+                className="proto-lock-pin-settings__text-btn"
+                disabled={isProcessing}
+                onClick={() => {
+                  setStep('removeCurrent');
+                  clearPin();
+                }}
+              >
+                Remove PIN
+              </button>
+            </div>
+          ) : null}
           {backLabel ? (
             <div className="proto-pin-entry__footer proto-pin-entry__footer--inline">
               <button

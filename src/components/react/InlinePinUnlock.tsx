@@ -1,165 +1,209 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { decryptContent, decodeBlob, deriveKey } from '@/utils/note-encryption';
-import { setNoteUnlocked } from '@/utils/note-unlock-state';
-import { toast } from '@/utils/toast';
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import AnimatedLockGlyph from './AnimatedLockGlyph';
+import { decryptContent } from '@/utils/note-encryption';
+import { isEncryptedNoteBlob } from '@/utils/note-lock-blob';
+import {
+  getLockSessionRevision,
+  getSessionPin,
+  setNoteUnlocked,
+  subscribeLockSession,
+} from '@/utils/note-unlock-state';
 
 interface InlinePinUnlockProps {
   noteId: string;
   encryptedContent: string;
 }
 
+/**
+ * The PIN gate in place of a locked note's body.
+ *
+ * One PIN entry opens every locked note for the unlock session (see note-unlock-state),
+ * so when a session is already open this gate decrypts on its own and never asks. It
+ * also waits for the full body: a note opened from a list is seeded with a blank (list
+ * payloads never carry ciphertext), and decrypting that would read as a wrong PIN.
+ */
 export default function InlinePinUnlock({ noteId, encryptedContent }: InlinePinUnlockProps) {
-  const [pin, setPin] = useState<string[]>(['', '', '', '']);
+  const [pin, setPinState] = useState<string[]>(['', '', '', '']);
+  /**
+   * The digits as of the last keystroke, not the last render. Key events can arrive faster
+   * than React re-renders (fast typing, autofill), and building each digit on the rendered
+   * `pin` dropped all but the last — the fourth never completed the PIN.
+   */
+  const pinRef = useRef<string[]>(['', '', '', '']);
+  const setPin = (next: string[]) => {
+    pinRef.current = next;
+    setPinState(next);
+  };
   const [error, setError] = useState<string | undefined>();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorBeat, setErrorBeat] = useState(0);
+  /** The shackle starts lifted and drops on mount: arriving on a locked note shows it locking. */
+  const [glyphState, setGlyphState] = useState<'open' | 'closed'>('open');
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setGlyphState('closed'));
+    return () => cancelAnimationFrame(id);
+  }, []);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const sessionRevision = useSyncExternalStore(subscribeLockSession, getLockSessionRevision, getLockSessionRevision);
+  const bodyReady = isEncryptedNoteBlob(encryptedContent);
+  /** The session PIN already tried against this body, so a mismatch doesn't loop. */
+  const triedSessionPinRef = useRef<string | null>(null);
+
+  const finishUnlock = useCallback(
+    (decrypted: string, usedPin: string) => {
+      setNoteUnlocked(noteId, null, usedPin);
+      window.dispatchEvent(
+        new CustomEvent('pinEntryComplete', {
+          detail: { noteId, newContent: decrypted, encrypted: false, contentEncryptedServer: true },
+        }),
+      );
+    },
+    [noteId],
+  );
+
+  // An open session covers this note too — decrypt without asking.
+  useEffect(() => {
+    if (!bodyReady) return;
+    const sessionPin = getSessionPin();
+    if (!sessionPin || triedSessionPinRef.current === sessionPin) return;
+    triedSessionPinRef.current = sessionPin;
+    let cancelled = false;
+    setIsProcessing(true);
+    decryptContent(encryptedContent, sessionPin)
+      .then((decrypted) => {
+        if (!cancelled) finishUnlock(decrypted, sessionPin);
+        // Interrupted (body or session changed mid-decrypt) — let the next run try again.
+        else triedSessionPinRef.current = null;
+      })
+      .catch(() => {
+        /* Locked with a different PIN (notes from before the account PIN) — ask. */
+      })
+      .finally(() => setIsProcessing(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [bodyReady, encryptedContent, finishUnlock, sessionRevision]);
 
   useEffect(() => {
-    inputRefs.current[0]?.focus();
-  }, []);
-
-  const clearPin = () => {
-    setPin(['', '', '', '']);
-    setError(undefined);
-    inputRefs.current[0]?.focus();
-  };
+    if (bodyReady && !isProcessing) inputRefs.current[0]?.focus();
+  }, [bodyReady, isProcessing]);
 
   const handleUnlock = async (enteredPin: string) => {
+    if (!bodyReady) return;
     setIsProcessing(true);
     setError(undefined);
     try {
-      const decryptedContent = await decryptContent(encryptedContent, enteredPin);
-      const { salt } = decodeBlob(encryptedContent);
-      const key = await deriveKey(enteredPin, salt);
-      setNoteUnlocked(noteId, key, enteredPin);
-      window.dispatchEvent(new CustomEvent('pinEntryComplete', {
-        detail: { noteId, newContent: decryptedContent, encrypted: false, contentEncryptedServer: true }
-      }));
-      toast.success('Note unlocked');
-      clearPin();
+      const decrypted = await decryptContent(encryptedContent, enteredPin);
+      triedSessionPinRef.current = enteredPin;
+      finishUnlock(decrypted, enteredPin);
+      setPin(['', '', '', '']);
     } catch {
       setPin(['', '', '', '']);
-      inputRefs.current[0]?.focus();
-      setError('Incorrect PIN');
+      setError('That PIN didn’t open this note.');
+      setErrorBeat((n) => n + 1);
+      requestAnimationFrame(() => inputRefs.current[0]?.focus());
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const submitIfFull = (next: string[]) => {
+    const full = next.join('');
+    if (full.length === 4) void handleUnlock(full);
+  };
+
   const handleInputChange = (index: number, value: string) => {
     const digit = value.replace(/\D/g, '').slice(-1);
     if (!digit) return;
-    const newPin = [...pin];
-    newPin[index] = digit;
-    setPin(newPin);
+    const next = [...pinRef.current];
+    next[index] = digit;
+    setPin(next);
     if (index < 3) inputRefs.current[index + 1]?.focus();
-    else {
-      const fullPin = newPin.join('');
-      if (fullPin.length === 4) handleUnlock(fullPin);
-    }
+    else submitIfFull(next);
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace') {
-      if (pin[index] === '' && index > 0) {
+      const next = [...pinRef.current];
+      if (pinRef.current[index] === '' && index > 0) {
         inputRefs.current[index - 1]?.focus();
-        const newPin = [...pin];
-        newPin[index - 1] = '';
-        setPin(newPin);
+        next[index - 1] = '';
       } else {
-        const newPin = [...pin];
-        newPin[index] = '';
-        setPin(newPin);
+        next[index] = '';
       }
+      setPin(next);
       e.preventDefault();
     } else if (/^[0-9]$/.test(e.key)) {
       e.preventDefault();
-      const newPin = [...pin];
-      newPin[index] = e.key;
-      setPin(newPin);
+      const next = [...pinRef.current];
+      next[index] = e.key;
+      setPin(next);
       if (index < 3) inputRefs.current[index + 1]?.focus();
-      else {
-        const fullPin = newPin.join('');
-        if (fullPin.length === 4) handleUnlock(fullPin);
-      }
+      else submitIfFull(next);
     } else if (e.key === 'ArrowLeft' && index > 0) inputRefs.current[index - 1]?.focus();
     else if (e.key === 'ArrowRight' && index < 3) inputRefs.current[index + 1]?.focus();
-    else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 && !/^[0-9]$/.test(e.key)) {
-      e.preventDefault();
-    }
+    else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) e.preventDefault();
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
-    if (pastedData.length > 0) {
-      const newPin = ['', '', '', ''];
-      for (let i = 0; i < pastedData.length && i < 4; i++) newPin[i] = pastedData[i];
-      setPin(newPin);
-      if (pastedData.length < 4) inputRefs.current[pastedData.length]?.focus();
-      else if (pastedData.length === 4) handleUnlock(pastedData);
-    }
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+    if (!pasted) return;
+    const next = ['', '', '', ''];
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
+    setPin(next);
+    if (pasted.length < 4) inputRefs.current[pasted.length]?.focus();
+    else submitIfFull(next);
   };
 
+  const filledCount = pin.filter(Boolean).length;
   return (
-    <div
-      style={{
-        lineHeight: '1.6',
-        paddingTop: 12,
-        paddingRight: 12,
-        paddingBottom: 0,
-        paddingLeft: 12,
-        color: 'var(--color-stone-grey)',
-        backgroundColor: 'var(--color-snow-white)',
-        borderRadius: 24,
-        boxSizing: 'border-box',
-        width: '100%'
-      }}
-    >
-      <style dangerouslySetInnerHTML={{ __html: '.pin-digit-input:focus{border-color:var(--color-stone-grey)!important;box-shadow:0 0 0 2px var(--color-stone-grey)!important;outline:none!important}' }} />
-      <div style={{ textAlign: 'center', marginTop: 0 }}>
-        <p style={{ fontSize: 14, color: 'var(--color-stone-grey)', margin: 0 }}>
-          Enter your PIN to view this note
-        </p>
+    <div className="proto-pin-entry proto-pin-entry--inline" aria-busy={!bodyReady || isProcessing}>
+      <div className="proto-pin-entry__glyph" aria-hidden>
+        <AnimatedLockGlyph state={isProcessing && bodyReady ? 'open' : glyphState} size={24} />
       </div>
-
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+      <p className="proto-pin-entry__title">This note is locked</p>
+      <p className="proto-pin-entry__subtitle">
+        {!bodyReady || isProcessing ? 'Opening…' : 'Enter your PIN to open it.'}
+      </p>
+      <div
+        key={errorBeat}
+        className="proto-pin-entry__digits"
+        data-shake={errorBeat > 0 && error ? 'true' : undefined}
+        data-busy={isProcessing ? 'true' : undefined}
+        role="group"
+        aria-label="Lock PIN"
+      >
         {pin.map((digit, index) => (
           <input
             key={index}
-            ref={(el) => { inputRefs.current[index] = el; }}
+            ref={(el) => {
+              inputRefs.current[index] = el;
+            }}
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
-            autoComplete="one-time-code"
+            autoComplete="off"
             maxLength={1}
             value={digit ? '\u2022' : ''}
             onChange={(e) => handleInputChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}
             onPaste={handlePaste}
-            disabled={isProcessing}
+            disabled={!bodyReady || isProcessing}
             aria-label={`PIN digit ${index + 1}`}
-            className="pin-digit-input"
-            style={{
-              width: 48,
-              height: 56,
-              textAlign: 'center',
-              fontSize: 20,
-              fontWeight: 700,
-              border: `2px solid ${error ? 'var(--color-error-red, #ef4444)' : 'var(--color-soft-gray)'}`,
-              borderRadius: 10,
-              outline: 'none',
-              backgroundColor: 'white',
-              color: 'var(--color-deep-grey)'
-            }}
+            aria-invalid={error ? true : undefined}
+            data-filled={digit ? 'true' : undefined}
+            data-next={bodyReady && !isProcessing && index === filledCount ? 'true' : undefined}
+            className="proto-pin-entry__digit"
           />
         ))}
       </div>
-
-      {error && (
-        <p style={{ textAlign: 'center', color: 'var(--color-error-red, #ef4444)', fontSize: 14, margin: '0.75rem 0 0', fontStyle: 'normal' }}>{error}</p>
-      )}
-      <div style={{ height: 24, flexShrink: 0 }} aria-hidden="true" />
+      {error ? (
+        <p className="proto-pin-entry__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <p className="proto-pin-entry__hint">One PIN opens all your locked notes for a few minutes.</p>
     </div>
   );
 }

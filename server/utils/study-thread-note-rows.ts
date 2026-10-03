@@ -1,5 +1,6 @@
 import { db, Notes, eq, and, inArray } from '../db';
 import { isStudyThreadNamingColumnMissing } from './pg-undefined-relation';
+import { noteBodyUnlessLocked } from './note-lock-guards';
 
 export type StudyThreadNoteRow = {
   id: string;
@@ -25,7 +26,7 @@ export async function fetchStudyThreadNoteRows(
       .select({
         id: Notes.id,
         title: Notes.title,
-        content: Notes.content,
+        content: noteBodyUnlessLocked,
         simpleNoteId: Notes.simpleNoteId,
         noteType: Notes.noteType,
         studyThreadTitle: Notes.studyThreadTitle,
@@ -46,7 +47,7 @@ export async function fetchStudyThreadNoteRows(
       .select({
         id: Notes.id,
         title: Notes.title,
-        content: Notes.content,
+        content: noteBodyUnlessLocked,
         simpleNoteId: Notes.simpleNoteId,
         noteType: Notes.noteType,
         updatedAt: Notes.updatedAt,
