@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { api } from '../../lib/api';
 import { adjacentChapter } from '@/utils/bible-book-chapters';
+import { BIBLE_TEXT_REVISION, scriptureBookUrl } from '@/utils/bible-text-revision';
 
 export interface BibleChapterVerse {
   number: number;
@@ -92,6 +93,7 @@ export function bibleChapterQueryOptions(
         book: book!,
         chapter: String(chapter),
         translation,
+        rev: String(BIBLE_TEXT_REVISION),
       });
       const response = await api.get<BibleChapterResponse>(
         `/api/scripture/chapter?${params.toString()}`,
@@ -147,13 +149,12 @@ async function cacheBookInBackground(book: string, translation: string): Promise
     const { readPackedBook, writePackedBook } = await import('@/utils/bible-pack-store');
     if (await readPackedBook(translation, book)) return;
 
-    const params = new URLSearchParams({ book, translation });
     const payload = await api.get<{
       book: string;
       translation: string;
       version: string;
       chapters: { chapter: number; verses: { number: number; text: string }[] }[];
-    }>(`/api/scripture/book?${params.toString()}`);
+    }>(scriptureBookUrl(book, translation));
     await writePackedBook(payload);
   } catch {
     // A book that did not cache is a book that is not offline. Nothing else changes.

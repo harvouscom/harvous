@@ -26,6 +26,7 @@
 
 import { offlineDB, type OfflineBiblePack } from './offline-db';
 import { orderedCanonBooks } from './bible-book-chapters';
+import { isCurrentBibleTextVersion } from './bible-text-revision';
 
 /**
  * How many translations may be kept offline at once.
@@ -71,7 +72,7 @@ export interface PackSummary {
 }
 
 type ChapterPayload = { chapter: number; verses: { number: number; text: string }[] };
-type BookPayload = { book: string; translation: string; version: string; chapters: ChapterPayload[] };
+export type BookPayload = { book: string; translation: string; version: string; chapters: ChapterPayload[] };
 
 /** A book's text, or null when this translation has no offline copy of it. */
 export async function readPackedBook(
@@ -80,7 +81,9 @@ export async function readPackedBook(
 ): Promise<OfflineBiblePack | null> {
   try {
     const row = await offlineDB.biblePacks.get([translationId, book]);
-    return row ?? null;
+    // A book stored before the last text correction is a book not stored: the reader refetches
+    // it and `downloadPack` replaces it. See `bible-text-revision.ts`.
+    return row && isCurrentBibleTextVersion(row.version) ? row : null;
   } catch {
     // A browser with IndexedDB blocked (private windows, some enterprise profiles) is a
     // browser with no offline copy — which is a true answer, not a failure worth raising.
@@ -148,6 +151,9 @@ async function countStoredBooks(): Promise<Map<string, { count: number; savedAt:
   const byTranslation = new Map<string, { count: number; savedAt: number }>();
   const rows = await offlineDB.biblePacks.toArray();
   for (const row of rows) {
+    // Outdated books don't count, so a pack saved before a text correction reads as unfinished
+    // and the warm-up and Finish download the corrected books over it.
+    if (!isCurrentBibleTextVersion(row.version)) continue;
     const existing = byTranslation.get(row.translationId);
     if (existing) {
       existing.count += 1;
@@ -157,6 +163,22 @@ async function countStoredBooks(): Promise<Map<string, { count: number; savedAt:
     }
   }
   return byTranslation;
+}
+
+/**
+ * Translations holding books stored before the last text correction.
+ *
+ * Those books already read as missing (see `readPackedBook`); this is what lets the warm-up
+ * replace them in packs the reader asked to keep, rather than leaving every such pack showing
+ * as unfinished until someone presses Finish.
+ */
+export async function translationsWithOutdatedBooks(): Promise<Set<string>> {
+  try {
+    const rows = await offlineDB.biblePacks.toArray();
+    return new Set(rows.filter((r) => !isCurrentBibleTextVersion(r.version)).map((r) => r.translationId));
+  } catch {
+    return new Set();
+  }
 }
 
 /**

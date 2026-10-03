@@ -53,8 +53,11 @@ const {
   packStorageBytes,
   removePack,
   writePackedBook,
+  translationsWithOutdatedBooks,
+  requestPack,
 } = await import('../bible-pack-store');
 const { orderedCanonBooks } = await import('../bible-book-chapters');
+const { BIBLE_TEXT_REVISION_TAG } = await import('../bible-text-revision');
 
 const BOOK_COUNT = orderedCanonBooks().length;
 
@@ -62,7 +65,7 @@ function payloadFor(book: string, translation = 'NLT') {
   return {
     book,
     translation,
-    version: `${translation}:100`,
+    version: `${translation}:100:${BIBLE_TEXT_REVISION_TAG}`,
     chapters: [{ chapter: 1, verses: [{ number: 1, text: `${book} 1:1` }] }],
   };
 }
@@ -202,6 +205,35 @@ describe('removePack', () => {
 
     expect((await listPacks()).map((p) => p.translationId)).toEqual(['KJV']);
     expect(await readPackedChapter('KJV', 'Genesis', 1)).not.toBeNull();
+  });
+});
+
+describe('books stored before a text correction', () => {
+  const outdated = { ...payloadFor('Genesis'), version: 'NLT:100' };
+
+  it('read as missing, so the reader refetches them', async () => {
+    await writePackedBook(outdated);
+    expect(await readPackedChapter('NLT', 'Genesis', 1)).toBeNull();
+    await writePackedBook(payloadFor('Genesis'));
+    expect(await readPackedChapter('NLT', 'Genesis', 1)).not.toBeNull();
+  });
+
+  it('are replaced by a download rather than skipped as already stored', async () => {
+    await writePackedBook(outdated);
+    const fetched: string[] = [];
+    await downloadPack('NLT', async (book) => {
+      fetched.push(book);
+      return book === 'Genesis' ? payloadFor(book) : Promise.reject(new Error('x'));
+    });
+    expect(fetched[0]).toBe('Genesis');
+    expect(await readPackedChapter('NLT', 'Genesis', 1)).not.toBeNull();
+  });
+
+  it('do not count toward a pack being complete, and are reported for the warm-up', async () => {
+    await requestPack('NLT');
+    await writePackedBook(outdated);
+    expect((await listPacks())[0]).toMatchObject({ translationId: 'NLT', booksSaved: 0, complete: false });
+    expect([...(await translationsWithOutdatedBooks())]).toEqual(['NLT']);
   });
 });
 
