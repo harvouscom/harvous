@@ -27,7 +27,14 @@ function message(text: string): GetPromptResult {
   return { messages: [{ role: 'user', content: { type: 'text', text: `${text}\n\n${STANCE}` } }] };
 }
 
-export const CONNECTOR_PROMPT_NAMES = ['study_passage', 'prepare_for_group', 'recent_study', 'trace_theme'] as const;
+export const CONNECTOR_PROMPT_NAMES = [
+  'study_passage',
+  'prepare_for_group',
+  'recent_study',
+  'trace_theme',
+  'pick_up',
+  'start_note_from_chat',
+] as const;
 
 export function registerConnectorPrompts(server: McpServer): void {
   server.registerPrompt(
@@ -99,5 +106,45 @@ export function registerConnectorPrompts(server: McpServer): void {
           'list_study_thread_connections on the most central note to see what I connected it to. ' +
           'Show how my thinking on it has developed, with the passages I tied it to.',
       ),
+  );
+
+  server.registerPrompt(
+    'pick_up',
+    {
+      title: 'Pick up where I left off',
+      description: 'The note you were working on and the chapter you were reading.',
+    },
+    () =>
+      message(
+        'Using Harvous, help me pick up where I left off. Call where_i_left_off, then read the note ' +
+          'it points to with get_note. Remind me briefly what I was working on and the last thing I ' +
+          'wrote, and if it suggests a chapter to keep reading, name it.',
+      ),
+  );
+
+  server.registerPrompt(
+    'start_note_from_chat',
+    {
+      title: 'Start a note from this chat',
+      description: 'Save where this conversation got to as a new Harvous note, for you to write in.',
+    },
+    () => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text:
+              'Start a Harvous note from this conversation with start_note so I can keep studying it there. ' +
+              'Give it a short title. For the summary, say in two to four plain sentences what we ' +
+              "discussed — not conclusions I didn't reach, and not my reflections; those are mine to " +
+              "write. If you add something of your own, say it's yours. List the passages we talked " +
+              "about as references, and include the question I was left with if I actually raised one; " +
+              "don't make one up. Where Christians read something differently, say so rather than " +
+              'settling it in the summary. Then give me the link.',
+          },
+        },
+      ],
+    }),
   );
 }

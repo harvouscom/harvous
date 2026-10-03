@@ -229,6 +229,9 @@ export function isConnectorSchemaMissing(error: unknown): boolean {
   return (
     isPgUndefinedRelation(error, 'ConnectorClients') ||
     isPgUndefinedRelation(error, 'ConnectorUsageDays') ||
-    isPgUndefinedRelation(error, 'ConnectorApiKeys')
+    isPgUndefinedRelation(error, 'ConnectorApiKeys') ||
+    isPgUndefinedRelation(error, 'NoteChatOrigins') ||
+    isPgUndefinedRelation(error, 'ConnectorPreferences') ||
+    isPgUndefinedColumn(error, 'notesStarted')
   );
 }

@@ -5,6 +5,7 @@
  *   per person, any request  REQUESTS_PER_MINUTE      in memory
  *   per person, tool calls   CALLS_PER_MINUTE         in memory
  *   per person, tool calls   DAILY_CALLS / UTC day    Postgres (ConnectorUsageDays)
+ *   per person, start_note   NOTES_STARTED_PER_DAY    Postgres (ConnectorUsageDays.notesStarted)
  *
  * The daily cap is in the database because it has to survive deploys and hold across
  * machines; the per-minute buckets only need to stop a runaway loop on one machine.
@@ -17,6 +18,7 @@ import {
   CALLS_PER_MINUTE,
   DAILY_CALLS,
   IP_REQUESTS_PER_MINUTE,
+  NOTES_STARTED_PER_DAY,
   REQUESTS_PER_MINUTE,
 } from './config';
 import { ConnectorRefusal } from './shapes';
@@ -73,6 +75,32 @@ export async function consumeToolCall(userId: string, now = new Date()): Promise
     throw new ConnectorRefusal(
       'daily_limit',
       `Daily limit reached (${DAILY_CALLS.toLocaleString('en-US')} Harvous requests). ` +
+        `It resets at 00:00 UTC (${untilUtcMidnight(now)}).`,
+    );
+  }
+  return { today };
+}
+
+/**
+ * Spend one started note. Counted before the note is created, so a refused call never
+ * leaves a note behind; a failed create after this costs one of the day's twenty, which
+ * is the safe direction.
+ */
+export async function consumeNoteStart(userId: string, now = new Date()): Promise<{ today: number }> {
+  const day = utcDay(now);
+  const rows = await db
+    .insert(ConnectorUsageDays)
+    .values({ userId, day, toolCalls: 0, notesStarted: 1, updatedAt: now })
+    .onConflictDoUpdate({
+      target: [ConnectorUsageDays.userId, ConnectorUsageDays.day],
+      set: { notesStarted: sql`${ConnectorUsageDays.notesStarted} + 1`, updatedAt: now },
+    })
+    .returning({ notesStarted: ConnectorUsageDays.notesStarted });
+  const today = first(rows)?.notesStarted ?? 1;
+  if (today > NOTES_STARTED_PER_DAY) {
+    throw new ConnectorRefusal(
+      'daily_limit',
+      `You've started ${NOTES_STARTED_PER_DAY} notes from apps today, the daily limit. ` +
         `It resets at 00:00 UTC (${untilUtcMidnight(now)}).`,
     );
   }
@@ -161,6 +189,18 @@ export async function setClientRevoked(userId: string, clientId: string, revoked
     .returning({ id: ConnectorClients.id });
   revokedCache.delete(pairKey(userId, clientId));
   return rows.length > 0;
+}
+
+/** What this app called itself at `initialize`, if it has connected before. */
+export async function connectorClientName(userId: string, clientId: string): Promise<string | null> {
+  const row = first(
+    await db
+      .select({ clientName: ConnectorClients.clientName })
+      .from(ConnectorClients)
+      .where(and(eq(ConnectorClients.userId, userId), eq(ConnectorClients.clientId, clientId)))
+      .limit(1),
+  );
+  return row?.clientName ?? null;
 }
 
 export async function listConnectorClients(userId: string) {

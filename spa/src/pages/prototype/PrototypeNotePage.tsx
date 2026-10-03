@@ -1,3 +1,5 @@
+import PrototypeChatOriginCard from './PrototypeChatOriginCard';
+import { useRemoveChatOrigin } from '../../hooks/mutations/useRemoveChatOrigin';
 import { draftWentBeyondItsSeed } from '@/utils/recall-draft-completion';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { addGuestNote, isGuestNoteId, updateGuestNote } from '../../lib/guest-store';
@@ -1219,6 +1221,7 @@ export default function PrototypeNotePage() {
    * below them is skipped on the loading render and appears on the next, which React reports
    * as "rendered more hooks than during the previous render".
    */
+  const removeChatOrigin = useRemoveChatOrigin(noteId);
   const handleExpandScriptureToReader = useCallback(
     async ({ reference, translation }: { reference: string; translation: string }) => {
       // The shared helper, so a pill naming a range opens the reader on all of it.
@@ -3179,6 +3182,19 @@ export default function PrototypeNotePage() {
                 />
               ) : null}
               </div>
+              {/* The card an AI app's start_note left: its words, kept off the paper's text. */}
+              {!isDraft && note?.chatOrigin && isOwnNote ? (
+                <div id="note-chat-origin">
+                  <PrototypeChatOriginCard
+                    origin={note.chatOrigin}
+                    onOpenPassage={(reference) => {
+                      const route = readerRouteForReference(reference, '');
+                      if (route) void navigate(route);
+                    }}
+                    onRemove={() => removeChatOrigin.mutate()}
+                  />
+                </div>
+              ) : null}
               {showSharedHighlightOverlay ? (
                 <SharedStudyHighlightOverlay
                   editor={sharedOverlayEditor}

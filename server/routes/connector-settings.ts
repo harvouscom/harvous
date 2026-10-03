@@ -6,6 +6,7 @@
  *   POST /api/user/connector/clients/:clientId/restore Allow it again
  *   POST   /api/user/connector/token                  Create a personal token (replaces any old one); shown once
  *   DELETE /api/user/connector/token                  Revoke it
+ *   PUT    /api/user/connector/preferences            { allowStartNotes } — the "Let AI apps start notes" switch
  *
  * Session-authenticated like the rest of /api/*. Kept apart from the deferred
  * `/api/connector/*` data API, which would be Bearer-key authenticated and read notes; this
@@ -25,6 +26,7 @@ import { hasConnectorAccess } from '../connector/access';
 import { connectorResourceUrl, DAILY_CALLS } from '../connector/config';
 import { listConnectorClients, setClientRevoked, usageToday } from '../connector/usage';
 import { createPersonalToken, getActivePersonalToken, revokePersonalToken } from '../connector/tokens';
+import { getConnectorPreferences, setConnectorPreferences } from '../connector/preferences';
 import { isConnectorSchemaMissing } from '../utils/pg-undefined-relation';
 
 const route = new Hono();
@@ -50,6 +52,7 @@ route.get('/api/user/connector', requireAuth, rateLimit('read'), async (c) => {
     let clients: Awaited<ReturnType<typeof listConnectorClients>> = [];
     let today = 0;
     let token: Awaited<ReturnType<typeof getActivePersonalToken>> = null;
+    const preferences = await getConnectorPreferences(userId);
     try {
       [clients, today, token] = await Promise.all([
         listConnectorClients(userId),
@@ -73,6 +76,7 @@ route.get('/api/user/connector', requireAuth, rateLimit('read'), async (c) => {
         })),
         usage: { today, dailyLimit: DAILY_CALLS, resetsAt: nextUtcMidnight() },
         token,
+        preferences,
       },
       200,
       NO_STORE,
@@ -125,6 +129,25 @@ route.delete('/api/user/connector/token', requireAuth, rateLimit('write'), async
     return c.json({ revoked }, 200, NO_STORE);
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/user/connector/token', action: 'revoke_connector_token' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+route.put('/api/user/connector/preferences', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const { userId } = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => null)) as { allowStartNotes?: unknown } | null;
+    if (typeof body?.allowStartNotes !== 'boolean') {
+      return c.json({ error: 'allowStartNotes must be true or false' }, 400);
+    }
+    // No Plus check: anyone may turn this off, even after Plus lapses.
+    const preferences = await setConnectorPreferences(userId, { allowStartNotes: body.allowStartNotes });
+    return c.json({ preferences }, 200, NO_STORE);
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/user/connector/preferences',
+      action: 'set_connector_preferences',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

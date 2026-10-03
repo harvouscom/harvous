@@ -27,7 +27,11 @@ import {
   isNull,
   isNotNull,
   desc,
+  gte,
+  inArray,
   first,
+  UserMetadata,
+  ReadingEvents,
 } from '../db';
 import { searchNoteRows, classifySearchScope } from '../utils/search-notes-query';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
@@ -39,8 +43,18 @@ import {
   getTagNamesForNotesBatch,
   getThreadsForSpace,
   getThreadsForSpaceBySpaceId,
+  getNotesForThread,
+  getNotesForThreadForMember,
   visibleSharedThreadsForViewer,
 } from '../utils/dashboard-data';
+import { requireThreadReadAccess, SharedSpaceLifecycleError } from '../utils/shared-space-lifecycle';
+import { getPassageContext, type CrossReference } from '../utils/scripture-knowledge';
+import { getUserNoteVisitAggregate } from '../utils/record-note-visit';
+import { collapseReadingHistory } from '../utils/record-reading-event';
+import { parseLastReadPosition } from '@/utils/last-read-position';
+import { readingDwellCountsAsRead, type ReadingDwellBucket } from '@/utils/reading-event-kinds';
+import { bibleBookChapterCounts } from '@/utils/bible-book-chapters';
+import { deriveContinueReading, pickContinueNote } from '@/utils/prototype-home-trends';
 import { findSharedSpaceForNote, sharedSpaceNoteAssociation } from '../utils/note-read-access';
 import { listStudyThreadsForSpace } from '../utils/space-study-threads';
 import { collectStudyThreadGraphForScope } from '../utils/study-thread-space';
@@ -653,6 +667,241 @@ export async function findByPassage(
     })),
     highlights,
     nextCursor: nextCursorFor('find_by_passage', scope, offset, args.limit, page.length),
+  };
+}
+
+// ─── list_notes_in_thread ──────────────────────────────────────────────────────
+
+/**
+ * Notes in one thread (series or topic). Mirrors GET /api/threads/:id/notes, minus the
+ * junction repair it runs first (a write). Other members' locked notes are dropped, as
+ * listNotesInSpace does; your own locked notes come back as `locked: true`, no snippet.
+ */
+export async function listNotesInThread(
+  userId: string,
+  args: { threadId: string } & Page,
+): Promise<{ thread: { id: string; title: string }; notes: NoteSummary[]; nextCursor: string | null }> {
+  const raw = args.threadId.trim();
+  const threadId = raw.startsWith('thread_') ? raw : `thread_${raw}`;
+  let access: Awaited<ReturnType<typeof requireThreadReadAccess>>;
+  try {
+    access = await requireThreadReadAccess(db, { threadId, viewerUserId: userId });
+  } catch (err) {
+    if (err instanceof SharedSpaceLifecycleError) {
+      throw new ConnectorRefusal('not_found', 'That thread was not found, or you do not have access to it.');
+    }
+    throw err;
+  }
+  const { thread } = access;
+  if (thread.spaceId) await spaceForViewer(thread.spaceId, userId);
+
+  const scope = { threadId };
+  const offset = decodeCursor(args.cursor, 'list_notes_in_thread', scope);
+  const result = thread.spaceId
+    ? await getNotesForThreadForMember(threadId, userId, args.limit, offset)
+    : await getNotesForThread(threadId, userId, args.limit, offset, thread);
+  const rows = (Array.isArray(result) ? [] : result.notes) as SpaceNoteRow[];
+  const hasMore = Array.isArray(result) ? false : Boolean(result.hasMore);
+
+  const notes = rows
+    .map((n) =>
+      toNoteSummary(
+        {
+          id: n.id,
+          title: n.title,
+          content: n.content,
+          noteType: n.noteType,
+          contentEncrypted: n.contentEncrypted,
+          updatedAt: n.updatedAt,
+          createdAt: n.createdAt,
+          authorUserId: n.authorUserId ?? n.userId ?? userId,
+        },
+        userId,
+      ),
+    )
+    .filter((n) => !(n.locked && !n.byYou));
+
+  return {
+    thread: { id: thread.id, title: thread.id === 'thread_unorganized' ? 'Unorganized' : (thread.title ?? 'Untitled thread') },
+    notes,
+    nextCursor: hasMore ? nextCursorFor('list_notes_in_thread', scope, offset, args.limit, args.limit + 1) : null,
+  };
+}
+
+// ─── where_i_left_off ──────────────────────────────────────────────────────────
+
+const LEFT_OFF_CANDIDATES = 60;
+const LEFT_OFF_RECENT = 5;
+const READING_WINDOW_DAYS = 180;
+
+export interface ContinueReadingOut {
+  /** "Romans 9" — the chapter to open. */
+  reference: string;
+  book: string;
+  chapter: number;
+  /** `resume`: left partway through. `next`: the last one was read, this is the next. */
+  reason: 'resume' | 'next';
+  resumeVerse?: number;
+}
+
+/**
+ * "Pick up where you left off", answered the way Home answers it: the note most recently
+ * edited or read (`pickContinueNote`) and the chapter to keep reading (`deriveContinueReading`),
+ * from the same inputs Home fetches. Your own study only.
+ */
+export async function whereILeftOff(userId: string): Promise<{
+  continueNote: (NoteSummary & { url: string }) | null;
+  continueReading: ContinueReadingOut | null;
+  recentNotes: Array<NoteSummary & { url: string }>;
+}> {
+  const since = new Date(Date.now() - READING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const [recent, visits, meta, readingRows] = await Promise.all([
+    db
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        noteType: Notes.noteType,
+        contentEncrypted: Notes.contentEncrypted,
+        isPinned: Notes.isPinned,
+        updatedAt: Notes.updatedAt,
+        createdAt: Notes.createdAt,
+        folder: Notes.primaryCollection,
+      })
+      .from(Notes)
+      .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture')))
+      .orderBy(desc(Notes.updatedAt))
+      .limit(LEFT_OFF_CANDIDATES),
+    getUserNoteVisitAggregate(userId),
+    db
+      .select({ lastReadPosition: UserMetadata.lastReadPosition })
+      .from(UserMetadata)
+      .where(eq(UserMetadata.userId, userId))
+      .limit(1),
+    db
+      .select({
+        book: ReadingEvents.book,
+        bookOrder: ReadingEvents.bookOrder,
+        chapter: ReadingEvents.chapter,
+        dwellBucket: ReadingEvents.dwellBucket,
+        createdAt: ReadingEvents.createdAt,
+      })
+      .from(ReadingEvents)
+      .where(and(eq(ReadingEvents.userId, userId), gte(ReadingEvents.createdAt, since)))
+      .orderBy(desc(ReadingEvents.createdAt))
+      .limit(1000)
+      .catch(() => []),
+  ]);
+
+  // A note read recently but edited long ago is outside the recent-edit window; fetch it too.
+  const known = new Set(recent.map((n) => n.id));
+  const visitedIds = visits.map((v) => v.noteId).filter((id) => !known.has(id)).slice(0, 20);
+  const visited = visitedIds.length
+    ? await db
+        .select({
+          id: Notes.id,
+          title: Notes.title,
+          content: Notes.content,
+          noteType: Notes.noteType,
+          contentEncrypted: Notes.contentEncrypted,
+          isPinned: Notes.isPinned,
+          updatedAt: Notes.updatedAt,
+          createdAt: Notes.createdAt,
+          folder: Notes.primaryCollection,
+        })
+        .from(Notes)
+        .where(and(eq(Notes.userId, userId), inArray(Notes.id, visitedIds), ne(Notes.noteType, 'scripture')))
+    : [];
+  const candidates = [...recent, ...visited];
+
+  const lastSubstantiveVisitAtById: Record<string, number> = {};
+  for (const v of visits) lastSubstantiveVisitAtById[v.noteId] = Date.parse(v.lastVisitedAt);
+
+  const summarize = (n: (typeof candidates)[number]) => ({
+    ...toNoteSummary({ ...n, authorUserId: userId }, userId),
+    url: noteUrl(n.id),
+  });
+  const pick = pickContinueNote(candidates, { lastSubstantiveVisitAtById });
+
+  const lastRead = parseLastReadPosition(first(meta)?.lastReadPosition);
+  const readChapters = collapseReadingHistory(readingRows).map((c) => ({
+    book: c.book,
+    chapter: c.chapter,
+    countsAsRead: readingDwellCountsAsRead(c.dwellBucket as ReadingDwellBucket),
+  }));
+  const reading = deriveContinueReading({ lastRead, readChapters }, bibleBookChapterCounts());
+
+  return {
+    continueNote: pick ? summarize(pick) : null,
+    continueReading: reading
+      ? {
+          reference: `${reading.book} ${reading.chapter}`,
+          book: reading.book,
+          chapter: reading.chapter,
+          reason: reading.reason,
+          ...(reading.resumeVerse ? { resumeVerse: reading.resumeVerse } : {}),
+        }
+      : null,
+    recentNotes: recent
+      .filter((n) => n.id !== pick?.id)
+      .slice(0, LEFT_OFF_RECENT)
+      .map(summarize),
+  };
+}
+
+// ─── passage_context ───────────────────────────────────────────────────────────
+
+/** "Romans 5:1-5", or "Exodus 6:28-7:7" across chapters. */
+export function formatCrossReference(cr: CrossReference): string {
+  const start = `${cr.book} ${cr.chapterStart}:${cr.verseStart}`;
+  if (cr.chapterEnd !== cr.chapterStart) return `${start}-${cr.chapterEnd}:${cr.verseEnd}`;
+  if (cr.verseEnd !== cr.verseStart) return `${start}-${cr.verseEnd}`;
+  return start;
+}
+
+/**
+ * The knowledge layer around a passage — the side panel the reader shows: themes,
+ * cross-references, people and places, and this person's own notes that connect to it.
+ * Names and references only, never verse text.
+ */
+export async function passageContext(
+  userId: string,
+  args: { passage: string },
+): Promise<{
+  passage: string;
+  themes: string[];
+  crossReferences: string[];
+  people: string[];
+  places: string[];
+  yourRelatedNotes: Array<{ id: string; title: string; reason: string; url: string }>;
+}> {
+  const canonical = canonicalizeServiceReference(args.passage);
+  if (!canonical.ok || !canonical.reference) {
+    throw new ConnectorRefusal(
+      'bad_request',
+      `I couldn't read "${args.passage.trim().slice(0, 80)}" as a Bible reference. Try something like "Romans 8" or "John 3:16".`,
+    );
+  }
+  const passage = canonical.reference;
+  const verses = verseKeysFromScriptureReference(passage)
+    .slice(0, 200)
+    .map((key) => {
+      const [book, chapter, verse] = key.split('|');
+      return { book: book!, chapter: Number(chapter), verse: Number(verse) };
+    });
+  const ctx = await getPassageContext(userId, verses, { relatedLimit: 8 });
+  return {
+    passage,
+    themes: ctx.themes.map((t) => t.label),
+    crossReferences: ctx.crossReferences.map(formatCrossReference),
+    people: ctx.people.map((p) => p.name),
+    places: ctx.places.map((p) => p.name),
+    yourRelatedNotes: ctx.relatedNotes.map((n) => ({
+      id: n.noteId,
+      title: n.title,
+      reason: n.reason,
+      url: noteUrl(n.noteId),
+    })),
   };
 }
 

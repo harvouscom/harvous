@@ -40,6 +40,8 @@ export {
   ConnectorClients,
   ConnectorUsageDays,
   ConnectorApiKeys,
+  NoteChatOrigins,
+  ConnectorPreferences,
   ClerkUserMapping,
   UserXP,
   UserSeasonalXP,

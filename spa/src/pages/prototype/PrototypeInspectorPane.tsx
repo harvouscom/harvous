@@ -22,6 +22,8 @@ import { toPrototypeSpaceSearchParam } from '../../utils/prototype-space-api-id'
 import type { NoteDetail, LinkedNoteRef } from '../../hooks/queries/useNote';
 import type { NoteActivityItem } from '../../lib/shared-note-activity-list';
 import { normalizeNoteAddedBy } from '@/utils/note-added-by-display';
+import { startedInFromAddedBy } from '@/utils/connector-app-name';
+import '../../styles/prototype-chat-origin.css';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
 import { useProfile } from '../../hooks/queries/useProfile';
@@ -311,6 +313,36 @@ export default function PrototypeInspectorPane({
 
   const showActivityPanel = typeof onSelectActivity === 'function';
 
+  /*
+   * A note an AI app started (Connector `start_note`). Read from `addedBy`, not the card, so it
+   * stays after the card is removed. The person is still who added it; this says where.
+   */
+  const startedIn = startedInFromAddedBy(note.addedBy);
+  const startedInRow = startedIn ? (
+    <InspectorRow
+      label="Started in"
+      value={
+        note.chatOrigin ? (
+          <button
+            type="button"
+            className="proto-inspector-started-in proto-inspector-started-in--link"
+            onClick={() =>
+              document.getElementById('note-chat-origin')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+          >
+            <Icon name="puzzle-piece" size={11} aria-hidden />
+            {startedIn}
+          </button>
+        ) : (
+          <span className="proto-inspector-started-in">
+            <Icon name="puzzle-piece" size={11} aria-hidden />
+            {startedIn}
+          </span>
+        )
+      }
+    />
+  ) : null;
+
   const templateFromRow = showTemplateFrom ? (
     <InspectorRow
       label="Template"
@@ -352,6 +384,7 @@ export default function PrototypeInspectorPane({
                 label="Added by"
                 value={<InspectorAddedByValue note={note} contextSpaceId={contextSpaceId} />}
               />
+              {startedInRow}
               <InspectorRow label="Edited" value={updatedStr} />
               {contributorsLine ? (
                 <InspectorRow label="Written by" value={contributorsLine} />

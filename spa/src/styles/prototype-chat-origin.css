@@ -1,0 +1,143 @@
+/* The "From your Claude chat" card above a note started by the Connector. Chrome, not paper. */
+.proto-chat-origin {
+  position: relative;
+  margin: 0 0 20px;
+  padding: 12px 14px 14px;
+  border-radius: 12px;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-secondary);
+}
+
+.proto-chat-origin__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.proto-chat-origin__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-chat-origin__menu {
+  position: relative;
+}
+
+.proto-chat-origin__more {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pds-text-tertiary);
+  cursor: pointer;
+}
+
+.proto-chat-origin__more:hover {
+  background: var(--pds-bg-row-hover);
+  color: var(--pds-text-secondary);
+}
+
+.proto-chat-origin__popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  min-width: 140px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--pds-bg-popover-solid);
+  box-shadow: 0 8px 24px -8px rgba(20, 18, 12, 0.25), 0 0 0 0.5px var(--pds-paper-rule);
+}
+
+.proto-chat-origin__menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pds-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-chat-origin__menu-item:hover {
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-chat-origin__summary {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+}
+
+.proto-chat-origin__passages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+/* The editor's pill, restated on the card's chip surface: paper fill so it lifts off the chip. */
+.proto-chat-origin__pill {
+  display: inline-flex;
+  align-items: baseline;
+  border: 0;
+  border-radius: var(--pds-radius-scripture);
+  padding: var(--pds-inline-pill-pad-block) var(--pds-inline-pill-pad-inline);
+  background: var(--pds-paper-sheet);
+  box-shadow: var(--scripture-pill-inner-shadow);
+  color: var(--pds-text-primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.proto-chat-origin__pill:hover {
+  opacity: 0.8;
+}
+
+.proto-chat-origin__question {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--pds-paper-rule);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--pds-text-primary);
+}
+
+.proto-chat-origin__question-label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--pds-text-tertiary);
+}
+
+/* Side panel › Info › "Started in" — the app a note was started from. */
+.proto-inspector-started-in {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.proto-inspector-started-in--link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.proto-inspector-started-in--link:hover {
+  text-decoration: underline;
+}

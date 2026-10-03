@@ -39,6 +39,7 @@ import {
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
+import { readNoteChatOrigin, removeNoteChatOrigin } from '../utils/note-chat-origin';
 import { computeNoteFolderAdditionPatch } from '@/utils/folder-bulk-actions';
 import { generateNoteId, generateShareToken, generateSpaceId, generateTimestampId } from '@/utils/ids';
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
@@ -2716,6 +2717,20 @@ route.get('/api/notes/:id/tags', requireAuth, async (c) => {
 });
 
 // ─── GET /api/notes/:id/details ─────────────────────────────────────────────
+// ─── DELETE /api/notes/:id/chat-origin ───────────────────────────────────────
+// "Remove card" on a note an AI app started. The author's only; the note itself is untouched.
+route.delete('/api/notes/:id/chat-origin', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, 'id');
+    const removed = await removeNoteChatOrigin(noteId, auth.userId);
+    return c.json({ success: true, removed });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/chat-origin', action: 'remove_chat_origin' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 route.get('/api/notes/:id/details', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -3240,9 +3255,13 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
           resourceImage,
         };
 
+    // The card an AI app's start_note left on the note — the author's eyes only.
+    const chatOrigin = await readNoteChatOrigin(note, auth.userId).catch(() => null);
+
     return c.json({
       success: true,
       note: detailNote,
+      ...(chatOrigin ? { chatOrigin } : {}),
       context: {
         spaceId: readContext.space.id,
         title: readContext.space.title,
