@@ -24656,104 +24656,135 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /* ─── Settings › Plan — the pricing card ─────────────────────────────────────
-   Shaped like the plan card on harvous.com/pricing: name, the price large, one quiet
-   line, the tagline, a rule, then the list. The billing rows below stay settings rows. */
+   The Plus card from harvous.com/pricing, in app tokens: a watercolour sky behind a fade
+   to the page colour, the accent tile, the price large, a single list of accent checks.
+   The billing rows below stay settings rows. */
 .proto-plan-card {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
-  margin-bottom: 24px;
-  padding: 24px;
-  border: 0.5px solid var(--pds-border);
-  border-radius: 16px;
-  container-type: inline-size;
+  margin-bottom: 28px;
+  padding: clamp(22px, 4vw, 32px);
+  border-radius: 24px;
+  background: var(--pds-bg-section);
+  overflow: hidden;
+}
+
+.proto-plan-card__sky {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* The fade: the sky shows through at the top and gives way to the page by the list. */
+.proto-plan-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--pds-bg-page) 35%, transparent),
+    color-mix(in oklab, var(--pds-bg-page) 88%, transparent) 45%
+  );
 }
 
 .proto-plan-card__head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.proto-plan-card__icon {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .proto-plan-card__name {
-  flex: 1;
-  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0;
   font-size: 17px;
   font-weight: 600;
-  line-height: 1.2;
   color: var(--pds-text-primary);
 }
 
-.proto-plan-card__badge {
-  flex: none;
+.proto-plan-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--pds-bg-accent-button);
+  color: #fff;
 }
 
-.proto-plan-card__price-block {
-  margin-top: 18px;
+.proto-plan-card__badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  background: color-mix(in oklab, var(--pds-bg-page) 70%, transparent);
+  backdrop-filter: blur(8px);
 }
 
 .proto-plan-card__price {
-  margin: 0;
+  margin: 22px 0 0;
   font-family: var(--pds-font-display);
   font-variation-settings: var(--pds-font-display-variation);
-  font-size: 40px;
+  font-size: clamp(40px, 7vw, 54px);
   font-weight: 600;
   line-height: 1;
   letter-spacing: -0.03em;
   color: var(--pds-text-primary);
 }
 
-.proto-plan-card__price-or {
-  display: inline-block;
-  margin-inline: 0.36em;
-  font-family: inherit;
+.proto-plan-card__price span {
   font-size: 0.4em;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  vertical-align: 0.45em;
-  color: var(--pds-text-tertiary);
+  letter-spacing: -0.01em;
+  color: var(--pds-text-secondary);
 }
 
 .proto-plan-card__note {
-  margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--pds-text-secondary);
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
 }
 
 .proto-plan-card__tagline {
   margin: 6px 0 0;
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--pds-text-tertiary);
+  font-size: 15px;
+  color: var(--pds-text-secondary);
 }
 
-.proto-plan-card .proto-settings-plan-features {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 0.5px solid var(--pds-border);
-  gap: 12px;
+.proto-plan-card__list {
+  display: grid;
+  gap: 10px;
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-/* Two columns once the card is wide enough that one column leaves half of it empty. */
-@container (min-width: 520px) {
-  .proto-plan-card .proto-settings-plan-features:not(.proto-settings-plan-features--coming) {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 24px;
-  }
+.proto-plan-card__list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+.proto-plan-card__check {
+  flex: none;
+  color: var(--pds-accent-indicator);
+  transform: translateY(1px);
 }
 
 .proto-plan-card__cta {
   width: 100%;
-  margin-top: 24px;
+  margin-top: 28px;
 }

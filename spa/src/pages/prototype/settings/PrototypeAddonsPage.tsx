@@ -33,7 +33,8 @@ const PLAN_NAME = yearPlan?.name ?? monthPlan?.name ?? 'Harvous Plus';
 
 
 /** Same line as harvous.com/pricing, so the app and the site describe Plus the same way. */
-const PLUS_TAGLINE = 'For study you return to, together';
+const PLUS_TAGLINE = 'For study you return to, alone or together';
+const PLAN_CARD_SKY = '/images/auth-hero/ai_bg_plus.webp';
 
 /**
  * The price block of the plan card. Shaped like the pricing card on harvous.com: the price
@@ -158,36 +159,37 @@ export default function PrototypeAddonsPage() {
     <SettingsShell wide>
       <div className="proto-settings-plan">
         <section className="proto-plan-card" aria-label={PLAN_NAME}>
+          {/* The same watercolour sky as /upgrade and the Plus card on harvous.com/pricing. */}
+          <img className="proto-plan-card__sky" src={PLAN_CARD_SKY} alt="" decoding="async" />
           <header className="proto-plan-card__head">
-            <span
-              className="proto-settings-list-row__leading proto-settings-list-row__leading--plus proto-plan-card__icon"
-              aria-hidden="true"
-            >
-              <Icon name="plus" size={16} />
-            </span>
-            <h2 className="proto-plan-card__name">{PLAN_NAME}</h2>
-            {hasSharedSpaces ? (
-              <span className="proto-thread-review__badge proto-plan-card__badge">
-                {isFounding ? PLUS_FOUNDING_BADGE : 'Active'}
+            <p className="proto-plan-card__name">
+              <span className="proto-plan-card__icon proto-ink-on-accent" aria-hidden="true">
+                <Icon name="plus" size={13} />
               </span>
+              {PLAN_NAME}
+            </p>
+            {hasSharedSpaces ? (
+              <span className="proto-plan-card__badge">{isFounding ? PLUS_FOUNDING_BADGE : 'Active'}</span>
             ) : null}
           </header>
 
-          <div className="proto-plan-card__price-block">
-            <p className="proto-plan-card__price">
-              {price.primary}
-              {price.secondary ? (
-                <>
-                  <span className="proto-plan-card__price-or">or</span>
-                  {price.secondary}
-                </>
-              ) : null}
-            </p>
-            {price.note ? <p className="proto-plan-card__note">{price.note}</p> : null}
-            <p className="proto-plan-card__tagline">{PLUS_TAGLINE}</p>
-          </div>
+          <p className="proto-plan-card__price">
+            {price.primary}
+            {price.secondary ? <span> or {price.secondary}</span> : null}
+          </p>
+          {price.note ? <p className="proto-plan-card__note">{price.note}</p> : null}
+          <p className="proto-plan-card__tagline">{PLUS_TAGLINE}</p>
 
-          <PlanFeatureList items={featureBullets} />
+          <ul className="proto-plan-card__list" role="list">
+            {featureBullets.map((bullet) => (
+              <li key={bullet}>
+                <span className="proto-plan-card__check" aria-hidden="true">
+                  <Icon name="check" size={12} />
+                </span>
+                <span>{bullet}</span>
+              </li>
+            ))}
+          </ul>
 
           {/* Empty since 3.0 — see the constant. A heading with no list under it reads as a
               rendering bug, not as restraint. */}
