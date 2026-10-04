@@ -45,7 +45,7 @@ export function guestSignUpHref(): string {
     const back = new URLSearchParams(window.location.search);
     back.delete(GUEST_ENTRY_PARAM);
     const query = back.toString();
-    params.set('redirect_url', `${window.location.pathname}${query ? `?${query}` : ''}`);
+    params.set('redirect_url', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
   }
   return `/sign-up?${params.toString()}`;
 }

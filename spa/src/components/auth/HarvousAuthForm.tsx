@@ -6,7 +6,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useAuthFormKeyboardScroll } from '../../hooks/useAuthFormKeyboardScroll';
 import { seedProfileNamesAfterSignUp } from '../../hooks/queries/useProfile';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
-import { postAuthRedirectPath } from '../../utils/post-auth-redirect';
+import { postAuthDestination } from '../../lib/notification-return';
 import {
   clearSignupAttributionCookie,
   signupAttributionAsUnsafeMetadata,
@@ -162,7 +162,7 @@ export default function HarvousAuthForm({
   function redirectAfterAuth() {
     clearAuthDraft();
     const params = new URLSearchParams(window.location.search);
-    const target = postAuthRedirectPath(params.get('redirect_url'));
+    const target = postAuthDestination(params.get('redirect_url'));
     navigate({ to: target as any });
   }
 

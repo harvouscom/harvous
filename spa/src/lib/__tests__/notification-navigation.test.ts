@@ -21,6 +21,7 @@ const {
   isPendingNavigationFresh,
   markNotificationNavigationReady,
   peekPendingNavigation,
+  rememberIfNotificationTap,
   resetNotificationNavigationForTests,
   resolveNotificationPath,
 } = await import('../notification-navigation');
@@ -195,6 +196,26 @@ describe('initNotificationNavigation', () => {
     markNotificationNavigationReady();
     await new Promise((r) => setTimeout(r, 20));
     expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('remembers a cold-launch tap past the signed-out bounce away from it', async () => {
+    // The tap opened the app on its destination, then the shell bounced to sign-in. That
+    // bounce must leave the destination somewhere a lost redirect_url cannot take it with it.
+    const { peekNotificationReturn, clearNotificationReturn } = await import('../notification-return');
+    installCacheStorage({ url: 'https://app.harvous.com/read/john/3?v=16', at: Date.now() });
+    vi.stubGlobal('window', {
+      location: { origin: 'https://app.harvous.com', pathname: '/read/john/3', search: '?v=16' },
+    });
+    stubServiceWorker();
+    initNotificationNavigation();
+    markNotificationNavigationReady();
+    await new Promise((r) => setTimeout(r, 20));
+
+    rememberIfNotificationTap('/sign-in');
+    expect(peekNotificationReturn()).toBeNull();
+    rememberIfNotificationTap('/read/john/3?v=16');
+    expect(peekNotificationReturn()).toBe('/read/john/3?v=16');
+    clearNotificationReturn();
   });
 });
 

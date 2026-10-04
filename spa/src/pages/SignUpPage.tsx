@@ -7,7 +7,7 @@ import ClerkPrebuiltAuth from '../components/auth/ClerkPrebuiltAuth';
 import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
 import { useAuthHeroImage } from '../hooks/useAuthHeroImage';
-import { postAuthRedirectPath } from '../utils/post-auth-redirect';
+import { postAuthDestination } from '../lib/notification-return';
 import {
   persistSignupAttributionCookie,
   readSignupAttributionFromSearch,
@@ -49,7 +49,7 @@ export default function SignUpPage() {
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       const params = new URLSearchParams(window.location.search);
-      const path = postAuthRedirectPath(params.get('redirect_url'));
+      const path = postAuthDestination(params.get('redirect_url'));
       navigate({ to: path as any });
     }
   }, [isLoaded, isSignedIn, navigate]);

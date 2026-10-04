@@ -1,3 +1,4 @@
+import { rememberIfNotificationTap } from '../lib/notification-navigation';
 import DevModeBadge from '../components/DevModeBadge';
 import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
@@ -388,8 +389,9 @@ export default function SimplifiedPrototypeLayout() {
     if (!shouldRedirectPrototypeToSignIn(isLoaded, isSignedIn)) return;
     const path =
       typeof window !== 'undefined'
-        ? `${window.location.pathname}${window.location.search || ''}`
+        ? `${window.location.pathname}${window.location.search || ''}${window.location.hash || ''}`
         : prototypeHomePath();
+    rememberIfNotificationTap(path);
     const redirectUrl = `/sign-in?redirect_url=${encodeURIComponent(path)}`;
     window.location.replace(redirectUrl);
   }, [isLoaded, isSignedIn, identity.isGuest]);

@@ -25,6 +25,7 @@ import {
   scrollToTodaysPassage,
   TODAYS_PASSAGE_FOCUS,
 } from './votd-today';
+import { rememberNotificationReturn } from './notification-return';
 
 export const NOTIFICATION_NAVIGATE_MESSAGE = 'HARVOUS_NOTIFICATION_NAVIGATE';
 
@@ -58,6 +59,8 @@ interface NotificationNavigateMessage {
 let routerReady = false;
 let queuedPath: string | null = null;
 let lastHandled: { path: string; at: number } | null = null;
+/** The most recent tap this page load acted on, for `rememberIfNotificationTap`. */
+let lastTapped: { path: string; at: number } | null = null;
 
 function isNavigateMessage(data: unknown): data is NotificationNavigateMessage {
   if (!data || typeof data !== 'object') return false;
@@ -126,6 +129,8 @@ export async function consumePendingNavigation(): Promise<string | null> {
 }
 
 function goTo(path: string): void {
+  lastTapped = { path, at: Date.now() };
+
   if (path.includes(`focus=${TODAYS_PASSAGE_FOCUS}`)) {
     forceShowTodaysPassageToday();
   }
@@ -156,6 +161,20 @@ function goTo(path: string): void {
 
   void import('../shims/app-navigate').then((mod) => mod.navigate(path));
   void clearPendingNavigation();
+}
+
+/**
+ * Called by the two sign-in bounces. If the page being bounced away from is where a notification
+ * tap just sent us, remember it past sign-in (see notification-return.ts).
+ *
+ * Writing only here, rather than on every tap, is what keeps a signed-in tap from leaving an
+ * entry behind: only a signed-out visit ever reaches a bounce.
+ */
+export function rememberIfNotificationTap(currentPath: string, now = Date.now()): void {
+  if (!lastTapped || now - lastTapped.at > PENDING_NAV_MAX_AGE_MS) return;
+  const withoutHash = currentPath.split('#')[0];
+  if (withoutHash !== lastTapped.path.split('#')[0]) return;
+  rememberNotificationReturn(lastTapped.path);
 }
 
 function checkPending(): void {
@@ -207,4 +226,5 @@ export function resetNotificationNavigationForTests(): void {
   routerReady = false;
   queuedPath = null;
   lastHandled = null;
+  lastTapped = null;
 }

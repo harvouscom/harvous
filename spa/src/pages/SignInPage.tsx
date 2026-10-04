@@ -8,7 +8,7 @@ import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
 import { useClerkSignInSubtitlePatch } from '../hooks/useClerkSignInSubtitlePatch';
 import { useAuthHeroImage } from '../hooks/useAuthHeroImage';
-import { postAuthRedirectPath } from '../utils/post-auth-redirect';
+import { postAuthDestination } from '../lib/notification-return';
 
 export default function SignInPage() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -23,7 +23,7 @@ export default function SignInPage() {
     if (isLoaded && isSignedIn) {
       const params = new URLSearchParams(window.location.search);
       const raw = params.get('redirect_url');
-      const path = postAuthRedirectPath(raw);
+      const path = postAuthDestination(raw);
       navigate({ to: path as any });
     }
   }, [isLoaded, isSignedIn, navigate]);
