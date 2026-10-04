@@ -24,7 +24,7 @@ describe('a guest note never triggers a server write or a sign-in bounce', () =>
   it('the 401 redirect lets a guest stay', () => {
     const block = sliceFrom(read('spa/src/App.tsx'), 'function QueryClient401Redirect', 2400);
     const guard = block.indexOf('if (isGuestModeActive()) return;');
-    const redirect = block.indexOf("window.location.href = '/sign-in'");
+    const redirect = block.indexOf('window.location.href = `/sign-in');
     expect(guard).toBeGreaterThan(-1);
     expect(redirect).toBeGreaterThan(guard);
   });

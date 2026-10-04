@@ -38,7 +38,13 @@ import {
   peekPendingAuthRedirect,
   pendingAuthRedirectDecision,
 } from './lib/pending-auth-redirect';
-import { isPrototypeShellPath, syncPublicRouteHtmlClass } from '@/lib/prototype-path';
+import { isPrototypeHomePath, isPrototypeShellPath, syncPublicRouteHtmlClass } from '@/lib/prototype-path';
+import { rememberIfNotificationTap } from './lib/notification-navigation';
+import {
+  clearNotificationReturn,
+  notificationReturnDecision,
+  peekNotificationReturn,
+} from './lib/notification-return';
 import {
   showPrototypeFeedbackToast,
   type PrototypeFeedbackToastVariant,
@@ -361,6 +367,24 @@ function PublicRouteClassBridge() {
   return null;
 }
 
+/** Replay a notification tap that a signed-out bounce lost (see lib/notification-return.ts). */
+function applyNotificationReturn(current: URL, hasExplicitRedirect: boolean) {
+  const remembered = peekNotificationReturn();
+  if (!remembered) return;
+  const decision = notificationReturnDecision({
+    current: `${current.pathname}${current.search}${current.hash}`,
+    pathname: current.pathname,
+    isHome: isPrototypeHomePath(current.pathname),
+    hasExplicitRedirect,
+    remembered,
+  });
+  if (decision === 'wait') return;
+  clearNotificationReturn();
+  if (decision === 'navigate') {
+    void router.navigate({ to: remembered as any, replace: true });
+  }
+}
+
 function PendingAuthRedirectBridge() {
   const { isLoaded, isSignedIn } = useAuth();
 
@@ -388,6 +412,7 @@ function PendingAuthRedirectBridge() {
 
       if (decision === 'explicit' || decision === 'at-target' || decision === 'none') {
         clearPendingAuthRedirect();
+        applyNotificationReturn(current, hasExplicitRedirect);
         return;
       }
       if (decision !== 'navigate') return;
@@ -478,7 +503,12 @@ function QueryClient401Redirect() {
       if (isGuestModeActive()) return;
       if (redirecting401) return;
       redirecting401 = true;
-      window.location.href = '/sign-in';
+      // Carry the page along, as the shell's own bounce does, so signing back in returns here.
+      const { pathname, search, hash } = window.location;
+      if (/^\/sign-(in|up)(\/|$)/.test(pathname)) return;
+      const path = `${pathname}${search}${hash}`;
+      rememberIfNotificationTap(path);
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(path)}`;
     };
 
     const unsubQueries = queryClient.getQueryCache().subscribe((event) => {
