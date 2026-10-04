@@ -19,15 +19,16 @@ export function buildVotdScripturePillHtml(reference: string, translation: strin
 }
 
 /**
- * A pill, the words the reader marked underneath it, and a line to type on.
+ * The words the reader marked, the pill under them as their source, and a line to type on.
  *
  * The pill-and-blockquote pair already exists as a contract — `TiptapScriptureQuoteBlockquote`
  * reads these three attributes, and a quote saved from the reader carries them — but nothing
  * emitted the pair as seed HTML for a new note. This does, so a card can open a draft that
  * already holds the passage and the verse you highlighted in it.
  *
- * The quote is only ever a verse the reader chose. A card that opened with a verse picked for
- * them would be putting words in a note with their name on it.
+ * The quote is only ever words the reader chose to write about: a verse they highlighted, or
+ * the passage a card was showing when they tapped "Create note" on it. A card that slipped in
+ * a verse they had not seen would be putting words in a note with their name on it.
  */
 export function buildScripturePillWithQuoteHtml(
   reference: string,
@@ -55,7 +56,8 @@ export function buildScripturePillWithQuoteHtml(
     .filter(Boolean)
     .map((line) => `<p>${escapeHtmlText(line)}</p>`)
     .join('');
-  // An empty paragraph after it, or the caret lands inside the quote and the reader's first
-  // sentence is typed into Scripture.
-  return `${pill}${blockquote}${leadHtml}<p></p>`;
+  // Quote first, pill under it — cited like a source, the same shape a quote inserted from the
+  // reader takes (`insertScriptureQuoteAt`). The empty paragraph after it keeps the caret out
+  // of the quote, or the reader's first sentence is typed into Scripture.
+  return `${blockquote}${pill}${leadHtml}<p></p>`;
 }

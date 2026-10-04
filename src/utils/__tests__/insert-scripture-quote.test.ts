@@ -156,6 +156,112 @@ describe('insertScriptureQuoteAt', () => {
   });
 });
 
+describe('the exact pill above the quote becomes its source', () => {
+  const pillBounds = (editor: Editor) => {
+    let from = 0;
+    let to = 0;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.marks.some((m) => m.type.name === 'scripturePill')) {
+        from = pos;
+        to = pos + node.nodeSize;
+      }
+    });
+    return { from, to };
+  };
+  const quote = (editor: Editor, reference: string, translation = 'NET') =>
+    insertScriptureQuoteAt(editor, {
+      excerpt: 'For God so loved the world',
+      reference,
+      translation,
+      sourceNoteId: 'note_1',
+      sourcePillBoundaries: pillBounds(editor),
+      sourcePillReference: 'John 3:16',
+      sourcePillTranslation: 'NET',
+      lastEditorSelection: null,
+    });
+  const pillLine =
+    '<p><span data-scripture-reference="John 3:16" data-note-id="note_1" data-scripture-translation="NET" data-pill-accent="skyBlue" class="scripture-pill">John 3:16</span>\u00A0</p>';
+
+  it('moves a pill alone on its line to just under the quote', () => {
+    const editor = new Editor({ extensions, content: `<p>Intro</p>${pillLine}` });
+    try {
+      quote(editor, 'John 3:16');
+      const html = editor.getHTML();
+      expect((html.match(/data-scripture-reference/g) ?? []).length).toBe(1);
+      expect(html.indexOf('<blockquote')).toBeLessThan(html.indexOf('data-scripture-reference'));
+      expect(html).toMatch(/<\/blockquote><p><span[^>]*data-scripture-reference="John 3:16"/);
+      expect(html.startsWith('<p>Intro</p><blockquote')).toBe(true);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('keeps everything about the pill it moves', () => {
+    const editor = new Editor({ extensions, content: pillLine });
+    try {
+      quote(editor, 'John 3:16');
+      const html = editor.getHTML();
+      expect(html).toContain('data-note-id="note_1"');
+      expect(html).toContain('data-scripture-quote-accent="skyBlue"');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('moves it when the caret is on the empty line below the pill', () => {
+    const editor = new Editor({ extensions, content: `${pillLine}<p></p><p>Later</p>` });
+    try {
+      insertScriptureQuoteAt(editor, {
+        excerpt: 'For God so loved the world',
+        reference: 'John 3:16',
+        translation: 'NET',
+        sourceNoteId: 'note_1',
+        lastEditorSelection: { from: pillBounds(editor).to + 3, to: pillBounds(editor).to + 3, at: Date.now() },
+      });
+      const html = editor.getHTML();
+      expect(html.startsWith('<blockquote')).toBe(true);
+      expect((html.match(/data-scripture-reference/g) ?? []).length).toBe(1);
+      expect(html).toContain('Later');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('leaves a pill inside a sentence where it is', () => {
+    const editor = editorWithPill();
+    try {
+      quote(editor, 'John 3:16');
+      expect(editor.getHTML().startsWith('<p>Before')).toBe(true);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('leaves a wider pill above a verse quoted from it', () => {
+    const editor = new Editor({
+      extensions,
+      content:
+        '<p><span data-scripture-reference="John 3:16-18" data-note-id="note_1" data-scripture-translation="NET" class="scripture-pill">John 3:16-18</span></p>',
+    });
+    try {
+      quote(editor, 'John 3:16');
+      expect(editor.getHTML().startsWith('<p><span')).toBe(true);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('leaves a pill in another translation above the quote', () => {
+    const editor = new Editor({ extensions, content: pillLine });
+    try {
+      quote(editor, 'John 3:16', 'ESV');
+      expect(editor.getHTML().startsWith('<p><span')).toBe(true);
+    } finally {
+      editor.destroy();
+    }
+  });
+});
+
 describe('resolveScriptureQuoteInsertPos', () => {
   it('prefers recent editor selection over pill end', () => {
     const editor = editorWithPill();

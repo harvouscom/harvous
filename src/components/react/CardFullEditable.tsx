@@ -542,6 +542,14 @@ export default function CardFullEditable({
   const hadNonemptyTitleRef = useRef(false);
   /** Note creation time for default title; null until first body keystroke on draft compose. */
   const defaultTitleDateRef = useRef<Date | null>(null);
+  /**
+   * A compose draft that opened already holding something — a card's pill, a reader quote —
+   * and the reader has not written in yet. The date title is earned by the first body
+   * keystroke on an *empty* note; a seeded draft is never empty, so without this it never got
+   * one, saved with a blank title, and the next autosave wiped the server's date fallback too.
+   */
+  const untouchedSeededDraftRef = useRef(false);
+  const untouchedSeededDraftArmedForRef = useRef<string | null>(null);
   const noteCreatedAtIsoRef = useRef(noteCreatedAtIso);
   noteCreatedAtIsoRef.current = noteCreatedAtIso;
   // Mirror editorChromeMode so unmount cleanup isn't a stale closure
@@ -895,6 +903,13 @@ export default function CardFullEditable({
           ? stripServerAutoUntitledNoteTitleForDisplay(title)
           : (title ?? '');
       hadNonemptyTitleRef.current = initialTitle.trim().length > 0;
+      // Once per note, not per pass: `content` is a dep, and a draft's own typing flows back in
+      // through it — re-arming here would hand the date back to someone who just cleared it.
+      if (untouchedSeededDraftArmedForRef.current !== (noteId ?? null)) {
+        untouchedSeededDraftArmedForRef.current = noteId ?? null;
+        untouchedSeededDraftRef.current =
+          noteId === PROTOTYPE_DRAFT_NOTE_ID && !isTiptapBodyEmpty(content ?? '');
+      }
       const createdIso = noteCreatedAtIsoRef.current;
       if (createdIso) {
         const parsed = new Date(createdIso);
@@ -3269,6 +3284,8 @@ export default function CardFullEditable({
     // (above) but skip the dirty flag + save so opening a note never changes its sort position.
     if (isProto && meta?.programmatic) return;
     userEditedSinceOpenRef.current = true;
+    const bodyWasUntouched = isTiptapBodyEmpty(priorBody) || untouchedSeededDraftRef.current;
+    untouchedSeededDraftRef.current = false;
 
     let titleForChanges = editTitleRef.current;
     if (
@@ -3277,7 +3294,7 @@ export default function CardFullEditable({
       !readOnlyLikeScripture &&
       !hadNonemptyTitleRef.current &&
       editTitleRef.current.trim() === '' &&
-      isTiptapBodyEmpty(priorBody) &&
+      bodyWasUntouched &&
       !isTiptapBodyEmpty(canonical)
     ) {
       const d = defaultTitleDateRef.current ?? new Date();

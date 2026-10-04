@@ -100,6 +100,20 @@ describe('the card', () => {
     expect(lastEngagement()).toBe('add_note');
   });
 
+  it('opens the note on the pill with the passage quoted under it, in the card\'s translation', () => {
+    render(
+      <PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={{ ...votd, translation: 'ESV' }} />,
+    );
+    fireEvent.click(screen.getByText('Create note'));
+    const html = beginPrototypeComposeSession.mock.calls[0]?.[0]?.seed?.contentHtml as string;
+    expect(html).toContain('data-scripture-reference="Psalm 18:1-2"');
+    expect(html).toContain('data-scripture-translation="ESV"');
+    expect(html).toContain('<blockquote');
+    expect(html).toContain('data-scripture-quote-translation="ESV"');
+    // The verse number is chrome, not words: "1I love you" would be the tell.
+    expect(html).toContain('<p>I love you, LORD, my strength.</p>');
+  });
+
   it('offers the note already started today instead of a second one', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[todaysNote]} votd={votd} />);
     fireEvent.click(screen.getByText('Open your note'));

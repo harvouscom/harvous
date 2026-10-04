@@ -7,6 +7,7 @@ import { ScripturePill } from '@/components/react/TiptapScripturePill';
 import { ScriptureQuoteBlockquote } from '@/components/react/TiptapScriptureQuoteBlockquote';
 import {
   findScriptureQuotesAfterPillBlock,
+  findScriptureQuotesForPillBlock,
   syncAdjacentScriptureQuoteAccents,
   syncAdjacentScriptureQuotesForPillApply,
 } from '@/utils/sync-scripture-quotes-for-pill';
@@ -34,6 +35,46 @@ describe('findScriptureQuotesAfterPillBlock', () => {
       const quotes = findScriptureQuotesAfterPillBlock(editor.state.doc, pillFrom, pillTo);
       expect(quotes).toHaveLength(1);
       expect(quotes[0].node.textContent).toBe('Quoted passage');
+    } finally {
+      editor.destroy();
+    }
+  });
+});
+
+describe('findScriptureQuotesForPillBlock', () => {
+  const bounds = (editor: Editor) => {
+    let from = 0;
+    let to = 0;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.marks.some((m) => m.type.name === 'scripturePill')) {
+        from = pos;
+        to = pos + node.nodeSize;
+      }
+    });
+    return [from, to] as const;
+  };
+  const quoteHtml =
+    '<blockquote data-scripture-quote-accent="neutral" data-scripture-quote-reference="John 3:16" data-scripture-quote-translation="NET"><p>Quoted passage</p></blockquote>';
+  const pill =
+    '<span data-scripture-reference="John 3:16" data-note-id="note_1" data-scripture-translation="NET" class="scripture-pill">John 3:16</span>';
+
+  it('finds the quote above a pill cited under it as its source', () => {
+    const editor = new Editor({ extensions, content: `${quoteHtml}<p>${pill}</p>` });
+    try {
+      const quotes = findScriptureQuotesForPillBlock(editor.state.doc, ...bounds(editor));
+      expect(quotes).toHaveLength(1);
+      expect(quotes[0].pos).toBe(0);
+      syncAdjacentScriptureQuoteAccents(editor, ...bounds(editor), 'skyBlue');
+      expect(editor.getHTML()).toContain('data-scripture-quote-accent="skyBlue"');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('does not claim a quote above a pill that sits inside a sentence', () => {
+    const editor = new Editor({ extensions, content: `${quoteHtml}<p>As in ${pill} too</p>` });
+    try {
+      expect(findScriptureQuotesForPillBlock(editor.state.doc, ...bounds(editor))).toHaveLength(0);
     } finally {
       editor.destroy();
     }

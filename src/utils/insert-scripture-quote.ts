@@ -1,6 +1,6 @@
 import { getMarkRange } from '@tiptap/core';
 import type { Editor } from '@tiptap/core';
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import type { Mark, Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { scriptureReferenceContainsReference } from '@/utils/scripture-verse-keys';
 import { scriptureQuoteAccentKey, scriptureQuoteReferenceValue } from '@/utils/scripture-quote-values';
@@ -119,6 +119,81 @@ function hasMatchingPillAdjacentBeforeInsert(
   return false;
 }
 
+/**
+ * The scripturePill mark when `block` is a paragraph holding that one pill and nothing else
+ * but whitespace — a pill on its own line, the shape a note starts from. Null for a pill
+ * inside a sentence, which cannot move without taking the sentence apart.
+ */
+export function pillOnlyParagraphMark(block: ProseMirrorNode): Mark | null {
+  if (block.type.name !== 'paragraph' || block.childCount === 0) return null;
+  let pill: Mark | null = null;
+  let ok = true;
+  block.forEach((child) => {
+    if (!ok) return;
+    if (!child.isText) {
+      ok = false;
+      return;
+    }
+    const mark = child.marks.find((m) => m.type.name === 'scripturePill');
+    if (!mark) {
+      if ((child.text ?? '').trim()) ok = false;
+      return;
+    }
+    if (pill && String(pill.attrs.reference ?? '') !== String(mark.attrs.reference ?? '')) {
+      ok = false;
+      return;
+    }
+    pill = mark;
+  });
+  return ok ? pill : null;
+}
+
+/**
+ * The exact pill — same passage, same translation — alone on the line the quote is going under.
+ *
+ * Inserting a quote there used to leave the pill on top and the quote below it, a heading over
+ * the words rather than a citation of them. Found here, the pill's line is replaced by the quote
+ * with that same pill under it, the shape every quote with an attribution has. Exact only: a
+ * pill for the whole chapter stays where it is above a verse quoted from it, since it is
+ * naming more than the quote is.
+ */
+function findPillSourceLineAtInsert(
+  doc: Editor['state']['doc'],
+  insertPos: number,
+  ctx: Pick<ScriptureQuoteInsertContext, 'reference' | 'translation'>,
+): { from: number; to: number; mark: Mark; text: string } | null {
+  const pos = clampQuoteInsertPos(doc, insertPos);
+  const $pos = doc.resolve(pos);
+
+  const candidate = (index: number): { from: number; to: number; mark: Mark; text: string } | null => {
+    if (index < 0 || index >= doc.childCount) return null;
+    const block = doc.child(index);
+    const mark = pillOnlyParagraphMark(block);
+    if (!mark) return null;
+    const pillRef = String(mark.attrs.reference ?? '');
+    if (!refsMatch(pillRef, ctx.reference)) return null;
+    if (!translationsMatch(mark.attrs.translation, ctx.translation)) return null;
+    let from = 0;
+    for (let i = 0; i < index; i += 1) from += doc.child(i).nodeSize;
+    let text = '';
+    block.forEach((child) => {
+      if (child.marks.some((m) => m.type.name === 'scripturePill')) text += child.text ?? '';
+    });
+    return { from, to: from + block.nodeSize, mark, text: text || pillRef };
+  };
+
+  if ($pos.depth === 0) return candidate($pos.index() - 1);
+  if ($pos.depth !== 1) return null;
+  // Caret on the pill's own line, after the pill.
+  const own = candidate($pos.index(0));
+  if (own && $pos.parentOffset > 0) return own;
+  // Caret at the start of the line below it.
+  if ($pos.parentOffset === 0 || !$pos.parent.textContent.trim()) {
+    return candidate($pos.index(0) - 1);
+  }
+  return null;
+}
+
 function translationsMatch(a: string | null | undefined, b: string | null | undefined): boolean {
   const left = (a ?? '').trim().toUpperCase();
   const right = (b ?? '').trim().toUpperCase();
@@ -203,6 +278,8 @@ function buildQuoteContent(
   attributionPillAccent: string | null | undefined,
   includeAttribution: boolean,
   includeTrailingParagraph: boolean,
+  /** The pill being moved under the quote: its own attrs and label, so nothing about it changes. */
+  movedPill?: { attrs: Record<string, unknown>; text: string } | null,
 ) {
   const trimmed = excerpt.replace(/\s+/g, ' ').trim();
   if (!trimmed) return null;
@@ -224,7 +301,12 @@ function buildQuoteContent(
     },
   ];
 
-  if (includeAttribution) {
+  if (movedPill) {
+    nodes.push({
+      type: 'paragraph',
+      content: [{ type: 'text', text: movedPill.text, marks: [{ type: 'scripturePill', attrs: movedPill.attrs }] }],
+    });
+  } else if (includeAttribution) {
     const normRef = scriptureQuoteReferenceValue(reference) ?? reference;
     nodes.push({
       type: 'paragraph',
@@ -332,8 +414,13 @@ function rangeContainsScripturePill(
   return hasPill;
 }
 
-function tryInsertQuoteContent(editor: Editor, insertPos: number, content: Record<string, unknown>[]): boolean {
-  const pos = clampQuoteInsertPos(editor.state.doc, insertPos);
+function tryInsertQuoteContent(
+  editor: Editor,
+  insertPos: number | { from: number; to: number },
+  content: Record<string, unknown>[],
+): boolean {
+  const pos =
+    typeof insertPos === 'number' ? clampQuoteInsertPos(editor.state.doc, insertPos) : insertPos;
   if (editor.commands.insertContentAt(pos, content, { updateSelection: true })) {
     return true;
   }
@@ -355,19 +442,26 @@ export function insertScriptureQuoteAt(editor: Editor, ctx: ScriptureQuoteInsert
 
   const insertCtx = { ...ctx, sourcePillBoundaries: pillBoundaries };
   const insertPos = resolveScriptureQuoteInsertPos(editor, insertCtx);
-  const omitAttribution = shouldOmitScriptureQuoteAttribution(editor.state.doc, insertPos, insertCtx);
+  const sourceLine = findPillSourceLineAtInsert(editor.state.doc, insertPos, ctx);
+  const omitAttribution =
+    !sourceLine && shouldOmitScriptureQuoteAttribution(editor.state.doc, insertPos, insertCtx);
+  // Replacing the pill's line: a blank line is only needed if that line was the note's last.
+  const needsTrailing = sourceLine
+    ? sourceLine.to >= editor.state.doc.content.size
+    : quoteInsertNeedsTrailingParagraph(editor.state.doc, insertPos);
   const content = buildQuoteContent(
     ctx.excerpt,
     ctx.reference,
     ctx.translation,
     ctx.sourceNoteId,
-    ctx.attributionPillAccent,
+    ctx.attributionPillAccent ?? (sourceLine ? (sourceLine.mark.attrs.pillAccent as string | null) : null),
     !omitAttribution,
-    quoteInsertNeedsTrailingParagraph(editor.state.doc, insertPos),
+    needsTrailing,
+    sourceLine ? { attrs: { ...sourceLine.mark.attrs }, text: sourceLine.text } : null,
   );
   if (!content) return null;
 
-  if (!tryInsertQuoteContent(editor, insertPos, content)) {
+  if (!tryInsertQuoteContent(editor, sourceLine ? { from: sourceLine.from, to: sourceLine.to } : insertPos, content)) {
     return null;
   }
 
