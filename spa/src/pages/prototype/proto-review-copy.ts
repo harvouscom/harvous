@@ -178,6 +178,13 @@ export const REVIEW_SEE_ALL_COPY = 'See all';
 export const reviewTodayProgressCopy = (answered: number, goal: number) =>
   `${Math.min(answered, goal)} of ${goal} today`;
 
+/**
+ * The sitting card's one button on Activity. "Begin" is the strategy doc's own verb for entering
+ * a sitting; once something has been answered today it is the same sitting, carried on.
+ */
+export const REVIEW_BEGIN_COPY = 'Begin';
+export const REVIEW_KEEP_GOING_COPY = 'Keep going';
+
 /** Said when the day's sitting is finished — a full stop, not a score. */
 export const REVIEW_TODAY_DONE_COPY = 'Done for today.';
 

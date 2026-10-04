@@ -36,6 +36,7 @@ import gearSvg from '@fortawesome/fontawesome-free/svgs/solid/gear.svg?raw';
 import keySvg from '@fortawesome/fontawesome-free/svgs/solid/key.svg?raw';
 import keyboardSvg from '@fortawesome/fontawesome-free/svgs/solid/keyboard.svg?raw';
 import bellSvg from '@fortawesome/fontawesome-free/svgs/solid/bell.svg?raw';
+import volumeLowSvg from '@fortawesome/fontawesome-free/svgs/solid/volume-low.svg?raw';
 import clockRotateLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/clock-rotate-left.svg?raw';
 import shapesSvg from '@fortawesome/fontawesome-free/svgs/solid/shapes.svg?raw';
 import tableCellsSvg from '@fortawesome/fontawesome-free/svgs/solid/table-cells.svg?raw';
@@ -257,6 +258,7 @@ const icons = {
   key: withCurrentColor(keySvg),
   keyboard: withCurrentColor(keyboardSvg),
   bell: withCurrentColor(bellSvg),
+  'volume-low': withCurrentColor(volumeLowSvg),
   'circle-up': withCurrentColor(circleUpSvg),
   'clock-rotate-left': withCurrentColor(clockRotateLeftSvg),
   shapes: withCurrentColor(shapesSvg),

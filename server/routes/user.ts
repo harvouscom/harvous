@@ -24,6 +24,7 @@
  *   GET  /api/user/locked-notes
  *   POST /api/user/verify-lock-pin
  *   POST /api/user/set-lock-pin
+ *   POST /api/user/remove-lock-pin
  *   GET  /api/user/can-create-space
  *   GET  /api/user/can-join-space
  *   GET  /api/user/limits
@@ -1644,7 +1645,7 @@ app.get('/api/user/locked-notes', requireAuth, async (c) => {
 
 // ─── POST /api/user/verify-lock-pin ──────────────────────────────────────────
 
-app.post('/api/user/verify-lock-pin', requireAuth, async (c) => {
+app.post('/api/user/verify-lock-pin', requireAuth, rateLimit('lock-pin'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
@@ -1670,7 +1671,7 @@ app.post('/api/user/verify-lock-pin', requireAuth, async (c) => {
 
 // ─── POST /api/user/set-lock-pin ─────────────────────────────────────────────
 
-app.post('/api/user/set-lock-pin', requireAuth, rateLimit('write'), async (c) => {
+app.post('/api/user/set-lock-pin', requireAuth, rateLimit('lock-pin'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
@@ -1687,6 +1688,12 @@ app.post('/api/user/set-lock-pin', requireAuth, rateLimit('write'), async (c) =>
 
     if (!existing) return c.json({ error: 'Account not found', code: 'ACCOUNT_NOT_FOUND' }, 400);
 
+    // Setting over an existing PIN without proving the old one would let anyone holding a
+    // session swap the verifier out from under notes still encrypted with the old PIN.
+    if (!isChange && existing.lockPinHash) {
+      return c.json({ error: 'A lock PIN is already set. Change it with your current PIN.', code: 'LOCK_PIN_ALREADY_SET' }, 409);
+    }
+
     if (isChange) {
       if (!existing.lockPinSalt || !existing.lockPinHash) return c.json({ error: 'No lock PIN set', code: 'NO_LOCK_PIN' }, 400);
       if (!validatePinFormat(currentPin)) return c.json({ error: 'Current PIN must be exactly 4 digits', code: 'INVALID_PIN' }, 400);
@@ -1700,6 +1707,51 @@ app.post('/api/user/set-lock-pin', requireAuth, rateLimit('write'), async (c) =>
     return c.json({ success: true });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/set-lock-pin', action: 'set_lock_pin' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── POST /api/user/remove-lock-pin ──────────────────────────────────────────
+//
+// Only while no note is still locked: the PIN is the key to every locked note's
+// ciphertext, so removing it with locked notes left would strand them unreadable.
+
+app.post('/api/user/remove-lock-pin', requireAuth, rateLimit('lock-pin'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const body = await c.req.json().catch(() => ({}));
+    const { currentPin } = body as { currentPin?: unknown };
+
+    if (typeof currentPin !== 'string' || !validatePinFormat(currentPin)) {
+      return c.json({ error: 'PIN must be exactly 4 digits', code: 'INVALID_PIN' }, 400);
+    }
+
+    const existing = first(await db.select({ lockPinSalt: UserMetadata.lockPinSalt, lockPinHash: UserMetadata.lockPinHash })
+      .from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+
+    if (!existing?.lockPinSalt || !existing?.lockPinHash) return c.json({ error: 'No lock PIN set', code: 'NO_LOCK_PIN' }, 400);
+    if (!verifyPin(currentPin, existing.lockPinSalt, existing.lockPinHash)) {
+      return c.json({ error: 'Incorrect PIN', code: 'INCORRECT_PIN' }, 401);
+    }
+
+    const locked = await db
+      .select({ id: Notes.id })
+      .from(Notes)
+      .where(and(eq(Notes.userId, auth.userId), eq(Notes.contentEncrypted, true)));
+    if (locked.length > 0) {
+      return c.json(
+        { error: 'Remove the lock from your locked notes first.', code: 'HAS_LOCKED_NOTES', lockedCount: locked.length },
+        409,
+      );
+    }
+
+    await db.update(UserMetadata).set({ lockPinSalt: null, lockPinHash: null, updatedAt: nowISO() })
+      .where(eq(UserMetadata.userId, auth.userId));
+
+    return c.json({ success: true });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/remove-lock-pin', action: 'remove_lock_pin' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

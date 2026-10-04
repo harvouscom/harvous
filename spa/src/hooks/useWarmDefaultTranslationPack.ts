@@ -2,7 +2,14 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useProfile } from './queries/useProfile';
 import { api } from '../lib/api';
-import { canAddPack, downloadPack, listPacks } from '@/utils/bible-pack-store';
+import {
+  canAddPack,
+  downloadPack,
+  listPacks,
+  translationsWithOutdatedBooks,
+  type BookPayload,
+} from '@/utils/bible-pack-store';
+import { scriptureBookUrl } from '@/utils/bible-text-revision';
 
 /**
  * How long the app has to stay quiet before the pack is allowed to start, and how long we wait
@@ -23,6 +30,9 @@ const QUIET_DEADLINE_MS = 15_000;
  *
  * `useProfile()` is already `useAuthReady()`-gated internally, so `profile` staying undefined
  * is enough of a wait condition here — no separate auth check needed.
+ *
+ * It also replaces books a Bible text correction outdated in any other pack the reader kept
+ * (`bible-text-revision.ts`); without that, every such pack would read as unfinished.
  *
  * `downloadPack()` skips books it has already saved (see `bible-pack-store.ts`), so this is
  * cheap to call every session: a translation that is already complete costs one `listPacks()`
@@ -59,13 +69,18 @@ export function useWarmDefaultTranslationPack(): void {
       startedRef.current = true;
       void (async () => {
         const packs = await listPacks();
+        const fetchBook = (id: string) => (book: string) => api.get<BookPayload>(scriptureBookUrl(book, id));
         const existing = packs.find((p) => p.translationId === translationId);
-        if (existing?.complete) return;
-        if (!canAddPack(packs, translationId)) return;
-        await downloadPack(translationId, async (book) => {
-          const params = new URLSearchParams({ book, translation: translationId });
-          return api.get(`/api/scripture/book?${params.toString()}`);
-        });
+        if (!existing?.complete && canAddPack(packs, translationId)) {
+          await downloadPack(translationId, fetchBook(translationId));
+        }
+        // Other kept packs only when a text correction outdated their books — an incomplete
+        // pack the reader stopped stays stopped.
+        const outdated = await translationsWithOutdatedBooks();
+        for (const pack of packs) {
+          if (pack.translationId === translationId || !outdated.has(pack.translationId)) continue;
+          await downloadPack(pack.translationId, fetchBook(pack.translationId));
+        }
       })();
     };
 

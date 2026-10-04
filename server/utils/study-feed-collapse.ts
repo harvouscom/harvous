@@ -69,6 +69,7 @@ export interface NoteRowForFeed {
   noteType?: string | null;
   primaryCollection?: string | null;
   createdAt: string | Date | null;
+  locked?: boolean | null;
 }
 
 /** `Notes` rows → one `note-created` moment each. */
@@ -85,8 +86,9 @@ export function buildNoteCreatedItems(rows: NoteRowForFeed[]): StudyFeedNoteItem
       title: row.title ?? null,
       noteType: row.noteType ?? null,
       folder: row.primaryCollection ?? null,
-      snippet: studyFeedSnippet(row.content),
+      snippet: row.locked ? '' : studyFeedSnippet(row.content),
       scriptureRefs: [],
+      ...(row.locked ? { locked: true } : {}),
     });
   }
   return items;
@@ -97,6 +99,7 @@ export interface NoteVersionRowForFeed {
   createdAt: string | Date | null;
   title: string | null;
   content: string | null;
+  locked?: boolean | null;
 }
 
 /**
@@ -145,9 +148,10 @@ export function buildNoteUpdatedItems(
         startAt: startAt === at ? undefined : startAt,
         noteId,
         title: newest.title ?? null,
-        snippet: studyFeedSnippet(newest.content),
+        snippet: newest.locked ? '' : studyFeedSnippet(newest.content),
         scriptureRefs: [],
         saveCount: burst.length,
+        ...(newest.locked ? { locked: true } : {}),
       });
       burst = [];
     };

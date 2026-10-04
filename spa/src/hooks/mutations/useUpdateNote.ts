@@ -12,6 +12,9 @@ import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-spac
 import { invalidateStudyFeed } from '@/utils/study-feed-invalidation';
 import { isOfflineError, runOfflineFirst } from './withOfflineQueue';
 import { updateNoteOffline } from '@/utils/offline-mutations';
+import { encryptContent } from '@/utils/note-encryption';
+import { isEncryptedNoteBlob } from '@/utils/note-lock-blob';
+import { getUnlockPin, touchUnlockSession } from '@/utils/note-unlock-state';
 
 export interface UpdateNoteInput {
   noteId: string;
@@ -351,6 +354,43 @@ export async function rollbackFailedNoteUpdate(
   }
 }
 
+/** Thrown when a locked note's body is saved after its unlock session ended. */
+export class LockedNoteSaveError extends Error {
+  readonly code = 'LOCKED_NOTE_SESSION_ENDED';
+  constructor() {
+    super('This note locked before your change saved. Unlock it to keep editing.');
+    this.name = 'LockedNoteSaveError';
+  }
+}
+
+/** True when the open note's cached detail says it is locked on the server. */
+export function isCachedNoteLocked(queryClient: QueryClient, noteId: string): boolean {
+  return queryClient
+    .getQueriesData<NoteDetail>({ queryKey: ['note', noteId] })
+    .some(([, note]) => note?.contentEncrypted === true);
+}
+
+/**
+ * A locked note's body leaves the browser only as ciphertext. The editor hands this hook
+ * the decrypted HTML it is showing; encrypt it here with the unlock session's PIN, fresh
+ * salt and IV each time. No session (it idled out mid-save) means there is no key — refuse
+ * rather than send plaintext, which the server would reject anyway.
+ */
+export async function encryptLockedNoteBody(noteId: string, content: string): Promise<string> {
+  if (isEncryptedNoteBlob(content)) return content;
+  const pin = getUnlockPin(noteId);
+  if (!pin) throw new LockedNoteSaveError();
+  touchUnlockSession();
+  return encryptContent(content, pin);
+}
+
+/** Never let a locked note's plaintext into a query cache — keep the stored ciphertext. */
+function cacheSafeContent(prev: NoteDetail, next: string | undefined): string | undefined {
+  if (next === undefined) return undefined;
+  if (prev.contentEncrypted === true && !isEncryptedNoteBlob(next)) return prev.content ?? undefined;
+  return next;
+}
+
 /**
  * Mutation hook for updating a note (title + content).
  *
@@ -365,11 +405,11 @@ export function useUpdateNote() {
 
   return useMutation({
     mutationFn: (input: UpdateNoteInput) => chainNoteSave(input.noteId, async () => {
-      const {
-        noteId,
-        title,
-        content,
-      } = input;
+      const { noteId, title } = input;
+      let { content } = input;
+      if (content !== undefined && isCachedNoteLocked(queryClient, noteId)) {
+        content = await encryptLockedNoteBody(noteId, content);
+      }
       // Adopt the server's version into every ['note', id] cache entry *inside* the
       // chained section, before the next queued save runs. Relying on onSuccess for this
       // is a race: react-query fires it after mutationFn resolves, with no ordering
@@ -438,7 +478,7 @@ export function useUpdateNote() {
         }
         throw error;
       }
-      const body = buildUpdateNoteBody(input, expectedVersion);
+      const body = buildUpdateNoteBody({ ...input, content }, expectedVersion);
       // A co-edited note must never sit in the offline queue: the queued write
       // carries a version that will be stale by the time it flushes, so it would
       // 409 on reconnect with nobody around to recover the text. Surface the
@@ -472,7 +512,11 @@ export function useUpdateNote() {
         // truncated preview was the full note, which stopped the details refetch and
         // made a one-shot truncation stick for the rest of the session.
         ...(variables.content !== undefined
-          ? { content: variables.content, __contentIsPreview: false, updatedAt: optimisticUpdatedAt }
+          ? {
+              content: cacheSafeContent(prev, variables.content),
+              __contentIsPreview: false,
+              updatedAt: optimisticUpdatedAt,
+            }
           : {}),
         ...(patchCanonicalOrganization && variables.primaryCollection !== undefined
           ? { primaryCollection: variables.primaryCollection }
@@ -496,9 +540,12 @@ export function useUpdateNote() {
       return { previousNotes };
     },
     onError: (error, variables, context) => {
+      // A locked note's attempted body is plaintext; the conflict path would park it in
+      // the cache, so only the title travels for those.
+      const locked = isCachedNoteLocked(queryClient, variables.noteId);
       return rollbackFailedNoteUpdate(queryClient, error, variables.noteId, context, {
         title: variables.title,
-        content: variables.content,
+        content: locked ? undefined : variables.content,
       });
     },
     onSuccess: (outcome, variables) => {
@@ -546,7 +593,7 @@ export function useUpdateNote() {
             // was the whole note, which suppressed the details refetch and made a
             // one-shot truncation stick for the session.
             ...(processed !== undefined
-              ? { content: processed, __contentIsPreview: false }
+              ? { content: cacheSafeContent(prev, processed), __contentIsPreview: false }
               : {}),
             ...(data?.note?.updatedAt !== undefined
               ? { updatedAt: data.note.updatedAt }
@@ -608,7 +655,8 @@ export function useUpdateNote() {
       if (affectedSpaceId) {
         updateSpaceNoteInCache(queryClient, affectedSpaceId, variables.noteId, {
           title: variables.title,
-          content: processed,
+          // A locked row never previews its body (the list payload blanks it too).
+          content: isCachedNoteLocked(queryClient, variables.noteId) ? '' : processed,
           updatedAt: new Date().toISOString(),
           ...(patchCanonicalOrganization && variables.primaryCollection !== undefined
             ? { primaryCollection: variables.primaryCollection }

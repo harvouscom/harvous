@@ -9,6 +9,7 @@ import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { matchAnchoredTrailingTranslationAbbreviation } from '@/utils/scripture-detector';
 import { repairScripturePillTranslationsInHtml } from '@/utils/scripture-pill-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+import { isEncryptedNoteBlob } from './note-lock-blob';
 
 export interface StripHtmlOptions {
   /**
@@ -118,6 +119,9 @@ function padSupSub(text: string): string {
  * @returns Plain text with HTML removed
  */
 export function stripHtml(html: string, options: StripHtmlOptions = {}): string {
+  // A locked note's body is ciphertext. Every preview, card and snippet goes through here,
+  // so this is the one backstop that keeps base64 off the screen wherever a body leaks in.
+  if (isEncryptedNoteBlob(html)) return '';
   if (!html) return '';
   
   const { preserveSpacing = false, useDOM = false, maxLength } = options;
@@ -398,7 +402,7 @@ function repairTruncatedHtmlForListPreview(html: string): string {
  * and keeps adding lines until `maxLength` (or runs out of content).
  */
 export function stripHtmlForListPreview(html: string, maxLength: number = 80): string {
-  if (!html) return '';
+  if (!html || isEncryptedNoteBlob(html)) return '';
   let normalized = repairTruncatedHtmlForListPreview(html);
   if (typeof document !== 'undefined' && normalized.includes('data-scripture-reference')) {
     normalized = repairScripturePillTranslationsInHtml(normalized, getEffectiveDefaultTranslation());

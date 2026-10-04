@@ -13,6 +13,7 @@ import { HOME_LOCATION, HOME_PARENT, type SpaceParent } from '../layouts/proto-l
 import { usePrototypeHomeSpaceId } from './usePrototypeHomeSpaceId';
 import type { NoteDetail } from './queries/useNote';
 import { isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
+import { playSound } from '@/utils/sounds';
 
 /**
  * Find this note's cached detail regardless of which space context it was
@@ -62,7 +63,7 @@ export function useSwitchToSpace() {
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const { setLocation, composeDraftActive } = useProtoShell();
+  const { setLocation, composeDraftActive, activeSpaceId } = useProtoShell();
 
   return useCallback(
     /**
@@ -73,6 +74,9 @@ export function useSwitchToSpace() {
      *   flag the caller remembered.
      */
     (spaceId: string | null, parent: SpaceParent = HOME_PARENT) => {
+      /* Going somewhere, when it is somewhere else. Here and not in `setLocation`, which effects
+         call to re-assert where the reader already is. */
+      if ((spaceId ?? null) !== (activeSpaceId ?? null)) playSound('nav.forward');
       const slug = matchPrototypeNoteId(pathname);
       // A compose draft lives on `/` too; it retargets rather than closing.
       const isDraft = composeDraftActive || (slug != null && isPrototypeDraftNoteSlug(slug));
@@ -115,6 +119,6 @@ export function useSwitchToSpace() {
 
       setLocation(spaceId ? { parent, spaceId } : HOME_LOCATION);
     },
-    [pathname, composeDraftActive, queryClient, homeSpaceId, navigate, setLocation],
+    [pathname, composeDraftActive, activeSpaceId, queryClient, homeSpaceId, navigate, setLocation],
   );
 }

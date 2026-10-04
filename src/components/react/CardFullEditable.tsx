@@ -16,7 +16,7 @@ import { getTranslation, getTranslationAbbreviationDisplay } from '@/data/transl
 import { repairScripturePillTranslationsInHtml, sanitizeScripturePillHtml, repairCorruptedScriptureQuoteAttributes } from '@/utils/scripture-pill-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getCachedProfileData } from '@/utils/profile-cache';
-import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
+import { isNoteUnlocked, lockNote, subscribeLockSession } from '@/utils/note-unlock-state';
 import { useIsOffline } from '@/hooks/useIsOffline';
 import { isMobileDevice } from '@/utils/pwa-prompt';
 import '@/styles/card-full-editable.css';
@@ -629,8 +629,17 @@ export default function CardFullEditable({
    * Where local drafts go right now. Diverges from `noteId` only mid-compose, between the
    * note being created and the URL catching up — see `resolveNoteDraftWriteKey`.
    */
+  /**
+   * True while the open note is locked on the server. Its decrypted body must never reach
+   * localStorage, so no draft key exists for it — every draft write below goes through
+   * `activeDraftKey()` and stops at the null. Assigned once `effectiveServerEncrypted` is known.
+   */
+  const lockedNoteRef = useRef(false);
   const activeDraftKey = useCallback(
-    () => resolveNoteDraftWriteKey(noteIdRef.current, composePersistedNoteIdRef.current),
+    () =>
+      lockedNoteRef.current
+        ? null
+        : resolveNoteDraftWriteKey(noteIdRef.current, composePersistedNoteIdRef.current),
     [],
   );
   /**
@@ -1061,6 +1070,7 @@ export default function CardFullEditable({
   const [unlockRevision, setUnlockRevision] = useState(0);
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
   const effectiveServerEncrypted = serverEncryptedOverride ?? contentEncrypted;
+  lockedNoteRef.current = effectiveServerEncrypted;
   const needsPinUnlock = useMemo(
     () =>
       noteBodyRequiresPinUnlock(
@@ -1388,7 +1398,9 @@ export default function CardFullEditable({
         : editorChromeMode === 'prototypeNative'
           ? stripServerAutoUntitledNoteTitleForDisplay(title)
           : title;
-    const c = content ?? '';
+    // A locked note's `content` prop is its ciphertext; the decrypted body only exists in
+    // displayContent, set by the unlock in the same batch that cleared needsPinUnlock.
+    const c = lockedNoteRef.current ? (displayContent ?? '') : (content ?? '');
     const initialContent =
       noteType === 'resource' && !c.trim() && resourceDescription
         ? resourceDescription
@@ -1399,7 +1411,8 @@ export default function CardFullEditable({
     // copy. Marking userEditedSinceOpenRef keeps the autosave debounce + draft
     // writer alive so the restored content is persisted (and the draft cleared) on
     // the next save. Degrades to last-write-wins in the rare multi-device case.
-    const storedDraft = noteId ? getNoteDraft(noteId) : null;
+    // Locked notes never write drafts (see activeDraftKey); ignore any left from before.
+    const storedDraft = noteId && !lockedNoteRef.current ? getNoteDraft(noteId) : null;
 
     // A compose draft is only ever a *recovery* artifact. Every compose session shares the
     // one `note_draft` key, so a draft this page load wrote is not lost work — the session
@@ -1546,6 +1559,9 @@ export default function CardFullEditable({
     if (foreignSharedAnnotationMode) return;
     if (readOnlyLikeScripture || noteType === 'scripture') return;
     if (needsPinUnlock) return;
+    // A locked note's server body is ciphertext — "upgrading" to it would put the blob in
+    // the editor. Its body only ever arrives decrypted, through the unlock.
+    if (lockedNoteRef.current) return;
 
     // Release path for a held save. The user typed into a body we knew was an
     // incomplete prefix, so the plain bail below would strand them: the upgrade is
@@ -1683,6 +1699,25 @@ export default function CardFullEditable({
     window.addEventListener('pinEntryComplete', handler);
     return () => window.removeEventListener('pinEntryComplete', handler);
   }, [noteId, editorChromeMode, alwaysEditing, effectiveIsEditable]);
+
+  // The unlock session ended (idle, tab hidden, "Lock now") while this note was open
+  // decrypted. Go back to the PIN gate over the stored ciphertext. The edit buffer is left
+  // as it is on purpose: blanking it reads to the autosave and the empty-note cleanup as
+  // "the user deleted everything", and the next unlock replaces it anyway.
+  useEffect(() => {
+    if (noteId == null) return;
+    return subscribeLockSession(() => {
+      if (!lockedNoteRef.current) return;
+      if (isNoteUnlocked(String(noteId))) return;
+      seededEditorForNoteRef.current = null;
+      skipNextContentSyncRef.current = true;
+      setDisplayContent(serverContentPropRef.current ?? '');
+      setLockStateOverride(null);
+      setIsTitleEditing(false);
+      setIsContentEditing(false);
+      setUnlockRevision((v) => v + 1);
+    });
+  }, [noteId]);
 
   // Notify layout (e.g. ActionStrip dock) to hide when in edit mode (content or title)
   useEffect(() => {
@@ -2575,6 +2610,15 @@ export default function CardFullEditable({
   // editTitle / editContent change, reads live content from the editor ref, and calls
   // onSave (note-scoped) or noteSaveCallback as fallback.
   const protoSaveAsync = useCallback(async (opts?: { fromUnmount?: boolean }) => {
+    // A locked note that isn't open under the unlock session has nothing this editor may
+    // write: its body can only be saved encrypted, and there is no PIN to do it with.
+    // Reaching here means the lock landed after the last keystroke — a deliberate lock
+    // writes the live body itself, and the session only idles out minutes after typing
+    // stops — so there is no unsaved edit to lose by standing down.
+    if (lockedNoteRef.current && (noteIdRef.current == null || !isNoteUnlocked(String(noteIdRef.current)))) {
+      protoPendingFlushRef.current = false;
+      return;
+    }
     // The body is a known-incomplete prefix of the stored note (list seed, details
     // still in flight). Saving now would persist the preview over the full note.
     // Remember that a flush is owed; the upgrade effect fires it once the tail lands.
@@ -2960,6 +3004,26 @@ export default function CardFullEditable({
       // A pure view (no genuine edit) must never write on tab close/hide — mirror the unmount guard so
       // closing the tab while only reading a note can't bump updatedAt via normalization drift.
       if (!userEditedSinceOpenRef.current) return;
+
+      /*
+       * A locked note. The keepalive PUT below would carry its plaintext (the server refuses
+       * that with LOCKED_NOTE_NEEDS_CIPHERTEXT), and the draft backstop would write it to
+       * localStorage. Its save has to be encrypted first, which is async — so send it through
+       * the page's own save, the one that encrypts, and accept that a hard close inside the
+       * autosave debounce can drop the last few keystrokes of a locked note.
+       */
+      if (lockedNoteRef.current) {
+        const saved = protoLastSavedRef.current;
+        if (!saved || saved.title !== currentTitle || saved.content !== currentContent) {
+          const saveFn =
+            onSaveRef.current ??
+            (window as { noteSaveCallback?: typeof onSaveRef.current }).noteSaveCallback;
+          void saveFn?.(currentTitle, currentContent, undefined, {
+            saveOrigin: `unload#${editorMountIdRef.current}`,
+          });
+        }
+        return;
+      }
 
       /*
        * A guest. Nothing below applies: their note has no server row to PUT against (and the
@@ -3778,20 +3842,25 @@ export default function CardFullEditable({
       {noteType === 'default' && noteId && (
         <LockNoteButton
           noteId={noteId}
-          noteContent={displayContent}
-          isEncrypted={effectiveEncrypted}
-          serverContentEncrypted={effectiveServerEncrypted}
+          getNoteContent={() =>
+            editorInstanceRef.current && !editorInstanceRef.current.isDestroyed && !needsPinUnlock
+              ? noteHtmlForSave(editorInstanceRef.current, liveBodyHtmlRef.current || editContentRef.current)
+              : (displayContent ?? '')
+          }
+          isEncrypted={effectiveServerEncrypted}
           serverNoteContent={effectiveServerEncrypted ? content : undefined}
-          onContentChange={(newContent) => setDisplayContent(newContent)}
-          onLockStateChange={(isLocked) => {
-            setLockStateOverride(isLocked);
-            if (isLocked) {
-              setUnlockRevision((v) => v + 1);
-              setIsTitleEditing(false);
-              setIsContentEditing(false);
-            }
-          }}
-          hideButton={true}
+          flushPendingSave={
+            editorChromeMode === 'prototypeNative'
+              ? // Only an actual edit is worth a round trip. On a note opened and not
+                // touched, protoSaveAsync has no "last saved" to compare against and would
+                // PUT the unchanged body — seconds of latency before the PIN sheet, and a
+                // bumped updatedAt for a note nobody wrote in.
+                () =>
+                  userEditedSinceOpenRef.current
+                    ? protoSaveAsyncRef.current({ fromUnmount: true })
+                    : Promise.resolve()
+              : undefined
+          }
         />
       )}
       <div

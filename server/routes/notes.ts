@@ -45,6 +45,8 @@ import { generateNoteId, generateShareToken, generateSpaceId, generateTimestampI
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { isUniqueViolationError } from '../utils/db-errors';
 import { handleAPIError } from '@/utils/error-handling';
+import { isEncryptedNoteBlob } from '@/utils/note-lock-blob';
+import { refuseLockToggle } from '../utils/note-lock-guards';
 import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain, validateResourceUrl } from '@/utils/validation';
 import { pickStudyThreadRepresentativeNoteId, type StudyThreadSuggestNode } from '@/utils/suggest-study-thread-title';
 import { normalizeServerNoteId } from '../utils/normalize-note-id';
@@ -1055,6 +1057,16 @@ route.put('/api/notes/update', requireAuth, rateLimit('note-save'), async (c) =>
 
     const targetEncrypted =
       typeof contentEncrypted === 'boolean' ? contentEncrypted : existingNote.contentEncrypted;
+    const lockRefusal = await refuseLockToggle({
+      noteId,
+      requested: contentEncrypted,
+      current: existingNote.contentEncrypted === true,
+      actorRole,
+    });
+    if (lockRefusal) return c.json({ error: lockRefusal.error, code: lockRefusal.code }, lockRefusal.status);
+    if (targetEncrypted && contentProvided && !isEncryptedNoteBlob(content)) {
+      return c.json({ error: 'This note is locked. Unlock it to save changes.', code: 'LOCKED_NOTE_NEEDS_CIPHERTEXT' }, 409);
+    }
     // All undefined when no body was sent — the stored content is already canonicalized
     // and already carries its pills, so there is nothing to re-derive.
     const contentForStore = !contentProvided
@@ -3591,6 +3603,18 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
 
     const targetEncrypted =
       typeof contentEncrypted === 'boolean' ? contentEncrypted : note.contentEncrypted;
+    const lockRefusal = await refuseLockToggle({
+      noteId: id,
+      requested: contentEncrypted,
+      current: note.contentEncrypted === true,
+      actorRole,
+    });
+    if (lockRefusal) {
+      return c.json({ success: false, error: lockRefusal.error, code: lockRefusal.code }, lockRefusal.status);
+    }
+    if (targetEncrypted && !isEncryptedNoteBlob(content)) {
+      return c.json({ success: false, error: 'This note is locked. Unlock it to save changes.', code: 'LOCKED_NOTE_NEEDS_CIPHERTEXT' }, 409);
+    }
     let contentForStore = targetEncrypted
       ? content
       : canonicalizeNoteHtmlLineBreaks(content);

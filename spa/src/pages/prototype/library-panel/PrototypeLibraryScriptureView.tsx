@@ -192,7 +192,10 @@ export default function PrototypeLibraryScriptureView({ drill }: { drill: Script
                   params: { book: bookSlug(title), chapter: String(p.chapter) },
                   search: { v: String(p.verseStart), t: undefined, req: String(Date.now()) },
                 });
-                closeLibraryPanel();
+                /* `preserveHistory` because this just navigated — a plain close pops the panel's
+                   own history entry and lands back where the navigate started from. Same bargain
+                   every other row that opens something makes (`library-panel-data.ts`). */
+                closeLibraryPanel({ preserveHistory: true });
               }}
             >
               <Icon name="book-open" size={14} aria-hidden />

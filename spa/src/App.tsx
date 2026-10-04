@@ -19,6 +19,7 @@ import { createPortal } from 'react-dom';
 import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
 import { Toaster, toast as sonnerToast } from 'sonner';
 import { WebHaptics } from 'web-haptics';
+import { warmSounds } from '@/utils/sounds';
 import { router } from './router';
 import { APIError } from './lib/api';
 import { isGuestModeActive } from './lib/guest-session';
@@ -211,6 +212,26 @@ function WebHapticsSetup() {
       delete (window as any).__webHaptics;
       delete (window as any).__hapticsTriggerShadow;
     };
+  }, []);
+  return null;
+}
+
+/*
+ * Starts listening for gestures and fetches the sound synth once the page has settled. The synth
+ * is its own chunk and nothing on the first paint needs it; the listeners have to be in place
+ * before the first sound, because Safari only unlocks audio inside a gesture. Safari has no
+ * requestIdleCallback, hence the timer.
+ */
+function SoundsSetup() {
+  useEffect(() => {
+    const ric = (window as Window & { requestIdleCallback?: (cb: () => void) => number })
+      .requestIdleCallback;
+    if (ric) {
+      const id = ric(() => warmSounds());
+      return () => (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(() => warmSounds(), 2000);
+    return () => window.clearTimeout(timer);
   }, []);
   return null;
 }
@@ -981,6 +1002,7 @@ export default function App() {
         <PostHogBridge />
         <IosPwaSheetOverlayInset />
         <WebHapticsSetup />
+        <SoundsSetup />
         <DevApiHealthBanner />
         <ToastSetup />
         <UserIdSync />

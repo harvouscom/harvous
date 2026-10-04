@@ -230,3 +230,42 @@ function isSameDrill(a: LibraryDrill | null, b: LibraryDrill | null): boolean {
 export function isSameLibraryPanelView(a: LibraryPanelView, b: LibraryPanelView): boolean {
   return a.tab === b.tab && a.querySeed === b.querySeed && isSameDrill(a.drill, b.drill);
 }
+
+/**
+ * How far into the panel a view is: a bare tab is the top, a folder or Thread one step in, and
+ * Scripture's books, passages and notes one, two and three.
+ */
+export function libraryViewDepth(view: LibraryPanelView | null): number {
+  if (!view?.drill) return 0;
+  if (view.drill.kind !== 'scripture') return 1;
+  switch (view.drill.drill.level) {
+    case 'books':
+      return 1;
+    case 'passages':
+      return 2;
+    case 'notes':
+      return 3;
+  }
+}
+
+/**
+ * The sound a move inside the panel makes, or null when nothing moved.
+ *
+ * Deeper is forward and shallower is back — the same whoosh, played the other way. A step
+ * sideways between tabs is a choice from a list, so it is the detent; a step sideways between
+ * two drills on the same tab (one Thread to another from a result) is still going somewhere.
+ *
+ * Returned as a moment's name so the shell can hand it straight to `playSound` without this
+ * module importing the sound layer — it sits in the eager graph, and stays light.
+ */
+export function libraryMoveSound(
+  from: LibraryPanelView | null,
+  to: LibraryPanelView,
+): 'nav.forward' | 'nav.back' | 'nav.select' | null {
+  if (!from || isSameLibraryPanelView(from, to)) return null;
+  const before = libraryViewDepth(from);
+  const after = libraryViewDepth(to);
+  if (after > before) return 'nav.forward';
+  if (after < before) return 'nav.back';
+  return from.tab !== to.tab ? 'nav.select' : 'nav.forward';
+}

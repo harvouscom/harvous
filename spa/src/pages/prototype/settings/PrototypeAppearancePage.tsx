@@ -35,6 +35,7 @@ import {
   writeFontPrefs,
   type FontPrefs,
 } from '../../../lib/proto-font-prefs';
+import { playSound } from '@/utils/sounds';
 
 /**
  * What the carousel below the toggle is showing.
@@ -247,7 +248,10 @@ function SegmentedControl<T extends string>({ options, value, onChange }: Segmen
           role="radio"
           aria-checked={value === opt.value}
           className={`proto-appearance-segmented__btn${value === opt.value ? ' proto-appearance-segmented__btn--active' : ''}`}
-          onClick={() => onChange(opt.value)}
+          onClick={() => {
+            if (value !== opt.value) playSound('nav.select');
+            onChange(opt.value);
+          }}
         >
           {opt.label}
         </button>

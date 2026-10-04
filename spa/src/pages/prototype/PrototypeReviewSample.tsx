@@ -51,6 +51,7 @@ import {
   REVIEW_TRUTH_LABEL,
   REVIEW_TRY_AGAIN_COPY,
 } from './proto-review-copy';
+import { playSound } from '@/utils/sounds';
 
 /** Nothing is handed over after a miss on the sample; the gaps stay the reader's. */
 const NOTHING_GIVEN: ReadonlyMap<number, string> = new Map();
@@ -130,8 +131,17 @@ export default function PrototypeReviewSample({
           setMissed(true);
           setAttemptNumber((n) => Math.min(maxAttempts, n + 1));
           if (payload.option) setWrongOptions((current) => [...current, payload.option!]);
+          playSound('review.tryAgain');
           return;
         }
+        /*
+         * The sample's reply carries no verdict, so this is the server's own rule restated
+         * (`server/routes/review.ts`): right on a later go is "almost", which is also what the
+         * dock says — the sample should sound like the thing it is a sample of.
+         */
+        playSound(
+          !data.correct ? 'review.miss' : payload.attemptNumber > 1 ? 'review.almost' : 'review.right',
+        );
         const next = { correct: data.correct, verseText: data.verseText ?? '' };
         setResult(next);
         writeReviewSampleResult({ day, translation, ...next });

@@ -23,6 +23,7 @@ const downloadPack = vi.fn(async () => ({ booksSaved: 66, booksTotal: 66, aborte
 vi.mock('@/utils/bible-pack-store', () => ({
   listPacks: async () => [],
   canAddPack: () => true,
+  translationsWithOutdatedBooks: async () => new Set<string>(),
   downloadPack: (...args: unknown[]) => downloadPack(...(args as [])),
 }));
 

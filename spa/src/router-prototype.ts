@@ -243,10 +243,22 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     ),
   });
 
+  const prototypeSettingsSoundsRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'sounds',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeSoundsPage')),
+  });
+
   const prototypeSettingsChurchRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'church',
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChurchPage')),
+  });
+
+  const prototypeSettingsLockPinRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'lock-pin',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeLockPinPage')),
   });
 
   const prototypeSettingsSharingRoute = createRoute({
@@ -386,7 +398,9 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
       prototypeSettingsAppearanceRoute,
       prototypeSettingsRemindersRoute,
       prototypeSettingsReviewExercisesRoute,
+      prototypeSettingsSoundsRoute,
       prototypeSettingsChurchRoute,
+      prototypeSettingsLockPinRoute,
       prototypeSettingsSharingRoute,
       prototypeSettingsAddonsRoute,
       prototypeSettingsConnectorRoute,
