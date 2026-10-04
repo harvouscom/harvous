@@ -57,7 +57,9 @@
 /* When the format bar floats over the paper (overlay, not in-flow), give the caret extra
    bottom clearance so typing near the end isn't hidden behind the bar. */
 .proto-shell:has(.proto-editor-bottom-bar[data-mode='format']) .proto-editor-scroll {
-  scroll-padding-bottom: calc(64px + var(--proto-study-dock-band-height, 0px));
+  scroll-padding-bottom: calc(
+    var(--proto-format-toolbar-reserved-height, 52px) + 12px + var(--proto-study-dock-band-height, 0px)
+  );
 }
 
 /* SubtleContentMount (variant="fade") wraps the card — make its inner div a flex

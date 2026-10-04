@@ -41,10 +41,17 @@ function isLockedError(error: unknown): boolean {
   return error instanceof APIError && error.status === 403 && error.code === 'FEATURE_REQUIRED';
 }
 
-function rowTitle(session: NoteHistorySessionWire): string {
-  if (session.isCurrent) return COPY.current;
+/*
+ * A row is named by when, not by what: every version of a note carries the same title, so a
+ * list of "Thus Far…" rows said nothing. The title only earns a line when it was different
+ * then — that is the one thing about an old version the time alone can't tell you.
+ */
+function rowDetail(session: NoteHistorySessionWire, currentTitle: string): string | null {
   if (session.contentEncrypted) return COPY.encryptedRow;
-  return session.title?.trim() || COPY.untitled;
+  if (session.isCurrent) return null;
+  const title = session.title?.trim() || '';
+  if (!title || title === currentTitle) return null;
+  return COPY.titledAs(title);
 }
 
 function NoteReadOnlyBody({ title, html }: { title: string | null; html: string }) {
@@ -79,6 +86,7 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
   const pages = history.data?.pages;
   const locked = pages?.[pages.length - 1]?.locked ?? null;
   const selected = sessions.find((session) => session.id === selectedId) ?? null;
+  const currentTitle = sessions.find((session) => session.isCurrent)?.title?.trim() || '';
   const version = useNoteHistoryVersion(noteId, selected && !selected.contentEncrypted ? selected.id : null);
 
   useEffect(() => {
@@ -166,25 +174,41 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
       {days.map((day) => (
         <section key={day.key} className="proto-note-history__day" aria-label={day.label}>
           <h3 className="proto-note-history__day-label">{day.label}</h3>
-          {day.sessions.map((session) => (
-            <button
-              key={session.id}
-              type="button"
-              className="proto-note-history__row"
-              aria-current={session.id === selectedId ? 'true' : undefined}
-              onClick={() => setSelectedId(session.id)}
-            >
-              <span className="proto-note-history__row-title">{rowTitle(session)}</span>
-              <span className="proto-note-history__row-meta">
-                {[noteHistorySessionTimeLabel(session), session.versionCount > 1 ? COPY.saves(session.versionCount) : null]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </span>
-            </button>
-          ))}
+          {day.sessions.map((session) => {
+            const detail = rowDetail(session, currentTitle);
+            return (
+              <button
+                key={session.id}
+                type="button"
+                className="proto-note-history__row"
+                data-current={session.isCurrent || undefined}
+                aria-current={session.id === selectedId ? 'true' : undefined}
+                aria-label={session.isCurrent ? `${COPY.current}, ${noteHistorySessionTimeLabel(session)}` : undefined}
+                onClick={() => setSelectedId(session.id)}
+              >
+                <span className="proto-note-history__row-text">
+                  <span className="proto-note-history__row-title">{noteHistorySessionTimeLabel(session)}</span>
+                  {detail ? <span className="proto-note-history__row-meta">{detail}</span> : null}
+                </span>
+                {session.isCurrent ? (
+                  <span className="proto-note-history__row-tag">{COPY.currentTag}</span>
+                ) : asSheet ? (
+                  <span className="proto-note-history__row-chevron" aria-hidden="true">
+                    <Icon name="caret-right" size={12} />
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
         </section>
       ))}
-      {sessions.length <= 1 && !locked ? <p className="proto-note-history__notice">{COPY.empty}</p> : null}
+      {sessions.length <= 1 && !locked ? (
+        <div className="proto-note-history__empty">
+          <Icon name="clock-rotate-left" size={16} />
+          <p className="proto-note-history__empty-title">{COPY.empty}</p>
+          <p className="proto-note-history__empty-detail">{COPY.emptyDetail}</p>
+        </div>
+      ) : null}
       {history.hasNextPage ? (
         <button
           type="button"
@@ -243,7 +267,13 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
               <Icon name="caret-left" size={12} />
             </button>
           ) : null}
-          <span className="proto-study-thread-popover__title">{COPY.title}</span>
+          <span className="proto-note-history__heading">
+            <span className="proto-study-thread-popover__title">{COPY.title}</span>
+            {/* The rows no longer repeat the note's name, so the header carries it once. */}
+            {currentTitle && !(asSheet && selected) ? (
+              <span className="proto-note-history__subtitle">{currentTitle}</span>
+            ) : null}
+          </span>
         </div>
         <div className="proto-note-history__header-actions">
           {canRestore ? (

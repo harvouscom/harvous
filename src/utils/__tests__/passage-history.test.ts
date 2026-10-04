@@ -52,9 +52,9 @@ describe('passageHistoryLabel', () => {
 
   it('names the one other note', () => {
     expect(passageHistoryLabel({ total: 1, newestTitle: 'Night with Nicodemus' })).toBe(
-      'also in “Night with Nicodemus”',
+      'Also in “Night with Nicodemus”',
     );
-    expect(passageHistoryLabel({ total: 1, newestTitle: null })).toBe('in 1 other note');
+    expect(passageHistoryLabel({ total: 1, newestTitle: null })).toBe('Also in 1 other note');
   });
 
   it('shortens a long title', () => {
@@ -62,11 +62,11 @@ describe('passageHistoryLabel', () => {
       total: 1,
       newestTitle: 'A very long note title about the whole of the Upper Room Discourse',
     });
-    expect(label).toMatch(/^also in “.{1,32}”$/);
+    expect(label).toMatch(/^Also in “.{1,32}”$/);
     expect(label).toContain('…');
   });
 
   it('counts several notes', () => {
-    expect(passageHistoryLabel({ total: 4, newestTitle: 'x' })).toBe('in 4 of your notes');
+    expect(passageHistoryLabel({ total: 4, newestTitle: 'x' })).toBe('Also in 4 of your notes');
   });
 });

@@ -78,14 +78,14 @@ export async function getPassageHistory(
 
 const MAX_TITLE_CHARS = 32;
 
-/** The words on the peek: "also in “Night with Nicodemus”", "in 3 of your notes", or null. */
+/** The peek's second line: "Also in “Night with Nicodemus”", "Also in 3 of your notes", or null. */
 export function passageHistoryLabel(history: PassageHistory | null): string | null {
   if (!history || history.total <= 0) return null;
   if (history.total === 1) {
     const title = history.newestTitle;
-    if (!title) return 'in 1 other note';
+    if (!title) return 'Also in 1 other note';
     const short = title.length > MAX_TITLE_CHARS ? `${title.slice(0, MAX_TITLE_CHARS - 1).trimEnd()}…` : title;
-    return `also in “${short}”`;
+    return `Also in “${short}”`;
   }
-  return `in ${history.total} of your notes`;
+  return `Also in ${history.total} of your notes`;
 }

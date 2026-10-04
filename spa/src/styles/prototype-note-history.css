@@ -74,22 +74,35 @@
   margin-top: 8px;
 }
 
+.proto-note-history__heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.proto-note-history__subtitle {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--pds-text-muted);
+}
+
 .proto-note-history__day-label {
   margin: 6px 8px 4px;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
   color: var(--pds-text-muted);
 }
 
 .proto-note-history__row {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  padding: 7px 8px;
+  min-height: 44px;
+  padding: 7px 10px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -106,6 +119,40 @@
   background: var(--pds-bg-control);
 }
 
+.proto-note-history__row-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.proto-note-history__row-tag {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--pds-bg-control);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+}
+
+.proto-note-history__row-chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--pds-text-muted);
+}
+
+/* Stacked (phone): rows read as a list of things to open — taller, divided. */
+.proto-note-history[data-layout='stacked'] .proto-note-history__row {
+  min-height: 52px;
+  border-radius: 10px;
+}
+
+.proto-note-history[data-layout='stacked'] .proto-note-history__row + .proto-note-history__row {
+  box-shadow: inset 0 0.5px 0 var(--pds-border-control);
+}
+
 .proto-note-history__row-title {
   flex-shrink: 1;
   max-width: 100%;
@@ -119,8 +166,35 @@
 }
 
 .proto-note-history__row-meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.75rem;
   color: var(--pds-text-muted);
+}
+
+.proto-note-history__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 16px 8px;
+  text-align: center;
+  color: var(--pds-text-muted);
+}
+
+.proto-note-history__empty-title {
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+.proto-note-history__empty-detail {
+  margin: 0;
+  max-width: 260px;
+  font-size: 0.8rem;
 }
 
 .proto-note-history__notice {

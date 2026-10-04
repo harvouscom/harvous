@@ -168,6 +168,12 @@ These were designed here and are now live. The stub files in this folder point t
   - Two-stage fix: scope the flag via `activeSharedAssociations`, then implement the pen lease (native has none today)
   - Also: whether the space picker orphans the open note, add-to-space (doesn't exist natively yet), and compose destination
 
+- **`NOTE_HISTORY_IMPROVEMENTS.md`** - Note History follow-ups deferred after the Oct 2026 visual pass
+  - Per-session change summaries ("Added 1 Samuel 7:12 · +3 lines"), computed on the server and deterministic
+  - Diff highlighting in the version preview
+  - Expanding a session into its checkpoints
+  - Editor avatars on co-edited notes
+
 - **`OFFLINE_MODE_IMPLEMENTATION.md`** - Offline mode architecture reference (✅ implemented)
   - Full offline read/write support with IndexedDB, sync queues, and conflict resolution
 

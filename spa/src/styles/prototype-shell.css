@@ -2220,7 +2220,8 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* Lifted clear of the on-screen keyboard — set by PrototypeLibraryPanel from visualViewport. */
+  bottom: var(--proto-library-sheet-keyboard-inset, 0px);
   /*
    * Below the toolbar, not under it.
    *

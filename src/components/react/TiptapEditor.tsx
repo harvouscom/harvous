@@ -71,6 +71,7 @@ import {
   type FormatToolbarSelectionRange,
 } from '@/utils/prototype-format-toolbar-selection';
 import { flushCoalescedNoteHtmlOnUnmount } from '@/utils/prototype-note-content-propagation';
+import { scrollCaretClearOfFormatBar } from '@/utils/caret-clear-of-format-bar';
 import { isTiptapViewReady } from '@/utils/tiptap-helpers';
 import ScripturePillDeleteConfirm from './ScripturePillDeleteConfirm';
 
@@ -4400,6 +4401,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       typeof document !== 'undefined' &&
       document.documentElement.hasAttribute('data-proto-keyboard-open');
     if (!host && !protoKeyboardOpen) return;
+    // Prototype: scroll by the caret's own line, not its block — a tall paragraph aligned by
+    // `block: 'nearest'` lines up its top and leaves the caret under the format bar.
+    if (protoKeyboardOpen && scrollCaretClearOfFormatBar(editorInstance.view)) return;
     const { from } = editorInstance.state.selection;
     const { node } = editorInstance.view.domAtPos(from);
     const el =
@@ -4731,6 +4735,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editable: !sharedAnnotationOverlayMode && !coEditFollower,
     editorProps: {
       clipboardTextSerializer: (slice) => noteClipboardPlainTextFromFragment(slice.content),
+      // Typing and Enter scroll the caret into view; in the prototype the format bar floats over
+      // the scroller's bottom edge, so clear the bar rather than the edge. False elsewhere, which
+      // leaves ProseMirror's default scroll in charge.
+      handleScrollToSelection: (view) => scrollCaretClearOfFormatBar(view),
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none [&_ol]:list-decimal [&_ul]:list-disc',
         style: 'font-family: var(--font-sans); font-size: 16px; font-weight: 500; line-height: 1.6; color: var(--color-deep-grey); min-height: 200px;',
