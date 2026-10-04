@@ -1085,64 +1085,110 @@ button[disabled] {
   }
 }
 
-/* "Quote" beside a pill that was just typed — an offer, so it reads as quiet as the peek it
-   follows, not as the accent-filled ✓. Centred on the pill's line like the ✓. */
+/* Quote, beside a pill that was just typed — an offer, so it reads as quiet as the peek it
+   follows, not as the accent-filled ✓. An icon only (the name is on aria-label / title), centred
+   on the pill's line like the ✓. */
 .scripture-quote-offer {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding: 0 10px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   margin: 0;
   border-radius: 999px;
-  border: 1px solid var(--pds-accent-subtle-border, rgba(56, 105, 230, 0.2));
+  border: 0.5px solid var(--pds-border-control, rgba(0, 0, 0, 0.08));
   background: var(--pds-bg-popover-solid, #fff);
   box-shadow: var(--pds-shadow-popover, 0 2px 8px rgba(0, 0, 0, 0.12));
   color: var(--pds-text-secondary, rgba(60, 60, 67, 0.75));
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transform: translateY(-50%);
-  animation: scripture-book-suggest-in 160ms ease-out both;
+  transition:
+    color 120ms ease,
+    opacity 120ms ease,
+    transform 120ms ease;
+  animation: scripture-quote-offer-in 160ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+.scripture-quote-offer svg {
+  display: block;
 }
 
 .scripture-quote-offer:hover {
   color: var(--pds-text-primary, rgba(0, 0, 0, 0.88));
 }
 
+.scripture-quote-offer:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.scripture-quote-offer:focus-visible {
+  outline: 2px solid var(--pds-accent, rgb(56, 105, 230));
+  outline-offset: 2px;
+}
+
 .scripture-quote-offer[aria-busy='true'] {
   cursor: progress;
+  opacity: 0.5;
+}
+
+/* A bigger target where fingers tap; the glyph stays the same size. */
+@media (pointer: coarse) {
+  .scripture-quote-offer {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@keyframes scripture-quote-offer-in {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .scripture-quote-offer {
     animation: none;
+    transition: none;
   }
 }
 
 /* One line of the verse above a draft that would commit — what confirming will grab. Text only,
-   never a control: it takes no taps, and nothing here offers to insert the passage. */
+   never a control: it takes no taps, and nothing here offers to insert the passage. The "also
+   in …" line sits under the verse rather than beside it, so on a phone the verse isn't squeezed
+   to three words. */
 .scripture-verse-peek {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 5px 10px;
-  border-radius: 10px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 11px;
+  border-radius: 12px;
   background: var(--pds-bg-popover-solid, #fff);
-  border: 1px solid var(--pds-accent-subtle-border, rgba(56, 105, 230, 0.2));
+  border: 0.5px solid var(--pds-border-control, rgba(0, 0, 0, 0.08));
   box-shadow: var(--pds-shadow-popover, 0 2px 8px rgba(0, 0, 0, 0.12));
-  color: var(--pds-text-secondary, rgba(60, 60, 67, 0.75));
+  color: var(--pds-text-primary, rgba(0, 0, 0, 0.88));
   font-size: 13px;
   line-height: 1.35;
-  transform: translateY(-100%);
+  transform: translateY(calc(-100% - 4px));
   pointer-events: none;
   animation: scripture-book-suggest-in 160ms ease-out both;
 }
 
 .scripture-verse-peek--below {
-  transform: none;
+  transform: translateY(4px);
+}
+
+.scripture-verse-peek__line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
 .scripture-verse-peek__text {
@@ -1154,26 +1200,27 @@ button[disabled] {
   white-space: nowrap;
   text-overflow: ellipsis;
   font-style: italic;
+  opacity: 0.85;
 }
 
-/* "· in 3 of your notes" — other notes of yours on this passage. Quieter than the verse. */
+/* "Also in “Thus Far…”" — other notes of yours on this passage. Quieter than the verse. */
 .scripture-verse-peek__history {
-  flex: none;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: 11px;
   font-style: normal;
-  white-space: nowrap;
   color: var(--pds-text-tertiary, rgba(60, 60, 67, 0.5));
 }
 
-.scripture-verse-peek__text + .scripture-verse-peek__trans + .scripture-verse-peek__history::before {
-  content: '· ';
-}
 
 .scripture-verse-peek__trans {
   flex: none;
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: var(--pds-text-tertiary, rgba(60, 60, 67, 0.5));
 }
 

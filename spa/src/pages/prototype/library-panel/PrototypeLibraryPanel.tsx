@@ -109,6 +109,32 @@ export default function PrototypeLibraryPanel({
     };
   }, []);
 
+  /*
+   * Clear the on-screen keyboard. The sheet is `position: fixed; bottom: 0`, and an iOS
+   * home-screen app does not shrink the layout viewport when the keyboard opens — so the
+   * sheet's bottom third sat behind the keyboard and the body could never scroll its last
+   * groups ("In the Bible" among them) into view. The note route resizes its whole frame for
+   * this; the sheet only needs its own bottom edge lifted.
+   */
+  useEffect(() => {
+    if (!isMobile) return undefined;
+    const panel = panelRef.current;
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!panel || !vv) return undefined;
+    const sync = () => {
+      const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      // Below ~80px it is browser chrome settling, not a keyboard.
+      panel.style.setProperty('--proto-library-sheet-keyboard-inset', `${inset > 80 ? inset : 0}px`);
+    };
+    sync();
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    return () => {
+      vv.removeEventListener('resize', sync);
+      vv.removeEventListener('scroll', sync);
+    };
+  }, [isMobile]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;

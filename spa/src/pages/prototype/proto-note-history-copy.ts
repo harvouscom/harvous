@@ -3,6 +3,9 @@ export const NOTE_HISTORY_COPY = {
   title: 'History',
   close: 'Close history',
   current: 'Current version',
+  currentTag: 'Now',
+  titledAs: (title: string) => `Titled “${title}”`,
+  emptyDetail: 'Versions are kept as you write. Come back after your next edit.',
   empty: 'No earlier versions yet.',
   loadError: 'Could not load history',
   retry: 'Try again',
@@ -24,5 +27,4 @@ export const NOTE_HISTORY_COPY = {
   undo: 'Undo',
   conflict: 'This note changed somewhere else. Reopen History and try again.',
   restoreError: 'Could not restore this version',
-  saves: (count: number) => (count === 1 ? '1 save' : `${count} saves`),
 } as const;

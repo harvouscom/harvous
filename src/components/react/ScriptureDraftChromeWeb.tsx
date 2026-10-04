@@ -27,6 +27,7 @@ import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { getCachedPassageHistory, getPassageHistory, passageHistoryLabel } from '@/utils/passage-history';
 import { isGuestLocalNote } from '../../../spa/src/lib/guest-store';
+import Icon from './Icon';
 
 interface DraftConfirmState {
   top: number;
@@ -67,6 +68,8 @@ interface QuoteOfferState {
   reference: string;
   /** The caret when the offer was made; it moving anywhere else is what withdraws the offer. */
   caret: number;
+  /** The pill's end, carried through edits so the offer can be re-measured beside it. */
+  pillTo: number;
   top: number;
   left: number;
   loading: boolean;
@@ -225,10 +228,25 @@ export default function ScriptureDraftChromeWeb({
       });
     };
 
+    // The quote offer is measured once when it appears; scroll, the keyboard and the shell's
+    // settle passes all move the pill under it, so it is re-measured on the same channel.
+    const updateQuoteOffer = () => {
+      const offer = quoteOfferRef.current;
+      if (!offer) return;
+      const placed = measureQuoteOffer(editor, offer.pillTo);
+      if (!placed) return;
+      setQuoteOffer((current) =>
+        current && (current.top !== placed.top || current.left !== placed.left)
+          ? { ...current, ...placed }
+          : current,
+      );
+    };
+
     const updateAll = () => {
       updatePos();
       updateBookSuggestion();
       updatePeek();
+      updateQuoteOffer();
     };
 
     // Hide the ✓ while actively typing — it sits at the draft's right edge, exactly where the next
@@ -365,7 +383,7 @@ export default function ScriptureDraftChromeWeb({
     const onTransaction = ({
       transaction,
     }: {
-      transaction: { docChanged: boolean; mapping: { map: (p: number) => number } };
+      transaction: { docChanged: boolean; mapping: { map: (p: number, assoc?: number) => number } };
     }) => {
       if (!quoteOfferRef.current || !transaction.docChanged) return;
       // Functional: the quote's own insert is a transaction, and a copy of the offer taken
@@ -373,7 +391,8 @@ export default function ScriptureDraftChromeWeb({
       setQuoteOffer((offer) => {
         if (!offer) return offer;
         const caret = transaction.mapping.map(offer.caret);
-        return caret === offer.caret ? offer : { ...offer, caret };
+        const pillTo = transaction.mapping.map(offer.pillTo, -1);
+        return caret === offer.caret && pillTo === offer.pillTo ? offer : { ...offer, caret, pillTo };
       });
     };
     const onKeyDown = (e: KeyboardEvent) => {
@@ -385,21 +404,44 @@ export default function ScriptureDraftChromeWeb({
       if (e.key === ' ') return;
       clear();
     };
+    /*
+     * iOS: a predictive-text tap, dictation or an autocorrect replace arrives as input with no
+     * keydown worth reading, so keydown alone left the offer beside an old pill while the next
+     * line was being written. Any input counts — except the space that finished the pill.
+     */
+    const onBeforeInput = (e: InputEvent) => {
+      if (!quoteOfferRef.current || quoteOfferRef.current.loading) return;
+      if (e.inputType === 'insertText' && e.data === ' ') return;
+      clear();
+    };
+    // The caret left the pill's paragraph — whatever happens next is not about this pill.
+    const onSelectionUpdate = () => {
+      const offer = quoteOfferRef.current;
+      if (!offer || offer.loading || !isTiptapViewReady(editor)) return;
+      const { state } = editor;
+      const head = state.selection.$head;
+      const at = Math.min(Math.max(offer.pillTo, 0), state.doc.content.size);
+      if (head.parent !== state.doc.resolve(at).parent) clear();
+    };
     const onPointerDown = () => {
       if (quoteOfferRef.current && !quoteOfferRef.current.loading) clear();
     };
     dom.addEventListener(SCRIPTURE_DRAFT_CONFIRMED_EVENT, onConfirmed);
     dom.addEventListener('keydown', onKeyDown, true);
     dom.addEventListener('pointerdown', onPointerDown, true);
+    dom.addEventListener('beforeinput', onBeforeInput, true);
     editor.on('transaction', onTransaction);
+    editor.on('selectionUpdate', onSelectionUpdate);
     editor.on('blur', clear);
     return () => {
       if (hideTimer) clearTimeout(hideTimer);
       dom.removeEventListener(SCRIPTURE_DRAFT_CONFIRMED_EVENT, onConfirmed);
       dom.removeEventListener('keydown', onKeyDown, true);
       dom.removeEventListener('pointerdown', onPointerDown, true);
+      dom.removeEventListener('beforeinput', onBeforeInput, true);
       if (!editor.isDestroyed) {
         editor.off('transaction', onTransaction);
+        editor.off('selectionUpdate', onSelectionUpdate);
         editor.off('blur', clear);
       }
     };
@@ -446,8 +488,12 @@ export default function ScriptureDraftChromeWeb({
             zIndex: 99998,
           }}
         >
-          {peek.text && <span className="scripture-verse-peek__text">{peek.text}</span>}
-          {peek.text && <span className="scripture-verse-peek__trans">{peek.translationLabel}</span>}
+          {peek.text && (
+            <span className="scripture-verse-peek__line">
+              <span className="scripture-verse-peek__text">{peek.text}</span>
+              <span className="scripture-verse-peek__trans">{peek.translationLabel}</span>
+            </span>
+          )}
           {peek.history && <span className="scripture-verse-peek__history">{peek.history}</span>}
         </div>
       )}
@@ -499,7 +545,7 @@ export default function ScriptureDraftChromeWeb({
             if (e.detail === 0) void takeQuoteOffer();
           }}
         >
-          {quoteOffer.loading ? 'Quoting…' : 'Quote'}
+          <Icon name="quote-left" size={12} />
         </button>
       )}
       {confirm && (
@@ -674,23 +720,45 @@ function pillBeforePos(
   return null;
 }
 
-/** Where the quote offer goes: just past the pill that was typed, centred on its line. */
-function placeQuoteOffer(editor: Editor): { caret: number; top: number; left: number } | null {
+/** Where the quote offer goes when it is made: beside the pill just before the caret. */
+function placeQuoteOffer(
+  editor: Editor,
+): { caret: number; pillTo: number; top: number; left: number } | null {
   if (!isTiptapViewReady(editor)) return null;
   const caret = editor.state.selection.from;
   const pill = pillBeforePos(editor, caret);
   if (!pill) return null;
+  const placed = measureQuoteOffer(editor, pill.to);
+  return placed ? { caret, pillTo: pill.to, ...placed } : null;
+}
+
+/**
+ * Just past the pill ending at `pillTo`, centred on it. Measured from the pill's own box (its
+ * last line fragment, like the ✓): `coordsAtPos` is a thin caret box, which on iOS sits off
+ * the taller inline-flex pill and left the offer riding low.
+ */
+function measureQuoteOffer(editor: Editor, pillTo: number): { top: number; left: number } | null {
+  if (!isTiptapViewReady(editor)) return null;
+  const { view } = editor;
+  const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+  const ox = vv?.offsetLeft ?? 0;
+  const oy = vv?.offsetTop ?? 0;
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 9999;
   try {
-    const end = editor.view.coordsAtPos(pill.to);
-    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-    const ox = vv?.offsetLeft ?? 0;
-    const oy = vv?.offsetTop ?? 0;
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 9999;
+    const at = Math.max(1, Math.min(pillTo - 1, view.state.doc.content.size));
+    const { node } = view.domAtPos(at);
+    const start = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
+    const pillEl = start?.closest?.('[data-scripture-reference]') ?? null;
+    let rect: { top: number; bottom: number; right: number } | null = null;
+    if (pillEl && view.dom.contains(pillEl)) {
+      const rects = pillEl.getClientRects();
+      rect = rects.length > 0 ? rects[rects.length - 1] : pillEl.getBoundingClientRect();
+    }
+    if (!rect || (rect.top === 0 && rect.bottom === 0)) rect = view.coordsAtPos(pillTo);
     return {
-      caret,
-      top: (end.top + end.bottom) / 2 + oy,
-      // Past the space the confirm leaves, so the chip does not sit on the caret.
-      left: Math.min(end.right + 14, vw - 90) + ox,
+      top: (rect.top + rect.bottom) / 2 + oy,
+      // Past the space the confirm leaves, so the button does not sit on the caret.
+      left: Math.min(rect.right + 10, vw - 40) + ox,
     };
   } catch {
     return null;
