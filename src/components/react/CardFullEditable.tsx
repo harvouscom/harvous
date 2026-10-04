@@ -905,8 +905,8 @@ export default function CardFullEditable({
       hadNonemptyTitleRef.current = initialTitle.trim().length > 0;
       // Once per note, not per pass: `content` is a dep, and a draft's own typing flows back in
       // through it — re-arming here would hand the date back to someone who just cleared it.
-      if (untouchedSeededDraftArmedForRef.current !== noteId) {
-        untouchedSeededDraftArmedForRef.current = noteId;
+      if (untouchedSeededDraftArmedForRef.current !== (noteId ?? null)) {
+        untouchedSeededDraftArmedForRef.current = noteId ?? null;
         untouchedSeededDraftRef.current =
           noteId === PROTOTYPE_DRAFT_NOTE_ID && !isTiptapBodyEmpty(content ?? '');
       }
