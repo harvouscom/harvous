@@ -4,6 +4,7 @@ import { isScriptureQuoteBlockquoteNode } from '@/components/react/TiptapScriptu
 import { fetchVerseHtml } from '@/utils/fetch-verse-html';
 import { stripHtml } from '@/utils/html-stripper';
 import {
+  pillOnlyParagraphMark,
   scriptureQuoteAccentKey,
   quoteReferencesAlign,
   scriptureQuoteReferenceValue,
@@ -33,6 +34,41 @@ export function findScriptureQuotesAfterPillBlock(
   return out;
 }
 
+/**
+ * The quotes a pill speaks for: the run right after its paragraph, or — when the pill sits
+ * alone on its line, cited under a quote like a source — the run right before it.
+ *
+ * Only a pill on its own line reaches backwards. A pill inside a sentence that happens to
+ * follow someone else's quote is not that quote's source, and changing its translation must
+ * not rewrite words it never cited.
+ */
+export function findScriptureQuotesForPillBlock(
+  doc: ProseMirrorNode,
+  pillFrom: number,
+  pillTo: number,
+): ScriptureQuoteAfterPill[] {
+  const after = findScriptureQuotesAfterPillBlock(doc, pillFrom, pillTo);
+  if (after.length) return after;
+
+  const probe = Math.max(pillFrom, pillTo, 1);
+  const clamped = Math.min(probe, Math.max(1, doc.content.size - 1));
+  const $pos = doc.resolve(clamped);
+  if ($pos.depth < 1) return [];
+  if (!pillOnlyParagraphMark($pos.node(1))) return [];
+
+  const out: ScriptureQuoteAfterPill[] = [];
+  let index = $pos.index(0) - 1;
+  let pos = $pos.before(1);
+  while (index >= 0) {
+    const node = doc.child(index);
+    if (!isScriptureQuoteBlockquoteNode(node)) break;
+    pos -= node.nodeSize;
+    out.unshift({ pos, node });
+    index -= 1;
+  }
+  return out;
+}
+
 export function passagePlainTextFromVerseHtml(html: string): string {
   return stripHtml(html, { preserveSpacing: true }).replace(/\s+/g, ' ').trim();
 }
@@ -55,7 +91,7 @@ function applyQuoteBlockUpdate(
   tr.replaceWith(innerFrom, innerTo, schema.nodes.paragraph.create({}, schema.text(plainText)));
 }
 
-/** Sync accent border on passage quotes tied to this pill. */
+/** Sync accent border on passage quotes tied to this pill (after it, or above it as its source). */
 export function syncAdjacentScriptureQuoteAccents(
   editor: Editor,
   pillFrom: number,
@@ -63,7 +99,7 @@ export function syncAdjacentScriptureQuoteAccents(
   pillAccent: string | null,
 ): boolean {
   if (!editor || editor.isDestroyed) return false;
-  const quotes = findScriptureQuotesAfterPillBlock(editor.state.doc, pillFrom, pillTo);
+  const quotes = findScriptureQuotesForPillBlock(editor.state.doc, pillFrom, pillTo);
   if (!quotes.length) return false;
 
   const accent = scriptureQuoteAccentKey(pillAccent);
@@ -87,7 +123,7 @@ export async function syncAdjacentScriptureQuotesForPillApply(
   pillAccent: string | null,
 ): Promise<boolean> {
   if (!editor || editor.isDestroyed) return false;
-  const quotes = findScriptureQuotesAfterPillBlock(editor.state.doc, pillFrom, pillTo);
+  const quotes = findScriptureQuotesForPillBlock(editor.state.doc, pillFrom, pillTo);
   if (!quotes.length) return false;
 
   const normRef = scriptureQuoteReferenceValue(reference) ?? reference;

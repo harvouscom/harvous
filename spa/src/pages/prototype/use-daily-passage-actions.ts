@@ -24,7 +24,8 @@ import {
   subscribeForcedTodaysPassage,
   type VotdToday,
 } from '../../lib/votd-today';
-import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
+import { buildScripturePillWithQuoteHtml } from '../../lib/votd-scripture-pill-html';
+import { verseHtmlToPeekText } from '@/utils/verse-peek';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
@@ -95,9 +96,23 @@ export function useDailyPassageActions({
     if (id) {
       void queryClient.invalidateQueries({ queryKey: ['prototype', 'space', id, 'scripture-index'] });
     }
+    /*
+     * The pill and, under it, the words the card was showing — the same pair the reader seeds
+     * when you write about a verse. The words are already in the reader's own translation
+     * (`/api/votd/today` resolves it per member), so the pill takes that translation too, or
+     * the two would disagree. No words (signed out, fetch failed) → the pill alone, as before.
+     */
+    const words = verseHtmlToPeekText(votd.textHtml ?? '');
+    const translation = words ? votd.translation : getEffectiveDefaultTranslation();
     beginPrototypeComposeSession({
       targetSpaceId: homeSpaceId,
-      seed: { contentHtml: buildVotdScripturePillHtml(votd.reference, getEffectiveDefaultTranslation()) },
+      seed: {
+        contentHtml: buildScripturePillWithQuoteHtml(
+          votd.reference,
+          translation,
+          words ? { reference: votd.reference, text: words } : null,
+        ),
+      },
     });
     afterNav();
     navigate({ to: prototypeHomeRouteTo() });
@@ -110,6 +125,8 @@ export function useDailyPassageActions({
     queryClient,
     todaysNote,
     votd.reference,
+    votd.textHtml,
+    votd.translation,
   ]);
 
   const dismiss = useCallback(() => {

@@ -17,6 +17,15 @@ describe('buildScripturePillWithQuoteHtml', () => {
     expect(html.endsWith('<p></p>')).toBe(true);
   });
 
+  it('puts the quote first and the pill under it, cited like a source', () => {
+    const html = buildScripturePillWithQuoteHtml('John 3:16', 'NET', {
+      reference: 'John 3:16',
+      text: 'For God so loved',
+    });
+    expect(html.startsWith('<blockquote')).toBe(true);
+    expect(html).toMatch(/<\/blockquote><p><span data-scripture-reference="John 3:16"/);
+  });
+
   it('is the pill alone when there is nothing the reader marked', () => {
     const html = buildScripturePillWithQuoteHtml('John 3', 'NET', null);
     expect(html).toContain('data-scripture-reference="John 3"');
@@ -42,7 +51,7 @@ describe('buildScripturePillWithQuoteHtml', () => {
       { reference: 'John 3:16', text: 'For God so loved', accent: 'warmAmber' },
       'Love <first>\n\nthen giving',
     );
-    expect(html).toMatch(/<\/blockquote><p>Love &lt;first&gt;<\/p><p>then giving<\/p><p><\/p>$/);
+    expect(html).toMatch(/<\/span>\u00A0<\/p><p>Love &lt;first&gt;<\/p><p>then giving<\/p><p><\/p>$/);
   });
 
   it('adds nothing for a blank annotation', () => {
@@ -52,7 +61,7 @@ describe('buildScripturePillWithQuoteHtml', () => {
       { reference: 'John 3:16', text: 'For God so loved' },
       '   ',
     );
-    expect(html).toMatch(/<\/blockquote><p><\/p>$/);
+    expect(html).toMatch(/<\/span>\u00A0<\/p><p><\/p>$/);
   });
 
   it('falls back to a neutral accent rather than inventing one', () => {
