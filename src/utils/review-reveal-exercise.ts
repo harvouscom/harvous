@@ -36,7 +36,8 @@ type Field = keyof RevealExerciseFields | 'always';
 export const REVEAL_EXERCISE_FIELD: Record<ReviewPromptKey, Field> = {
   'note.passage': 'noteChoice',
   'note.connect': 'noteChoice',
-  'note.folder': 'noteChoice',
+  // Self-rated: the card is the prompt, the way to the note, and the verdicts after it.
+  'note.takeaway': 'always',
   'verse.recognize': 'choice',
   'verse.rebuild': 'cloze',
   'verse.initials': 'initials',

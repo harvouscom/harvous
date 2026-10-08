@@ -10,6 +10,7 @@ import Icon from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from '../../prototype/ProtoRowSelectCheckbox';
 import ProtoIconBlock from '../../prototype/ProtoIconBlock';
 import ReviewCardsScene from './ReviewCardsScene';
+import SoundsScene from './SoundsScene';
 import { ChoiceOptions } from '../../prototype/review-exercises/ChoiceOptions';
 import PrototypeRecallStateChip from '../../prototype/PrototypeRecallStateChip';
 import {
@@ -1866,6 +1867,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <FeatureCalloutScene />;
     case 'ds-25-review-deck-cards':
       return <ReviewCardsScene />;
+    case 'ds-26-sounds':
+      return <SoundsScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

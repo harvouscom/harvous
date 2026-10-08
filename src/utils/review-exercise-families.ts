@@ -20,7 +20,7 @@
  * order" all do; "cited" does not.
  *
  * **The label must never be the answer.** `verse.locate` proves the rule: it is "Where" and not
- * the reference, and `note.folder` is "Folder" and not the folder's name. A family
+ * the reference, and `note.takeaway` is "Takeaway" and not what was taken. A family
  * name says what you are about to do, never what the answer will turn out to be.
  *
  * Pure and client-safe. The server sends the resolved family on the item so the client never has
@@ -48,7 +48,6 @@ export type ReviewExerciseIcon =
   | 'link'
   | 'book'
   | 'compass'
-  | 'folder'
   | 'church';
 
 export interface ReviewExerciseFamily {
@@ -169,11 +168,15 @@ export const REVIEW_EXERCISE_FAMILIES = {
     description: 'Pick a note you linked to this one, or the note you cited a verse in.',
     typed: false,
   },
-  folder: {
-    id: 'folder',
-    label: 'Folder',
-    icon: 'folder',
-    description: 'Pick a folder one of your notes is in: the theme you filed it under.',
+  /*
+   * Replaced `folder` (Oct 2026). A stored `folder` emphasis is an unknown family now, and
+   * `cleanEmphasis` drops it on the next read rather than failing the document.
+   */
+  takeaway: {
+    id: 'takeaway',
+    label: 'Takeaway',
+    icon: 'note-sticky',
+    description: 'Bring to mind what you took from a note, then open it and check.',
     typed: false,
   },
   /*
@@ -209,7 +212,7 @@ export type ReviewExerciseFamilyId = keyof typeof REVIEW_EXERCISE_FAMILIES;
 const FAMILY_BY_KEY: Record<ReviewPromptKey, ReviewExerciseFamilyId> = {
   'note.passage': 'cited',
   'note.connect': 'linked',
-  'note.folder': 'folder',
+  'note.takeaway': 'takeaway',
   'verse.connect': 'linked',
 
   'verse.recognize': 'opening',
@@ -298,5 +301,5 @@ export const REVIEW_EXERCISE_FAMILY_ORDER: ReviewExerciseFamilyId[] = [
   'marked',
   'cited',
   'linked',
-  'folder',
+  'takeaway',
 ];

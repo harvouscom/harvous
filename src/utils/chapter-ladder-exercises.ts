@@ -101,20 +101,27 @@ export interface ChapterVerseExercise extends ChoiceExercise {
 }
 
 /**
- * Four openings, one of them from this chapter.
+ * Four openings, one of them from this chapter — and that one a verse the reader engaged with.
+ *
+ * The answer is drawn only from `engagedNumbers`: verses they highlighted or cited. A verse drawn
+ * from the whole chapter made this a quiz on the chapter ("a verse I should know") rather than a
+ * question about their study of it. No engaged verse with a usable opening, no question — the
+ * probe (`chapterEngagedCueCount`) counts exactly this set.
  *
  * The distractors are openings of chapters the reader has read, then of well-known ones. Any
  * candidate that opens like the answer is dropped first — see `PREFIX_GUARD_WORDS`.
  */
 export function buildChapterVerse(input: {
   verses: readonly ChapterVerse[];
+  /** Verse numbers the reader highlighted or cited in this chapter. */
+  engagedNumbers: readonly number[];
   /** Openings (or verse texts) from other chapters the reader has read. */
   distractorTexts: readonly string[];
   fallbackTexts?: readonly string[];
   seed: string;
 }): ChapterVerseExercise | null {
   const seed = `${input.seed}:verse`;
-  const verse = pickSeeded(chapterCueCandidates(input.verses), seed);
+  const verse = pickSeeded(chapterEngagedCues(input.verses, input.engagedNumbers), seed);
   if (!verse) return null;
   const answer = verseCue(verse.text, CHAPTER_CUE_WORDS);
   const prefix = openingPrefix(answer);
@@ -129,6 +136,23 @@ export function buildChapterVerse(input: {
     seed,
   });
   return choice ? { ...choice, verse } : null;
+}
+
+/** The engaged verses whose opening can stand as a cue: what `buildChapterVerse` draws from. */
+export function chapterEngagedCues(
+  verses: readonly ChapterVerse[],
+  engagedNumbers: readonly number[],
+): ChapterVerse[] {
+  const engaged = new Set(engagedNumbers);
+  return chapterCueCandidates(verses).filter((verse) => engaged.has(verse.number));
+}
+
+/** The probe for `chapter.verse`: how many engaged verses it could ask about. */
+export function chapterEngagedCueCount(
+  verses: readonly ChapterVerse[],
+  engagedNumbers: readonly number[],
+): number {
+  return chapterEngagedCues(verses, engagedNumbers).length;
 }
 
 export function gradeChapterVerse(exercise: ChapterVerseExercise, option: string): boolean {
@@ -297,22 +321,22 @@ function canBeFinished(verse: ChapterVerse): boolean {
 }
 
 /**
- * Which verses the finish rung may draw from: the ones the reader marked in this chapter when
- * they marked any, else every verse that can spare a word. The reader's own choice first, as on
- * every rung that has one to prefer.
+ * Which verses the finish rung may draw from: the ones the reader engaged with in this chapter —
+ * highlighted or cited — that can spare a word. Only those. It used to fall back to every verse
+ * in the chapter, which asked a reader who had only read it to finish a verse they never singled
+ * out; a chapter with nothing engaged is asked the whole-chapter questions instead.
  */
 export function chapterFinishCandidates(
   verses: readonly ChapterVerse[],
-  highlightedNumbers: readonly number[],
+  engagedNumbers: readonly number[],
 ): ChapterVerse[] {
-  const marked = verses.filter((verse) => highlightedNumbers.includes(verse.number) && canBeFinished(verse));
-  if (marked.length) return marked;
-  return verses.filter(canBeFinished);
+  return verses.filter((verse) => engagedNumbers.includes(verse.number) && canBeFinished(verse));
 }
 
 export function buildChapterFinish(input: {
   verses: readonly ChapterVerse[];
-  highlightedNumbers: readonly number[];
+  /** Verse numbers the reader highlighted or cited in this chapter. */
+  engagedNumbers: readonly number[];
   seed: string;
   /** Share of content words hidden — from the tier table, so later passes hide more. */
   ratio: number;
@@ -320,7 +344,7 @@ export function buildChapterFinish(input: {
   maxBlanks?: number;
 }): ChapterFinishExercise | null {
   const seed = `${input.seed}:finish`;
-  const verse = pickSeeded(chapterFinishCandidates(input.verses, input.highlightedNumbers), seed);
+  const verse = pickSeeded(chapterFinishCandidates(input.verses, input.engagedNumbers), seed);
   if (!verse) return null;
   const cloze = buildVerseCloze(verse.text, seed, input.ratio, { maxBlanks: input.maxBlanks });
   return cloze.blanks.length ? { verse, cloze } : null;

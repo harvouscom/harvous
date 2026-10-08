@@ -128,6 +128,21 @@ describe('the two graded rungs are marked on the server', () => {
     expect(block).toMatch(/default:\s*return null/);
   });
 
+  it('refuses to mark an answer against a question the client was not shown', () => {
+    /*
+     * A tab left open across a deploy that changed the ladder resolves a different rung on the
+     * server than the one on screen. Every grader compares the client's `promptKey` with the rung
+     * it resolved and returns null on disagreement — the reader's own verdict then stands, which
+     * is the safe failure — rather than marking a cloze answer against a "who appears" key.
+     */
+    const text = service();
+    for (const grader of ['gradeNoteAnswer', 'gradeVerseAnswer', 'gradeChapterAnswer']) {
+      const fn = text.slice(text.indexOf(`export async function ${grader}`));
+      const head = fn.slice(0, fn.indexOf('if (rung.key') > 0 ? fn.indexOf('if (rung.key') : 900);
+      expect(head, grader).toMatch(/answer\.promptKey && answer\.promptKey !== (built\.)?rung(\.key)?\) return null/);
+    }
+  });
+
   it('never sends a chapter rung the chapter\'s text, or its answer', () => {
     const text = service();
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
@@ -1109,5 +1124,39 @@ describe('one stem, quoted the same way by both rungs that use it', () => {
       expect(head).toContain('leading');
       expect(head).toContain('trailing');
     }
+  });
+});
+
+describe('the Takeaway card', () => {
+  /*
+   * The one self-rated rung. Nothing is built and nothing is marked: the grader returns null and
+   * the route records the reader's own verdict (`verdict ?? outcome`), which it already did for
+   * any rung the server cannot mark.
+   */
+  it('is never built into a choice and never graded', () => {
+    const text = service();
+    const build = text.slice(text.indexOf('async function buildNoteExercise'));
+    expect(build.slice(0, 1200)).toMatch(/if \(rung === 'note\.takeaway'\) return null;/);
+    expect(review()).toMatch(/verdict \?\? outcome/);
+  });
+
+  it('decides whether it can be asked with the builder, from the same loader as the choices', () => {
+    const text = service();
+    const sets = text.slice(text.indexOf('async function loadNoteChoiceSetsUncached'));
+    expect(sets.slice(0, 5000)).toContain('buildNoteTakeaway({');
+    expect(text).toContain('canTakeaway: set.takeaway.cue != null');
+    // The folder question's pool and labels are gone with it.
+    expect(text).not.toContain('loadNoteFolderPool');
+    expect(text).not.toContain('folderLabelsOf');
+  });
+
+  it('names the note by its cue and never sends its opening line under the question', () => {
+    const text = service();
+    expect(text).toMatch(/noteRung === 'note\.takeaway'\s*\? \{ noteTitle: takeawayCue \}/);
+    expect(text).toContain("noteContext: noteRung === 'note.takeaway' ? null : primary?.excerpt ?? null");
+  });
+
+  it('tells a reader adding a bare note what would make it askable', () => {
+    expect(service()).toContain('Nothing to ask about yet — write a little more, cite a passage or link it to another note');
   });
 });

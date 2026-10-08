@@ -39,9 +39,19 @@ const verse = {
   locateRivals: 9,
   contentWordCount: 12,
   readerSpanWords: 5,
+  // The neighbours are the reader's own too, so next and before can be asked.
+  nextEngaged: true,
+  beforePartners: 3,
 };
-const chapter = { verseCount: 20, finishCandidates: 3, personCount: 2, placeCount: 2, highlightCount: 2 };
-const note = { canPassage: true, canConnect: true, canFolder: true };
+const chapter = {
+  verseCount: 20,
+  finishCandidates: 3,
+  personCount: 2,
+  placeCount: 2,
+  highlightCount: 2,
+  engagedCount: 3,
+};
+const note = { canPassage: true, canConnect: true, canTakeaway: true };
 
 interface Prefs {
   skip?: ReadonlySet<ReviewPromptKey>;
@@ -105,15 +115,22 @@ describe('where Settings offers More and Less', () => {
      * so turning `memory` off changed *which* memory question was asked — always the whole verse,
      * never keywords — and never whether one was.
      */
-    for (const id of ['memory', 'next'] as const) {
+    for (const id of ['memory'] as const) {
       expect(emphasisIsOfferable(id)).toBe(false);
       expect(askedCount(id, { skip: keysOf(id) })).toBe(askedCount(id, {}));
     }
   });
 
-  it('gives a control to order and folder, which share a draw with other families', () => {
-    // `chapter.order` is drawn against who and places; `note.folder` against cited and linked.
+  it('gives a control to next and opening, which now share a step with other families', () => {
+    // `verse.sequence` leads step 3 beside next/before; `chapter.verse` is a peer of who and where.
+    expect(emphasisIsOfferable('next')).toBe(true);
+    expect(emphasisIsOfferable('opening')).toBe(true);
+    expect(ALWAYS_ON_FAMILIES).toEqual(['memory', 'changed']);
+  });
+
+  it('gives a control to order and takeaway, which share a draw with other families', () => {
+    // `chapter.order` is drawn against who and places; `note.takeaway` against cited and linked.
     expect(emphasisIsOfferable('order')).toBe(true);
-    expect(emphasisIsOfferable('folder')).toBe(true);
+    expect(emphasisIsOfferable('takeaway')).toBe(true);
   });
 });

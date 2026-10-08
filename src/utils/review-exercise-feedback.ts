@@ -169,6 +169,12 @@ export function describeDislike(
   rowsIncludingThisVote: readonly ReviewDislikeRow[],
 ): { family: ReviewExerciseFamilyId | null; offerSettings: boolean } {
   if (!rungKey) return { family: null, offerSettings: false };
+  /*
+   * Nor does a rung Review no longer asks — an item last answered on `note.folder`, say. The tally
+   * already skips those rows; naming `opening` (the fallback) here would claim a family it never
+   * counted toward.
+   */
+  if (!REVIEW_PROMPT_KEYS.includes(rungKey as ReviewPromptKey)) return { family: null, offerSettings: false };
   const family = reviewExerciseFamilyId(rungKey);
   const items = dislikedItemsByFamily(rowsIncludingThisVote).get(family);
   const reachedNow = items?.size === REVIEW_DISLIKE_THRESHOLD;

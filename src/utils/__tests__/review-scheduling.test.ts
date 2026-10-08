@@ -10,6 +10,7 @@ import {
   rungWeight,
   stepBackRung,
   shouldEaseRung,
+  ladderFamilyOf,
   ladderStepAfterOutcome,
   STREAK_MULTIPLIER,
   STREAK_MULTIPLIER_FROM,
@@ -251,6 +252,11 @@ describe('firstDueAtFor', () => {
   it('never counts a disagreement with the index as forgetting', () => {
     expect(NEVER_LAPSES.has('chapter.person')).toBe(true);
   });
+  it('lets the Takeaway card lapse, and weighs a self-rating a little under a marked answer', () => {
+    // The reader's own recall, not the app's filing: forgetting it is forgetting.
+    expect(NEVER_LAPSES.has('note.takeaway')).toBe(false);
+    expect(rungWeight('note.takeaway')).toBe(0.9);
+  });
 });
 
 describe('describeNextDue', () => {
@@ -408,6 +414,14 @@ describe('learning steps, before anything has been held once', () => {
   });
 });
 
+describe('ladderFamilyOf', () => {
+  it('has no special case for chapter.verse, which is an ordinary member of the first step now', () => {
+    expect(ladderFamilyOf('chapter.verse')).toBe('chapter:0');
+    expect(ladderFamilyOf('chapter.finish')).toBe('chapter:1');
+    expect(ladderFamilyOf('chapter.order')).toBe('chapter:2');
+  });
+});
+
 describe('easing after a run of near-misses', () => {
   const base = {
     ladderStep: 3,
@@ -451,6 +465,27 @@ describe('easing after a run of near-misses', () => {
   it('wants the same family twice, not two unrelated misses', () => {
     expect(shouldEaseRung({ ...base, previousRungKey: 'chapter.order' })).toBe(false);
     expect(shouldEaseRung({ ...base, previousRungKey: 'verse.next' })).toBe(false);
+  });
+
+  it('judges the family from the step the item stands on, when it knows the kind', () => {
+    /*
+     * `chapter.person` sits in two chapter families and `verse.sequence` in two verse ones, so a
+     * key no longer names its family. With the kind, both answers must be rungs the current step
+     * can resolve to — its family, or the floor it falls to.
+     */
+    const chapter = { ...base, kind: 'chapter', ladderStep: 2 };
+    expect(shouldEaseRung({ ...chapter, rungKey: 'chapter.order', previousRungKey: 'chapter.order' })).toBe(true);
+    // A read-only chapter on step 1 walks the whole-chapter floor; a run there still eases.
+    expect(
+      shouldEaseRung({ ...chapter, ladderStep: 1, rungKey: 'chapter.order', previousRungKey: 'chapter.order' }),
+    ).toBe(true);
+    expect(
+      shouldEaseRung({ ...chapter, ladderStep: 1, rungKey: 'chapter.finish', previousRungKey: 'chapter.marked' }),
+    ).toBe(true);
+    const verse = { ...base, kind: 'verse', ladderStep: 3 };
+    expect(shouldEaseRung({ ...verse, rungKey: 'verse.sequence', previousRungKey: 'verse.next' })).toBe(true);
+    // Moved by a repair since: the previous rung is not one this step asks.
+    expect(shouldEaseRung({ ...verse, rungKey: 'verse.sequence', previousRungKey: 'verse.locate' })).toBe(false);
   });
 
   it('counts two members of one family as a run', () => {

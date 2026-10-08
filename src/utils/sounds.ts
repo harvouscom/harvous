@@ -14,6 +14,15 @@
  * - `nav` — the interface moving: panels opening, drilling in, a menu value changing. Heard on
  *   "Everywhere" only, and quieter, because it happens far more often.
  *
+ * Three voices inside `nav`, so what moved can be heard as well as that something did:
+ * - **paper** (`nav.open/close/forward/back`, the default theme) — pages: a note laid over the
+ *   page, compose, a stack flip, a chapter turn, a space switch, going somewhere from a panel.
+ * - **press** (`dock.*`) — docks: the Review dock and the study dock cards seating into place.
+ * - **mech** (`panel.*`) — panels and modals: sheets, toolbar popovers, Settings, the Library
+ *   panel. A sibling of the dock, lighter and higher. A drill inside a panel is a detent with a
+ *   direction (`nav.drillIn/drillOut`), never the paper whoosh, so paper stays for pages.
+ * The ticks (`nav.select`, `nav.toggle`) are shared by all three.
+ *
  * The rules that keep it from being busy live here rather than at forty call sites:
  * 1. A `nav` sound needs a real gesture in the last moment. Functions like `setLocation` or
  *    `stackNote` are also called from effects, links and sync; the gate is what keeps those
@@ -27,7 +36,7 @@
  *    plays its own close and then hands off to a shell that closes it is one close.
  * 4. Nothing plays while the page is hidden or the reader has said not to.
  */
-import type { PlayOptions, SoundName } from 'cuelume';
+import type { PlayOptions, SoundName, ThemeName } from 'cuelume';
 import { getSoundPreferenceSnapshot, type SoundPreference } from './sound-prefs';
 
 type Cuelume = typeof import('cuelume');
@@ -51,8 +60,14 @@ export type SoundMoment =
   | 'nav.close'
   | 'nav.forward'
   | 'nav.back'
+  | 'nav.drillIn'
+  | 'nav.drillOut'
   | 'nav.select'
-  | 'nav.toggle';
+  | 'nav.toggle'
+  | 'dock.open'
+  | 'dock.close'
+  | 'panel.open'
+  | 'panel.close';
 
 type SoundClass = 'moment' | 'nav';
 
@@ -62,6 +77,8 @@ interface Cue {
   emphasis: NonNullable<PlayOptions['emphasis']>;
   volume?: number;
   direction?: PlayOptions['direction'];
+  /** The material for this cue only. Unset plays the default theme — the paper voice. */
+  theme?: ThemeName;
   /** For `nav` only: which of two requests in the same beat is the one heard. */
   priority?: number;
 }
@@ -75,6 +92,11 @@ const NAV_VOLUME = 0.7;
  * success: a result is there"; error — "one muted low mallet chord… a calm, recoverable
  * refusal"; open/close — air drawing up / falling shut; navigate — a soft whoosh; select — a
  * crisp detent over a small wooden knock.
+ *
+ * The voices are cuelume themes played per cue, so the active theme never changes: `default` is
+ * the paper (air and a whoosh); `press` is a switch click over a low knock, heard as something
+ * seating into place; `mech` is a latch letting go and catching. Audition every moment in the
+ * dev design gallery, scene `ds-26-sounds`.
  */
 export const SOUND_CUES: Record<SoundMoment, Cue> = {
   'review.right': { class: 'moment', sound: 'success', emphasis: 'subtle' },
@@ -112,8 +134,30 @@ export const SOUND_CUES: Record<SoundMoment, Cue> = {
     direction: 'back',
     priority: 3,
   },
+  /* A drill inside a panel: the detent, shaped by which way it went. */
+  'nav.drillIn': {
+    class: 'nav',
+    sound: 'select',
+    emphasis: 'subtle',
+    volume: NAV_VOLUME,
+    direction: 'forward',
+    priority: 1,
+  },
+  'nav.drillOut': {
+    class: 'nav',
+    sound: 'select',
+    emphasis: 'subtle',
+    volume: NAV_VOLUME,
+    direction: 'back',
+    priority: 1,
+  },
   'nav.select': { class: 'nav', sound: 'select', emphasis: 'subtle', volume: NAV_VOLUME, priority: 1 },
   'nav.toggle': { class: 'nav', sound: 'toggle', emphasis: 'subtle', volume: NAV_VOLUME, priority: 1 },
+
+  'dock.open': { class: 'nav', sound: 'open', theme: 'press', emphasis: 'subtle', volume: NAV_VOLUME, priority: 2 },
+  'dock.close': { class: 'nav', sound: 'close', theme: 'press', emphasis: 'subtle', volume: NAV_VOLUME, priority: 2 },
+  'panel.open': { class: 'nav', sound: 'open', theme: 'mech', emphasis: 'subtle', volume: NAV_VOLUME, priority: 2 },
+  'panel.close': { class: 'nav', sound: 'close', theme: 'mech', emphasis: 'subtle', volume: NAV_VOLUME, priority: 2 },
 };
 
 /** Everything plays at half of cuelume's level; the moments are already level-matched to each other. */
@@ -195,6 +239,7 @@ function render(mod: Cuelume, cue: Cue): void {
     emphasis: cue.emphasis,
     volume: cue.volume,
     direction: cue.direction,
+    theme: cue.theme,
   });
 }
 

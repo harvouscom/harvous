@@ -250,13 +250,13 @@ describe('what it shows a subscriber', () => {
     );
   });
 
-  it('names the note on a folder question, whose answer is not the note', () => {
+  it('names the note on a Takeaway question, whose answer is not the note', () => {
     // No note rung has the note as its answer since "Which note" was retired, so the row names it.
     inbox.data = {
       items: [
         {
-          ...reviewItem('r1', 'Pick a folder Adoption, not slavery is in.'),
-          promptKey: 'note.folder',
+          ...reviewItem('r1', 'What did you take from Adoption, not slavery?'),
+          promptKey: 'note.takeaway',
           ladderStep: 2,
         },
       ],

@@ -148,3 +148,11 @@ describe("folding dislikes into the reader's emphasis", () => {
     expect(mergeRungPreferences(own, rows(BLANKS, ['a', 'b']))).toBe(own);
   });
 });
+
+describe('a rung Review no longer asks', () => {
+  it('names no family, rather than the fallback it would otherwise be filed under', () => {
+    // An item last answered on the retired folder question, disliked after the deploy.
+    const rows = ['a', 'b', 'c'].map((id) => ({ reviewItemId: id, rungKey: 'note.folder' }));
+    expect(describeDislike('note.folder', rows)).toEqual({ family: null, offerSettings: false });
+  });
+});

@@ -143,6 +143,19 @@ describe('which rungs hide the identity line', () => {
     expect(reviewRowSubtitle({ ...note, ladderStep: 2 })).toBe(note.noteContext);
   });
 
+  it('never prints the opening line under the Takeaway question, where it is often the answer', () => {
+    const takeaway = {
+      ...note,
+      prompt: 'What did you take from your note on Ephesians 1:4?',
+      promptKey: 'note.takeaway',
+      noteLabel: 'your note on Ephesians 1:4',
+      ladderStep: 2,
+    };
+    expect(reviewRowSubtitle(takeaway)).toBeNull();
+    // Even when the server sent the line, which it no longer does for this rung.
+    expect(reviewRowSubtitle({ ...takeaway, noteLabel: null })).not.toBe(note.noteContext);
+  });
+
   it('keeps it on every note rung, since no note question has the note as its answer', () => {
     for (const step of [0, 1, 2, 3]) {
       expect(reviewRowSubtitle({ ...note, prompt: 'Pick a folder it is in.', ladderStep: step })).not.toBeNull();

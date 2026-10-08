@@ -319,9 +319,18 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
       'spa/src/pages/prototype/callouts/PrototypeFeatureCallout.tsx',
       'spa/src/pages/prototype/callouts/CalloutIllustration.tsx',
       'spa/src/pages/prototype/callouts/callout-registry.ts',
-      'spa/src/styles/prototype-components.css',
+      'spa/src/styles/prototype-callouts.css',
     ],
     screenshotSlug: 'ds-27-feature-callout',
+  },
+  {
+    id: 'ds-26-sounds',
+    title: 'Sounds',
+    phase: 'Foundations',
+    editFiles: ['src/utils/sounds.ts', 'spa/src/pages/dev/design-system/SoundsScene.tsx'],
+    screenshotSlug: 'ds-26-sounds',
+    // One button per moment, grouped by voice: paper for pages, press for docks, mech for panels.
+    // Never a baseline — there is nothing to see, only to hear.
   },
 ];
 

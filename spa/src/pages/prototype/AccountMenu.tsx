@@ -166,7 +166,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               onFocus={prefetchSettingsOpenPath}
               onClick={() => {
                 setOpen(false);
-                playSound('nav.open');
+                playSound('panel.open');
                 storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);
                 // Desktop: open Account detail directly so the settings Outlet never
                 // briefly hits TanStack's default Not Found during the index redirect.

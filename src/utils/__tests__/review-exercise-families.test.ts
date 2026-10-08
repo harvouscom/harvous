@@ -60,11 +60,12 @@ describe('review exercise families', () => {
 
   it('never lets the label be the answer', () => {
     /*
-     * "Where" must not name the passage, and "Folder" must not name the folder, or the card
-     * answers itself above the question.
+     * "Where" must not name the passage, and "Takeaway" must not name what was taken, or the
+     * card answers itself above the question.
      */
     expect(reviewExerciseFamily('verse.locate').label).toBe('Where');
-    expect(reviewExerciseFamily('note.folder').label).toBe('Folder');
+    expect(reviewExerciseFamily('note.takeaway').label).toBe('Takeaway');
+    expect(reviewExerciseFamily('note.takeaway').typed).toBe(false);
   });
 
   it('groups the same act across kinds, and keeps different acts apart', () => {

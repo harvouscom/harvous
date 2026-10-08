@@ -50,7 +50,7 @@ export function useProtoOverlayMotion(open: boolean, options?: { exitMs?: number
   useEffect(() => () => clearExitTimer(), [clearExitTimer]);
 
   /*
-   * The breath of a sheet opening and falling shut, for every sheet that moves through here.
+   * The panel voice of a sheet opening and falling shut, for every sheet that moves through here.
    *
    * On a change of `open` only: a sheet that mounts already open was not opened by anyone just
    * now, and StrictMode's second run of this effect sees no change. Sheets that open by
@@ -61,7 +61,7 @@ export function useProtoOverlayMotion(open: boolean, options?: { exitMs?: number
   useEffect(() => {
     if (open === soundedOpenRef.current) return;
     soundedOpenRef.current = open;
-    playSound(open ? 'nav.open' : 'nav.close');
+    playSound(open ? 'panel.open' : 'panel.close');
   }, [open]);
 
   return { mounted, exiting };

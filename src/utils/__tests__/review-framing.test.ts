@@ -71,6 +71,21 @@ describe('reviewFraming', () => {
       }
     });
 
+    it('never names a theme above the Takeaway question, which it would hand the reader to recite', () => {
+      const facts = {
+        ...BASE,
+        kind: 'note' as const,
+        rungKey: 'note.takeaway' as const,
+        topTheme: 'adoption',
+        firstStudiedAt: daysAgoIso(90),
+      };
+      for (const seed of SEEDS) {
+        const spec = reviewFraming(facts, seed, NOW);
+        expect(spec?.template).not.toBe('theme');
+        expect(spec?.template).not.toBe('themeSince');
+      }
+    });
+
     it('never names the person on the person rung', () => {
       const facts = { ...BASE, rungKey: 'verse.person' as const, person: 'Paul' };
       expect(reviewFraming(facts, 'a', NOW)).toBeNull();

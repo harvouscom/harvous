@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SquareButton from './SquareButton';
 import Icon from './Icon';
+import AnimatedLockGlyph from './AnimatedLockGlyph';
 import { validatePin, encryptContent, decryptContent } from '@/utils/note-encryption';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
 import { toast } from '@/utils/toast';
@@ -416,7 +417,9 @@ export default function LockPinPanel({
                   : subtitle
       : subtitle;
 
-  const showRecoveryHint = step === 'set' || step === 'changeNew';
+  /* Settings states this as one of its facts beside the panel, so the inline panel there would
+     only be saying it a second time. The sheet has no such list and keeps the line. */
+  const showRecoveryHint = (step === 'set' || step === 'changeNew') && !(inline && appearance === 'prototype');
   const showPinInputs = step !== 'reencrypting';
   const backLabel =
     step === 'reencrypting' || (inline && (step === 'set' || step === 'changeCurrent'))
@@ -501,7 +504,23 @@ export default function LockPinPanel({
       <div className={`proto-lock-pin-settings${inline ? ' proto-lock-pin-settings--inline' : ''}`}>
         <div className="proto-pin-entry proto-pin-entry--settings" role="group" aria-label={title}>
           {inline ? (
-            inlineLead ? <p className="proto-lock-pin-settings__lead">{inlineLead}</p> : null
+            /*
+             * The page's one picture: the padlock, shut when a PIN exists and open when it does
+             * not, beside what that means in four words. `AnimatedLockGlyph` rather than the
+             * icon-set lock because its shackle is its own element and moves — when a PIN is set
+             * or removed here, the lock closes or opens in front of the reader.
+             */
+            <div className="proto-lock-pin-settings__hero">
+              <span className="proto-lock-pin-settings__glyph" aria-hidden>
+                <AnimatedLockGlyph state={hasLockPinSet ? 'closed' : 'open'} size={24} />
+              </span>
+              <span className="proto-lock-pin-settings__hero-text">
+                <span className="proto-lock-pin-settings__status">
+                  {hasLockPinSet ? 'Lock PIN is on' : 'Set a lock PIN'}
+                </span>
+                {inlineLead ? <span className="proto-lock-pin-settings__lead">{inlineLead}</span> : null}
+              </span>
+            </div>
           ) : (
             <>
               <div className="proto-pin-entry__icon-wrap" aria-hidden>
