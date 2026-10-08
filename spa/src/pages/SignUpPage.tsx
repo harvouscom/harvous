@@ -1,5 +1,6 @@
 import { isSiteInspiredAuthHost } from '@/lib/prototype-path';
 import { useAuth } from '@clerk/clerk-react';
+import { LEGAL } from '@/utils/legal-versions';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import DevModeBadge from '../components/DevModeBadge';
@@ -103,6 +104,18 @@ export default function SignUpPage() {
             </div>
 
             <div className="auth-page__footer">
+              {/* Said before the account exists, and recorded once it does (HarvousAuthForm). */}
+              <p className="auth-page__legal">
+                By continuing, you agree to the{' '}
+                <a href={LEGAL.terms.url} target="_blank" rel="noreferrer">
+                  Terms
+                </a>{' '}
+                and acknowledge the{' '}
+                <a href={LEGAL.privacy.url} target="_blank" rel="noreferrer">
+                  Privacy Policy
+                </a>
+                .
+              </p>
               <p className="auth-page__footer-switch">
                 Already have an account?<a href={signInHref}>Sign in →</a>
               </p>

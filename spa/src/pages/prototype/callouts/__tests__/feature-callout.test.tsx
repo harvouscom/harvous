@@ -27,12 +27,23 @@ vi.mock('../../../../layouts/proto-shell-context', () => ({
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }));
 vi.mock('@/utils/sounds', () => ({ playSound: vi.fn() }));
 
+let legalDue: string[] = [];
+const acknowledge = vi.fn();
+vi.mock('../../../../hooks/queries/useLegalStatus', () => ({
+  useLegalStatus: () => ({ data: { due: legalDue }, isFetched: true }),
+  useAcknowledgeLegal: () => ({ mutate: acknowledge }),
+}));
+const openWindow = vi.spyOn(window, 'open').mockImplementation(() => null);
+
 const { PrototypeFeatureCalloutInline } = await import('../PrototypeFeatureCallout');
 
 beforeEach(() => {
   state = emptyOnboardingState();
   updates.length = 0;
   navigate.mockClear();
+  legalDue = [];
+  acknowledge.mockClear();
+  openWindow.mockClear();
 });
 
 describe('feature callout', () => {
@@ -59,5 +70,27 @@ describe('feature callout', () => {
     state = { ...emptyOnboardingState(), calloutsSeen: { 'today-tabs-2026-10': '2026-10-01T00:00:00Z' } };
     const { container } = render(<PrototypeFeatureCalloutInline />);
     expect(container.textContent).toBe('');
+  });
+
+  it('puts the legal notice ahead of any feature callout', () => {
+    legalDue = ['privacy'];
+    render(<PrototypeFeatureCalloutInline />);
+    expect(screen.getByRole('dialog', { name: 'We’ve updated our Privacy Policy' })).toBeTruthy();
+  });
+
+  it('records the acknowledgment from the ×, not a seen flag', () => {
+    legalDue = ['privacy', 'terms'];
+    render(<PrototypeFeatureCalloutInline />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(acknowledge).toHaveBeenCalledWith({ documents: ['privacy', 'terms'], surface: 'notice' });
+    expect(state.calloutsSeen).toBeUndefined();
+  });
+
+  it('opens what changed and records the acknowledgment from the button', () => {
+    legalDue = ['terms'];
+    render(<PrototypeFeatureCalloutInline />);
+    fireEvent.click(screen.getByRole('button', { name: 'Review changes' }));
+    expect(acknowledge).toHaveBeenCalledWith({ documents: ['terms'], surface: 'notice' });
+    expect(openWindow).toHaveBeenCalledWith('https://harvous.com/legal/changes/', '_blank', 'noopener,noreferrer');
   });
 });

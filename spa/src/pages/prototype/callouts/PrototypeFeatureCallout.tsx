@@ -30,7 +30,35 @@ import { useProtoOverlayMotion } from '../../../hooks/useProtoOverlayMotion';
 import { isAppUpdateToastHeld, subscribeAppUpdateToastHold } from '../welcome3-bridge';
 import { useOnboardingState } from '../useOnboardingState';
 import CalloutIllustration from './CalloutIllustration';
+import { useAcknowledgeLegal, useLegalStatus } from '../../../hooks/queries/useLegalStatus';
+import { LEGAL_CHANGES_URL, legalDocumentsPhrase, type LegalDocument } from '@/utils/legal-versions';
 import { CALLOUTS, pickCallout, type Callout, type CalloutActionContext } from './callout-registry';
+
+/** The id the legal notice wears — not in the registry; it is due by the server's version check. */
+export const LEGAL_NOTICE_ID = 'legal-notice';
+
+/**
+ * "We've updated our Privacy Policy" — due whenever a document has changed since this account
+ * last acknowledged it, which a seen flag cannot express: the same notice must come back for
+ * the next version. Outranks every feature callout.
+ */
+export function legalNoticeCallout(due: readonly LegalDocument[]): Callout | null {
+  if (due.length === 0) return null;
+  return {
+    id: LEGAL_NOTICE_ID,
+    title: `We’ve updated our ${legalDocumentsPhrase(due)}`,
+    body:
+      due.length === 2
+        ? 'Clearer about what we keep, why, and what deleting your account removes.'
+        : due[0] === 'privacy'
+          ? 'Clearer about what we keep, why, and what deleting your account removes.'
+          : 'Now covering Plus, shared spaces, Discover and connected AI apps.',
+    illustration: 'legal',
+    action: { label: 'Review changes', href: LEGAL_CHANGES_URL },
+    audience: 'members',
+    priority: 100,
+  };
+}
 
 /** Scroll Home's Today tabs into view, once the route has rendered them. */
 function scrollToTodayTabs(): void {
@@ -63,18 +91,40 @@ export function useActiveCallout(): {
   const plus = useHasFeature('review');
   const navigate = useNavigate();
 
-  const callout = ready
-    ? pickCallout(CALLOUTS, state.calloutsSeen, {
-        isGuest,
-        isPlus: plus.has,
-        appVersion: appVersion(),
-        now: Date.now(),
-      })
-    : null;
+  const legal = useLegalStatus();
+  const acknowledge = useAcknowledgeLegal();
+  const legalDue = legal.data?.due ?? [];
+  const legalNotice = isGuest ? null : legalNoticeCallout(legalDue);
 
-  const markSeen = useCallback((id: string) => {
-    updateOnboardingState((current) => markCalloutSeen(current, id, new Date().toISOString()));
-  }, []);
+  /* Waits for both answers — the account's seen record and its legal standing — so neither a
+     put-away card nor a feature card the notice should outrank flashes up first. */
+  const callout =
+    ready && (isGuest || legal.isFetched)
+      ? pickCallout(
+          CALLOUTS,
+          state.calloutsSeen,
+          {
+            isGuest,
+            isPlus: plus.has,
+            appVersion: appVersion(),
+            now: Date.now(),
+          },
+          legalNotice ? [legalNotice] : [],
+        )
+      : null;
+
+  /* Answering the legal notice, either way, is acknowledging it: the reader was shown it. */
+  const markSeen = useCallback(
+    (id: string) => {
+      if (id === LEGAL_NOTICE_ID) {
+        acknowledge.mutate({ documents: legalDue, surface: 'notice' });
+        return;
+      }
+      updateOnboardingState((current) => markCalloutSeen(current, id, new Date().toISOString()));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [acknowledge.mutate, legalDue.join(',')],
+  );
 
   const dismiss = useCallback(() => {
     if (callout) markSeen(callout.id);

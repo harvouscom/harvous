@@ -34,6 +34,13 @@
  *   GET  /api/profile/my-shared-spaces
  */
 
+import { acknowledgeLegal, legalStatusForUser } from '../utils/legal-acknowledgments';
+import {
+  LEGAL_ACKNOWLEDGMENT_SURFACES,
+  LEGAL_DOCUMENTS,
+  type LegalAcknowledgmentSurface,
+  type LegalDocument,
+} from '@/utils/legal-versions';
 import { deleteSearchEventsForUser } from '../utils/record-search-event';
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
@@ -1528,6 +1535,52 @@ app.post('/api/user/update-onboarding', requireAuth, rateLimit('write'), async (
     return c.json({ success: true, onboardingState });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/update-onboarding', action: 'update_onboarding' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/**
+ * Which Privacy Policy and Terms this account has acknowledged, and which have changed since.
+ *
+ * Read by the shell to decide whether to show the "we've updated" notice. Its own endpoint
+ * rather than a field on get-profile, so the notice can be cleared and re-read without
+ * refetching the whole profile.
+ */
+app.get('/api/user/legal-status', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const status = await legalStatusForUser(auth.userId);
+    c.header('Cache-Control', 'no-store');
+    return c.json(status);
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/legal-status', action: 'legal_status' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/**
+ * Record that this account acknowledged the current Privacy Policy and/or Terms.
+ *
+ * The body names documents and where the acknowledgment was given; the versions recorded are
+ * always the server's current ones. Idempotent per version.
+ */
+app.post('/api/user/legal-acknowledge', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => null);
+    const documents = Array.isArray(body?.documents)
+      ? (body.documents as unknown[]).filter((d): d is LegalDocument =>
+          (LEGAL_DOCUMENTS as readonly unknown[]).includes(d),
+        )
+      : [];
+    const surface = body?.surface;
+    if (documents.length === 0 || !(LEGAL_ACKNOWLEDGMENT_SURFACES as readonly unknown[]).includes(surface)) {
+      return c.json({ error: 'Invalid acknowledgment', code: 'LEGAL_ACK_INVALID' }, 400);
+    }
+    const status = await acknowledgeLegal(auth.userId, documents, surface as LegalAcknowledgmentSurface);
+    return c.json(status);
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/legal-acknowledge', action: 'legal_acknowledge' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
