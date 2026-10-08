@@ -23168,25 +23168,37 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
- * ─── Decks ──────────────────────────────────────────────────────────────────────────────────
+ * ─── Decks and the Today tabs ──────────────────────────────────────────────────────────────
  *
- * Today's offers as stacks: one card in front, the rest behind it, cycled with ‹ › or a swipe
- * (`ProtoDeck.tsx`). Pick up and Review sit side by side once the sheet is wide enough for two,
- * and stack on a phone — decided by the sheet's own width through `auto-fit`, not by the viewport,
- * because the sheet narrows when the Library panel or the sidebar takes room beside it.
+ * Today's offers as stacks (`ProtoDeck.tsx`): one card in front, the rest behind it, cycled with
+ * ‹ › or a swipe. On Home the three decks — Pick up, Review, Suggestions — share one tab group
+ * and show one at a time, full width, under today's passage. All three stay mounted so their
+ * data loads with the page; `hidden` takes the other two out of layout.
  */
-.proto-feed-decks {
-  display: grid;
-  gap: var(--pds-space-4);
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
-  /* Each deck its own height. Stretched to match, a one-row Pick up card beside the taller
-     Review card was mostly empty paper with its pager stranded at the foot. */
-  align-items: start;
+.proto-feed-today__passage {
+  margin: 0;
 }
 
-/* A deck that is going to hide itself must not hold a grid column open while it does. */
-.proto-feed-decks:not(:has(.proto-deck:not([data-count='0']))) {
+.proto-feed-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-3);
+}
+
+/* Every deck hid itself: no tab bar over nothing. */
+.proto-feed-tabs:not(:has(.proto-deck:not([data-count='0']))) {
   display: none;
+}
+
+/* The tab already names the deck, so the deck's own eyebrow would say it twice. Kept for
+   screen readers rather than removed: it is still the section's name. */
+.proto-feed-tabs .proto-deck__eyebrow {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .proto-deck {
@@ -23675,8 +23687,7 @@ button.proto-feed-sheet__stat:hover {
  */
 .proto-feed-sheet__body > .proto-home-greeting,
 .proto-feed-sheet__body > .proto-feed-sheet__rest,
-.proto-feed-sheet__body > .proto-feed-today > .proto-feed-decks,
-.proto-feed-sheet__body > .proto-feed-today > .proto-deck,
+.proto-feed-sheet__body > .proto-feed-today > *,
 .proto-feed-sheet__body > .proto-feed-part {
   animation: proto-feed-block-in var(--pds-duration-sheet) var(--pds-ease-standard) both;
 }
@@ -23690,7 +23701,7 @@ button.proto-feed-sheet__stat:hover {
   animation-delay: 0ms;
 }
 
-/* The pair of decks, then Up next. Two beats rather than one per section: the band is two
+/* Today's passage, then the tab group. Two beats rather than one per section: the band is two
    blocks now, not five. */
 .proto-feed-sheet__body > .proto-feed-today > :nth-child(1) {
   animation-delay: 45ms;
@@ -23727,8 +23738,7 @@ button.proto-feed-sheet__stat:hover {
 @media (prefers-reduced-motion: reduce) {
   .proto-feed-sheet__body > .proto-home-greeting,
   .proto-feed-sheet__body > .proto-feed-sheet__rest,
-  .proto-feed-sheet__body > .proto-feed-today > .proto-feed-decks,
-  .proto-feed-sheet__body > .proto-feed-today > .proto-deck,
+  .proto-feed-sheet__body > .proto-feed-today > *,
   .proto-feed-sheet__body > .proto-feed-part {
     animation-duration: 120ms;
     animation-name: proto-feed-block-in-reduced;

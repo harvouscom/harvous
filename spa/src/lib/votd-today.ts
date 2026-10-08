@@ -117,13 +117,18 @@ export function scrollToTodaysPassage(): void {
   const el = document.getElementById(TODAYS_PASSAGE_ANCHOR_ID);
   if (!el) return;
   /*
-   * On Home the passage is a card in the Up next deck, and a deck hides every card but the one
-   * in front. Ask the deck to bring this one forward first, or the scroll lands on a card that is
-   * not showing. `ProtoDeck`'s `DECK_SHOW_EVENT`; spelled out here so lib/ does not import a page.
+   * On Home, once acted on, the passage is a row in the Suggestions deck — which hides every card
+   * but the one in front, under a tab that may not be the one showing. Ask for it to be brought
+   * forward first (`ProtoDeck`'s `DECK_SHOW_EVENT`, spelled out here so lib/ does not import a
+   * page), then scroll two frames later, once React has shown the tab and the card.
    */
   el.dispatchEvent(new Event('proto-deck:show', { bubbles: true }));
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+    }),
+  );
 }
 
 /**
