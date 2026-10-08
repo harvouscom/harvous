@@ -26,7 +26,7 @@ export function useToolbarAnchoredPopover() {
   const openFrom = useCallback(
     (el: HTMLElement | null) => {
       if (!el) return;
-      if (!anchorRect || exiting) playSound('nav.open');
+      if (!anchorRect || exiting) playSound('panel.open');
       clearExitTimer();
       setExiting(false);
       setAnchorRect(el.getBoundingClientRect());
@@ -36,7 +36,7 @@ export function useToolbarAnchoredPopover() {
 
   const dismiss = useCallback(() => {
     if (!anchorRect || exiting) return;
-    playSound('nav.close');
+    playSound('panel.close');
     setExiting(true);
     timerRef.current = setTimeout(() => {
       setAnchorRect(null);

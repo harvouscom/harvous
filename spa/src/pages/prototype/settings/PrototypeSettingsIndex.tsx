@@ -50,7 +50,7 @@ export default function PrototypeSettingsIndex() {
                   : undefined
             }
             onClick={() => {
-              playSound('nav.forward');
+              playSound('nav.drillIn');
               navigate({ to: cat.route as '/settings/account' });
             }}
           />

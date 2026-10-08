@@ -192,7 +192,7 @@ export default function StudyDockCardShell({
 
   const handleDismiss = useCallback(() => {
     if (isExiting) return;
-    playSound('nav.close');
+    playSound('dock.close');
     setIsExiting(true);
     exitTimerRef.current = setTimeout(() => {
       exitTimerRef.current = null;
@@ -201,9 +201,9 @@ export default function StudyDockCardShell({
   }, [isExiting, onDismiss]);
 
   /* Every way a card opens or folds — the card itself, its title, its header button — comes
-     through here, so each is heard the same: a breath in to open, falling shut to fold. */
+     through here, so each is heard the same: the dock's voice seating in to open, letting go to fold. */
   const toggleExpanded = useCallback(() => {
-    playSound(expanded ? 'nav.close' : 'nav.open');
+    playSound(expanded ? 'dock.close' : 'dock.open');
     onToggleExpanded();
   }, [expanded, onToggleExpanded]);
 

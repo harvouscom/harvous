@@ -1141,7 +1141,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const beginLibraryPanelClose = useCallback((reason?: 'navigate') => {
     if (!libraryPanelViewRef.current) return;
     if (!libraryPanelExitTimerRef.current) {
-      playSound(reason === 'navigate' ? 'nav.forward' : 'nav.close');
+      playSound(reason === 'navigate' ? 'nav.forward' : 'panel.close');
     }
     if (libraryPanelExitTimerRef.current) clearTimeout(libraryPanelExitTimerRef.current);
     setLibraryPanelExiting(true);
@@ -1170,7 +1170,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
         resetLibraryListScope();
       }
       /* A fresh open breathes in; one that lands on a panel already up is a move within it. */
-      const moveSound = fresh ? 'nav.open' : libraryMoveSound(libraryPanelViewRef.current, view);
+      const moveSound = fresh ? 'panel.open' : libraryMoveSound(libraryPanelViewRef.current, view);
       if (moveSound) playSound(moveSound);
       /*
        * Take focus off the note before the panel goes up. A selection's floating bar in the
@@ -1810,7 +1810,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    */
   const openReviewDock = useCallback(
     (itemId?: string | null, options?: { expanded?: boolean }) => {
-      if (!reviewDockOpenRef.current) playSound('nav.open');
+      if (!reviewDockOpenRef.current) playSound('dock.open');
       setReviewDock((current) => ({
         itemId: itemId !== undefined ? itemId : (current?.itemId ?? null),
         expanded: options?.expanded ?? true,
@@ -1820,7 +1820,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     [],
   );
   const closeReviewDock = useCallback(() => {
-    if (reviewDockOpenRef.current) playSound('nav.close');
+    if (reviewDockOpenRef.current) playSound('dock.close');
     setReviewDock(null);
   }, []);
   const setReviewDockExpanded = useCallback((expanded: boolean) => {
