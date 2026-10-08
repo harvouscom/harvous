@@ -108,3 +108,24 @@ describe('deleting a highlight', () => {
     expect(fn).toMatch(/\.set\(\{ studyThreadEntryId: null, updatedAt: now \}\)/);
   });
 });
+
+describe('verse-level questions ask about engaged verses only', () => {
+  it('reads engaged verses as highlighted or cited, and hands them to the chapter builders', () => {
+    const engaged = body(service, 'export async function loadEngagedVerseNumbersInChapter(');
+    expect(engaged).toContain('loadReaderHighlightsInChapter(userId, parts)');
+    expect(engaged).toContain('loadCitedVerseNumbersInChapter(userId, parts)');
+    const chapter = body(service, 'async function loadChapterMaterialUncached(');
+    expect(chapter).toContain('chapterFinishCandidates(verses, engagedNumbers)');
+    expect(chapter).toContain('engagedCount: chapterEngagedCueCount(verses, engagedNumbers)');
+    expect(service).toMatch(/buildChapterVerse\(\{\s*verses: material\.verses,\s*engagedNumbers: material\.engagedNumbers/);
+  });
+
+  it('builds "which comes first" from the same partners the probe counted', () => {
+    const verse = body(service, 'async function loadVerseMaterialUncached(');
+    expect(verse).toContain('beforePartners: verseBeforePartners(at.verse, engagedNumbers).length');
+    expect(verse).toContain('engagedNumbers.includes(next.verse)');
+    const before = body(service, 'async function buildVerseBeforeFor(');
+    expect(before).toContain('verseBeforePartners(at.verse, engagedNumbers)');
+    expect(before).not.toContain('neighbourVerseAddresses');
+  });
+});

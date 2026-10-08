@@ -131,11 +131,14 @@ describe('a version-1 skip-list', () => {
   });
 
   it('drops a family whose old switch never changed how often it was asked', () => {
-    const v1 = JSON.stringify({
-      version: 1,
-      skip: [...reviewPromptKeysInFamily('memory'), ...reviewPromptKeysInFamily('next')],
-    });
+    const v1 = JSON.stringify({ version: 1, skip: reviewPromptKeysInFamily('memory') });
     expect(parseReviewExerciseSettings(v1).emphasis).toEqual({});
+  });
+
+  it('reads an old "next" switch as Less, now that it shares its step with the verse\'s own order', () => {
+    // `next` used to own both members of its step; `verse.sequence` joined it, so Less is real.
+    const v1 = JSON.stringify({ version: 1, skip: reviewPromptKeysInFamily('next') });
+    expect(parseReviewExerciseSettings(v1).emphasis).toEqual({ next: 'less' });
   });
 
   it('leaves a partly skipped family Normal, because the page never wrote one', () => {

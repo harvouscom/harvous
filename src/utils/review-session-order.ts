@@ -79,8 +79,13 @@ function sameSubject(a: SessionOrderInput, b: SessionOrderInput): boolean {
   return Boolean(a.groupKey) && a.groupKey === b.groupKey;
 }
 
+/**
+ * Same kind on the same step. Step numbers are per-ladder — a note on step 1 and a verse on step 1
+ * are asked nothing alike — so comparing the bare number held apart rows that never looked the
+ * same and let through ones that did.
+ */
 function sameRung(a: SessionOrderInput, b: SessionOrderInput): boolean {
-  return (a.ladderStep ?? 0) === (b.ladderStep ?? 0);
+  return `${a.kind}:${a.ladderStep ?? 0}` === `${b.kind}:${b.ladderStep ?? 0}`;
 }
 
 export function interleaveSession<T extends SessionOrderInput>(items: T[], now: Date = new Date()): T[] {

@@ -29,6 +29,7 @@ import {
   CHAPTER_FAMILIES,
   REVIEW_TASKS,
   CHAPTER_LADDER_MAX_STEP,
+  CHAPTER_WHOLE_FLOOR,
   chapterRungFor,
 } from '../review-prompts';
 
@@ -219,7 +220,10 @@ describe('ladder advancement', () => {
 describe('the verse ladder after "what comes next" arrived', () => {
   it('has dropped the open contextualize rung, which the graded one replaced', () => {
     expect(REVIEW_PROMPT_KEYS).not.toContain('verse.contextualize');
-    expect(VERSE_LADDER[VERSE_NEXT_STEP]).toBe('verse.next');
+    // Its step leads with the verse's own order now; "what follows" is a member, gated on the
+    // following verse being the reader's own too.
+    expect(VERSE_LADDER[VERSE_NEXT_STEP]).toBe('verse.sequence');
+    expect(VERSE_FAMILIES[VERSE_NEXT_STEP]).toContain('verse.next');
   });
 
   it('does not ask two rungs the same question in different words', () => {
@@ -451,7 +455,21 @@ describe('the text-keyed families', () => {
   it('pairs each learning step with its easier twin', () => {
     expect(VERSE_FAMILIES[1]).toEqual(['verse.rebuild', 'verse.initials']);
     expect(VERSE_FAMILIES[2]).toEqual(['verse.recall', 'verse.keywords']);
-    expect(VERSE_FAMILIES[3]).toEqual(['verse.next', 'verse.before']);
+    expect(VERSE_FAMILIES[3]).toEqual(['verse.sequence', 'verse.next', 'verse.before']);
+  });
+
+  it('asks about a neighbour only when the reader engaged with it too', () => {
+    const seeds = Array.from({ length: 40 }, (_, i) => `item-${i}:3`);
+    // Nothing beside it is theirs: the verse's own order, every time.
+    for (const seed of seeds) expect(verseRungFor(3, seed, rich).key).toBe('verse.sequence');
+    // The next verse is inside the range they marked: "what follows" can come up.
+    const nextKeys = new Set(seeds.map((seed) => verseRungFor(3, seed, { ...rich, nextEngaged: true }).key));
+    expect(nextKeys.has('verse.next')).toBe(true);
+    expect(nextKeys.has('verse.before')).toBe(false);
+    // A verse they engaged with two or more away: "which comes first" can come up.
+    const beforeKeys = new Set(seeds.map((seed) => verseRungFor(3, seed, { ...rich, beforePartners: 2 }).key));
+    expect(beforeKeys.has('verse.before')).toBe(true);
+    expect(beforeKeys.has('verse.next')).toBe(false);
   });
 
   it('offers the book only while the reader own reference pool is thin', () => {
@@ -488,28 +506,47 @@ describe('the text-keyed families', () => {
 });
 
 describe('the chapter ladder', () => {
-  const full = { verseCount: 36, finishCandidates: 10, personCount: 3 };
+  const full = { verseCount: 36, finishCandidates: 10, personCount: 3, engagedCount: 3 };
 
-  it('climbs tap → finish → order-or-who, reaching the closing member only as a fallback', () => {
-    /*
-     * A seeded draw across the whole family would show "pick the verse" on step 1 to half of
-     * all readers while the cloze was there to be asked. So the draw runs over the real members
-     * and the closer is reached only when none of them builds.
-     */
-    expect(chapterRungFor(0, 'any', full).key).toBe('chapter.verse');
-    for (const seed of ['a', 'b', 'c', 'd']) expect(chapterRungFor(1, seed, full).key).toBe('chapter.finish');
-    const drawn = new Set(['a', 'b', 'c', 'd', 'e', 'f'].map((seed) => chapterRungFor(2, seed, full).key));
-    // Both real members come up across seeds; the closer never does while both can be built.
-    expect(drawn).toEqual(new Set(['chapter.order', 'chapter.person']));
+  const seeds = Array.from({ length: 30 }, (_, i) => `c-${i}`);
+  const drawnAt = (step: number, material: Parameters<typeof chapterRungFor>[2]) =>
+    new Set(seeds.map((seed) => chapterRungFor(step, seed, material).key));
+
+  it('asks a verse-level question only about verses the reader engaged with', () => {
+    // Engaged verses: the verse, finish and marked rungs are all in the draw.
+    expect(drawnAt(0, full)).toEqual(new Set(['chapter.verse', 'chapter.person']));
+    for (const seed of seeds) expect(chapterRungFor(1, seed, full).key).toBe('chapter.finish');
+    expect(drawnAt(2, full)).toEqual(new Set(['chapter.order', 'chapter.person']));
     expect(chapterRungFor(2, 'a', full)).toEqual(chapterRungFor(2, 'a', full));
   });
 
+  it('asks a chapter that was only read whole-chapter questions, never a random verse', () => {
+    const readOnly = { verseCount: 36, finishCandidates: 0, personCount: 3, placeCount: 2, engagedCount: 0 };
+    for (const step of [0, 1, 2, 3, 4, 5]) {
+      for (const key of drawnAt(step, readOnly)) {
+        expect(['chapter.order', 'chapter.person', 'chapter.place']).toContain(key);
+      }
+    }
+    // Step 1's family is all engaged rungs, so it walks the floor: order first.
+    expect(drawnAt(1, readOnly)).toEqual(new Set(['chapter.order']));
+  });
+
   it('falls forward to what the chapter can actually be asked', () => {
-    expect(chapterRungFor(1, 's', { ...full, finishCandidates: 0 }).key).toBe('chapter.verse');
+    expect(chapterRungFor(1, 's', { ...full, finishCandidates: 0 }).key).toBe('chapter.order');
     expect(chapterRungFor(2, 's', { ...full, verseCount: 2 }).key).toBe('chapter.person');
-    expect(chapterRungFor(2, 's', { ...full, verseCount: 2, personCount: 0 }).key).toBe('chapter.verse');
-    // With no material at all only the member that always builds is offered.
-    expect(chapterRungFor(2, 's').key).toBe('chapter.verse');
+    // Nothing at all: order, which the sitting then fails to build and rests.
+    expect(chapterRungFor(2, 's', { ...full, verseCount: 2, personCount: 0 }).key).toBe('chapter.order');
+    // With no material the family's first member, nominally.
+    expect(chapterRungFor(2, 's').key).toBe('chapter.order');
+    expect(chapterRungFor(0, 's').key).toBe('chapter.verse');
+  });
+
+  it('walks the whole-chapter floor past a reader\'s Less', () => {
+    const skip = new Set(['chapter.order', 'chapter.person', 'chapter.place'] as const);
+    const readOnly = { verseCount: 36, finishCandidates: 0, personCount: 3, engagedCount: 0, skip };
+    // Less is a reason to walk past a member, never a reason to have no question.
+    expect(chapterRungFor(2, 's', readOnly).key).toBe('chapter.order');
+    expect(CHAPTER_WHOLE_FLOOR).toEqual(['chapter.order', 'chapter.person', 'chapter.place']);
   });
 
   it('wraps into maintenance over the two families with work in them', () => {
@@ -523,7 +560,7 @@ describe('the chapter ladder', () => {
   it('is graded on every rung, and never read as a note', () => {
     // The quiet else-branches: a third kind read as a note gets a note question and a
     // question about a note it does not have.
-    expect(pickPromptKey('chapter', 0, 0, 'review_1', undefined, full)).toBe('chapter.verse');
+    expect(['chapter.verse', 'chapter.person']).toContain(pickPromptKey('chapter', 0, 0, 'review_1', undefined, full));
     expect(pickPromptKey('chapter', 0, 1, 'review_1', undefined, full)).toBe('chapter.finish');
     for (const step of [0, 1, 2, 5]) {
       expect(reviewRungIsGraded({ kind: 'chapter', ladderStep: step })).toBe(true);
@@ -626,10 +663,12 @@ describe('reviewSeed', () => {
 });
 
 describe('openingLadderStep', () => {
-  it('staggers new verses across recognize, rebuild, next, context and locate', () => {
-    expect(VERSE_OPENING_STEPS).toEqual([0, 1, 3, 4, 6]);
-    expect([0, 1, 2, 3, 4].map((n) => openingLadderStep('verse', n))).toEqual([0, 1, 3, 4, 6]);
-    expect(openingLadderStep('verse', 5)).toBe(0);
+  it('staggers new verses across recognize, rebuild, context and locate', () => {
+    expect(VERSE_OPENING_STEPS).toEqual([0, 1, 4, 6]);
+    expect([0, 1, 2, 3].map((n) => openingLadderStep('verse', n))).toEqual([0, 1, 4, 6]);
+    expect(openingLadderStep('verse', 4)).toBe(0);
+    // Never on step 3: its neighbour rungs ask about a verse beside the one the reader engaged with.
+    expect(VERSE_OPENING_STEPS).not.toContain(3);
     // Still never recall (2) or altered (7) on a first asking: both ask the reader to produce
     // what they have not been given a reason to hold. Step 6 is in because `verse.marked` asks
     // them to find their own highlight, which is not a demand on memory.
@@ -659,10 +698,8 @@ describe('the place rungs', () => {
     // A step is live data on every reader's rows; a new one in the middle moves all of them.
     expect(VERSE_FAMILIES[4]).toContain('verse.place');
     expect(CHAPTER_FAMILIES[2]).toContain('chapter.place');
-    // The always-builds fallback stays last in every chapter family.
-    for (const family of CHAPTER_FAMILIES) {
-      expect(family[family.length - 1]).toBe('chapter.verse');
-    }
+    // `chapter.verse` is a peer on the first step only: it needs a verse the reader engaged with.
+    expect(CHAPTER_FAMILIES.filter((family) => family.includes('chapter.verse'))).toHaveLength(1);
   });
 
   it('is never asked of a verse the index names no place at', () => {

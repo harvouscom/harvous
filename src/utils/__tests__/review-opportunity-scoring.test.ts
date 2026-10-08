@@ -250,6 +250,33 @@ describe('selectReviewBatch', () => {
     expect(picked.some((p) => p.nodeKey === nodeKey.verse({ book: 'Romans', chapter: 8, verse: 28 }))).toBe(true);
   });
 
+  it('takes the verse the reader engaged with over the chapter it sits in', () => {
+    /*
+     * A chapter that was read usually outscores a verse marked in it, and the per-chapter cap lets
+     * only one of the two through. The verse is what the reader stopped on, so the chapter waits.
+     */
+    const john15 = nodeKey.chapter({ book: 'John', chapter: 15 });
+    const marked = nodeKey.verse({ book: 'John', chapter: 15, verse: 5 });
+    const candidates = [
+      node({ nodeKind: 'chapter', nodeKey: john15, revisitCount: 6, exposureCount: 4, lastSeenAt: daysAgo(30) }),
+      verse(marked, { lastSeenAt: daysAgo(2), lastSourceAt: daysAgo(2) }),
+      verse(nodeKey.verse({ book: 'Romans', chapter: 8, verse: 28 })),
+    ];
+    const picked = selectReviewBatch(candidates, { now: NOW, existingSourceKeys: emptyKeys });
+    expect(picked.map((p) => p.nodeKey)).toContain(marked);
+    expect(picked.map((p) => p.nodeKey)).not.toContain(john15);
+  });
+
+  it('still takes a held chapter when there is room and nothing of its own beside it', () => {
+    // The verse is already in Review, so it is not a candidate: the chapter is not held.
+    const john15 = nodeKey.chapter({ book: 'John', chapter: 15 });
+    const picked = selectReviewBatch(
+      [node({ nodeKind: 'chapter', nodeKey: john15, revisitCount: 6 })],
+      { now: NOW, existingSourceKeys: emptyKeys },
+    );
+    expect(picked.map((p) => p.nodeKey)).toEqual([john15]);
+  });
+
   it('caps a book at two passages', () => {
     const candidates = [
       verse(nodeKey.verse({ book: 'John', chapter: 1, verse: 1 })),

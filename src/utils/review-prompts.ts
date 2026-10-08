@@ -350,7 +350,8 @@ export const VERSE_LADDER: readonly ReviewPromptKey[] = [
   'verse.recognize',
   'verse.rebuild',
   'verse.recall',
-  'verse.next',
+  // Family 3's default is the verse's own order now; next/before ask about a verse beside it.
+  'verse.sequence',
   'verse.connect',
   'verse.sequence',
   'verse.locate',
@@ -363,9 +364,13 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
  * First-sitting rungs the engine may open on, so a handful of new verses is not five
  * "pick how it begins".
  *
- * Recognize, rebuild (blanks), next/before, the context step — what the verse is connected to,
- * by the reader or by the index — and the locate step, where the reader's own mark can be the
- * answer.
+ * Recognize, rebuild (blanks), the context step — what the verse is connected to, by the reader
+ * or by the index — and the locate step, where the reader's own mark can be the answer.
+ *
+ * **Never step 3.** Its family asks about a verse *beside* this one ("pick what follows", "which
+ * comes first"), and a first meeting with a verse should be about the verse the reader engaged
+ * with, not its neighbour. Step 3 is reached by climbing, and even then its neighbour rungs only
+ * draw partners the reader engaged with too — see `verseFamilyMemberAvailable`.
  *
  * **Step 6 is here on purpose, and it argues with the rest of the list.** The rule used to read
  * "never recall or locate on a first asking: those are how a verse is kept, not how it is met",
@@ -385,7 +390,7 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
  *
  * Notes walk their three rungs so a handful of new notes is not five "pick a passage you cited".
  */
-export const VERSE_OPENING_STEPS = [0, 1, 3, 4, 6] as const;
+export const VERSE_OPENING_STEPS = [0, 1, 4, 6] as const;
 export const CHAPTER_OPENING_STEPS = [0, 1] as const;
 export const NOTE_OPENING_STEPS = [0, 1, 2] as const;
 
@@ -465,6 +470,17 @@ export interface VerseMaterial {
   /** Words in the span the reader marked on this verse, 0 when they marked none. */
   readerSpanWords?: number;
   /**
+   * The following verse is one the reader engaged with too (highlighted or cited) — inside the
+   * same range they marked, say. Only then is "pick the verse that follows" about their study
+   * rather than about a neighbour they never touched. Absent means no.
+   */
+  nextEngaged?: boolean;
+  /**
+   * Verses in this chapter the reader engaged with, at least two away from this one: the only
+   * partners "which comes first" may draw. Absent means none.
+   */
+  beforePartners?: number;
+  /**
    * Rungs the reader has asked not to be given, from Settings.
    *
    * Read here rather than in the engine because this is the one place a step becomes a rung, and
@@ -499,7 +515,12 @@ export const VERSE_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
   ['verse.recognize'],
   ['verse.rebuild', 'verse.initials'],
   ['verse.recall', 'verse.keywords'],
-  ['verse.next', 'verse.before'],
+  /*
+   * The verse in its own order first. Next and before ask about a verse *beside* this one, so
+   * they are members only where that verse is the reader's own too — `nextEngaged`,
+   * `beforePartners` — and the default never needs a neighbour at all.
+   */
+  ['verse.sequence', 'verse.next', 'verse.before'],
   // The context step: what this verse is connected to, by the reader or by the index.
   ['verse.connect', 'verse.theme', 'verse.person', 'verse.place', 'verse.crossref'],
   ['verse.sequence'],
@@ -569,6 +590,10 @@ export function verseFamilyMemberAvailable(
       return (material.contentWordCount ?? 4) >= 4;
     case 'verse.marked':
       return (material.readerSpanWords ?? 0) >= 3;
+    case 'verse.next':
+      return material.nextEngaged === true;
+    case 'verse.before':
+      return (material.beforePartners ?? 0) >= 1;
     default:
       return true;
   }
@@ -675,7 +700,7 @@ export function verseRungFor(step: number, seed?: string, material?: VerseMateri
 export interface ChapterMaterial {
   /** Verses the text actually has — Psalm 117 has two, whatever the canon table says. */
   verseCount: number;
-  /** Verses fit to be finished: the reader's own highlights in the chapter, else long enough. */
+  /** Engaged verses (highlighted or cited) long enough to be finished. Never "any verse". */
   finishCandidates: number;
   /** People the index places in the chapter, after the trivial names are barred. */
   personCount: number;
@@ -689,6 +714,12 @@ export interface ChapterMaterial {
    * builder could not write.
    */
   markedAnswerable?: number;
+  /**
+   * Verses of this chapter the reader engaged with — highlighted or cited in a note — whose
+   * opening can stand as a cue: exactly the set `buildChapterVerse` draws from. Zero for a chapter
+   * that was only read, which then gets whole-chapter questions alone.
+   */
+  engagedCount?: number;
   /** Rungs the reader has asked not to be given. See `VerseMaterial.skip`. */
   skip?: ReadonlySet<ReviewPromptKey>;
   /** Rungs the reader asked for more of. See `VerseMaterial.prefer`. */
@@ -698,24 +729,35 @@ export interface ChapterMaterial {
 /**
  * The chapter ladder, as families like the verse ladder's.
  *
- * Three steps: pick the verse that is in it, finish a verse from it, then put verses in order
- * or say who appears. `chapter.verse` closes every family because it is the one member that
- * always builds — its distractors fall back to well-known chapters — so a step can never resolve
- * to nothing.
+ * **Verse-level questions only about verses the reader engaged with.** A chapter that was only
+ * read used to be asked "pick the verse that is in it" about a verse drawn at random, which is a
+ * quiz on the chapter rather than a review of the reader's study. Now `chapter.verse`,
+ * `chapter.finish` and `chapter.marked` build only from verses the reader highlighted or cited;
+ * a chapter with none is asked the whole-chapter questions — who appears, where, the order of
+ * its movement — which are about having read it.
  *
- * The closing member is a fallback, not a peer, and that is the one way this differs from
- * `verseRungFor`. A verse family draws by seed across all its members; here the draw runs over
- * the members *before* `chapter.verse` and reaches it only when none of them can be built —
- * otherwise a seeded draw would show "pick the verse" on step 1 to half of all readers while
- * the cloze was there to be asked. Among the real members the draw is seeded as usual: on step 2
- * a chapter is asked to order its verses or to say who appears, and which one varies by item and
- * by pass, so the maintenance cycle does not ask the same one forever.
+ * Every member is a peer in the seeded draw (there is no closing fallback member any more). When
+ * nothing in the step's family can be built, `chapterRungFor` walks `CHAPTER_WHOLE_FLOOR`, and
+ * past that asks `chapter.order`; if even that cannot be built (a chapter under three verses),
+ * the sitting rests the item — see `server/utils/review-sitting.ts`.
  */
 export const CHAPTER_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
-  ['chapter.verse'],
-  ['chapter.finish', 'chapter.marked', 'chapter.verse'],
-  // `chapter.verse` stays last: it is the fallback the draw reaches only when nothing else builds.
-  ['chapter.order', 'chapter.person', 'chapter.place', 'chapter.verse'],
+  // `chapter.verse`: engaged verses only.
+  ['chapter.verse', 'chapter.person', 'chapter.place'],
+  // Both engaged verses only: a verse to finish, the verse they marked.
+  ['chapter.finish', 'chapter.marked'],
+  ['chapter.order', 'chapter.person', 'chapter.place'],
+];
+
+/**
+ * The questions any read chapter can be asked: about the chapter as a whole, never one verse.
+ * Walked in this order when a step's own family has nothing to build. Ignores the reader's Less —
+ * a preference is a reason to walk past a member, never to return no question.
+ */
+export const CHAPTER_WHOLE_FLOOR: readonly ReviewPromptKey[] = [
+  'chapter.order',
+  'chapter.person',
+  'chapter.place',
 ];
 
 export const CHAPTER_LADDER_MAX_STEP = CHAPTER_FAMILIES.length - 1;
@@ -727,9 +769,11 @@ export function chapterFamilyMemberAvailable(
   key: ReviewPromptKey,
   material: ChapterMaterial | undefined,
 ): boolean {
-  if (!material) return key === 'chapter.verse';
+  if (!material) return false;
   if (material.skip?.has(key)) return false;
   switch (key) {
+    case 'chapter.verse':
+      return (material.engagedCount ?? 0) >= 1;
     case 'chapter.finish':
       return material.finishCandidates >= 1;
     case 'chapter.order':
@@ -743,31 +787,57 @@ export function chapterFamilyMemberAvailable(
       if (material.markedAnswerable !== undefined) return material.markedAnswerable >= 1;
       return (material.highlightCount ?? 0) >= 1 && material.verseCount >= 4;
     default:
-      return true;
+      return false;
   }
 }
 
-export function chapterRungFor(step: number, seed?: string, material?: ChapterMaterial): VerseRung {
+/** Which chapter family a step names, and how many times the maintenance cycle has come round. */
+function chapterFamilyAt(step: number): { family: number; pass: number } {
   const clamped = Number.isFinite(step) ? Math.max(0, Math.trunc(step)) : 0;
-  let family: number;
-  let pass: number;
-  if (clamped < CHAPTER_FAMILIES.length) {
-    family = clamped;
-    pass = 0;
-  } else {
-    const offset = clamped - CHAPTER_FAMILIES.length;
-    family = CHAPTER_MAINTENANCE_FAMILIES[offset % CHAPTER_MAINTENANCE_FAMILIES.length];
-    pass = 1 + Math.floor(offset / CHAPTER_MAINTENANCE_FAMILIES.length);
-  }
+  if (clamped < CHAPTER_FAMILIES.length) return { family: clamped, pass: 0 };
+  const offset = clamped - CHAPTER_FAMILIES.length;
+  return {
+    family: CHAPTER_MAINTENANCE_FAMILIES[offset % CHAPTER_MAINTENANCE_FAMILIES.length],
+    pass: 1 + Math.floor(offset / CHAPTER_MAINTENANCE_FAMILIES.length),
+  };
+}
+
+/**
+ * Which rung a chapter step resolves to.
+ *
+ * A seeded draw over the family (weighted by the reader's More), then the whole-chapter floor,
+ * then `chapter.order`. Without material — a caller that knows nothing about the chapter — the
+ * family's first member, nominally, as `verseRungFor` does.
+ */
+export function chapterRungFor(step: number, seed?: string, material?: ChapterMaterial): VerseRung {
+  const { family, pass } = chapterFamilyAt(step);
   const members = CHAPTER_FAMILIES[family];
-  // Weighted over the peers only: the closing fallback is never something a reader can ask for.
-  const real = emphasisDraw(members.slice(0, -1), material?.prefer);
-  const start = real.length && seed ? seededIndex(seed, real.length) : 0;
-  for (let i = 0; i < real.length; i++) {
-    const key = real[(start + i) % real.length];
+  if (!material) return { key: members[0], pass, family };
+  const draw = emphasisDraw(members, material.prefer);
+  const start = seed ? seededIndex(seed, draw.length) : 0;
+  for (let i = 0; i < draw.length; i++) {
+    const key = draw[(start + i) % draw.length];
     if (chapterFamilyMemberAvailable(key, material)) return { key, pass, family };
   }
-  return { key: members[members.length - 1], pass, family };
+  const unskipped = { ...material, skip: undefined };
+  for (const key of CHAPTER_WHOLE_FLOOR) {
+    if (chapterFamilyMemberAvailable(key, unskipped)) return { key, pass, family };
+  }
+  return { key: 'chapter.order', pass, family };
+}
+
+/**
+ * Every rung a step can resolve to: its family's members, plus the floor it falls to when none of
+ * them builds. For the kinds that climb in families — so "the same family twice" can be judged
+ * from the step the item stands on rather than from a key, now that one key (`chapter.person`,
+ * `verse.sequence`) can sit in more than one family. Null for a note or a church question.
+ */
+export function ladderStepKeysAt(kind: string, step: number): readonly ReviewPromptKey[] | null {
+  if (kind === 'verse') return [...VERSE_FAMILIES[verseRungFor(step).family], VERSE_FLOOR_KEY];
+  if (kind === 'chapter') {
+    return [...new Set([...CHAPTER_FAMILIES[chapterFamilyAt(step).family], ...CHAPTER_WHOLE_FLOOR])];
+  }
+  return null;
 }
 
 export const VERSE_REBUILD_STEP = 1;

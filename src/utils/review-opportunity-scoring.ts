@@ -583,20 +583,51 @@ export function selectReviewBatch(
   const perChapter = new Map<string, number>();
   const perBook = new Map<string, number>();
 
-  for (const { node } of scored) {
-    if (picked.length >= limit) break;
+  /*
+   * A verse the reader engaged with beats the chapter it sits in.
+   *
+   * Both collapse to one group ("john 15"), and the per-chapter cap lets one through — so whichever
+   * scored higher won, and a chapter that was read usually outscores the verse marked in it. The
+   * chapter is then asked whole-chapter questions while the verse the reader actually stopped on
+   * waits. So a chapter whose group has a ready verse candidate is held, and only taken if room is
+   * left once everything else has had its turn.
+   */
+  const groupsWithVerse = new Set(
+    scored
+      .filter(({ node }) => node.nodeKind === 'verse')
+      .map(({ node }) => candidateGroupKey(node))
+      .filter((key): key is string => Boolean(key)),
+  );
+  const heldChapters: ReviewCandidateNode[] = [];
+
+  const tryPick = (node: ReviewCandidateNode): void => {
     const used = perKind.get(node.nodeKind) ?? 0;
-    if (used >= perKindCap) continue;
+    if (used >= perKindCap) return;
     const chapter = candidateGroupKey(node);
     if (chapter && node.nodeKind !== 'note' && (perChapter.get(chapter) ?? 0) >= ENGINE_PER_CHAPTER_CAP) {
-      continue;
+      return;
     }
     const book = candidateBook(node);
-    if (book && (perBook.get(book) ?? 0) >= ENGINE_PER_BOOK_CAP) continue;
+    if (book && (perBook.get(book) ?? 0) >= ENGINE_PER_BOOK_CAP) return;
     perKind.set(node.nodeKind, used + 1);
     if (chapter && node.nodeKind !== 'note') perChapter.set(chapter, (perChapter.get(chapter) ?? 0) + 1);
     if (book) perBook.set(book, (perBook.get(book) ?? 0) + 1);
     picked.push(node);
+  };
+
+  for (const { node } of scored) {
+    if (picked.length >= limit) break;
+    const group = node.nodeKind === 'chapter' ? candidateGroupKey(node) : null;
+    if (group && groupsWithVerse.has(group)) {
+      heldChapters.push(node);
+      continue;
+    }
+    tryPick(node);
+  }
+  // Still in score order. The per-chapter cap stops one landing beside a verse already taken.
+  for (const node of heldChapters) {
+    if (picked.length >= limit) break;
+    tryPick(node);
   }
 
   return picked;

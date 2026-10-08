@@ -34,7 +34,7 @@ describe('revealCarriesExercise', () => {
 
 describe('alternativeSteps', () => {
   it('tries the opening steps nearest where the item stands, never its own', () => {
-    expect(alternativeSteps('verse', 4)).toEqual([3, 6, 1, 0]);
+    expect(alternativeSteps('verse', 4)).toEqual([6, 1, 0]);
     expect(alternativeSteps('note', 0)).toEqual([1, 2]);
     expect(alternativeSteps('chapter', 1)).toEqual([0]);
   });

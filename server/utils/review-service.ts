@@ -105,6 +105,7 @@ import {
   chapterCueCandidates,
   chapterCueFor,
   chapterFinishCandidates,
+  chapterEngagedCueCount,
   gradeChapterMarked,
   gradeChapterVerse,
   type ChapterFinishExercise,
@@ -198,7 +199,7 @@ import {
   type ChurchExerciseDefinition,
 } from './church-review-definitions';
 import { rungIdentityIsTheAnswer } from '@/utils/review-row-subtitle';
-import { nodeKey as studyNodeKey, referenceCoversVerse } from '@/utils/study-bible-nodes';
+import { VERSE_NODE_CAP, nodeKey as studyNodeKey, referenceCoversVerse } from '@/utils/study-bible-nodes';
 import { fetchVerseText } from './fetch-verse-text';
 import { getUserDefaultTranslation } from './votd-user-translation';
 import { recordNoteRecallEngaged } from './note-recall-state';
@@ -2115,6 +2116,7 @@ export async function applyReviewOutcome(
    * from their answers — see `shouldEaseRung`.
    */
   const ease = shouldEaseRung({
+    kind: item.kind,
     ladderStep: item.ladderStep,
     previousOutcome: (item.lastOutcome as ReviewOutcome | null) ?? null,
     previousRungKey: item.lastRungKey ?? null,
@@ -2475,6 +2477,8 @@ interface VerseKnowledgeMaterial extends VerseMaterial {
   text: string;
   /** The span the reader marked on this verse, floored and verified against the text. */
   markedSpan: string | null;
+  /** Verse numbers of this verse's chapter the reader highlighted or cited. */
+  engagedNumbers: number[];
 }
 
 const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
@@ -2494,6 +2498,9 @@ const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
   text: '',
   markedSpan: null,
   readerSpanWords: 0,
+  engagedNumbers: [],
+  nextEngaged: false,
+  beforePartners: 0,
 };
 
 /**
@@ -2577,7 +2584,7 @@ async function loadVerseMaterialUncached(
   const at = lastVerseOf(ref);
   if (!at) return { ...EMPTY_VERSE_MATERIAL, reference: ref };
 
-  const [knowledge, citing, ownHtml, rivals, readerSpan, rungPrefs] = await Promise.all([
+  const [knowledge, citing, ownHtml, rivals, readerSpan, rungPrefs, engagedNumbers] = await Promise.all([
     getKnowledgeForReference(at.book, at.chapter, at.verse, {
       minRelevance: 0,
       minVotes: CROSSREF_MIN_VOTES,
@@ -2591,9 +2598,12 @@ async function loadVerseMaterialUncached(
     // What the reader marked on this verse, for the rung that asks them to find it again.
     loadReaderSpan(userId, ref).catch(() => null),
     loadRungPreferences(userId),
+    // Which verses beside this one are the reader's own, for the next/before rungs.
+    loadEngagedVerseNumbersInChapter(userId, at).catch(() => [] as number[]),
   ]);
   const text = ownHtml ? stripHtml(ownHtml) : '';
   const markedSpan = readerSpanFragment(readerSpan, text);
+  const next = nextVerseAddress(ref);
 
   const themesAbove = (knowledge?.themes ?? []).filter(
     (t) => t.relevance >= VERSE_THEME_MIN_RELEVANCE,
@@ -2636,6 +2646,12 @@ async function loadVerseMaterialUncached(
     contentWordCount: contentWords(text).length,
     readerSpanWords: markedSpan ? markedSpan.split(' ').filter(Boolean).length : 0,
     markedSpan,
+    engagedNumbers,
+    // "What follows" only when what follows is theirs too — inside the range they marked, say.
+    nextEngaged: Boolean(
+      next && next.book === at.book && next.chapter === at.chapter && engagedNumbers.includes(next.verse),
+    ),
+    beforePartners: verseBeforePartners(at.verse, engagedNumbers).length,
     skip: rungPrefs.skip,
     prefer: rungPrefs.prefer,
   };
@@ -3003,32 +3019,39 @@ async function buildVerseRecognizeFor(
 }
 
 /**
- * "Which comes first": this verse against another from the same chapter, never adjacent.
- *
- * Adjacent would make it a question about a digit. The partner is seeded from the non-adjacent
- * neighbours so the reveal and the grader pick the same one.
+ * "Which comes first": this verse against another the reader engaged with in the same chapter,
+ * never adjacent. Seeded so the reveal and the grader pick the same partner.
  */
 async function buildVerseBeforeFor(
   item: ReviewItemRow,
   text: string,
   seed: string,
   translation: string,
+  engagedNumbers: readonly number[],
 ) {
   if (!item.scriptureReference) return null;
   const at = lastVerseOf(item.scriptureReference);
   if (!at) return null;
-  const partners = neighbourVerseAddresses(item.scriptureReference, 8).filter(
-    (n) => Math.abs(n.verse - at.verse) >= 2,
-  );
+  // The same list the probe counted, so a rung the list promised is one this can build.
+  const partners = verseBeforePartners(at.verse, engagedNumbers);
   if (!partners.length) return null;
   const partner = partners[seededIndex(seed, partners.length)];
-  const html = await fetchVerseText(formatVerseAddress(partner), translation);
+  const html = await fetchVerseText(formatVerseAddress({ ...at, verse: partner }), translation);
   if (!html) return null;
   return buildVerseBefore({
     verse: { number: at.verse, text },
-    other: { number: partner.verse, text: stripHtml(html) },
+    other: { number: partner, text: stripHtml(html) },
     seed,
   });
+}
+
+/**
+ * The verses "which comes first" may set beside this one: verses of the same chapter the reader
+ * engaged with (highlighted or cited), at least two away. Adjacent would make it a question about
+ * a digit; a verse they never touched would make it a question about a neighbour, not their study.
+ */
+function verseBeforePartners(verse: number, engagedNumbers: readonly number[]): number[] {
+  return [...new Set(engagedNumbers)].filter((n) => Math.abs(n - verse) >= 2).sort((a, b) => a - b);
 }
 
 /**
@@ -3123,6 +3146,11 @@ interface ChapterKnowledgeMaterial extends ChapterMaterial {
   verses: ChapterVerse[];
   /** Verse numbers the reader highlighted in this chapter, in the Bible reader. */
   highlightedNumbers: number[];
+  /**
+   * Verse numbers the reader engaged with here: highlighted, or cited in a note. The only verses
+   * a verse-level chapter rung may ask about.
+   */
+  engagedNumbers: number[];
   /** Everyone the index places in the chapter, barred names included (they bar distractors). */
   people: string[];
   /** Everywhere it names in the chapter, barred labels included (they bar distractors). */
@@ -3147,12 +3175,14 @@ const EMPTY_CHAPTER_MATERIAL: ChapterKnowledgeMaterial = {
   translation: '',
   verses: [],
   highlightedNumbers: [],
+  engagedNumbers: [],
   people: [],
   places: [],
   citedInNotes: 0,
   lastReadAt: null,
   verseCount: 0,
   finishCandidates: 0,
+  engagedCount: 0,
   personCount: 0,
   placeCount: 0,
   highlightCount: 0,
@@ -3235,6 +3265,87 @@ async function loadReaderHighlightsInChapter(
   return [...numbers].sort((a, b) => a - b);
 }
 
+/**
+ * The verse numbers of one chapter the reader cited in a note, by either join — a metadata row on
+ * the note itself, or a pill pointing at a scripture child note. The citation twin of
+ * `loadReaderHighlightsInChapter`.
+ *
+ * A citation spanning more than `VERSE_NODE_CAP` verses — "John 3" written as a whole chapter —
+ * singles out nothing, so it engages no verse; the chapter node carries that signal, as it does
+ * for highlights.
+ */
+async function loadCitedVerseNumbersInChapter(
+  userId: string,
+  parts: { book: string; chapter: number },
+): Promise<number[]> {
+  try {
+    const meta = await db
+      .select({
+        noteId: ScriptureMetadata.noteId,
+        verse: ScriptureMetadata.verse,
+        verseEnd: ScriptureMetadata.verseEnd,
+        chapterEnd: ScriptureMetadata.chapterEnd,
+      })
+      .from(ScriptureMetadata)
+      .where(and(eq(ScriptureMetadata.book, parts.book), eq(ScriptureMetadata.chapter, parts.chapter)));
+    if (!meta.length) return [];
+    const ids = [...new Set(meta.map((m) => m.noteId))];
+    const [direct, viaPill] = await Promise.all([
+      db
+        .select({ id: Notes.id })
+        .from(Notes)
+        .where(
+          and(
+            eq(Notes.userId, userId),
+            inArray(Notes.id, ids),
+            ne(Notes.noteType, 'scripture'),
+            countableUserNotesWhere(),
+          ),
+        ),
+      db
+        .select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+        .from(NoteScriptureReferences)
+        .innerJoin(Notes, eq(Notes.id, NoteScriptureReferences.noteId))
+        .where(
+          and(
+            inArray(NoteScriptureReferences.scriptureNoteId, ids),
+            eq(Notes.userId, userId),
+            ne(Notes.noteType, 'scripture'),
+            countableUserNotesWhere(),
+          ),
+        ),
+    ]);
+    const cited = new Set([...direct.map((row) => row.id), ...viaPill.map((row) => row.scriptureNoteId)]);
+    const numbers = new Set<number>();
+    for (const row of meta) {
+      if (!cited.has(row.noteId)) continue;
+      if (row.chapterEnd != null && row.chapterEnd > parts.chapter) continue;
+      const end = row.verseEnd ?? row.verse;
+      if (end < row.verse || end - row.verse + 1 > VERSE_NODE_CAP) continue;
+      for (let verse = row.verse; verse <= end; verse++) numbers.add(verse);
+    }
+    return [...numbers].sort((a, b) => a - b);
+  } catch {
+    // A missing table costs the chapter its citations, never its question.
+    return [];
+  }
+}
+
+/**
+ * The verses of one chapter the reader engaged with: highlighted in the reader, or cited in a
+ * note. The only verses a verse-level question may be about.
+ */
+export async function loadEngagedVerseNumbersInChapter(
+  userId: string,
+  parts: { book: string; chapter: number },
+): Promise<number[]> {
+  const [highlighted, cited] = await Promise.all([
+    loadReaderHighlightsInChapter(userId, parts),
+    loadCitedVerseNumbersInChapter(userId, parts),
+  ]);
+  return [...new Set([...highlighted, ...cited])].sort((a, b) => a - b);
+}
+
 async function loadChapterMaterialUncached(
   userId: string,
   reference: string | null,
@@ -3243,15 +3354,17 @@ async function loadChapterMaterialUncached(
   const parts = reference ? chapterKeyPartsFromReference(reference) : null;
   if (!parts) return EMPTY_CHAPTER_MATERIAL;
   const label = chapterReferenceLabel(parts);
-  const [html, highlightedNumbers, knowledge, citedInNotes, lastReadAt, rungPrefs] = await Promise.all([
+  const [html, highlightedNumbers, citedNumbers, knowledge, citedInNotes, lastReadAt, rungPrefs] = await Promise.all([
     fetchVerseText(label, translation).catch(() => ''),
     loadReaderHighlightsInChapter(userId, parts),
+    loadCitedVerseNumbersInChapter(userId, parts),
     getKnowledgeForChapter(parts.book, parts.chapter).catch(() => null),
     countNotesCitingChapter(userId, parts),
     loadLastReadAt(userId, parts),
     loadRungPreferences(userId),
   ]);
   const verses = html ? splitChapterHtmlIntoVerses(html) : [];
+  const engagedNumbers = [...new Set([...highlightedNumbers, ...citedNumbers])].sort((a, b) => a - b);
   const people = (knowledge?.people ?? []).map((p) => p.name);
   const places = (knowledge?.places ?? []).map((place) => place.name);
   return {
@@ -3261,12 +3374,14 @@ async function loadChapterMaterialUncached(
     translation,
     verses,
     highlightedNumbers,
+    engagedNumbers,
     people,
     places,
     citedInNotes,
     lastReadAt,
     verseCount: verses.length,
-    finishCandidates: chapterFinishCandidates(verses, highlightedNumbers).length,
+    finishCandidates: chapterFinishCandidates(verses, engagedNumbers).length,
+    engagedCount: chapterEngagedCueCount(verses, engagedNumbers),
     personCount: askablePeople(people).length,
     placeCount: askablePlaces(places).length,
     highlightCount: highlightedNumbers.length,
@@ -3334,7 +3449,13 @@ async function buildChapterVerseFor(
     const cue = await cueOf(label);
     if (cue) fallback.push(cue);
   }
-  return buildChapterVerse({ verses: material.verses, distractorTexts: own, fallbackTexts: fallback, seed });
+  return buildChapterVerse({
+    verses: material.verses,
+    engagedNumbers: material.engagedNumbers,
+    distractorTexts: own,
+    fallbackTexts: fallback,
+    seed,
+  });
 }
 
 function buildChapterFinishFor(
@@ -3346,7 +3467,7 @@ function buildChapterFinishFor(
   const spec = verseClozeSpec(pass, recallState);
   return buildChapterFinish({
     verses: material.verses,
-    highlightedNumbers: material.highlightedNumbers,
+    engagedNumbers: material.engagedNumbers,
     seed,
     ratio: spec.ratio,
     maxBlanks: spec.maxBlanks,
@@ -3622,7 +3743,7 @@ export async function gradeVerseAnswer(
     };
   }
   if (rung.key === 'verse.before' && typeof answer.option === 'string') {
-    const exercise = await buildVerseBeforeFor(item, material.text, seedForRung, translation);
+    const exercise = await buildVerseBeforeFor(item, material.text, seedForRung, translation, material.engagedNumbers);
     if (!exercise) return null;
     return {
       correct: gradeVerseBefore(exercise, answer.option),
@@ -4169,7 +4290,7 @@ export async function buildReviewReveal(
           if (payload.keywords) payload.verseText = null;
         }
         if (rung.key === 'verse.before') {
-          const exercise = await buildVerseBeforeFor(item, text, seed, translation);
+          const exercise = await buildVerseBeforeFor(item, text, seed, translation, material.engagedNumbers);
           payload.before = exercise ? { options: exercise.options } : null;
           // One of the two openings is this verse; showing it would mark the pair.
           if (exercise) payload.verseText = null;
