@@ -2,7 +2,7 @@
  * The card's two answers both put it away for good, on the account — and the button also does
  * what it says.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { emptyOnboardingState, type OnboardingState } from '@/utils/onboarding-state';
 
@@ -41,6 +41,14 @@ vi.mock('../use-notice-items', () => ({
   useNoticeItems: () => ({ items: notices, founderLetterOpen: false, closeFounderLetter: () => {} }),
 }));
 vi.mock('../../PrototypeFounderLetterSheet', () => ({ default: () => null }));
+let accountCreatedAt: number | undefined = Date.parse('2026-01-01T00:00:00Z');
+vi.mock('../use-account-created-at', () => ({
+  NEW_ACCOUNT_MS: 14 * 24 * 60 * 60 * 1000,
+  useAccountCreatedAt: () => ({ ready: true, createdAt: accountCreatedAt }),
+}));
+
+/* A fixed "now", inside the Today callout's shelf life, so the suite does not rot with the calendar. */
+const NOW = Date.parse('2026-10-10T12:00:00Z');
 
 function notice(id: string): Notice {
   return { id, title: `Notice ${id}`, body: 'body', actionLabel: `Open ${id}`, act: vi.fn(), dismiss: vi.fn() };
@@ -49,6 +57,10 @@ function notice(id: string): Notice {
 const { PrototypeFeatureCalloutInline } = await import('../PrototypeFeatureCallout');
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+  localStorage.clear();
+  accountCreatedAt = Date.parse('2026-01-01T00:00:00Z');
   state = emptyOnboardingState();
   updates.length = 0;
   navigate.mockClear();
@@ -56,6 +68,10 @@ beforeEach(() => {
   notices = [];
   acknowledge.mockClear();
   openWindow.mockClear();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('feature callout', () => {
@@ -106,27 +122,55 @@ describe('feature callout', () => {
     expect(openWindow).toHaveBeenCalledWith('https://harvous.com/legal/changes/', '_blank', 'noopener,noreferrer');
   });
 
-  it('stacks Harvous notices behind the callout, and opens to show them all', () => {
-    notices = [notice('whats-new'), notice('import')];
+  it('stacks a notice behind the callout, and opens to show both', () => {
+    notices = [notice('whats-new')];
     render(<PrototypeFeatureCalloutInline />);
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Show all 3' }));
-    expect(screen.getAllByRole('dialog')).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 2' }));
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
   });
 
-  it('puts one away from its own ×, or all of them at once', () => {
+  it('holds two cards at most; the rest wait behind them', () => {
+    notices = [notice('whats-new'), notice('import'), notice('founder-letter')];
+    render(<PrototypeFeatureCalloutInline />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 2' }));
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    expect(screen.queryByText('Notice import')).toBeNull();
+  });
+
+  it('puts one away from its own ×, or every card showing at once — not the ones waiting', () => {
     const a = notice('whats-new');
     const b = notice('import');
-    notices = [a, b];
+    const waiting = notice('founder-letter');
+    notices = [a, b, waiting];
+    state = { ...emptyOnboardingState(), calloutsSeen: { 'today-tabs-2026-10': '2026-10-01T00:00:00Z' } };
     render(<PrototypeFeatureCalloutInline />);
-    fireEvent.click(screen.getByRole('button', { name: 'Show all 3' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 2' }));
     const dialogs = screen.getAllByRole('dialog');
-    fireEvent.click(within(dialogs[1]!).getByRole('button', { name: 'Dismiss' }));
+    fireEvent.click(within(dialogs[0]!).getByRole('button', { name: 'Dismiss' }));
     expect(a.dismiss).toHaveBeenCalledTimes(1);
     expect(b.dismiss).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss all' }));
     expect(b.dismiss).toHaveBeenCalledTimes(1);
-    expect(state.calloutsSeen?.['today-tabs-2026-10']).toBeTruthy();
+    expect(waiting.dismiss).not.toHaveBeenCalled();
+  });
+
+  it('does not slide a new card in within a day of one being put away', () => {
+    state = { ...emptyOnboardingState(), calloutsSeen: { 'notice:import': new Date(NOW - 60_000).toISOString() } };
+    notices = [notice('founder-letter')];
+    const { container, unmount } = render(<PrototypeFeatureCalloutInline />);
+    expect(container.textContent).toBe('');
+    unmount();
+    /* A card that was already on screen keeps its place through the quiet day. */
+    localStorage.setItem('harvous-callout-stack-shown', JSON.stringify(['founder-letter']));
+    render(<PrototypeFeatureCalloutInline />);
+    expect(screen.getByRole('dialog', { name: 'Notice founder-letter' })).toBeTruthy();
+  });
+
+  it('does not announce a change to an account created after it shipped', () => {
+    accountCreatedAt = Date.parse('2026-10-09T00:00:00Z');
+    const { container } = render(<PrototypeFeatureCalloutInline />);
+    expect(container.textContent).toBe('');
   });
 
   it('shows a notice on its own when there is no callout', () => {

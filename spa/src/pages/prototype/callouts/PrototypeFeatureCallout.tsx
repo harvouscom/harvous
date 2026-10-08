@@ -36,7 +36,16 @@ import { useNoticeItems } from './use-notice-items';
 import type { CalloutStackItem } from './callout-stack-item';
 import { useAcknowledgeLegal, useLegalStatus } from '../../../hooks/queries/useLegalStatus';
 import { LEGAL_CHANGES_URL, legalDocumentsPhrase, type LegalDocument } from '@/utils/legal-versions';
-import { CALLOUTS, pickCallout, type Callout, type CalloutActionContext } from './callout-registry';
+import {
+  CALLOUTS,
+  CALLOUT_RETIRED_AT,
+  lastSeenAt,
+  pickCalloutWithSuperseded,
+  type Callout,
+  type CalloutActionContext,
+} from './callout-registry';
+import { admitStackItems, readShownIds, rememberShownIds } from './callout-stack-admission';
+import { useAccountCreatedAt } from './use-account-created-at';
 
 /** The id the legal notice wears — not in the registry; it is due by the server's version check. */
 export const LEGAL_NOTICE_ID = 'legal-notice';
@@ -93,6 +102,7 @@ export function useActiveCallout(): {
   const { state, ready } = useOnboardingState();
   const { isGuest } = useHarvousIdentity();
   const plus = useHasFeature('review');
+  const account = useAccountCreatedAt();
   const navigate = useNavigate();
 
   const legal = useLegalStatus();
@@ -102,9 +112,9 @@ export function useActiveCallout(): {
 
   /* Waits for both answers — the account's seen record and its legal standing — so neither a
      put-away card nor a feature card the notice should outrank flashes up first. */
-  const callout =
-    ready && (isGuest || legal.isFetched)
-      ? pickCallout(
+  const { callout, superseded } =
+    ready && account.ready && (isGuest || legal.isFetched)
+      ? pickCalloutWithSuperseded(
           CALLOUTS,
           state.calloutsSeen,
           {
@@ -112,10 +122,21 @@ export function useActiveCallout(): {
             isPlus: plus.has,
             appVersion: appVersion(),
             now: Date.now(),
+            accountCreatedAt: account.createdAt,
           },
           legalNotice ? [legalNotice] : [],
         )
-      : null;
+      : { callout: null, superseded: [] };
+
+  /* Older callouts the shown one makes redundant are retired unseen, so they do not trickle out
+     one a day after it. Recorded at the epoch, which never starts the quiet period. */
+  const supersededIds = superseded.map((entry) => entry.id).join(',');
+  useEffect(() => {
+    if (!supersededIds) return;
+    updateOnboardingState((current) =>
+      supersededIds.split(',').reduce((next, id) => markCalloutSeen(next, id, CALLOUT_RETIRED_AT), current),
+    );
+  }, [supersededIds]);
 
   /* Answering the legal notice, either way, is acknowledging it: the reader was shown it. */
   const markSeen = useCallback(
@@ -173,7 +194,26 @@ function useCalloutStack() {
     });
   }
   items.push(...notices.items);
-  return { items, founderLetterOpen: notices.founderLetterOpen, closeFounderLetter: notices.closeFounderLetter };
+  /* Two cards at most, and no refilling within a day of putting one away. */
+  const { state } = useOnboardingState();
+  const admitted = admitStackItems(items, {
+    shownIds: readShownIds(),
+    lastDismissedAt: lastSeenAt(state.calloutsSeen),
+    now: Date.now(),
+  });
+  return {
+    items: admitted,
+    founderLetterOpen: notices.founderLetterOpen,
+    closeFounderLetter: notices.closeFounderLetter,
+  };
+}
+
+/** Once cards are actually on screen, they keep their place through the quiet period. */
+function useRememberShown(items: readonly CalloutStackItem[], showing: boolean): void {
+  const ids = items.map((item) => item.id).join(',');
+  useEffect(() => {
+    if (showing && ids) rememberShownIds(ids.split(','));
+  }, [showing, ids]);
 }
 
 type CardContent = {
@@ -264,7 +304,8 @@ function asContent(item: CalloutStackItem): CardContent {
 /**
  * The cards as a stack: the first in front, the rest as edges behind it — above it in the
  * window's corner (`up`), below it at the top of Home on a phone (`down`). Opened, every card is
- * listed, each with its own ×, and "Dismiss all" puts the lot away.
+ * listed, each with its own ×, and "Dismiss all" puts the lot away. The shell hands it at most
+ * two (`admitStackItems`); anything else due waits, unseen, behind them.
  */
 export function CalloutStack({
   items,
@@ -363,6 +404,7 @@ export function PrototypeFeatureCalloutCorner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, items.map((item) => item.id).join(',')]);
   const { mounted, exiting } = useProtoOverlayMotion(open);
+  useRememberShown(items, open);
 
   return (
     <>
@@ -385,6 +427,7 @@ export function PrototypeFeatureCalloutCorner() {
 export function PrototypeFeatureCalloutInline() {
   const { isMobileSidebar } = useProtoShell();
   const { items, founderLetterOpen, closeFounderLetter } = useCalloutStack();
+  useRememberShown(items, isMobileSidebar);
   if (!isMobileSidebar) return null;
   return (
     <>
