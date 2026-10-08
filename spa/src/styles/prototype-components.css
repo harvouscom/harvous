@@ -10718,9 +10718,7 @@ button.proto-appearance-hero__card {
  * glyph's true edge and the weight is exactly the font's.
  */
 .proto-welcome3__numeral-path {
-  /* On the element rather than the glyph in `defs`, so the gleam below can wear its own. */
-  fill: url(#proto-welcome3-grad);
-  stroke: url(#proto-welcome3-grad);
+  /* Fill and stroke are set inline by `Harvous3Numeral`: the gradient ids are per instance. */
   stroke-width: 28;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -10763,7 +10761,6 @@ button.proto-appearance-hero__card {
  * two copies gets the same result out of `fill-opacity`, which can.
  */
 .proto-welcome3__numeral-drift {
-  fill: url(#proto-welcome3-grad-drift);
   fill-opacity: 0;
   /* Begins once the opening draw and fill have finished and had a beat to settle. */
   animation: proto-welcome3-drift 14000ms ease-in-out 2400ms infinite;

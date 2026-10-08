@@ -35,6 +35,7 @@
  * nobody has on a phone.
  */
 import Icon from '@/components/react/Icon';
+import Harvous3Numeral from './Harvous3Numeral';
 import { appVersion } from '@/utils/app-version';
 import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -133,43 +134,7 @@ export default function PrototypeWelcome3Sheet({ open, onDismiss }: Props) {
 
         <div className="proto-welcome3__body">
           {/* Decorative: the heading below is the line that gets read out. */}
-          <svg
-            className="proto-welcome3__numeral"
-            viewBox="-24 -24 1054 1522"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <defs>
-              {/* The site's --accent-btn-bg, linear-gradient(171deg, #2bb5ff 7%, #006eff 93%),
-                  restated in objectBoundingBox space. Hardcoded because an SVG gradient
-                  cannot read a CSS one. */}
-              <linearGradient id="proto-welcome3-grad" x1="0" y1="0" x2="0.16" y2="1">
-                <stop offset="7%" stopColor="#2bb5ff" />
-                <stop offset="93%" stopColor="#006eff" />
-              </linearGradient>
-
-              {/* The same two blues on a different axis. Cross-fading to this and back is what
-                  makes the light look like it is moving: SVG gradient geometry is not a CSS
-                  property, so it cannot be animated directly — but the opacity of a second
-                  copy of the glyph wearing it can be, and the blend of two smooth gradients is
-                  just another smooth gradient. */}
-              <linearGradient id="proto-welcome3-grad-drift" x1="0.42" y1="0.06" x2="0" y2="1">
-                <stop offset="7%" stopColor="#2bb5ff" />
-                <stop offset="93%" stopColor="#006eff" />
-              </linearGradient>
-
-              {/* The glyph itself, defined once and worn twice — the numeral, and the copy
-                  lit from a different angle that fades over it. Carries no fill of its own so
-                  each `use` can set one in CSS; a presentation attribute here would win over
-                  anything inherited and both copies would look identical. `pathLength` has to
-                  live on the geometry, and normalises the opening draw's dash maths. */}
-              <path id="proto-welcome3-glyph" pathLength="1" d="M509 1474Q362 1474 261 1436Q161 1398 100 1337Q39 1276 14 1214Q-11 1156 9 1094Q30 1033 81 1008Q132 983 181 996Q231 1010 262 1058Q278 1092 302 1122Q327 1152 367 1170Q406 1188 471 1188Q545 1188 599 1142Q654 1096 654 1012Q654 936 598 889Q543 842 434 842H412Q361 842 327 805Q293 768 293 718Q293 668 327 631Q362 594 414 594H435Q534 594 580 552Q625 508 625 444Q625 370 582 330Q539 290 470 290Q420 290 389 302Q359 314 334 338Q310 362 291 395Q262 436 214 448Q166 462 116 439Q65 416 45 359Q25 301 55 242Q89 176 150 120Q212 64 298 32Q385 0 512 0Q703 0 825 96Q947 192 947 359Q947 468 889 552Q830 636 722 674Q849 702 927 796Q1006 889 1006 1026Q1006 1218 868 1346Q730 1474 509 1474Z" />
-            </defs>
-
-            <use className="proto-welcome3__numeral-path" href="#proto-welcome3-glyph" />
-            {/* The same glyph again, lit from elsewhere, fading in and out over the one below. */}
-            <use className="proto-welcome3__numeral-drift" href="#proto-welcome3-glyph" />
-          </svg>
+          <Harvous3Numeral />
 
           {/* Arrives once the numeral has started filling, not while it is still tracing.
               `data-proto-dialog-heading` is what `useProtoDialogFocus` looks for first: focus

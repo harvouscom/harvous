@@ -69,12 +69,9 @@
   margin: 0;
 }
 
-/* The drawing sits on a soft panel the width of the card, cropped at its foot like the example:
-   the paper runs off the bottom edge rather than floating in a box. */
+/* The picture: a slice of the app on one of its own canvas images, cropped at its foot like the
+   example — the sheet runs off the bottom edge rather than floating in a box. */
 .proto-callout__art {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
   height: 112px;
   margin-bottom: 6px;
   border-radius: var(--pds-radius-menu);
@@ -83,54 +80,289 @@
 }
 
 .proto-callout-art {
-  display: block;
-  width: 100%;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
   height: 100%;
+  background-size: cover;
+  background-position: center;
+  font-family: var(--pds-font-display);
+  color: var(--pds-text-primary);
+  /* Fixed, small type: this is a picture of the interface, not more interface to read. */
+  font-size: 9px;
+  line-height: 1.25;
+  user-select: none;
 }
 
-.proto-callout-art__paper {
-  fill: var(--pds-bg-page);
-  stroke: var(--pds-text-tertiary);
-  stroke-width: 1.2;
+.proto-callout-art--today-tabs { background-image: url("/images/callouts/today-tabs.webp"); }
+.proto-callout-art--legal { background-image: url("/images/callouts/legal.webp"); }
+.proto-callout-art--import { background-image: url("/images/callouts/import.webp"); }
+.proto-callout-art--letter { background-image: url("/images/callouts/letter.webp"); }
+
+/* The images are painted for a light canvas; dim them a little under a dark sheet. */
+:root[data-color-scheme="dark"] .proto-callout-art:not(.proto-callout-art--whats-new) {
+  filter: brightness(0.82);
 }
 
-.proto-callout-art__card {
-  fill: var(--pds-bg-page);
-  stroke: var(--pds-border-control);
-  stroke-width: 1;
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) .proto-callout-art:not(.proto-callout-art--whats-new) {
+    filter: brightness(0.82);
+  }
 }
 
-.proto-callout-art__card--behind {
-  opacity: 0.7;
+/* What's new: the Welcome 3 sheet's ground, and its numeral, on the page colour. */
+.proto-callout-art--whats-new {
+  align-items: center;
+  background: var(--pds-bg-page);
 }
 
-.proto-callout-art__trough {
-  fill: var(--pds-bg-control);
+.proto-callout-art__numeral {
+  position: relative;
+  z-index: 1;
+  width: auto;
+  height: 74px;
+  margin: 0;
 }
 
-.proto-callout-art__ink {
-  fill: var(--pds-text-tertiary);
-  opacity: 0.85;
+/* The paper sheet, as on Home: page colour, a hairline, the card's rounded top. */
+.proto-callout-art__sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: 196px;
+  height: 92px;
+  padding: 10px 12px 0;
+  border-radius: 10px 10px 0 0;
+  background: var(--pds-bg-page);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--pds-text-primary) 12%, transparent), 0 6px 20px rgb(0 0 0 / 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
 }
 
-.proto-callout-art__ink--strong {
-  fill: var(--pds-text-secondary);
+.proto-callout-art__sheet--narrow {
+  width: 160px;
 }
 
-.proto-callout-art__check {
-  stroke: var(--pds-text-primary);
-  stroke-width: 2.4;
+.proto-callout-art__sheet--right {
+  width: 150px;
+  margin-left: 64px;
+  gap: 4px;
 }
 
-/* A solid mark on a drawing — the burst on What's new. */
-.proto-callout-art__mark {
-  fill: var(--pds-text-secondary);
+.proto-callout-art__head {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.proto-callout-art__head b {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.proto-callout-art__head span,
+.proto-callout-art__meta {
+  color: var(--pds-text-secondary);
+  font-size: 8px;
+}
+
+.proto-callout-art__title {
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.proto-callout-art__meta {
+  margin-top: -4px;
+}
+
+/* The Today tab group: a trough with the chosen chip lifted onto paper. */
+.proto-callout-art__chips {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px;
+  gap: 1px;
+  border-radius: 999px;
+  background: var(--pds-bg-control);
+}
+
+.proto-callout-art__chip {
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--pds-text-secondary);
+  font-size: 8px;
+  font-weight: 500;
+}
+
+.proto-callout-art__chip--on {
+  background: var(--pds-bg-page);
+  color: var(--pds-text-primary);
+  box-shadow: 0 0.5px 1.5px rgb(0 0 0 / 0.14);
+}
+
+/* A deck: the front row, with the edge of the next card showing under it. */
+.proto-callout-art__deck {
+  position: relative;
+  padding-bottom: 4px;
+}
+
+.proto-callout-art__deck::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 0;
+  height: 8px;
+  border-radius: 0 0 7px 7px;
+  background: var(--pds-bg-page);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--pds-text-primary) 10%, transparent);
+  z-index: -1;
+}
+
+.proto-callout-art__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  background: var(--pds-bg-page);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--pds-text-primary) 12%, transparent), 0 1px 3px rgb(0 0 0 / 0.06);
+}
+
+.proto-callout-art__row--flat {
+  padding: 2px 0;
+  box-shadow: none;
+  background: none;
+}
+
+.proto-callout-art__glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+}
+
+.proto-callout-art__row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.proto-callout-art__row-text b {
+  font-size: 8.5px;
+  font-weight: 600;
+}
+
+.proto-callout-art__row-text span {
+  color: var(--pds-text-secondary);
+  font-size: 7.5px;
+}
+
+/* Body copy as soft bars. */
+.proto-callout-art__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.proto-callout-art__bar {
+  display: block;
+  height: 4px;
+  max-width: 100%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--pds-text-primary) 14%, transparent);
+}
+
+.proto-callout-art__bar--strong {
+  background: color-mix(in srgb, var(--pds-text-primary) 30%, transparent);
+}
+
+/* Legal: the acknowledgement, in the one blue. */
+.proto-callout-art__badge {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--pds-bg-accent-button);
+  color: #fff;
+}
+
+/* Import: two file tiles, tipped, sliding onto the list. */
+.proto-callout-art__files {
+  position: absolute;
+  left: calc(50% - 104px);
+  bottom: 18px;
+  width: 64px;
+  height: 64px;
+}
+
+.proto-callout-art__file {
+  position: absolute;
+  left: 14px;
+  top: 4px;
+  box-sizing: border-box;
+  width: 42px;
+  height: 52px;
+  padding: 0 0 6px 6px;
+  display: flex;
+  align-items: flex-end;
+  border-radius: 5px;
+  background: var(--pds-bg-page);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--pds-text-primary) 14%, transparent), 0 4px 12px rgb(0 0 0 / 0.14);
+  color: var(--pds-text-secondary);
+  font-size: 8px;
+  font-weight: 600;
+  transform: rotate(5deg);
+}
+
+/* Its label at the top, the one corner the front tile leaves showing. */
+.proto-callout-art__file--behind {
+  left: 0;
+  top: 8px;
+  align-items: flex-start;
+  padding: 5px 0 0 5px;
+  transform: rotate(-9deg);
+}
+
+/* The letter: the reading serif, signed with a face. */
+.proto-callout-art__sheet--letter {
+  gap: 7px;
+}
+
+.proto-callout-art__salutation {
+  font-family: var(--pds-font-choice-serif);
+  font-size: 12px;
+}
+
+.proto-callout-art__sign {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--pds-font-choice-serif);
+  font-size: 10px;
+  font-style: italic;
+}
+
+.proto-callout-art__sign img {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 /* The one moving part settles in after the card arrives. */
 .proto-callout-art__front {
-  transform-box: fill-box;
-  transform-origin: center bottom;
   animation: proto-callout-art-settle 520ms var(--pds-ease-standard) 180ms both;
 }
 
@@ -138,10 +370,6 @@
   from {
     opacity: 0;
     transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
   }
 }
 
@@ -392,6 +620,9 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* Shrinks to the stack's max-height and scrolls. Stated outright: a global `*` rule sets
+     `flex-shrink: 0`, and without this the list ran off the foot of the window. */
+  flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
   /*
