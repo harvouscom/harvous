@@ -7321,21 +7321,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   display: none;
 }
 
-/*
-  A row folded away behind the section's "N more" bar.
-
-  `PrototypeHomeSection` puts this class on the rows itself, from a layout effect, because
-  the rows are opaque children it cannot re-render — the same reason the empty-group rule
-  above has to ask `:has()` rather than decide in the parent.
-
-  Written as a child selector rather than with `!important` so it simply out-specifies each
-  row's own `display` (0,2,0 against `.proto-list-panel__row`'s 0,1,0). A bare class would
-  tie on specificity and leave the outcome to whichever stylesheet happened to load last.
-*/
-.proto-home-section__list > .proto-home-section__row--folded {
-  display: none;
-}
-
 /* Children that ship their own section wrapper (This Sunday) must not add a second layer of
    spacing once they are inside a lane. */
 .proto-home-section__list > .proto-home-section {
@@ -11312,32 +11297,6 @@ html.harvous-prototype-route
 }
 
 /* ── Recall carousel (Home resurfacing) ─────────────────────────────────── */
-/* ─── Card stack ─────────────────────────────────────────────────────────────
-   An overlapping deck that fans out on tap, replacing the dot-and-caret pager.
-   Tappability is fixed by having no small targets at all: collapsed, the whole
-   deck is one button; fanned, every card is a full-size one. */
-
-/* Hover spreads the deck: layers slide down and widen toward the top card's
-   edges, showing more of what's underneath without committing to the fan.
-   Hover-only by construction — there is no hovering on touch, where the tap
-   fans it anyway. */
-
-/* The fan. Each card begins where the collapsed deck sat — pulled up under the
-   one above and slightly narrowed, as if it had been underneath — then settles
-   into place one beat after its predecessor. The stagger is what makes it read
-   as a deck spreading rather than a list fading in.
-   Overshoot easing (the 1.24 in the curve) gives the settle a little weight. */
-@keyframes proto-card-stack-fan {
-  from {
-    opacity: 0;
-    transform: translateY(-14px) scale(0.965);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 /*
  * One line, truncated — a recall card's meta is a reminder of what the note was about, not
  * the note.
@@ -19206,8 +19165,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * ─── The translations behind the page ───────────────────────────────────────────────────
  *
  * Activity's day stack cannot be reused here, and the reason is worth stating because the
- * markup looks identical: `.proto-feed-stack` is `max-width: 640px` and declares no query
- * container, so its sheet would come out *narrower than the 656px measure inside it*. The
+ * markup looks identical: `.proto-feed-stack` is capped by `--pds-feed-sheet-max` and declares
+ * no query container, so its sheet would not follow the reader column's widening clamp. The
  * reader is on the shared paper column and has to stay there — the whole point of
  * `--pds-paper-measure` is that no line ever rewraps.
  *
@@ -22307,14 +22266,14 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 
 .proto-hub-frame > .proto-feed-sheet {
   width: 100%;
-  max-width: 640px;
+  max-width: var(--pds-feed-sheet-max);
   margin: 0 auto;
 }
 
 /*
  * Phones: the paper runs out to the toolbar's own edges, and finishes inside the frame's.
  *
- * ── Width. On a desktop the 20px here is invisible, because the stack caps at 640px and
+ * ── Width. On a desktop the 20px here is invisible, because the stack caps at its max and
  * centres long before the padding matters. On a 359px shell it is the whole story: the sheet
  * started 14px inside the first toolbar button and ended 14px inside the avatar, so the two
  * surfaces that share the window's left edge did not share it. `--pds-shell-gutter` is the
@@ -22391,7 +22350,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    *
    * Zero now, and the rule below takes the same 14px off the body. It was the retired rail's
    * gutter: a 304px sidebar has to hold its content off the edge, and the hub carried that
-   * inset onto a 640px sheet where Activity's body has none — so the room's sentence started
+   * inset onto a feed sheet where Activity's body has none — so the room's sentence started
    * 14px further in than the same sentence on the surface beside it. The header follows the
    * body rather than leading it: the title and the greeting under it have to start on the
    * same line, which is the whole reason this is one number and not two.
@@ -22648,7 +22607,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 .proto-feed-stack {
   position: relative;
   width: 100%;
-  max-width: 640px;
+  max-width: var(--pds-feed-sheet-max);
   margin: 0 auto;
   min-height: 0;
   display: flex;
@@ -22836,8 +22795,8 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * the tray it is lying in.
  *
  * Phones only, and that is the narrower breakpoint on purpose. Above 600px the gutter goes
- * back to 10px — where the same wedge is under 2px tall — and past roughly 676px the stack
- * hits its 640px cap and centres, so the sheet is nowhere near the frame's corners and a
+ * back to 10px — where the same wedge is under 2px tall — and well past that the stack hits
+ * its `--pds-feed-sheet-max` cap and centres, so the sheet is nowhere near the frame's corners and a
  * rounded bottom on it would be exactly the card bottom this surface keeps being mistaken
  * for.
  */
@@ -23173,6 +23132,194 @@ button.proto-feed-sheet__stat:hover {
   padding-left: var(--pds-space-1);
 }
 
+/*
+ * ─── Decks ──────────────────────────────────────────────────────────────────────────────────
+ *
+ * Today's offers as stacks: one card in front, the rest behind it, cycled with ‹ › or a swipe
+ * (`ProtoDeck.tsx`). Pick up and Review sit side by side once the sheet is wide enough for two,
+ * and stack on a phone — decided by the sheet's own width through `auto-fit`, not by the viewport,
+ * because the sheet narrows when the Library panel or the sidebar takes room beside it.
+ */
+.proto-feed-decks {
+  display: grid;
+  gap: var(--pds-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  /* Each deck its own height. Stretched to match, a one-row Pick up card beside the taller
+     Review card was mostly empty paper with its pager stranded at the foot. */
+  align-items: start;
+}
+
+/* A deck that is going to hide itself must not hold a grid column open while it does. */
+.proto-feed-decks:not(:has(.proto-deck:not([data-count='0']))) {
+  display: none;
+}
+
+.proto-deck {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Every source declined to render: no eyebrow over an empty card. */
+.proto-deck[data-count='0'] {
+  display: none;
+}
+
+.proto-deck__eyebrow {
+  margin: 0 0 6px;
+  padding: 0 0 0 var(--pds-space-1);
+}
+
+/*
+ * The stack: the card, and up to two edges peeking under it.
+ *
+ * The marketing site's `.aact__deck`, on this sheet's material. The edges are the paper panel's
+ * own fill and rim with no `backdrop-filter` — the card above them is the sheet's no-blur panel
+ * too, because a blur over opaque paper samples nothing and stacked blurs have crashed the GPU
+ * here before (docs/troubleshooting/PROTOTYPE_AW_SNAP_ERROR_5.md). Each edge is narrower than the
+ * one in front of it, which is what reads as depth.
+ */
+.proto-deck__stack {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.proto-deck[data-peek='1'] .proto-deck__stack {
+  padding-bottom: 6px;
+}
+
+.proto-deck[data-peek='2'] .proto-deck__stack {
+  padding-bottom: 12px;
+}
+
+.proto-deck__stack::before,
+.proto-deck__stack::after {
+  content: '';
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 0;
+  height: 24px;
+  display: none;
+  border-radius: 0 0 14px 14px;
+  background: var(--pds-paper-panel-bottom);
+  box-shadow:
+    0 0 0 0.5px var(--pds-border-control),
+    var(--pds-shadow-paper-panel);
+  z-index: -1;
+}
+
+.proto-deck[data-peek='1'] .proto-deck__stack::before,
+.proto-deck[data-peek='2'] .proto-deck__stack::before,
+.proto-deck[data-peek='2'] .proto-deck__stack::after {
+  display: block;
+}
+
+.proto-deck[data-peek='2'] .proto-deck__stack::before {
+  bottom: 6px;
+}
+
+.proto-deck[data-peek='2'] .proto-deck__stack::after {
+  left: 8%;
+  right: 8%;
+  z-index: -2;
+}
+
+.proto-deck__card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+/* Sideways belongs to the deck; up and down still scroll the sheet. */
+.proto-deck__track {
+  flex: 1 1 auto;
+  touch-action: pan-y;
+}
+
+/* Before the first measure, only the first card — so a deck never paints all of itself and
+   then blinks down to one. */
+.proto-deck__track:not([data-ready]) > :nth-child(n + 2),
+.proto-deck .proto-deck__track > [data-deck-off] {
+  display: none;
+}
+
+/* Rows draw a hairline above every row but the first; in a deck the card in front is usually
+   not the first child, and it has nothing above it. */
+.proto-deck .proto-deck__track > * {
+  border-top: none;
+}
+
+.proto-deck__track[data-moved] > :not([data-deck-off]) {
+  animation: proto-deck-card-in 200ms var(--pds-ease-standard);
+}
+
+@keyframes proto-deck-card-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The pager: small, at the card's foot, out of the way of whatever the card says. */
+.proto-deck__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: auto;
+  padding: 0 6px 6px;
+}
+
+.proto-deck__nav {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--pds-radius-pill);
+  background: transparent;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-deck__nav:hover {
+    background: var(--pds-bg-control);
+  }
+}
+
+.proto-deck__nav:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 0;
+}
+
+.proto-deck__count {
+  min-width: 3.5em;
+  text-align: center;
+  color: var(--pds-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-deck__track[data-moved] > :not([data-deck-off]) {
+    animation: proto-feed-block-in-reduced 120ms var(--pds-ease-standard);
+  }
+}
+
 .proto-feed-sheet__rest {
   margin: auto;
   padding: var(--pds-space-10) 0;
@@ -23493,7 +23640,8 @@ button.proto-feed-sheet__stat:hover {
  */
 .proto-feed-sheet__body > .proto-home-greeting,
 .proto-feed-sheet__body > .proto-feed-sheet__rest,
-.proto-feed-sheet__body > .proto-feed-today > .proto-home-section,
+.proto-feed-sheet__body > .proto-feed-today > .proto-feed-decks,
+.proto-feed-sheet__body > .proto-feed-today > .proto-deck,
 .proto-feed-sheet__body > .proto-feed-part {
   animation: proto-feed-block-in var(--pds-duration-sheet) var(--pds-ease-standard) both;
 }
@@ -23507,18 +23655,14 @@ button.proto-feed-sheet__stat:hover {
   animation-delay: 0ms;
 }
 
-.proto-feed-sheet__body > .proto-feed-today > .proto-home-section:nth-child(1) {
+/* The pair of decks, then Up next. Two beats rather than one per section: the band is two
+   blocks now, not five. */
+.proto-feed-sheet__body > .proto-feed-today > :nth-child(1) {
   animation-delay: 45ms;
 }
 
-.proto-feed-sheet__body > .proto-feed-today > .proto-home-section:nth-child(2) {
+.proto-feed-sheet__body > .proto-feed-today > :nth-child(n + 2) {
   animation-delay: 90ms;
-}
-
-/* Everything past the third holds at the same beat — a long day should not have its last
-   part arrive half a second after its first. */
-.proto-feed-sheet__body > .proto-feed-today > .proto-home-section:nth-child(n + 3) {
-  animation-delay: 135ms;
 }
 
 .proto-feed-sheet__body > .proto-feed-part:nth-child(n + 1) {
@@ -23548,7 +23692,8 @@ button.proto-feed-sheet__stat:hover {
 @media (prefers-reduced-motion: reduce) {
   .proto-feed-sheet__body > .proto-home-greeting,
   .proto-feed-sheet__body > .proto-feed-sheet__rest,
-  .proto-feed-sheet__body > .proto-feed-today > .proto-home-section,
+  .proto-feed-sheet__body > .proto-feed-today > .proto-feed-decks,
+  .proto-feed-sheet__body > .proto-feed-today > .proto-deck,
   .proto-feed-sheet__body > .proto-feed-part {
     animation-duration: 120ms;
     animation-name: proto-feed-block-in-reduced;

@@ -13,7 +13,7 @@
  * is the client's.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 const identity = { isGuest: false };
 /** Connected to an active church — Review is free for its questions (roadmap §B). */
@@ -200,12 +200,9 @@ describe('who sees the Review section', () => {
 describe('what it shows a subscriber', () => {
   it('leads each row with what is being reviewed, and puts the doing underneath', () => {
     /*
-     * The inverse of what this asserted before. The question used to be the title, which left a
-     * shelf of rows all asking things with no visible subject; Home has always read the other
-     * way round, and Review now matches it. The full instruction is in the dock.
-     *
-     * Rows only. The sitting card above them asks its one question in full — under its subject,
-     * which is the thing this rule was protecting.
+     * The question used to be the title, which left a shelf of rows all asking things with no
+     * visible subject; Home reads the other way round, and Review matches it. Rows only appear
+     * once the fold is open — closed, the deck shows the sitting card alone.
      */
     inbox.data = {
       items: [
@@ -215,10 +212,9 @@ describe('what it shows a subscriber', () => {
       hasMore: false,
     };
     const { container } = render(<PrototypeReviewSection />);
-    const rows = container.querySelector('.proto-home-section__list')!;
-    const rowText = [...rows.children]
-      .filter((child) => !child.classList.contains('proto-review-sitting'))
-      .map((child) => child.textContent ?? '')
+    fireEvent.click(screen.getByText('See all'));
+    const rowText = [...container.querySelectorAll('.proto-list-panel__row')]
+      .map((row) => row.textContent ?? '')
       .join(' ');
     expect(rowText).toContain('Adoption, not slavery');
     expect(rowText).toMatch(/Pick a passage you cited/);
@@ -271,52 +267,37 @@ describe('what it shows a subscriber', () => {
     expect(screen.queryByText('One of your notes')).not.toBeInTheDocument();
   });
 
-  it('shows one note and one passage closed, whatever the queue is made of', () => {
+  it('lists nothing under the card closed: the rest of today is the deck behind it', () => {
     /*
-     * Not "the first two". Three notes in a row would crowd the verse out entirely, and the two
-     * halves of the feature are the point — a thing you wrote, and a thing you read.
+     * The two rows under the card were the same promise as the card — there is more after this
+     * one — said twice. The deck's edges say it now: one per question still to come, at most two.
      */
     inbox.data = {
-      items: [
-        // The card's question; the rows are chosen from what comes after it.
-        reviewItem('head', 'Question head', 'Head task'),
-        reviewItem('a', 'Question a', 'Task a'),
-        reviewItem('b', 'Question b', 'Task b'),
-        { ...reviewItem('c', 'Question c', 'Task c'), kind: 'verse' },
-      ],
+      items: ['head', 'a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`, `Task ${id}`)),
       hasMore: false,
     };
-    render(<PrototypeReviewSection />);
-    const tasks = screen.queryAllByText(/^Task /).map((n) => n.textContent);
-    expect(tasks).toEqual(['Task a', 'Task c']);
+    const { container } = render(<PrototypeReviewSection />);
+    expect(screen.queryAllByText(/^Task /)).toHaveLength(0);
+    expect(container.querySelector('.proto-deck')?.getAttribute('data-peek')).toBe('2');
   });
 
-  it('treats a highlight as a passage and a Thread as a note', () => {
+  it('peeks only as deep as the sitting goes', () => {
     inbox.data = {
-      items: [
-        reviewItem('head', 'Question head', 'Head task'),
-        { ...reviewItem('a', 'Question a', 'Task a'), kind: 'thread' },
-        { ...reviewItem('b', 'Question b', 'Task b'), kind: 'highlight' },
-      ],
+      items: ['head', 'a'].map((id) => reviewItem(id, `Question ${id}`)),
       hasMore: false,
     };
-    render(<PrototypeReviewSection />);
-    expect(screen.queryAllByText(/^Task /).length).toBe(2);
+    const { container } = render(<PrototypeReviewSection />);
+    expect(container.querySelector('.proto-deck')?.getAttribute('data-peek')).toBe('1');
   });
 
-  it('leaves room for the challenge continuation beside them', () => {
+  it('leaves a challenge in progress to Pick up', () => {
     inbox.data = {
-      items: ['a', 'b', 'c', 'd'].map((id) => reviewItem(id, `Question ${id}`, `Task ${id}`)),
-      hasMore: true,
+      items: ['a', 'b'].map((id) => reviewItem(id, `Question ${id}`)),
+      hasMore: false,
     };
     challenges.data = { challenges: [challenge('c1')] };
     render(<PrototypeReviewSection />);
-    /* Two rows closed, never more than two (#114). All four are notes, so there is no passage to
-       pair one with and the fallback picks two different exercises instead — which is still two,
-       leaving the challenge its line. This asserted one back when a no-passage set collapsed to a
-       single row. */
-    expect(screen.queryAllByText(/^Task /).length).toBe(2);
-    expect(screen.getByText('Strengthen Covenant')).toBeInTheDocument();
+    expect(screen.queryByText('Strengthen Covenant')).not.toBeInTheDocument();
   });
 
   /*
@@ -369,15 +350,15 @@ describe('what it shows a subscriber', () => {
   });
 
   it('does not offer "See all" when everything due is already on screen', () => {
-    /* Two rows and something coming back later: the fold opens only the later ones, so it says
-       so rather than promising more questions that are not there. */
+    /* One question, on the card, and something coming back later: the fold opens only the later
+       one, so it says so rather than promising more questions that are not there. */
     inbox.data = {
-      items: ['a', 'b'].map((id) => reviewItem(id, `Question ${id}`)),
+      items: ['a'].map((id) => reviewItem(id, `Question ${id}`)),
       hasMore: false,
     };
     summaryItems.data = {
       items: [
-        ...['a', 'b'].map((id) => reviewItem(id, `Question ${id}`)),
+        ...['a'].map((id) => reviewItem(id, `Question ${id}`)),
         { ...reviewItem('later', 'Later'), dueAt: new Date(Date.now() + 86_400_000).toISOString() },
       ],
     };
@@ -427,24 +408,6 @@ describe('what it shows a subscriber', () => {
     expect(container.querySelectorAll('.proto-review-section__subhead')).toHaveLength(0);
   });
 
-  it('says where a challenge is as a position, never as a count of what is left', () => {
-    challenges.data = { challenges: [challenge('c1')] };
-    render(<PrototypeReviewSection />);
-    expect(screen.getByText(/Step 2 of 5/)).toBeInTheDocument();
-    expect(screen.queryByText(/remaining|left|overdue/i)).not.toBeInTheDocument();
-  });
-
-  it('leaves a paused challenge where the reader put it', () => {
-    /*
-     * The list this reads is shared with the Strengthen row, which needs paused ones to know
-     * what not to offer again — so paused rows arrive here too and are filtered out. Showing
-     * one would hand back, as a thing in progress, the exact path the reader set down.
-     */
-    challenges.data = { challenges: [{ ...challenge('c1'), status: 'paused' }] };
-    render(<PrototypeReviewSection />);
-    expect(screen.queryByText('Strengthen Covenant')).not.toBeInTheDocument();
-  });
-
   it('never renders a count of what it is not showing', () => {
     inbox.data = {
       items: ['a', 'b', 'c', 'd', 'e'].map((id) => reviewItem(id, `Question ${id}`)),
@@ -486,6 +449,7 @@ describe('opening a question', () => {
     };
     render(<PrototypeReviewSection />);
     // The row's title is the subject now; tapping it is what opens the dock.
+    fireEvent.click(screen.getByText('See all'));
     screen.getByText('Adoption, not slavery').click();
     expect(openReviewDock).toHaveBeenCalledWith('r1');
     // And Begin opens the card's own question.

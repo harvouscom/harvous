@@ -68,8 +68,3 @@ export function scrollCollapsedSectionIntoView(section: Element | null | undefin
     });
   });
 }
-
-/** The lane a fold control lives in, found from the control itself. */
-export function enclosingHomeSection(el: Element | null | undefined): Element | null {
-  return el?.closest('.proto-home-section') ?? null;
-}

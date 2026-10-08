@@ -57,6 +57,11 @@ export type HomeRowProps = {
   disabled?: boolean;
   'aria-label'?: string;
   title_attr?: string;
+  /**
+   * Who this row is, for a `ProtoDeck` it sits in: the deck follows the card in front by this
+   * id when rows come and go, and reports it to whoever needs to know which one is showing.
+   */
+  deckId?: string;
 };
 
 /* Correct the fade estimate against a real measurement, once per hover. */
@@ -150,6 +155,7 @@ export default function PrototypeHomeRow({
   disabled,
   'aria-label': ariaLabel,
   title_attr,
+  deckId,
 }: HomeRowProps) {
   const metaItems = homeRowMetaItems(meta);
   const titleChars = marqueeCharCount(title);
@@ -228,7 +234,7 @@ export default function PrototypeHomeRow({
 
   if (trailing) {
     return (
-      <div className="proto-list-panel__row">
+      <div className="proto-list-panel__row" data-deck-id={deckId}>
         <button
           type="button"
           className="proto-list-panel__row-main"
@@ -252,6 +258,7 @@ export default function PrototypeHomeRow({
     <button
       type="button"
       className="proto-list-panel__row"
+      data-deck-id={deckId}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onPointerEnter={onRowPointerEnter}

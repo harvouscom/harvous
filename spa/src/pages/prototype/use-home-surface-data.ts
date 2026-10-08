@@ -1815,8 +1815,10 @@ export function useHomeSurfaceData({
           openThread();
           return;
         case 'recall':
-          // Already on this page — no navigation, just point at the shelf.
-          spotlightNow('home-suggested');
+          // Already on this page — no navigation, just point at the deck the prompts live in.
+          // This named `home-suggested`, a target only the retired sidebar view carried, so the
+          // step pointed at nothing.
+          spotlightNow('home-up-next');
           return;
       }
     },

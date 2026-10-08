@@ -116,6 +116,12 @@ export function scrollToTodaysPassage(): void {
   if (typeof document === 'undefined') return;
   const el = document.getElementById(TODAYS_PASSAGE_ANCHOR_ID);
   if (!el) return;
+  /*
+   * On Home the passage is a card in the Up next deck, and a deck hides every card but the one
+   * in front. Ask the deck to bring this one forward first, or the scroll lands on a card that is
+   * not showing. `ProtoDeck`'s `DECK_SHOW_EVENT`; spelled out here so lib/ does not import a page.
+   */
+  el.dispatchEvent(new Event('proto-deck:show', { bubbles: true }));
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
 }

@@ -79,7 +79,7 @@ describe('the card', () => {
 
   it('shows the words, the reference and the translation', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    expect(screen.getByText('Psalm 18:1-2 · NET')).toBeTruthy();
+    expect(screen.getByText('Today’s passage · Psalm 18:1-2 · NET')).toBeTruthy();
     expect(screen.getByText(/I love you, LORD, my strength\./)).toBeTruthy();
     expect(document.getElementById('todays-passage')).toBeTruthy();
   });
