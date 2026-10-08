@@ -8309,39 +8309,6 @@ button.proto-home-card--tappable:hover {
   }
 }
 
-/*
- * The chips arrive after the sentence does: a soft rise, one after the other, as the greeting
- * lands on the sheet. Only on the feed sheet, which is where the greeting arrives — elsewhere it
- * is already there. Ends on the chip's own resting nudge (`translateY(-1px)`), so nothing jumps
- * when the animation lets go.
- */
-.proto-feed-sheet__body > .proto-home-greeting .proto-home-greeting__chip {
-  animation: proto-greeting-chip-in 460ms var(--pds-ease-standard) both;
-  animation-delay: 220ms;
-}
-
-.proto-feed-sheet__body > .proto-home-greeting .proto-home-greeting__glue + .proto-home-greeting__chip,
-.proto-feed-sheet__body > .proto-home-greeting .proto-home-greeting__chip ~ .proto-home-greeting__chip {
-  animation-delay: 320ms;
-}
-
-@keyframes proto-greeting-chip-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(-1px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .proto-feed-sheet__body > .proto-home-greeting .proto-home-greeting__chip {
-    animation: none;
-  }
-}
-
 /* A chip and the comma after it: never split across lines (see `withTrailingPunctuation`). */
 .proto-home-greeting__glue {
   white-space: nowrap;
