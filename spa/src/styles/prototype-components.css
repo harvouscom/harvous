@@ -25755,3 +25755,217 @@ button.proto-feed-sheet__stat:hover {
   gap: 5px;
   color: var(--pds-text-tertiary);
 }
+
+/*
+ * ─── Feature callout ────────────────────────────────────────────────────────────────────────
+ *
+ * "This is new", once (`callouts/PrototypeFeatureCallout.tsx`). A solid popover card — floating
+ * menus and cards stay solid here, never glass — with a drawing of the thing on a soft panel, a
+ * title, one line, one button, and a round × riding the top-right corner.
+ */
+.proto-callout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px 14px;
+  border-radius: var(--pds-radius-card);
+  background: var(--pds-bg-popover-solid);
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-popover);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+}
+
+/* Desktop: the window's bottom-right, on the same line the update toast keeps — lifted clear of
+   an open study dock, inside the safe area. */
+.proto-callout-anchor {
+  position: fixed;
+  right: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-right));
+  bottom: calc(
+    var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom) +
+      var(--proto-study-dock-band-height, 0px)
+  );
+  z-index: var(--pds-z-toast);
+  width: min(300px, calc(100vw - 32px));
+}
+
+.proto-callout--corner {
+  animation: proto-callout-in 320ms var(--pds-ease-standard) both;
+}
+
+.proto-callout--corner.proto-callout--exiting {
+  animation: proto-callout-out 200ms var(--pds-ease-standard) both;
+}
+
+@keyframes proto-callout-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes proto-callout-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* Phones: the same card in the flow of Home, so it never floats over what it points at. */
+.proto-callout--inline {
+  margin: 0;
+}
+
+/* The drawing sits on a soft panel the width of the card, cropped at its foot like the example:
+   the paper runs off the bottom edge rather than floating in a box. */
+.proto-callout__art {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 112px;
+  margin-bottom: 6px;
+  border-radius: var(--pds-radius-menu);
+  background: var(--pds-bg-control);
+  overflow: hidden;
+}
+
+.proto-callout-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.proto-callout-art__paper {
+  fill: var(--pds-bg-page);
+  stroke: var(--pds-text-tertiary);
+  stroke-width: 1.2;
+}
+
+.proto-callout-art__card {
+  fill: var(--pds-bg-page);
+  stroke: var(--pds-border-control);
+  stroke-width: 1;
+}
+
+.proto-callout-art__card--behind {
+  opacity: 0.7;
+}
+
+.proto-callout-art__trough {
+  fill: var(--pds-bg-control);
+}
+
+.proto-callout-art__ink {
+  fill: var(--pds-text-tertiary);
+  opacity: 0.85;
+}
+
+.proto-callout-art__ink--strong {
+  fill: var(--pds-text-secondary);
+}
+
+.proto-callout-art__check {
+  stroke: var(--pds-text-primary);
+  stroke-width: 2.4;
+}
+
+/* The one moving part settles in after the card arrives. */
+.proto-callout-art__front {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: proto-callout-art-settle 520ms var(--pds-ease-standard) 180ms both;
+}
+
+@keyframes proto-callout-art-settle {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.proto-callout__title {
+  margin: 0;
+  padding: 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.proto-callout__body {
+  margin: 0;
+  padding: 0 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+  text-wrap: pretty;
+}
+
+/* The one blue on the card: `.proto-settings-btn` is the accent gradient with white text. */
+.proto-callout__action {
+  margin: 8px 6px 0;
+  width: auto;
+}
+
+/* The round × riding the corner — the card's edge runs under it. */
+.proto-callout__close {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--pds-bg-popover-solid);
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-popover);
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-callout__close:hover {
+    background: var(--pds-bg-control-hover);
+  }
+}
+
+.proto-callout__close:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+/* Inline on a phone the corner chip would hang off the sheet's edge; tuck it inside. */
+.proto-callout--inline .proto-callout__close {
+  top: 16px;
+  right: 16px;
+}
+
+/* Out of the way while typing on a phone, as the dock band is. */
+html[data-proto-keyboard-open] .proto-callout-anchor {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-callout--corner,
+  .proto-callout--corner.proto-callout--exiting,
+  .proto-callout-art__front {
+    animation-duration: 120ms;
+    animation-name: proto-feed-block-in-reduced;
+  }
+
+  .proto-callout--corner.proto-callout--exiting {
+    animation-direction: reverse;
+  }
+}

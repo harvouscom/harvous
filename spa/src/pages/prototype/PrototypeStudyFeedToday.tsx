@@ -56,7 +56,7 @@ import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { LOOSE_MIN, type useHomeSurfaceData } from './use-home-surface-data';
 
 import { useDismissibleImportPrompt } from './use-dismissible-import-prompt';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import ProtoChipBar from './components/ProtoChipBar';
 import { useNavigate } from '@tanstack/react-router';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -65,6 +65,11 @@ import { onboardingOwnsOffer } from './onboarding-visible-steps';
 import { useOnboardingState } from './useOnboardingState';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { OnboardingStepId } from '@/utils/onboarding-state';
+
+/* Off the critical path: a callout arrives after the page does. */
+const PrototypeFeatureCalloutInline = lazy(() =>
+  import('./callouts/PrototypeFeatureCallout').then((m) => ({ default: m.PrototypeFeatureCalloutInline })),
+);
 
 /** A note as a Continue row — the sidebar's `HomeNoteCard`, in this surface's row shape. */
 function ContinueNoteRow({
@@ -245,6 +250,10 @@ export default function PrototypeStudyFeedToday({
 
   return (
     <div className="proto-feed-today">
+      {/* On a phone, what's new arrives here, in the page, rather than floating over it. */}
+      <Suspense fallback={null}>
+        <PrototypeFeatureCalloutInline />
+      </Suspense>
       {/*
         * Today's passage, on its own above the tabs, until you act on it — the day's one offer
         * that is new every day, so it is not filed behind a tab. Acted on, it folds to its row in

@@ -311,6 +311,18 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     // dock chrome. Not a baseline yet: the gallery's baselines are darwin-only and outside CI, and
     // the cards are still being redesigned family by family.
   },
+  {
+    id: 'ds-27-feature-callout',
+    title: 'Feature callout',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/callouts/PrototypeFeatureCallout.tsx',
+      'spa/src/pages/prototype/callouts/CalloutIllustration.tsx',
+      'spa/src/pages/prototype/callouts/callout-registry.ts',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-27-feature-callout',
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

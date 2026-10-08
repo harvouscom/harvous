@@ -41,11 +41,25 @@ export function isAppUpdateToastHeld(): boolean {
   return held;
 }
 
+const changeListeners = new Set<() => void>();
+
 /** Called by the welcome as it mounts and unmounts. Releasing notifies anything waiting. */
 export function setAppUpdateToastHold(next: boolean): void {
   if (held === next) return;
   held = next;
+  for (const fn of changeListeners) fn();
   if (!held) for (const fn of listeners) fn();
+}
+
+/**
+ * Subscribe to the hold turning on *or* off — for a surface that has to step aside while the
+ * welcome is up, not just wait for it (a feature callout). `useSyncExternalStore`-shaped.
+ */
+export function subscribeAppUpdateToastHold(fn: () => void): () => void {
+  changeListeners.add(fn);
+  return () => {
+    changeListeners.delete(fn);
+  };
 }
 
 /** Subscribe to the release. Returns an unsubscribe. */
