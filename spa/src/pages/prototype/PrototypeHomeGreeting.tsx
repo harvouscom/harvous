@@ -301,6 +301,28 @@ export default function PrototypeHomeGreeting({
   const layout = homeLeadCopyLayout(lead);
   const subjectChip = threadChip || bookChip || folderChip || tagChip;
 
+  /*
+   * A chip and the punctuation after it, kept on one line.
+   *
+   * The chip is an inline-flex box, and a line may break between a box and the text that
+   * follows it — so ", with" could start the next line on its own, which reads as a typo. It
+   * only showed once the greeting was centred and balanced, because balancing moves the break.
+   */
+  const withTrailingPunctuation = (chip: ReactNode, after: ReactNode) => {
+    if (!chip || typeof after !== 'string') return <>{chip}{after}</>;
+    const match = /^[,.;:!?]+/.exec(after);
+    if (!match) return <>{chip}{after}</>;
+    return (
+      <>
+        <span className="proto-home-greeting__glue">
+          {chip}
+          {match[0]}
+        </span>
+        {after.slice(match[0].length)}
+      </>
+    );
+  };
+
   const leadSentence = (() => {
     if (lead.kind === 'book' && lead.tone === 'single-note') {
       return (
@@ -323,8 +345,7 @@ export default function PrototypeHomeGreeting({
       return (
         <>
           {layout.beforeChip}
-          {countChip}
-          {layout.afterChip}
+          {withTrailingPunctuation(countChip, layout.afterChip)}
           {sentenceEnd}
         </>
       );
@@ -332,8 +353,7 @@ export default function PrototypeHomeGreeting({
     return (
       <>
         {layout.beforeChip}
-        {subjectChip}
-        {layout.afterChip}
+        {withTrailingPunctuation(subjectChip, layout.afterChip)}
         {layout.showCount ? (
           <>
             {countChip} saved so far{sentenceEnd}
