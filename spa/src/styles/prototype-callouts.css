@@ -122,6 +122,11 @@
   stroke-width: 2.4;
 }
 
+/* A solid mark on a drawing — the burst on What's new. */
+.proto-callout-art__mark {
+  fill: var(--pds-text-secondary);
+}
+
 /* The one moving part settles in after the card arrives. */
 .proto-callout-art__front {
   transform-box: fill-box;
@@ -338,12 +343,17 @@
 .proto-callout-stack__list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   min-height: 0;
   overflow-y: auto;
-  /* Room for each card's corner × above it. */
-  padding: 12px 12px 4px 4px;
-  margin: -12px -12px 0 -4px;
+  /*
+   * A scrolling box clips whatever its children paint outside it, shadows included — which cut
+   * every card's shadow off at the sides and foot. The padding gives the shadows room inside the
+   * box (and the corner × above each card), and the negative margin puts the cards back where
+   * they were.
+   */
+  padding: 14px 28px 32px;
+  margin: -14px -28px -32px;
 }
 
 /* A notice, or any card in an opened stack: no drawing, a little tighter. */

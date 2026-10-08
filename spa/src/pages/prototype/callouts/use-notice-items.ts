@@ -68,6 +68,7 @@ export function useNoticeItems(): {
   if (whatsNewVisible) {
     items.push({
       id: 'whats-new',
+      illustration: 'whats-new',
       title: 'What’s new in Harvous',
       body: 'See what changed in this release.',
       actionLabel: showsWelcomeSheet ? 'Take a look' : 'Read the notes',
@@ -78,6 +79,7 @@ export function useNoticeItems(): {
   if (importVisible) {
     items.push({
       id: 'import',
+      illustration: 'import',
       title: 'Bring your notes from another app',
       body: 'Markdown, Word, Evernote, or a folder of files.',
       actionLabel: 'Import notes',
@@ -88,6 +90,7 @@ export function useNoticeItems(): {
   if (letterVisible) {
     items.push({
       id: 'founder-letter',
+      illustration: 'letter',
       title: 'Why I made Harvous',
       body: 'A letter from the founder.',
       actionLabel: 'Read the letter',

@@ -194,7 +194,7 @@ export function CalloutCard({
 }: {
   callout: CardContent;
   variant: 'corner' | 'inline';
-  /** Without the drawing — a notice, or any card in an opened stack. */
+  /** Without the drawing, for a card that has none. */
   compact?: boolean;
   exiting?: boolean;
   onDismiss: () => void;
@@ -291,7 +291,6 @@ export function CalloutStack({
               key={item.id}
               callout={asContent(item)}
               variant={variant}
-              compact
               onDismiss={item.dismiss}
               onAct={item.act}
             />

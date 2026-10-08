@@ -6,7 +6,7 @@
  * tokens, and never shows someone else's notes. Neutral throughout; the one moving part settles
  * in once when the card arrives (CSS, `.proto-callout-art`), and holds still for reduced motion.
  */
-export type CalloutIllustrationKey = 'today-tabs' | 'legal';
+export type CalloutIllustrationKey = 'today-tabs' | 'legal' | 'whats-new' | 'import' | 'letter';
 
 /** A line of "text": a rounded bar. */
 function Line({ x, y, w, strong = false }: { x: number; y: number; w: number; strong?: boolean }) {
@@ -72,10 +72,84 @@ function Legal() {
   );
 }
 
+/** A release: a page of notes with a burst of light beside it. */
+function WhatsNew() {
+  return (
+    <>
+      <rect x="84" y="16" width="112" height="126" rx="3" className="proto-callout-art__paper" />
+      <Line x={98} y={30} w={40} strong />
+      <Line x={98} y={46} w={84} />
+      <Line x={98} y={56} w={70} />
+      <rect x="98" y="70" width="84" height="24" rx="6" className="proto-callout-art__trough" />
+      <Line x={98} y={104} w={62} />
+      <g className="proto-callout-art__front">
+        <circle cx="200" cy="34" r="17" className="proto-callout-art__card" />
+        <path
+          d="M200 23l2.6 6.6 6.9 1.4-5.3 4.6 1.6 6.8L200 38.8l-5.8 3.6 1.6-6.8-5.3-4.6 6.9-1.4z"
+          className="proto-callout-art__mark"
+        />
+      </g>
+    </>
+  );
+}
+
+/** Bringing notes over: two loose files sliding onto a sheet. */
+function Import() {
+  return (
+    <>
+      <rect x="110" y="34" width="112" height="108" rx="3" className="proto-callout-art__paper" />
+      <Line x={124} y={48} w={44} strong />
+      <Line x={124} y={64} w={84} />
+      <Line x={124} y={74} w={70} />
+      <Line x={124} y={84} w={78} />
+      <g className="proto-callout-art__front">
+        <rect x="58" y="22" width="52" height="64" rx="5" className="proto-callout-art__card proto-callout-art__card--behind" transform="rotate(-8 84 54)" />
+        <rect x="70" y="30" width="52" height="64" rx="5" className="proto-callout-art__card" transform="rotate(4 96 62)" />
+        <Line x={80} y={44} w={26} strong />
+        <Line x={80} y={54} w={32} />
+        <Line x={80} y={63} w={28} />
+      </g>
+    </>
+  );
+}
+
+/** A letter: a folded sheet in handwriting-like lines, signed. */
+function Letter() {
+  return (
+    <>
+      <rect x="80" y="14" width="120" height="128" rx="3" className="proto-callout-art__paper" />
+      <Line x={96} y={30} w={30} strong />
+      <Line x={96} y={46} w={88} />
+      <Line x={96} y={56} w={80} />
+      <Line x={96} y={66} w={86} />
+      <Line x={96} y={76} w={60} />
+      <g className="proto-callout-art__front">
+        <path
+          d="M120 100c6-8 10-8 12 0s6 8 10 0 8-6 12 2"
+          className="proto-callout-art__check"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+    </>
+  );
+}
+
 export default function CalloutIllustration({ name }: { name: CalloutIllustrationKey }) {
   return (
     <svg className="proto-callout-art" viewBox="0 0 280 124" preserveAspectRatio="xMidYMax meet" aria-hidden focusable="false">
-      {name === 'legal' ? <Legal /> : <TodayTabs />}
+      {name === 'legal' ? (
+        <Legal />
+      ) : name === 'whats-new' ? (
+        <WhatsNew />
+      ) : name === 'import' ? (
+        <Import />
+      ) : name === 'letter' ? (
+        <Letter />
+      ) : (
+        <TodayTabs />
+      )}
     </svg>
   );
 }
