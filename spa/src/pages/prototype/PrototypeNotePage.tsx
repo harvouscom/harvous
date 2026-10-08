@@ -1646,17 +1646,21 @@ export default function PrototypeNotePage() {
       composeUrlIdleTimerRef.current = null;
     }
     clearNoteDraft(DRAFT_NOTE_ID);
-    draftPersistRemountRef.current = { content: '' };
-    setDraftPersistRemountTick((t) => t + 1);
+    // Withdraw the signal, never raise it. This runs as a passive effect, after the new
+    // session's editor has already mounted, so a bump here lands on *that* editor as a
+    // "your draft just persisted" — and with TipTap not up yet it reseeds an empty body
+    // over the compose seed. That is what opened a blank note for a seeded compose started
+    // from an open draft.
+    draftPersistRemountRef.current = null;
     setTemplatePrefill(null);
     setTemplateApplyEpoch(0);
     templateProvenanceRef.current = null;
     recallSeedRef.current = null;
     setTemplateProvenance(null);
-    // Belt-and-braces only. The epoch stamp on liveNoteSnapshotState is what actually
-    // prevents the previous session's title leaking in — this effect runs too late.
-    setLiveNoteSnapshot({ title: '', content: '' });
-  }, [setComposePersistedNoteId, setLiveNoteSnapshot]);
+    // No live-snapshot clear here. The epoch stamp already retires the old one, and a clear
+    // from this late effect is stamped with the *new* epoch — a blank snapshot that outranks
+    // the seed.
+  }, [setComposePersistedNoteId]);
 
   useEffect(() => {
     const prevEpoch = prevComposeSessionEpochRef.current;
