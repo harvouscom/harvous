@@ -162,10 +162,15 @@ export function discoverActionFor(status: MyDiscoverSubmission['status']): 'with
 }
 
 /**
- * A row's second line, leading with what kind of sharing it is.
+ * A row's second line: what kind of sharing it is, then the one fact that tells two of them apart.
  *
- * The kind comes first because the list mixes four of them, and "Owner · 5 members" or
- * "Waiting" only means something once you know it is a space or a Discover submission.
+ * The kind comes first because the list mixes four of them, and "5 members" or "Waiting" only
+ * means something once you know it is a space or a Discover submission.
+ *
+ * Two parts, never more. The line used to carry up to four ("Discover · Shared with everyone ·
+ * saved by 3 · 4d"), which is what made the page read as busy: every row was a sentence. Your role
+ * in a space is now said by the menu (Leave, or Copy invite link), and a listed submission's count
+ * of saves stands in for its status, since being saved is what being listed is for.
  */
 export function sharingItemMeta(
   item: SharingItem,
@@ -177,11 +182,7 @@ export function sharingItemMeta(
         return ['Public link', relative(isoOf(item.note.sharedAt ?? item.note.updatedAt ?? item.note.createdAt))];
       case 'space': {
         const count = item.space.memberCount;
-        return [
-          'Shared space',
-          item.role === 'owner' ? 'Owner' : 'Member',
-          `${count} ${count === 1 ? 'member' : 'members'}`,
-        ];
+        return ['Shared space', `${count} ${count === 1 ? 'member' : 'members'}`];
       }
       case 'space-note':
         return [`In ${item.spaceNote.spaceTitle}`, relative(isoOf(item.spaceNote.addedAt))];
@@ -189,16 +190,26 @@ export function sharingItemMeta(
         const { submission } = item;
         return [
           'Discover',
-          discoverStatusLabel(submission.status),
           submission.status === 'listed' && submission.installCount > 0
-            ? `saved by ${submission.installCount}`
-            : null,
-          relative(isoOf(submission.reviewedAt ?? submission.createdAt)),
+            ? `Saved by ${submission.installCount}`
+            : discoverStatusLabel(submission.status),
         ];
       }
     }
   })();
   return parts.filter((part): part is string => Boolean(part));
+}
+
+/**
+ * How many of the chip bar's narrower choices the list actually holds.
+ *
+ * The chips only earn their row when there is something to narrow between: someone whose sharing
+ * is three public links gets "All" and "Public links", two names for the same list.
+ */
+export function sharingKindsPresent(items: readonly SharingItem[]): number {
+  return SHARING_FILTERS.filter(
+    (option) => option.id !== 'all' && filterSharingItems(items, option.id).length > 0,
+  ).length;
 }
 
 export function sharingEmptyCopy(filter: SharingFilter): string {

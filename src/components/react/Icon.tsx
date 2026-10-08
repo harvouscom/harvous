@@ -354,10 +354,16 @@ function getIconMarkup(name: IconName, size: number): { __html: string } {
   const cacheKey = `${name}|${size}`;
   let markup = markupCache.get(cacheKey);
   if (!markup) {
-    // Add width/height attributes to SVG to ensure proper sizing
+    // Add width/height attributes to SVG to ensure proper sizing.
+    //
+    // `overflow:visible` because Font Awesome 7 draws some glyphs past their own viewBox —
+    // `lock`'s shackle starts at y=-32 in a 0..512 box, and `gear`, `trash-can`, `church`,
+    // `thumbtack` and `eye-slash` do the same. The browser's default for an inline <svg> is
+    // `overflow:hidden`, which shaved the top off the padlock everywhere it appeared. FA's own
+    // stylesheet sets the same value on its inline SVGs; this is that rule, for ours.
     const sizedSvg = icons[name].replace(
       /<svg\s+/,
-      `<svg width="${size}" height="${size}" style="display:block" `
+      `<svg width="${size}" height="${size}" style="display:block;overflow:visible" `
     );
     // Use safe renderer to ensure content is always a valid string
     markup = { __html: safeRenderHtml(sizedSvg) };

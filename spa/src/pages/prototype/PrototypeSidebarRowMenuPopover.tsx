@@ -64,6 +64,12 @@ export interface PrototypeSidebarRowMenuPopoverProps {
   minWidth?: number;
   onDismiss: () => void;
   'aria-label': string;
+  /**
+   * The layer to paint on. The default sits above sidebar scroll content and below modals, which
+   * is right for every list in the shell — and wrong for a list *inside* a modal: Settings sits at
+   * 9950, so a row menu there opened underneath it. Pass `var(--pds-z-modal-popover)` there.
+   */
+  zIndex?: number | string;
   children: ReactNode;
 }
 
@@ -74,6 +80,7 @@ export default function PrototypeSidebarRowMenuPopover({
   minWidth,
   onDismiss,
   'aria-label': ariaLabel,
+  zIndex = MENU_Z_INDEX,
   children,
 }: PrototypeSidebarRowMenuPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -133,7 +140,7 @@ export default function PrototypeSidebarRowMenuPopover({
         top: pos?.top ?? -9999,
         right: pos?.right ?? 0,
         maxWidth: pos?.maxWidth,
-        zIndex: MENU_Z_INDEX,
+        zIndex,
       }}
     >
       {children}

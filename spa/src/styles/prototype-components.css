@@ -1892,8 +1892,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
    These used to wash the row in an 8%-alpha red on hover, which read as a
    faint pink smear rather than a warning. The red *text* is the signal; the
    hover just says "this is the row under your cursor", same as every
-   non-destructive sibling. Matches `.proto-fte-row__btn--danger` and
-   `.proto-sharing-card__text-action--danger`, which never tinted. */
+   non-destructive sibling. Matches `.proto-fte-row__btn--danger`, which
+   never tinted. */
 .proto-menu-item--destructive:hover,
 .proto-menu-item--destructive:focus-visible {
   background: var(--pds-bg-subtle);
@@ -6192,19 +6192,17 @@ a.proto-copy-row__value:hover {
 }
 
 /*
- * One shared link, on two lines instead of four.
+ * One shared thing: a tile, its title over one line of meta, and one ⋮.
  *
- * It used to stack a title, a meta line, the share URL in a monospace face, and a row of text
- * actions — then put Copy beside all of it. The URL was the heaviest thing in the row and the
- * least use: every link reads `/shared/note/<id>`, so it identified nothing the title did not,
- * while looking like a config file. Centred now, with the text on the left and everything you
- * can do on the right.
+ * Everything you can do about it lives in the menu. The row used to hold up to three actions
+ * inline — 11px text links beside a 36px pill — and a confirm that took the row over; that mix,
+ * more than the number of rows, is what made the page read as busy.
  */
 .proto-sharing-card {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 10px 8px 10px 12px;
   min-width: 0;
 }
 
@@ -6212,99 +6210,62 @@ a.proto-copy-row__value:hover {
   border-top: 0.5px solid var(--pds-border-soft);
 }
 
-.proto-sharing-card .proto-settings-list-row__leading {
+/* 32px rather than the settings tile's 40: the tile names a kind, it is not the row's subject. */
+.proto-sharing-card .proto-settings-list-row__leading,
+.proto-sharing-deleted__row .proto-settings-list-row__leading {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   color: var(--pds-text-primary);
   flex-shrink: 0;
 }
 
-/*
- * The actions, held together at the end of the row.
- *
- * `flex-shrink: 0` against the global reset is what keeps them on one line as the title grows;
- * the text column beside them is the part that gives.
- */
-.proto-sharing-card__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
+/* The text column is the way in: a bare button the width of everything but the tile and ⋮. */
 .proto-sharing-card__main {
+  appearance: none;
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
+  align-items: flex-start;
   gap: 2px;
   min-width: 0;
-}
-
-.proto-sharing-card__title {
-  color: var(--pds-text-primary);
-  text-decoration: none;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.proto-sharing-card__title:hover {
-  color: var(--pds-accent);
-}
-
-.proto-sharing-card__meta {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.proto-sharing-card__text-action {
   margin: 0;
   padding: 0;
-  border: none;
+  border: 0;
   background: none;
-  color: var(--pds-text-secondary);
-  font: 500 11px/1.35 var(--pds-font-body);
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+
+button.proto-sharing-card__main {
   cursor: pointer;
 }
 
-.proto-sharing-card__text-action:hover:not(:disabled) {
+button.proto-sharing-card__main:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.proto-sharing-card__title {
+  max-width: 100%;
   color: var(--pds-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.proto-sharing-card__text-action:disabled {
-  opacity: 0.55;
-  cursor: default;
+.proto-sharing-card__meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.proto-sharing-card__text-action--danger:hover:not(:disabled) {
-  color: var(--pds-destructive);
-}
-
-.proto-sharing-card__text-action--accent {
-  color: var(--pds-accent);
-}
-
-/* The question sits in the actions row it replaces, so the row keeps its height. */
-.proto-sharing-card__confirm-prompt {
-  color: var(--pds-text-secondary);
-  font: 500 11px/1.35 var(--pds-font-body);
-  text-align: right;
-}
-
-.proto-sharing-card__actions > .proto-thread-review__dismiss {
+.proto-sharing-card__more {
   flex-shrink: 0;
-}
-
-.proto-sharing-deleted {
-  margin-top: 24px;
-}
-
-.proto-sharing-deleted__title {
-  margin: 0;
-  padding: 0 12px 6px;
-  color: var(--pds-text-tertiary);
-  text-transform: uppercase;
+  display: inline-flex;
 }
 
 .proto-sharing-deleted__status {
@@ -6316,9 +6277,21 @@ a.proto-copy-row__value:hover {
   color: var(--pds-text-secondary);
 }
 
+/* The folded "Recently deleted spaces" line; its caret turns down while it is open. */
+.proto-sharing-deleted__chevron {
+  display: flex;
+  color: var(--pds-text-tertiary);
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.proto-sharing-deleted__toggle[aria-expanded='true'] .proto-sharing-deleted__chevron {
+  transform: rotate(90deg);
+}
+
 .proto-sharing-deleted__list {
   display: flex;
   flex-direction: column;
+  border-top: 0.5px solid var(--pds-border-soft);
 }
 
 .proto-sharing-deleted__row {
@@ -6326,15 +6299,7 @@ a.proto-copy-row__value:hover {
   align-items: center;
   gap: 12px;
   min-width: 0;
-  padding: 12px;
-}
-
-/* Space accent tile fills the leading slot — no gray settings tile behind it. */
-.proto-sharing-deleted__space-icon {
-  background: transparent;
-  border: none;
-  padding: 0;
-  color: inherit;
+  padding: 10px 12px;
 }
 
 .proto-sharing-deleted__row + .proto-sharing-deleted__row {
@@ -6689,12 +6654,65 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   text-align: left;
 }
 
-.proto-lock-pin-settings__lead {
-  margin: 0 0 14px;
+/*
+ * Settings → Lock PIN: a padlock tile beside the state and the step's one instruction, over the
+ * digits. The group around it is `overflow: hidden` with no padding of its own, so the body has to
+ * bring its own — without it the first digit's focus ring and the group's rounded corners clip.
+ */
+.proto-lock-pin-settings__body {
+  padding: 16px;
+}
+
+.proto-lock-pin-settings__hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.proto-lock-pin-settings__glyph {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--pds-radius-menu);
+  background: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+}
+
+.proto-lock-pin-settings__hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.proto-lock-pin-settings__status {
   font-family: var(--pds-font-body);
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+}
+
+.proto-lock-pin-settings__lead {
+  font-family: var(--pds-font-body);
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.35;
+  color: var(--pds-text-secondary);
+}
+
+/* "Lock a note from its ⋮ menu" — the glyph sits in the line, at the caption's x-height. */
+.proto-lock-pin-settings__howto {
+  margin: 4px 2px 0;
+  color: var(--pds-text-secondary);
+}
+
+.proto-lock-pin-settings__howto-icon {
+  vertical-align: -2px;
   color: var(--pds-text-primary);
 }
 
