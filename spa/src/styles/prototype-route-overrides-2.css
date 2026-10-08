@@ -11,12 +11,6 @@ html.harvous-prototype-route [class*='proto-'] button .proto-home-card__preview 
   font-variation-settings: var(--pds-font-body-variation-list-preview) !important;
 }
 
-/* Home's Pick up cards — the excerpt under the title sits inside the card's tappable button,
-   so the blanket rule would draw a note's opening words at full strength, louder than its title. */
-html.harvous-prototype-route [class*='proto-'] button .proto-pickup-card__excerpt {
-  color: var(--pds-text-secondary) !important;
-}
-
 /* Home / shared-space dashboard cards — meta row (timestamp, folder) inside tappable buttons */
 html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta,
 html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta-item {

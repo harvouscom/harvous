@@ -29,8 +29,7 @@
  * unnoticed here.
  */
 import Icon from '@/components/react/Icon';
-import PrototypeHomeRow, { HomeRowPresentation } from './PrototypeHomeRow';
-import { stripHtmlPreview } from './sidebar-rows/sidebar-row-helpers';
+import PrototypeHomeRow from './PrototypeHomeRow';
 import ProtoDeck from './ProtoDeck';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import PrototypeHomeReadingPlan from './PrototypeHomeReadingPlan';
@@ -81,9 +80,6 @@ function ContinueNoteRow({
         icon === 'pen-to-square' ? 'Pick up where you left off' : 'Worth another look',
         protoRelativeCaptionAbbrev(note.updatedAt ?? note.createdAt ?? null),
       ]}
-      /* The note's own opening words, so the card says what you were writing. Never for a
-         locked note — its body is ciphertext, and the list says "Locked" for the same reason. */
-      excerpt={note.contentEncrypted ? null : stripHtmlPreview(note.content, 140) || null}
       onClick={() => onOpen(note)}
     />
   );
@@ -156,52 +152,49 @@ export default function PrototypeStudyFeedToday({
   return (
     <div className="proto-feed-today">
       <div className="proto-feed-decks">
-        <HomeRowPresentation.Provider value="card">
-          <ProtoDeck label="Pick up" className="proto-deck--cards">
-            {onboardingLeads ? onboarding : null}
-            {continueRow ? (
-              <ContinueNoteRow icon="pen-to-square" note={continueRow} onOpen={home.onOpenNote} />
-            ) : revisitRow ? (
-              <ContinueNoteRow
-                icon="arrow-rotate-left"
-                note={revisitRow}
-                onOpen={handleOpenRevisitNote}
-              />
-            ) : null}
+        <ProtoDeck label="Pick up">
+          {onboardingLeads ? onboarding : null}
+          {continueRow ? (
+            <ContinueNoteRow icon="pen-to-square" note={continueRow} onOpen={home.onOpenNote} />
+          ) : revisitRow ? (
+            <ContinueNoteRow
+              icon="arrow-rotate-left"
+              note={revisitRow}
+              onOpen={handleOpenRevisitNote}
+            />
+          ) : null}
 
-            {continueReadingSuggestion ? (
-              <PrototypeHomeRow
-                deckId="continue-reading"
-                icon="book-open"
-                title={`${continueReadingSuggestion.book} ${continueReadingSuggestion.chapter}`}
-                meta={[
-                  continueReadingEyebrow(continueReadingSuggestion),
-                  continueReadingMeta(continueReadingSuggestion),
-                ]}
-                onClick={openContinueReading}
-              />
-            ) : null}
+          {continueReadingSuggestion ? (
+            <PrototypeHomeRow
+              deckId="continue-reading"
+              icon="book-open"
+              title={`${continueReadingSuggestion.book} ${continueReadingSuggestion.chapter}`}
+              meta={[
+                continueReadingEyebrow(continueReadingSuggestion),
+                continueReadingMeta(continueReadingSuggestion),
+              ]}
+              onClick={openContinueReading}
+            />
+          ) : null}
 
-            {spotlightThread ? (
-              <PrototypeHomeRow
-                deckId={`thread:${spotlightThread.id}`}
-                icon="arrow-right-arrow-left"
-                title={spotlightThread.title}
-                meta={[
-                  'Thread',
-                  `${spotlightThread.noteCount} ${spotlightThread.noteCount === 1 ? 'note' : 'notes'}`,
-                ]}
-                onClick={() => openThread(spotlightThread.id)}
-              />
-            ) : null}
+          {spotlightThread ? (
+            <PrototypeHomeRow
+              deckId={`thread:${spotlightThread.id}`}
+              icon="arrow-right-arrow-left"
+              title={spotlightThread.title}
+              meta={[
+                `${spotlightThread.noteCount} ${spotlightThread.noteCount === 1 ? 'note' : 'notes'}`,
+              ]}
+              onClick={() => openThread(spotlightThread.id)}
+            />
+          ) : null}
 
-            {/* A study plan's current step continues something you started, so it is picked up
-                here rather than listed among what is arriving. */}
-            <PrototypeHomeReadingPlan />
-            <PrototypeChallengeContinueRow />
-            {onboardingLeads ? null : onboarding}
-          </ProtoDeck>
-        </HomeRowPresentation.Provider>
+          {/* A study plan's current step continues something you started, so it is picked up
+              here rather than listed among what is arriving. */}
+          <PrototypeHomeReadingPlan />
+          <PrototypeChallengeContinueRow />
+          {onboardingLeads ? null : onboarding}
+        </ProtoDeck>
 
         {/*
           * Review, beside what you were doing rather than above it — a page that opens by asking

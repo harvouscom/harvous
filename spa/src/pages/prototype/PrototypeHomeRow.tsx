@@ -18,7 +18,7 @@
  * separator the church rows use — so nothing is lost, and the title stays the specific
  * thing the row is about, as it is in the church hub's Following list.
  */
-import { createContext, isValidElement, useContext } from 'react';
+import { isValidElement } from 'react';
 import type { CSSProperties, MouseEventHandler, PointerEvent, ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { handleMarqueeHover } from './marquee-overflow';
@@ -62,24 +62,7 @@ export type HomeRowProps = {
    * id when rows come and go, and reports it to whoever needs to know which one is showing.
    */
   deckId?: string;
-  /**
-   * A line of what the thing says — a note's opening words — shown only when the row is drawn
-   * as a card (`HomeRowPresentation`). A row has no room for it; a card is built around it.
-   */
-  excerpt?: ReactNode;
 };
-
-/**
- * How the rows inside a surface draw themselves: as hairline rows, or as cards.
- *
- * Home's Pick up deck sits beside Review, whose one card is built like a page — what it is
- * about, a question in large type, a button. Pick up's rows beside it were half its height and
- * left a patch of empty paper. Rather than every source of a Pick up card (the note, the
- * chapter, the Thread, the study plan, the challenge, the checklist) learning a second shape,
- * the deck says "cards" once and each `PrototypeHomeRow` inside it answers in the card anatomy.
- * Everywhere else the default is rows.
- */
-export const HomeRowPresentation = createContext<'row' | 'card'>('row');
 
 /* Correct the fade estimate against a real measurement, once per hover. */
 function onRowPointerEnter(event: PointerEvent<HTMLElement>) {
@@ -173,9 +156,7 @@ export default function PrototypeHomeRow({
   'aria-label': ariaLabel,
   title_attr,
   deckId,
-  excerpt,
 }: HomeRowProps) {
-  const presentation = useContext(HomeRowPresentation);
   const metaItems = homeRowMetaItems(meta);
   const titleChars = marqueeCharCount(title);
   // The separators are rendered between items, so they count toward what has to scroll past —
@@ -250,64 +231,6 @@ export default function PrototypeHomeRow({
       ) : null}
     </>
   );
-
-  if (presentation === 'card') {
-    /*
-     * The card anatomy, shared with Review's sitting card beside it: what it is on the caption
-     * line (the meta, which already reads "Keep reading · Next in John"), the title in large
-     * type, the excerpt under it, and one gray Open at the foot. The whole body is the way in;
-     * Open is the same action, named, for anyone looking for a button.
-     */
-    return (
-      <div className="proto-pickup-card" data-deck-id={deckId}>
-        <div className="proto-pickup-card__head">
-          <span className="proto-caption proto-pickup-card__eyebrow">
-            <span className="proto-pickup-card__icon" aria-hidden>
-              {iconNode ?? <Icon name={icon} size={11} />}
-            </span>
-            <span className="proto-pickup-card__eyebrow-text">
-              {metaItems.map((item, i) => (
-                <span key={i}>
-                  {i > 0 ? ' · ' : null}
-                  {item}
-                </span>
-              ))}
-            </span>
-          </span>
-          {trailing ? <span className="proto-pickup-card__trailing">{trailing}</span> : null}
-        </div>
-        <button
-          type="button"
-          className="proto-pickup-card__main"
-          onClick={onClick}
-          onMouseEnter={onMouseEnter}
-          onFocus={onFocus}
-          onPointerDown={onPointerDown}
-          disabled={disabled}
-          aria-label={ariaLabel}
-          title={title_attr}
-        >
-          <span className="proto-pickup-card__title">
-            {title}
-            {titleTrailing ? <span className="proto-list-panel__row-title-mark">{titleTrailing}</span> : null}
-          </span>
-          {excerpt ? <span className="proto-pickup-card__excerpt">{excerpt}</span> : null}
-        </button>
-        <div className="proto-pickup-card__foot">
-          <button
-            type="button"
-            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-            onClick={onClick}
-            disabled={disabled}
-            tabIndex={-1}
-            aria-hidden
-          >
-            Open
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   if (trailing) {
     return (
