@@ -8311,6 +8311,39 @@ button.proto-home-card--tappable:hover {
   }
 }
 
+/*
+ * The chips arrive after the sentence does: a soft rise, one after the other, as the greeting
+ * lands on the sheet. Only on the feed sheet, which is where the greeting arrives — elsewhere it
+ * is already there. Ends on the chip's own resting nudge (`translateY(-1px)`), so nothing jumps
+ * when the animation lets go.
+ */
+.proto-feed-sheet__body > .proto-home-greeting .proto-home-greeting__chip {
+  animation: proto-greeting-chip-in 460ms var(--pds-ease-standard) both;
+  animation-delay: 220ms;
+}
+
+.proto-feed-sheet__body > .proto-home-greeting .proto-home-greeting__glue + .proto-home-greeting__chip,
+.proto-feed-sheet__body > .proto-home-greeting .proto-home-greeting__chip ~ .proto-home-greeting__chip {
+  animation-delay: 320ms;
+}
+
+@keyframes proto-greeting-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-feed-sheet__body > .proto-home-greeting .proto-home-greeting__chip {
+    animation: none;
+  }
+}
+
 /* A chip and the comma after it: never split across lines (see `withTrailingPunctuation`). */
 .proto-home-greeting__glue {
   white-space: nowrap;
@@ -23342,7 +23375,6 @@ button.proto-feed-sheet__stat:hover {
   display: flex;
   flex-direction: column;
   gap: var(--pds-space-5);
-  margin-bottom: var(--pds-space-5);
 }
 
 /* The band borrows Home's section anatomy, which brings Home's own left inset with it —
@@ -23366,7 +23398,26 @@ button.proto-feed-sheet__stat:hover {
 .proto-feed-tabs {
   display: flex;
   flex-direction: column;
-  gap: var(--pds-space-3);
+  /* Tight: the tabs are the deck's heading, not a block of their own. */
+  gap: 10px;
+}
+
+/*
+ * The tabs hug their labels and start on the cards' own edge.
+ *
+ * Stretched across the sheet, three short words floated in a long grey trough and read as a
+ * toolbar. Sized to their labels they read as a heading over the deck. The shared bar's 12px
+ * inset is for a sidebar list; here it would leave the bar hanging inboard of every card.
+ */
+.proto-feed-tabs > .proto-chip-bar {
+  align-self: flex-start;
+  margin: 0;
+  max-width: 100%;
+}
+
+.proto-feed-tabs > .proto-chip-bar .proto-chip {
+  flex: 0 0 auto;
+  padding-inline: 14px;
 }
 
 /* Every deck hid itself: no tab bar over nothing. */
@@ -23511,6 +23562,41 @@ button.proto-feed-sheet__stat:hover {
   padding: 0 6px 6px;
 }
 
+/*
+ * The pager beside a one-row card rather than under it (`pager="inline"`, the default).
+ *
+ * A deck of rows was a row and then a whole line for "‹ 1 of 3 ›" — most of the card was its
+ * pager. Now the pager sits at the row's right, centred on it, where the chevron was, and the
+ * track keeps room for it so a row's own trailing control (a ⋮, an ×) stays clear of it. The
+ * chevron goes: with arrows beside it, a second arrow saying "this opens" is one too many.
+ */
+.proto-deck--pager-inline .proto-deck__foot {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  margin: 0;
+  padding: 0;
+  gap: 0;
+}
+
+.proto-deck--pager-inline:not([data-count='0']):not([data-count='1']) .proto-deck__track {
+  padding-right: 96px;
+}
+
+.proto-deck--pager-inline:not([data-count='0']):not([data-count='1']) .proto-list-panel__row-chevron {
+  display: none;
+}
+
+.proto-deck--pager-inline .proto-deck__nav {
+  width: 24px;
+  height: 24px;
+}
+
+.proto-deck--pager-inline .proto-deck__count {
+  min-width: 3em;
+}
+
 .proto-deck__nav {
   appearance: none;
   display: inline-flex;
@@ -23549,6 +23635,16 @@ button.proto-feed-sheet__stat:hover {
   .proto-deck__track[data-moved] > :not([data-deck-off]) {
     animation: proto-feed-block-in-reduced 120ms var(--pds-ease-standard);
   }
+}
+
+/*
+ * Under today's band, the quiet-day line is a caption to what is above it, not a sentence alone
+ * in the middle of the sheet: it sat 46px under the tabs and drifted to the sheet's centre.
+ * A day flipped back to has nothing above it, and keeps the centred line.
+ */
+.proto-feed-today + .proto-feed-sheet__rest {
+  margin: 0;
+  padding: var(--pds-space-2) 0 var(--pds-space-5);
 }
 
 .proto-feed-sheet__rest {
@@ -24975,7 +25071,8 @@ button.proto-feed-sheet__stat:hover {
   align-items: center;
   gap: var(--pds-space-2);
   width: 100%;
-  margin: var(--pds-space-3) 0 0;
+  /* No margin of its own: the sheet body's 20px gap is the one step between every block. */
+  margin: 0;
   padding: 11px 14px;
   border: 0.5px solid var(--pds-border-control);
   border-radius: var(--pds-radius-row);
@@ -25265,6 +25362,22 @@ button.proto-feed-sheet__stat:hover {
 .proto-challenge__verse--scripture sup.verse-num {
   font-family: var(--pds-font-body);
   color: var(--pds-text-tertiary);
+}
+
+/*
+ * Today's passage on Home wears the reader's own locator (`.pds-reader-verse-num`): the body
+ * face at 11px and 600, raised, with a quarter-em before the first word. The bare `sup` sat
+ * light and tight against the verse, as if it were a footnote mark.
+ */
+.proto-daily-passage .proto-review-dock__verse--scripture sup.verse-num {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-synthesis: none;
+  font-variation-settings: 'ROND' 0, 'wght' 600;
+  line-height: 1;
+  vertical-align: super;
+  margin-inline-end: 0.25em;
+  user-select: none;
 }
 
 /*

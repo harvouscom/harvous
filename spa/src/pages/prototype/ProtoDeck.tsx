@@ -72,6 +72,7 @@ export default function ProtoDeck({
   spotlight,
   className,
   onActiveChange,
+  pager = 'inline',
 }: {
   /** The eyebrow over the deck, and its accessible name. */
   label: string;
@@ -88,6 +89,12 @@ export default function ProtoDeck({
   peek?: 0 | 1 | 2;
   /** Name the deck as a spotlight target, so a checklist row can point at it. */
   spotlight?: string;
+  /**
+   * Where "‹ 2 of 5 ›" sits. `inline` (the default) puts it at the right of a one-row card, in
+   * the row chevron's place, so a deck of rows is one row tall rather than a row and a pager
+   * line. `foot` keeps it under the card, for a deck whose cards are tall (the Review sample).
+   */
+  pager?: 'inline' | 'foot';
   className?: string;
   /** Which card is in front, by `data-deck-id`, each time that changes. */
   onActiveChange?: (deckId: string | null) => void;
@@ -251,11 +258,14 @@ export default function ProtoDeck({
     event.stopPropagation();
   };
 
-  const peekLevel = peek ?? (Math.min(2, Math.max(0, count - 1)) as 0 | 1 | 2);
+  /* A one-row deck shows one edge at most: two thin edges under a short card read as a smudge
+     rather than a stack. Tall cards (the foot pager) have the height to carry two. */
+  const peekLevel = peek ?? (Math.min(pager === 'inline' ? 1 : 2, Math.max(0, count - 1)) as 0 | 1 | 2);
+  const classes = ['proto-deck', `proto-deck--pager-${pager}`, className].filter(Boolean).join(' ');
 
   return (
     <section
-      className={className ? `proto-deck ${className}` : 'proto-deck'}
+      className={classes}
       aria-roledescription="carousel"
       aria-label={label}
       data-count={count}

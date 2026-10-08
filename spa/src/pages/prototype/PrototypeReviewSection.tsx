@@ -151,7 +151,7 @@ export default function PrototypeReviewSection() {
     const sample = sampleQuery.data?.sample ?? null;
     if (plusPromptDismissed && !sample) return null;
     return (
-      <ProtoDeck label={REVIEW_SECTION_TITLE}>
+      <ProtoDeck label={REVIEW_SECTION_TITLE} pager="foot">
         {sample ? (
           /* No fallback: the card only exists once its own fetch has answered, and a
              placeholder would flash where it is about to be. */
