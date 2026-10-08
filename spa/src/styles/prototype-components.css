@@ -23378,33 +23378,12 @@ button.proto-feed-sheet__stat:hover {
  * toolbar. Sized to their labels they read as a heading over the deck. The shared bar's 12px
  * inset is for a sidebar list; here it would leave the bar hanging inboard of every card.
  */
-/* Tabs left, the showing deck's pager right, on one line. */
+/* The tab row. */
 .proto-feed-tabs__bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--pds-space-3);
   min-width: 0;
-}
-
-.proto-feed-tabs__pager {
-  display: inline-flex;
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-
-/* A pager that lives in the tab row: no foot inside the card, no room kept for one. */
-.proto-feed-tabs__pager .proto-deck__foot {
-  position: static;
-  transform: none;
-  margin: 0;
-  padding: 0;
-  gap: 0;
-}
-
-.proto-feed-tabs__pager .proto-deck__nav {
-  width: 26px;
-  height: 26px;
 }
 
 .proto-feed-tabs__bar > .proto-chip-bar {
@@ -23547,6 +23526,85 @@ button.proto-feed-sheet__stat:hover {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/*
+ * An expanding deck (`expand`): the edge under the card is a tab — "2 more" — that opens the
+ * deck into a list of every card. The callout stack's edge, on the deck's paper.
+ */
+.proto-deck__more {
+  appearance: none;
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 38px under the card's 10px overlap leaves a 28px strip, the label centred in it with room
+     above and below. The padding is the overlap, so centring counts only what shows. */
+  height: 38px;
+  margin: -10px 4% 0;
+  padding: 10px 0 0;
+  border: 0;
+  border-radius: 0 0 14px 14px;
+  background: var(--pds-paper-panel-bottom);
+  box-shadow:
+    0 0 0 0.5px var(--pds-border-control),
+    var(--pds-shadow-paper-panel);
+  color: var(--pds-text-secondary);
+  font: 500 11px/1.4 var(--pds-font-body);
+  cursor: pointer;
+}
+
+.proto-deck__less {
+  appearance: none;
+  align-self: center;
+  margin: 8px 0 0;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--pds-radius-pill);
+  background: transparent;
+  color: var(--pds-text-secondary);
+  font: 500 12px/1.4 var(--pds-font-body);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-deck__more:hover,
+  .proto-deck__less:hover {
+    color: var(--pds-text-primary);
+  }
+
+  .proto-deck__less:hover {
+    background: var(--pds-bg-control);
+  }
+}
+
+.proto-deck__more:focus-visible,
+.proto-deck__less:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+/* Opened, the cards are a list again, with the rows' own hairlines between them. */
+.proto-deck .proto-deck__track[data-open] > * + * {
+  border-top: 0.5px solid var(--pds-border-control);
+}
+
+.proto-deck .proto-deck__track[data-open] > * {
+  animation: proto-deck-list-in 220ms var(--pds-ease-standard) both;
+}
+
+@keyframes proto-deck-list-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-deck .proto-deck__track[data-open] > * {
+    animation: none;
   }
 }
 

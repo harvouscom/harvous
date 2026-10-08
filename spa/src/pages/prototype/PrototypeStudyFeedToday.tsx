@@ -164,8 +164,6 @@ export default function PrototypeStudyFeedToday({
   const [upNextShownId, setUpNextShownId] = useState<string | null>(null);
   const [chosenTab, setChosenTab] = useState<TodayTab>(readTodayTab);
   const panelsRef = useRef<HTMLDivElement>(null);
-  /* Where the showing deck's pager goes; state, not a ref, so the decks re-render once it exists. */
-  const [pagerSlot, setPagerSlot] = useState<HTMLSpanElement | null>(null);
   const counts = useDeckCounts(panelsRef);
   /* Offer only the tabs with something in them, and fall back to the first that has anything
      when the one you left on has emptied — answering today's last question empties Review. */
@@ -247,8 +245,6 @@ export default function PrototypeStudyFeedToday({
       ) : null}
 
       <div className="proto-feed-tabs">
-        {/* The tabs on the left, the showing deck's "‹ 1 of 3 ›" on the right — one row, so
-            the card under it is all card. */}
         <div className="proto-feed-tabs__bar">
           {tabs.length > 1 ? (
             <ProtoChipBar
@@ -258,11 +254,10 @@ export default function PrototypeStudyFeedToday({
               onSelect={chooseTab}
             />
           ) : null}
-          <span ref={setPagerSlot} className="proto-feed-tabs__pager" />
         </div>
         <div ref={panelsRef} className="proto-feed-tabs__panels">
           <div className="proto-feed-tabs__panel" data-today-tab="pickup" role="tabpanel" hidden={activeTab !== 'pickup'}>
-            <ProtoDeck label="Pick up" pagerSlot={activeTab === 'pickup' ? pagerSlot : null}>
+            <ProtoDeck label="Pick up" expand>
               {onboardingLeads ? onboarding : null}
               {continueRow ? (
                 <ContinueNoteRow icon="pen-to-square" note={continueRow} onOpen={home.onOpenNote} />
@@ -316,7 +311,7 @@ export default function PrototypeStudyFeedToday({
               label="Suggestions"
               spotlight="home-up-next"
               onActiveChange={setUpNextShownId}
-              pagerSlot={activeTab === 'suggestions' ? pagerSlot : null}
+              expand
             >
               <PrototypeHomeThisSunday homeSpaceId={homeSpaceId ?? ''} />
               <PrototypeHomeChurchFeed />

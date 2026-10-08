@@ -19,6 +19,11 @@
  * a row re-renders, and would quietly un-hide a card. It leaves attributes it did not set alone.
  * `inert` keeps them out of the tab order and the accessibility tree as well as out of sight.
  *
+ * **Expanding instead of paging** (`expand`): the edge under the card is a tab that says how
+ * many more there are, and opens the deck into a plain list of every card — the same move as the
+ * callout stack in the window's corner. No "‹ 2 of 5 ›": a list you can see all of beats a
+ * counter you have to step through, and Home's decks are short.
+ *
  * The active card is followed by identity, not position. When the card in front goes — a recall
  * prompt snoozed, a checklist step done — the deck stays where it was rather than jumping back to
  * the first card, and a card that moves within the deck stays in front.
@@ -75,6 +80,7 @@ export default function ProtoDeck({
   onActiveChange,
   pager = 'inline',
   pagerSlot,
+  expand = false,
 }: {
   /** The eyebrow over the deck, and its accessible name. */
   label: string;
@@ -104,6 +110,11 @@ export default function ProtoDeck({
    */
   pagerSlot?: HTMLElement | null;
   className?: string;
+  /**
+   * Open into a list of every card from a "N more" tab under the card, instead of paging with
+   * ‹ ›. Takes the place of the pager and the peeking edges.
+   */
+  expand?: boolean;
   /** Which card is in front, by `data-deck-id`, each time that changes. */
   onActiveChange?: (deckId: string | null) => void;
 }) {
@@ -119,6 +130,9 @@ export default function ProtoDeck({
 
   const [count, setCount] = useState(0);
   const [index, setIndex] = useState(0);
+  const [open, setOpen] = useState(false);
+  const openRef = useRef(false);
+  openRef.current = expand && open;
 
   /*
    * Re-read the cards and put the attributes where they belong.
@@ -144,7 +158,8 @@ export default function ProtoDeck({
 
     cards.forEach((card, n) => {
       const el = card as HTMLElement;
-      if (n === next) {
+      /* Opened, every card is in the list. */
+      if (n === next || openRef.current) {
         el.removeAttribute('data-deck-off');
         el.inert = false;
       } else {
@@ -153,6 +168,8 @@ export default function ProtoDeck({
       }
     });
     track.setAttribute('data-ready', '');
+    if (openRef.current) track.setAttribute('data-open', '');
+    else track.removeAttribute('data-open');
 
     setCount((previous) => (previous === cards.length ? previous : cards.length));
     setIndex((previous) => (previous === next ? previous : next));
@@ -220,8 +237,13 @@ export default function ProtoDeck({
     return () => track.removeEventListener(DECK_SHOW_EVENT, onShow);
   }, [show]);
 
+  /* Nothing left to open once there is one card. */
+  useEffect(() => {
+    if (count < 2) setOpen(false);
+  }, [count]);
+
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (count < 2 || keyBelongsElsewhere(event.target)) return;
+    if (count < 2 || openRef.current || keyBelongsElsewhere(event.target)) return;
     const track = trackRef.current;
     if (!track) return;
     if (event.key === 'ArrowRight') go(1);
@@ -234,7 +256,7 @@ export default function ProtoDeck({
 
   /* Touch and pen only: a mouse drag across a row is a text selection, not a swipe. */
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === 'mouse' || count < 2) return;
+    if (event.pointerType === 'mouse' || count < 2 || openRef.current) return;
     swipeRef.current = { x: event.clientX, y: event.clientY, id: event.pointerId };
   };
 
@@ -268,18 +290,20 @@ export default function ProtoDeck({
 
   /* A one-row deck shows one edge at most: two thin edges under a short card read as a smudge
      rather than a stack. Tall cards (the foot pager) have the height to carry two. */
-  const peekLevel = peek ?? (Math.min(pager === 'inline' ? 1 : 2, Math.max(0, count - 1)) as 0 | 1 | 2);
+  const peekLevel = expand
+    ? 0
+    : (peek ?? (Math.min(pager === 'inline' ? 1 : 2, Math.max(0, count - 1)) as 0 | 1 | 2));
   const pagerElsewhere = pagerSlot !== undefined;
   const classes = [
     'proto-deck',
-    pagerElsewhere ? 'proto-deck--pager-external' : `proto-deck--pager-${pager}`,
+    expand ? 'proto-deck--expand' : pagerElsewhere ? 'proto-deck--pager-external' : `proto-deck--pager-${pager}`,
     className,
   ]
     .filter(Boolean)
     .join(' ');
 
   const pagerNode =
-    counter && count > 1 ? (
+    counter && !expand && count > 1 ? (
       <div className="proto-deck__foot">
         <button
           type="button"
@@ -333,6 +357,35 @@ export default function ProtoDeck({
           {!pagerElsewhere && pagerNode}
           {footer}
         </div>
+        {expand && count > 1 ? (
+          open ? (
+            <button
+              type="button"
+              className="proto-deck__less"
+              aria-expanded="true"
+              onClick={() => {
+                trackRef.current?.removeAttribute('data-moved');
+                setOpen(false);
+              }}
+            >
+              Show less
+            </button>
+          ) : (
+            /* The edge under the card is the way in: it says how many, and opens the list. */
+            <button
+              type="button"
+              className="proto-deck__more"
+              aria-expanded="false"
+              aria-label={`Show all ${count} in ${label}`}
+              onClick={() => {
+                trackRef.current?.removeAttribute('data-moved');
+                setOpen(true);
+              }}
+            >
+              {count - 1} more
+            </button>
+          )
+        ) : null}
       </div>
     </section>
     </>

@@ -220,4 +220,29 @@ describe('ProtoDeck', () => {
     });
     expect(visibleCards(container)).toEqual(['B']);
   });
+
+  it('expands into a list of every card from the "N more" tab, and folds back', () => {
+    const { container } = render(
+      <ProtoDeck label="Pick up" expand>
+        <button type="button">A</button>
+        <button type="button">B</button>
+        <button type="button">C</button>
+      </ProtoDeck>,
+    );
+    expect(screen.queryByText('1 of 3')).toBeNull();
+    expect(visibleCards(container)).toEqual(['A']);
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 3 in Pick up' }));
+    expect(visibleCards(container)).toEqual(['A', 'B', 'C']);
+    fireEvent.click(screen.getByRole('button', { name: 'Show less' }));
+    expect(visibleCards(container)).toEqual(['A']);
+  });
+
+  it('offers no tab when there is only one card', () => {
+    render(
+      <ProtoDeck label="Pick up" expand>
+        <button type="button">A</button>
+      </ProtoDeck>,
+    );
+    expect(screen.queryByText(/more$/)).toBeNull();
+  });
 });

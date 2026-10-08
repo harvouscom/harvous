@@ -67,6 +67,9 @@
 /* Phones: the same card in the flow of Home, so it never floats over what it points at. */
 .proto-callout--inline {
   margin: 0;
+  /* On the paper, the paper's own shadow, as today's passage and the decks wear. The floating
+     card's popover shadow spreads past the sheet body, which scrolls and so clips it into a box. */
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-paper-panel);
 }
 
 /* The picture: a slice of the app on one of its own canvas images, cropped at its foot like the
@@ -563,12 +566,13 @@
   appearance: none;
   z-index: 1;
   display: flex;
-  align-items: flex-start;
   justify-content: center;
-  /* 30px under the card's 10px overlap leaves a 20px strip — room for the label to sit whole. */
-  height: 30px;
+  /* 38px under the card's 10px overlap leaves a 28px strip, the label centred in it with room
+     above and below. The padding is the overlap, so centring counts only what shows. */
+  align-items: center;
+  height: 38px;
   margin: 0 7%;
-  padding: 4px 0 0;
+  padding: 0 0 10px;
   border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
   color: var(--pds-text-secondary);
   font: 500 11px/1.4 var(--pds-font-body);
@@ -603,9 +607,13 @@
 }
 
 .proto-callout-stack[data-direction='down'] .proto-callout-stack__more {
-  align-items: flex-end;
-  padding: 0 0 4px;
+  padding: 10px 0 0;
   border-radius: 0 0 var(--pds-radius-card) var(--pds-radius-card);
+}
+
+/* On the paper the edges take the paper's shadow too (see `.proto-callout--inline`). */
+.proto-callout-stack[data-direction='down'] :is(.proto-callout-stack__edge-back, .proto-callout-stack__more) {
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-paper-panel);
 }
 
 /* Opened: every card, each with its own ×, under a bar that can put them all away. In the
