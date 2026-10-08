@@ -251,9 +251,10 @@ export function libraryViewDepth(view: LibraryPanelView | null): number {
 /**
  * The sound a move inside the panel makes, or null when nothing moved.
  *
- * Deeper is forward and shallower is back — the same whoosh, played the other way. A step
- * sideways between tabs is a choice from a list, so it is the detent; a step sideways between
- * two drills on the same tab (one Thread to another from a result) is still going somewhere.
+ * Deeper is in and shallower is out — the detent, shaped by which way it went. Never the paper
+ * whoosh: that is for pages, and a drill stays inside the panel. A step sideways between tabs is
+ * a choice from a list, so it is the plain detent; a step sideways between two drills on the
+ * same tab (one Thread to another from a result) is still going in.
  *
  * Returned as a moment's name so the shell can hand it straight to `playSound` without this
  * module importing the sound layer — it sits in the eager graph, and stays light.
@@ -261,11 +262,11 @@ export function libraryViewDepth(view: LibraryPanelView | null): number {
 export function libraryMoveSound(
   from: LibraryPanelView | null,
   to: LibraryPanelView,
-): 'nav.forward' | 'nav.back' | 'nav.select' | null {
+): 'nav.drillIn' | 'nav.drillOut' | 'nav.select' | null {
   if (!from || isSameLibraryPanelView(from, to)) return null;
   const before = libraryViewDepth(from);
   const after = libraryViewDepth(to);
-  if (after > before) return 'nav.forward';
-  if (after < before) return 'nav.back';
-  return from.tab !== to.tab ? 'nav.select' : 'nav.forward';
+  if (after > before) return 'nav.drillIn';
+  if (after < before) return 'nav.drillOut';
+  return from.tab !== to.tab ? 'nav.select' : 'nav.drillIn';
 }
