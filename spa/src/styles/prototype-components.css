@@ -22928,6 +22928,10 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 
 /* The sheet: today's page, or whichever day is in front. */
 .proto-feed-sheet {
+  /* A size container, so what lives on the sheet can respond to the sheet's width rather than
+     the window's (the greeting does). Inline size only: the sheet's height still follows its
+     content. */
+  container: proto-feed-sheet / inline-size;
   position: relative;
   z-index: 1;
   display: flex;
@@ -23209,7 +23213,13 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * breakpoint it keeps the sidebar's size, because the sheet is the full width of a phone
  * and a larger line would cost lines rather than presence.
  */
-@media (min-width: 900px) {
+/*
+ * Keyed to the sheet's own width, not the viewport's. The sheet reaches its full measure at
+ * about 824px of window, so a 900px media query left a band where a full-width sheet still
+ * carried the phone's small, left-set greeting; and a Library panel open beside it narrows
+ * the sheet without the window changing at all.
+ */
+@container proto-feed-sheet (min-width: 600px) {
   /*
    * Both scoped to the body, and the summary's scoping is load-bearing rather than tidiness:
    * `.proto-feed-sheet__summary` alone matches the base rule below at equal specificity, and
