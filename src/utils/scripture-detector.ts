@@ -409,6 +409,37 @@ export const getBookNameVariations = (): string[] => {
   return variations;
 };
 
+/**
+ * "I John", "II Kings", "III John" — the roman-numeral form of a numbered book, common in
+ * printed Bibles and older study material. Without it the reference pattern found the bare
+ * book inside it, so "I John 3:16" became a pill for the Gospel of John.
+ */
+const ROMAN_BOOK_PREFIX_DIGITS: Record<string, string> = { i: '1', ii: '2', iii: '3' };
+
+/** "i john" → "1 john"; anything else unchanged. Expects `normalizeText` output. */
+export function romanBookPrefixToDigit(normalizedBookPart: string): string {
+  const m = normalizedBookPart.match(/^(iii|ii|i)\s+(.+)$/);
+  if (!m) return normalizedBookPart;
+  return `${ROMAN_BOOK_PREFIX_DIGITS[m[1]!]} ${m[2]}`;
+}
+
+/**
+ * Book-name variations for finding references in running text: every name and synonym, plus
+ * the roman-numeral spelling of each numbered one ("1 John" → "I John", "1 Cor" → "I Cor").
+ * Kept out of `getBookNameVariations` because the plain list is also a vocabulary for search
+ * and book suggestions, where a bare "I" prefix would only add noise.
+ */
+const getDetectionBookNameVariations = (): string[] => {
+  const variations = getBookNameVariations();
+  const roman = ['I', 'II', 'III'];
+  const romanVariations: string[] = [];
+  for (const variation of variations) {
+    const m = variation.match(/^([123])\s+(.+)$/);
+    if (m) romanVariations.push(`${roman[Number(m[1]) - 1]} ${m[2]}`);
+  }
+  return [...variations, ...romanVariations];
+};
+
 // Normalize text for matching (remove punctuation, lowercase, etc.)
 export const normalizeText = (text: string): string => {
   return text
@@ -515,7 +546,7 @@ function validateAndWarn(ref: ScriptureReference): ScriptureReference {
  * resolves the way it always has — to Philippians, whose declared synonym it is.
  */
 export function resolveCanonicalBookName(bookPart: string, bookNames: string[]): string | null {
-  const normalizedBookPart = normalizeText(bookPart);
+  const normalizedBookPart = romanBookPrefixToDigit(normalizeText(bookPart));
   if (!normalizedBookPart) return null;
 
   let best: { rank: number; weight: number; bookName: string } | null = null;
@@ -839,7 +870,7 @@ function isValidScriptureContext(text: string, matchIndex: number, matchLength: 
 export const detectScriptureReferences = (text: string): ScriptureReference[] => {
   const references: ScriptureReference[] = [];
   // Use variations (including synonyms) for detection, e.g., "Psalm" for "Psalms"
-  const bookNames = getBookNameVariations();
+  const bookNames = getDetectionBookNameVariations();
 
   // Build regex pattern for all book names
   // Escape special regex characters
@@ -1008,7 +1039,7 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
 
   // Chapter range without colon (e.g. Matthew 5-7) — run before chapter-only so "Matthew 5" does not steal from "5-7"
   const chapterRangePattern = new RegExp(
-    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)\\s*${dashPattern}\\s*(\\d+)(?!\\s*:)(?=\\s|$|[^\\d\\w-])`,
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)\\s*${dashPattern}\\s*(\\d+)(?!\\s*:)(?![.;]\\d)(?=\\s|$|[^\\d\\w-])`,
     'gi'
   );
   while ((match = chapterRangePattern.exec(text)) !== null) {
@@ -1028,9 +1059,12 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
     }
   }
 
-  // Chapter-only (e.g. Psalm 23, John 3) — not followed by ":" or by "-chapter" range
+  // Chapter-only (e.g. Psalm 23, John 3) — not followed by ":" or by "-chapter" range.
+  // Nor by ".16" / ";16": that is a chapter and verse with the wrong separator (a European
+  // "John 3.16", or a colon a scan misread), and pilling it as the whole of John 3 put a
+  // different passage in the note than the one cited. Better no pill than the wrong one.
   const chapterOnlyPattern = new RegExp(
-    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)(?!\\s*:)(?!\\s*${dashPattern}\\s*\\d)(?=\\s|$|[^\\d\\w])`,
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)(?!\\s*:)(?!\\s*${dashPattern}\\s*\\d)(?![.;]\\d)(?=\\s|$|[^\\d\\w])`,
     'gi'
   );
   while ((match = chapterOnlyPattern.exec(text)) !== null) {

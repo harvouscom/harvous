@@ -1,0 +1,783 @@
+/*
+ * Scan a page — the sheet (ScanTextSheet.tsx and its parts).
+ *
+ * Its own stylesheet, imported by the sheet, so it ships in the sheet's lazy chunk: none of
+ * this is needed until someone has chosen a photo, and in prototype-components.css it sat on
+ * every route's critical path (it pushed index.css past its perf:check budget). The blank
+ * note's "or scan a page" and Import's link stay in the global sheet — they are on screen
+ * before any scan.
+ */
+
+/* ─── Scan a page ───────────────────────────────────────────────────────────
+   The import surface's progress and summary at sheet size (ScanTextSheet.tsx), with
+   what was found as a strip of Discover-style cards (ScanStrip.tsx). */
+
+.proto-scan-popover {
+  width: min(440px, calc(100vw - 24px));
+}
+
+.proto-scan-sheet.proto-connect-note-sheet {
+  max-height: min(780px, 88vh);
+}
+
+/* On a phone the sheet floats like the app frame behind it: the same inset from the
+   screen edges, the same corner radius and shadow, clear of the home indicator — not a
+   slab bolted to the bottom of the screen. Beats the shared `[data-side='bottom']` pin,
+   which is `!important`. */
+[data-side='bottom'].drawer-content-bottom.proto-scan-sheet {
+  left: var(--pds-shell-frame-inset) !important;
+  right: var(--pds-shell-frame-inset) !important;
+  bottom: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-bottom, 0px)) !important;
+  max-height: calc(
+    100dvh - 2 * var(--pds-shell-frame-inset) - env(safe-area-inset-top, 0px) -
+      env(safe-area-inset-bottom, 0px) - 24px
+  );
+  /* The header and body carry their own side padding; doubling it here pinched the strip,
+     which is meant to run to the sheet's edge. */
+  padding: 6px 0 4px;
+  overflow: hidden;
+  border-radius: var(--pds-shell-frame-radius);
+  background: var(--pds-bg-popover-solid);
+  box-shadow: var(--pds-shadow-shell), 0 22px 48px -18px rgba(20, 18, 12, 0.35);
+}
+
+.proto-scan-popover .proto-scan-sheet.proto-connect-note-sheet--popover {
+  max-height: min(720px, 86vh);
+}
+
+.proto-scan {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.proto-scan__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  padding: 6px 16px 16px;
+}
+
+/* What was found, one card per reference in a single column — each read top to bottom
+   in the order the page cites them, so checking them is a list you work down rather than a
+   carousel you have to remember to swipe. Cards are shaped after the Discover catalog's: a
+   tinted stage with the verse standing on it, then the words and the controls. */
+.proto-scan-strip {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.proto-scan-card {
+  /* The card's tone — Discover's `--tone`: the scripture pill's own blue, so a verse card
+     reads as Scripture before a word of it is read. */
+  --proto-scan-tone: oklch(var(--pds-lch-scripture-accent));
+  display: grid;
+  /* Verse on the left, its name and controls on the right. */
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+  gap: 4px;
+  padding: 6px;
+  border-radius: var(--pds-radius-card, 16px);
+  background: color-mix(in oklab, var(--proto-scan-tone) 5%, var(--pds-bg-page));
+  box-shadow: inset 0 0 0 0.5px color-mix(in oklab, var(--proto-scan-tone) 16%, transparent);
+  animation: proto-scan-card-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: opacity 200ms ease;
+}
+
+/* The only card takes the strip's width: one passage or one reference has no neighbour to
+   leave room for, and a lone narrow card beside empty space read as something missing. */
+.proto-scan-card--full {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.proto-scan-card--full .proto-scan-card__stage {
+  min-height: 0;
+  height: 148px;
+}
+
+.proto-scan-card--full .proto-scan-card__words {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.proto-scan-card--full .proto-scan-card__words > .proto-scan-card__footer {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.proto-scan-card--full .proto-scan-card__verse {
+  font-size: 13px;
+  -webkit-line-clamp: 5;
+}
+
+.proto-scan-card--dimmed {
+  opacity: 0.55;
+}
+
+@keyframes proto-scan-card-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* The stage, as on a Discover card: its own rounded panel inset in the card, the tone
+   washed across it and a soft white light from the top edge, with the artifact standing
+   on its floor. */
+.proto-scan-card__stage {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 124px;
+  padding: 12px 12px 0;
+  overflow: hidden;
+  border-radius: calc(var(--pds-radius-card, 16px) - 6px);
+  background:
+    radial-gradient(120% 80% at 50% 0%, color-mix(in oklab, white 55%, transparent), transparent 70%),
+    color-mix(in oklab, var(--proto-scan-tone) 15%, var(--pds-bg-page));
+}
+
+/* The artifact: a sheet of the same paper as the import fan, running off the stage's
+   floor so it reads as a page standing in it rather than a box floating on it. */
+.proto-scan-card__sheet {
+  width: 100%;
+  height: calc(100% + 10px);
+  margin-bottom: -10px;
+  padding: 10px 11px;
+  border-radius: 6px 6px 0 0;
+  border: 0.5px solid color-mix(in oklab, var(--pds-text-primary) 9%, transparent);
+  background: var(--pds-bg-page);
+  box-shadow: 0 1px 2px rgba(20, 18, 12, 0.05), 0 10px 24px -14px rgba(20, 18, 12, 0.4);
+  overflow: hidden;
+  transition: transform 450ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-scan-card:hover .proto-scan-card__sheet {
+    transform: translateY(-4px);
+  }
+}
+
+.proto-scan-card__verse {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: var(--pds-font-reading, inherit);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+.proto-scan-card__verse--missing {
+  color: var(--pds-text-secondary);
+  font-style: italic;
+}
+
+/* Ruled lines while a verse (or a whole card) is still on its way. */
+.proto-scan-card__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 4px;
+}
+
+.proto-scan-card__lines > span {
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--pds-text-primary) 11%, transparent);
+  animation: proto-scan-shimmer 1.4s ease-in-out infinite;
+}
+
+.proto-scan-card__lines > span:nth-child(2) { width: 82%; animation-delay: 120ms; }
+.proto-scan-card__lines > span:nth-child(3) { width: 64%; animation-delay: 240ms; }
+
+@keyframes proto-scan-shimmer {
+  50% { opacity: 0.45; }
+}
+
+.proto-scan-card__words {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 6px 2px 8px;
+}
+
+/* The translation and the keep-as-text control sit at the foot of every card, whatever
+   is above them, so they line up down the column. */
+.proto-scan-card__words > .proto-scan-card__footer {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.proto-scan-card__name {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  text-align: left;
+}
+
+.proto-scan-card__kicker {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-scan-card__title {
+  font-size: 14px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  color: var(--pds-text-primary);
+}
+
+.proto-scan-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.proto-select-menu__trigger.proto-scan-card__translation {
+  flex: none;
+  width: auto;
+  min-width: 72px;
+}
+
+.proto-scan-card__toggle {
+  flex: none;
+}
+
+.proto-scan-card--placeholder {
+  animation: none;
+}
+
+.proto-scan-card__bar {
+  display: block;
+  height: 9px;
+  width: 78%;
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--pds-text-primary) 9%, transparent);
+  animation: proto-scan-shimmer 1.4s ease-in-out infinite;
+}
+
+.proto-scan-card__bar--short {
+  width: 42%;
+  height: 7px;
+  margin-bottom: 3px;
+}
+
+/* The photo, beside the words read off it: tilted a little, so it reads as laid down. */
+.proto-scan-photo {
+  position: relative;
+  flex: none;
+  width: 60px;
+  height: 80px;
+  margin: 2px 2px 0;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 0.5px solid color-mix(in oklab, var(--pds-text-primary) 11%, transparent);
+  background: var(--pds-bg-page);
+  box-shadow: 0 1px 2px rgba(20, 18, 12, 0.06), 0 12px 26px -14px rgba(20, 18, 12, 0.5);
+  transform: rotate(-1.5deg);
+  animation: proto-scan-photo-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* It is a button — the way to the whole page — so it shows a hand and a small expand mark. */
+button.proto-scan-photo {
+  appearance: none;
+  padding: 0;
+  font: inherit;
+  cursor: zoom-in;
+}
+
+button.proto-scan-photo:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
+}
+
+.proto-scan-photo__expand {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--pds-bg-page) 88%, transparent);
+  box-shadow: 0 1px 3px rgba(20, 18, 12, 0.18);
+  color: var(--pds-text-primary);
+}
+
+.proto-scan-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@keyframes proto-scan-photo-in {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) rotate(-8deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-1.5deg);
+  }
+}
+
+/* A band of light passing down the page while it is read — and only then. Motion
+   that says "working" stops the moment the work does. */
+.proto-scan-photo__sweep {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 34%;
+  opacity: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--pds-accent) 22%, transparent) 72%,
+    color-mix(in oklab, var(--pds-accent) 48%, transparent)
+  );
+  transition: opacity 240ms ease;
+  pointer-events: none;
+}
+
+.proto-scan-photo--reading .proto-scan-photo__sweep {
+  opacity: 1;
+  animation: proto-scan-sweep 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes proto-scan-sweep {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(300%); }
+}
+
+/* Two sections, one per job: the Scripture to check, then the page to correct. */
+.proto-scan__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.proto-scan__section .proto-scan__field-head {
+  margin-top: 4px;
+}
+
+h3.proto-scan__field-label {
+  margin: 0;
+}
+
+/* The page's references as one set: one heading over one column. A tinted panel round
+   them was tried and made every card a box in a box in a box. */
+.proto-scan__group .proto-scan-strip {
+  margin: 0;
+}
+
+.proto-scan__group-empty {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--pds-radius-card, 16px);
+  background: var(--pds-bg-section);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+}
+
+.proto-scan__page {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.proto-scan__page-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.proto-scan__page-body > .proto-scan__status,
+.proto-scan__page-body > .proto-scan__text {
+  align-self: stretch;
+}
+
+.proto-scan__page-note {
+  margin: 0;
+  padding-top: 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+}
+
+/* The whole page, over everything — the scan sheet included (its drawer sits at 1000021).
+   The image keeps its natural size inside a scroller, so pinch-zoom has detail to show. */
+.proto-scan-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000040;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(56px + env(safe-area-inset-top, 0px)) 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  overflow: auto;
+  background: rgba(14, 13, 10, 0.86);
+  animation: proto-scan-viewer-in 200ms ease both;
+}
+
+.proto-scan-viewer__image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+
+.proto-scan-viewer__close {
+  position: fixed;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+}
+
+.proto-scan-viewer__close:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
+}
+
+@keyframes proto-scan-viewer-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The two jobs, numbered in the order they are done: the page, then its Scripture. */
+.proto-scan__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--pds-bg-chip);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--pds-text-secondary);
+  vertical-align: 1px;
+}
+
+.proto-scan__edit-toggle {
+  appearance: none;
+  flex: none;
+  padding: 3px 8px;
+  margin-right: -8px;
+  border: 0;
+  border-radius: var(--pds-radius-row);
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-scan__edit-toggle:hover {
+    background: var(--pds-bg-control-hover);
+  }
+}
+
+/* The page's words with each reference marked where it sits — the same paper as the
+   cards' sheets, read-only until Edit text. */
+.proto-scan-pagetext {
+  align-self: stretch;
+  max-height: 228px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: calc(var(--pds-radius-card, 16px) - 4px);
+  background: var(--pds-bg-page);
+  font-family: var(--pds-font-reading, inherit);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--pds-text-primary);
+}
+
+.proto-scan-pagetext p {
+  margin: 0 0 8px;
+}
+
+.proto-scan-pagetext p:last-child {
+  margin-bottom: 0;
+}
+
+/* A reference in the text, dressed like the pill it will become. */
+.proto-scan-pagetext__ref {
+  appearance: none;
+  display: inline;
+  padding: 0 3px;
+  margin: 0 -1px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--pds-scripture-bg);
+  box-shadow: inset 0 0 0 0.5px var(--pds-scripture-border);
+  font: inherit;
+  cursor: pointer;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* Read with a guess: dotted, the app's own mark for "suggested, not certain" (the same
+   reading as a reference suggestion's dotted underline). An alarm colour was tried and read
+   as an error, which a guess that is usually right is not. */
+.proto-scan-pagetext__ref--check {
+  text-decoration: underline dotted var(--pds-text-secondary);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+
+.proto-scan__page-help {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+}
+
+.proto-scan-pagetext__key--check {
+  display: inline-block;
+  width: 14px;
+  height: 6px;
+  margin-right: 6px;
+  vertical-align: 2px;
+  border-bottom: 1.5px dotted var(--pds-text-secondary);
+}
+
+/* A card whose reference was a guess: a dashed edge (unconfirmed, not wrong), and how the
+   scan actually read it. */
+.proto-scan-card--check {
+  outline: 1px dashed var(--pds-border-control-strong);
+  outline-offset: -1px;
+}
+
+.proto-scan-card__check {
+  appearance: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: zoom-in;
+}
+
+.proto-scan-card__check-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 4px;
+  border-radius: 50%;
+  border: 1.5px dotted var(--pds-text-secondary);
+}
+
+.proto-scan-card__check-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.proto-scan-card__check u {
+  text-underline-offset: 2px;
+}
+
+/* Pressing a reference in the text lands the eye on its card. */
+.proto-scan-card--pulse {
+  animation: proto-scan-card-pulse 900ms ease-out;
+}
+
+@keyframes proto-scan-card-pulse {
+  0% { box-shadow: inset 0 0 0 2px var(--pds-scripture-fg); }
+  100% { box-shadow: inset 0 0 0 0.5px transparent; }
+}
+
+.proto-scan__status {
+  padding: 18px 0 0;
+}
+
+/* The result, said once and plainly, on the strip's left edge. The sheet's own header
+   already names the task, so this is a heading for what came back rather than a second
+   centred title — and the count lives in the line under it, not in a banner. */
+.proto-scan__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 4px;
+}
+
+.proto-scan__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 660;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+}
+
+.proto-scan__lede {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+}
+
+/* The text's heading: the field's name on the left in the app's section-title voice,
+   and what editing it does on the right, so the box reads as something to correct rather
+   than a transcript to scroll past. */
+.proto-scan__field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.proto-scan__field-label {
+  flex: none;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-scan__field-hint {
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The scanned words on the same paper as the cards' sheets, not a grey form box: it is
+   the page you photographed, ready to correct. 16px on touch so iOS does not zoom the page
+   when it takes focus. */
+.proto-scan__text {
+  width: 100%;
+  min-height: 132px;
+  resize: vertical;
+  padding: 12px 14px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: calc(var(--pds-radius-card, 16px) - 4px);
+  background: var(--pds-bg-page);
+  box-shadow: inset 0 1px 2px rgba(20, 18, 12, 0.04);
+  color: var(--pds-text-primary);
+  font: inherit;
+  font-family: var(--pds-font-reading, inherit);
+  font-size: 15px;
+  line-height: 1.55;
+  text-align: left;
+}
+
+@media (pointer: coarse) {
+  .proto-scan__text {
+    font-size: 16px;
+  }
+}
+
+.proto-scan__text:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: -1px;
+}
+
+.proto-scan__mode-switch {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 560;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* The house sheet footer (`.proto-add-notes-sheet__footer`), held at the bottom of the
+   sheet while the strip and the text scroll above it. */
+.proto-scan__footer {
+  margin-top: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-scan-photo {
+    animation: none;
+  }
+
+  /* No passing light and no shimmer; the progress bar alone says it is working. */
+  .proto-scan-photo--reading .proto-scan-photo__sweep {
+    animation: none;
+    opacity: 0;
+  }
+
+  .proto-scan-card,
+  .proto-scan-card__lines > span,
+  .proto-scan-card__bar,
+  .proto-scan-viewer,
+  .proto-scan-card--pulse {
+    animation: none;
+  }
+}
+
+/* Button ink inside the sheet, against the route's blanket `button[class*='proto-']` rule. */
+/* The page viewer's close sits on a dark scrim; the blanket button ink would vanish on it. */
+html.harvous-prototype-route button[class*='proto-'].proto-scan-viewer__close,
+html.harvous-prototype-route button[class*='proto-'].proto-scan-viewer__close * {
+  color: var(--pds-on-accent) !important;
+}
+
+/* A reference marked in the scanned text is the pill's blue, like the pill it becomes. */
+html.harvous-prototype-route button[class*='proto-'].proto-scan-pagetext__ref,
+html.harvous-prototype-route button[class*='proto-'].proto-scan-pagetext__ref * {
+  color: var(--pds-scripture-fg) !important;
+}
+
+/* How a guessed reference was read is a note, not a heading: secondary ink. */
+html.harvous-prototype-route button[class*='proto-'].proto-scan-card__check,
+html.harvous-prototype-route button[class*='proto-'].proto-scan-card__check * {
+  color: var(--pds-text-secondary) !important;
+}

@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import fs from 'fs';
 import { createRequire } from 'module';
 import { resolveBuildId } from './scripts/build-id.js';
 const require = createRequire(import.meta.url);
@@ -27,6 +28,59 @@ function emitBuildId(): Plugin {
         fileName: 'build-id.json',
         source: JSON.stringify({ buildId: BUILD_ID, version: pkg.version }),
       });
+    },
+  };
+}
+
+/**
+ * The text-recognition engine for "Scan a page", served from our own origin.
+ *
+ * tesseract.js fetches its worker, its WebAssembly core and its language data at run time, and
+ * by default from jsDelivr — which the CSP rightly refuses (`script-src`/`connect-src` name no
+ * CDN). So the files are copied out of node_modules into the build, under a directory named for
+ * the installed versions. That makes the path itself the cache key: everything under /assets/
+ * is served immutable and cached by the service worker, and a version bump is a new path rather
+ * than a stale file. Only what `src/utils/ocr/recognize-image-text.ts` can ask for is shipped:
+ * the LSTM-only cores (with and without SIMD) and the integer "best" English model.
+ *
+ * Nothing here is in the initial payload; it is fetched the first time someone scans.
+ */
+const tesseractVersion = require('tesseract.js/package.json').version as string;
+const tesseractCoreVersion = require('tesseract.js-core/package.json').version as string;
+const OCR_ASSET_DIR = `assets/ocr-${tesseractVersion}-${tesseractCoreVersion}`;
+const OCR_ASSET_FILES: Record<string, string> = {
+  'worker.min.js': 'node_modules/tesseract.js/dist/worker.min.js',
+  'core/tesseract-core-lstm.wasm.js': 'node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js',
+  'core/tesseract-core-simd-lstm.wasm.js': 'node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js',
+  'lang/eng.traineddata.gz': 'node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz',
+};
+
+function ocrAssets(): Plugin {
+  const prefix = `/${OCR_ASSET_DIR}/`;
+  return {
+    name: 'harvous-ocr-assets',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url?.split('?')[0] ?? '';
+        if (!url.startsWith(prefix)) return next();
+        const source = OCR_ASSET_FILES[url.slice(prefix.length)];
+        if (!source) return next();
+        res.setHeader(
+          'Content-Type',
+          url.endsWith('.js') ? 'text/javascript' : 'application/octet-stream',
+        );
+        res.setHeader('Cache-Control', 'no-cache');
+        fs.createReadStream(path.resolve(__dirname, source)).pipe(res);
+      });
+    },
+    generateBundle() {
+      for (const [name, source] of Object.entries(OCR_ASSET_FILES)) {
+        this.emitFile({
+          type: 'asset',
+          fileName: `${OCR_ASSET_DIR}/${name}`,
+          source: fs.readFileSync(path.resolve(__dirname, source)),
+        });
+      }
     },
   };
 }
@@ -73,7 +127,7 @@ function fullReloadOnHookModuleEdit(): Plugin {
 // The Hono server (server/dev.ts on port 3001) handles all API routes.
 // This builds spa/ → dist-spa/ which Capacitor bundles into the native app.
 export default defineConfig({
-  plugins: [react(), fullReloadOnHookModuleEdit(), emitBuildId()],
+  plugins: [react(), fullReloadOnHookModuleEdit(), emitBuildId(), ocrAssets()],
   root: 'spa',
   // Serve public assets (fonts, icons, manifest, sw.js) from the project root's public/
   publicDir: path.resolve(__dirname, 'public'),
@@ -112,6 +166,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __BUILD_ID__: JSON.stringify(BUILD_ID),
+    __OCR_ASSET_BASE__: JSON.stringify(`/${OCR_ASSET_DIR}/`),
   },
   resolve: {
     alias: {

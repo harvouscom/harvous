@@ -19039,6 +19039,26 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   }
 }
 
+/* Import's empty state: the paper route, under the file buttons. */
+.proto-import-drop__scan {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-drop__scan-link {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+
 /*
   Scripture map — how much of the church's teaching each book has carried.
 

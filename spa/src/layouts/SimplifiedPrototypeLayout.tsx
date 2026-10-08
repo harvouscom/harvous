@@ -48,6 +48,7 @@ import { playSound } from '@/utils/sounds';
 const PrototypeOrganizeCommandHost = lazy(
   () => import('../pages/prototype/PrototypeOrganizeCommandHost'),
 );
+const PrototypeScanTextHost = lazy(() => import('../pages/prototype/scan/PrototypeScanTextHost'));
 const PrototypeLibraryPanelHost = lazy(
   () => import('../pages/prototype/library-panel/PrototypeLibraryPanelHost'),
 );
@@ -114,6 +115,7 @@ import {
   ProtoShellProvider,
   resolveVisibleComposeTarget,
   useProtoShell,
+  type PrototypeComposeSeed,
 } from './proto-shell-context';
 import { resolveLibraryListScope } from '../lib/shared-space-capabilities';
 import { applyReadingPrefs, readReadingPrefs } from '../lib/proto-reading-prefs';
@@ -1366,6 +1368,12 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
           />
         </Suspense>
 
+        {/* "Scan a page": a photo → a note, from Activity's compose row or Import. Renders
+            nothing until a photo has been chosen. */}
+        <Suspense fallback={null}>
+          <PrototypeScanTextHost />
+        </Suspense>
+
         {/* The browse surface the sidebar used to be, summoned from the toolbar chip.
             Mounted through the exit morph, which is what `libraryPanelExiting` buys.
             No Suspense fallback: the chunk lands in a few ms, and a placeholder box
@@ -1477,7 +1485,14 @@ function PrototypeShortcutBridge() {
       isDraftNoteRoute,
     });
 
-  const createPrototypeNote = useCallback((purpose?: ComposePurpose, explicitTargetSpaceId?: string) => {
+  const createPrototypeNote = useCallback((
+    purpose?: ComposePurpose,
+    explicitTargetSpaceId?: string,
+    /* What the note opens with — a scanned page's text and pills. Through this one path
+       rather than a second compose call, so a seeded note lands in the same space a blank
+       one would. */
+    seed?: PrototypeComposeSeed,
+  ) => {
     /* An explicit target wins. The Library panel's "New note" from My Home names Home while the
        shell's move out of the shared space has not re-rendered this closure yet, so reading the
        visible target here would still find the room. */
@@ -1496,6 +1511,7 @@ function PrototypeShortcutBridge() {
     beginPrototypeComposeSession({
       ...(targetSpaceId ? { targetSpaceId } : {}),
       ...(purpose ? { purpose } : {}),
+      ...(seed ? { seed } : {}),
     });
     navigate.navigate({ to: prototypeHomeRouteTo() });
   }, [
@@ -1651,11 +1667,13 @@ function PrototypeShortcutBridge() {
 
   useEffect(() => {
     const onNewNote = (event: Event) => {
-      const detail = (event as CustomEvent<{ purpose?: ComposePurpose; targetSpaceId?: string }>)
-        .detail;
+      const detail = (
+        event as CustomEvent<{ purpose?: ComposePurpose; targetSpaceId?: string; seed?: PrototypeComposeSeed }>
+      ).detail;
       createPrototypeNote(
         detail?.purpose === 'template' ? 'template' : undefined,
         detail?.targetSpaceId,
+        detail?.seed,
       );
     };
     const onToggleSidebar = () => togglePrototypeSidebar();
