@@ -9,6 +9,7 @@ import {
   buildChapterVerse,
   chapterCueFor,
   chapterFinishCandidates,
+  chapterEngagedCueCount,
   gradeChapterVerse,
   openingPrefix,
   askablePlaces,
@@ -36,9 +37,26 @@ const others = [
 ];
 
 describe('buildChapterVerse', () => {
+  /** Verses the reader highlighted or cited. */
+  const engaged = [4, 17, 30];
+
+  it('asks only about a verse the reader engaged with', () => {
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+      const built = buildChapterVerse({ verses: chapter, engagedNumbers: engaged, distractorTexts: others, seed })!;
+      expect(engaged).toContain(built.verse.number);
+    }
+    expect(chapterEngagedCueCount(chapter, engaged)).toBe(3);
+  });
+
+  it('asks nothing of a chapter that was only read', () => {
+    // The probe and the builder agree: no engaged verse, no question.
+    expect(chapterEngagedCueCount(chapter, [])).toBe(0);
+    expect(buildChapterVerse({ verses: chapter, engagedNumbers: [], distractorTexts: others, seed: 's' })).toBeNull();
+  });
+
   it('is deterministic per seed and marks the chapter verse right', () => {
-    const a = buildChapterVerse({ verses: chapter, distractorTexts: others, seed: 'item:0' });
-    const b = buildChapterVerse({ verses: chapter, distractorTexts: others, seed: 'item:0' });
+    const a = buildChapterVerse({ verses: chapter, engagedNumbers: engaged, distractorTexts: others, seed: 'item:0' });
+    const b = buildChapterVerse({ verses: chapter, engagedNumbers: engaged, distractorTexts: others, seed: 'item:0' });
     expect(a).toEqual(b);
     expect(a!.options).toHaveLength(4);
     expect(gradeChapterVerse(a!, a!.options[a!.answerIndex])).toBe(true);
@@ -52,11 +70,12 @@ describe('buildChapterVerse', () => {
      * Synoptic parallels and the Psalms open verbatim. A candidate with the answer's own first
      * four words is not a distractor, so it is barred before the choice is built.
      */
-    const built = buildChapterVerse({ verses: chapter, distractorTexts: others, seed: 'item:0' })!;
+    const built = buildChapterVerse({ verses: chapter, engagedNumbers: engaged, distractorTexts: others, seed: 'item:0' })!;
     const answer = built.options[built.answerIndex];
     const twin = `${answer} but then something else entirely`;
     const guarded = buildChapterVerse({
       verses: chapter,
+      engagedNumbers: engaged,
       distractorTexts: [twin, ...others],
       seed: 'item:0',
     })!;
@@ -64,9 +83,9 @@ describe('buildChapterVerse', () => {
   });
 
   it('needs three distractors from somewhere, and reaches for the fallback', () => {
-    expect(buildChapterVerse({ verses: chapter, distractorTexts: [], seed: 's' })).toBeNull();
+    expect(buildChapterVerse({ verses: chapter, engagedNumbers: engaged, distractorTexts: [], seed: 's' })).toBeNull();
     expect(
-      buildChapterVerse({ verses: chapter, distractorTexts: [], fallbackTexts: others, seed: 's' }),
+      buildChapterVerse({ verses: chapter, engagedNumbers: engaged, distractorTexts: [], fallbackTexts: others, seed: 's' }),
     ).not.toBeNull();
   });
 });
@@ -101,17 +120,18 @@ describe('buildChapterOrder', () => {
 });
 
 describe('buildChapterFinish', () => {
-  it('prefers the verse the reader marked, and hides at least one word of it', () => {
-    const built = buildChapterFinish({ verses: chapter, highlightedNumbers: [20], seed: 's', ratio: 0.3 })!;
+  it('asks for the verse the reader engaged with, and hides at least one word of it', () => {
+    const built = buildChapterFinish({ verses: chapter, engagedNumbers: [20], seed: 's', ratio: 0.3 })!;
     expect(built.verse.number).toBe(20);
     expect(built.cloze.blanks.length).toBeGreaterThan(0);
   });
 
-  it('falls back to any verse long enough to spare a word', () => {
-    expect(chapterFinishCandidates(chapter, []).length).toBe(36);
+  it('never falls back to a verse the reader did not engage with', () => {
+    // A chapter that was only read gets whole-chapter questions, not "finish verse 12".
+    expect(chapterFinishCandidates(chapter, [])).toEqual([]);
+    expect(buildChapterFinish({ verses: chapter, engagedNumbers: [], seed: 's', ratio: 0.3 })).toBeNull();
     const short = [{ number: 1, text: 'Jesus wept.' }];
     expect(chapterFinishCandidates(short, [1])).toEqual([]);
-    expect(buildChapterFinish({ verses: short, highlightedNumbers: [], seed: 's', ratio: 0.3 })).toBeNull();
   });
 });
 

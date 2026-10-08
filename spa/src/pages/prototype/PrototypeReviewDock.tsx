@@ -74,6 +74,8 @@ import { OpeningLine, PairRail, Rail, slotFill } from './review-exercises/RailSl
 import { InitialsTiles, MarkedExercise, plainVerse, WordTicks } from './review-exercises/VerseSurface';
 import { BookShelf, shelfCanHold, SpeakerScene, TagSlotScene } from './review-exercises/IllustratedScenes';
 import { UnbuildableQuestion } from './review-exercises/UnbuildableQuestion';
+import { TakeawayCard } from './review-exercises/TakeawayCard';
+import { getNoteQueryOptions } from '../../hooks/queries/useNote';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { isSubmitKey, isTypingTarget } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -174,12 +176,10 @@ const FREE_RECALL_RUNGS = new Set(['verse.recall']);
 const NOTE_RAIL_SLOT: Partial<Record<string, string>> = {
   'note.passage': 'A passage you cited',
   'note.connect': 'Linked to',
-  'note.folder': 'Filed in',
 };
-/* What each note rung's options are, drawn as that thing: notes as sheets, folders as folders. */
-const NOTE_CHOICE_VARIANT: Partial<Record<string, 'note' | 'folder'>> = {
+/* What each note rung's options are, drawn as that thing: notes as sheets. */
+const NOTE_CHOICE_VARIANT: Partial<Record<string, 'note'>> = {
   'note.connect': 'note',
-  'note.folder': 'folder',
 };
 const VERSE_RAIL_SLOT: Partial<Record<string, string>> = {
   'verse.crossref': 'Cross-referenced with',
@@ -995,6 +995,23 @@ export default function PrototypeReviewDock() {
   revealRef.current = reveal.data;
 
   /*
+   * Warm the note the Takeaway card will open, so "Open my note" lands on the note rather than an
+   * empty frame. The same freshness guard the recall rows use, so it cannot become a refetch storm.
+   */
+  const prefetchNote = useCallback(
+    (noteId: string | null | undefined) => {
+      if (!noteId) return;
+      const options = getNoteQueryOptions(noteId);
+      const cached = queryClient.getQueryData(options.queryKey) as { __contentIsPreview?: boolean } | undefined;
+      const state = queryClient.getQueryState(options.queryKey);
+      const isFresh = state ? Date.now() - state.dataUpdatedAt < 30_000 : false;
+      if (cached && cached.__contentIsPreview === false && isFresh) return;
+      void queryClient.prefetchQuery(options).catch(() => {});
+    },
+    [queryClient],
+  );
+
+  /*
    * The rungs the app can mark. They arrive with the reveal because the puzzle *is* the question
    * here — there is nothing to write first, so the reader taps rather than judging themselves
    * afterwards. No payload carries its answer; the server marks the tap.
@@ -1519,11 +1536,33 @@ export default function PrototypeReviewDock() {
               }
             />
           )
+        ) : item.promptKey === 'note.takeaway' && item.noteId ? (
+          /*
+           * "What did you take from it?" — the one self-rated card. Bring it to mind, open the
+           * note to check, then say how it went; the verdicts appear only once the note is open.
+           * The note opens in the real editor and the dock stays open beside it, the way the
+           * result card's "Open the note" does, so the reader rates while looking at it.
+           */
+          <TakeawayCard
+            key={questionKey}
+            task={item.prompt}
+            subject={subtitle}
+            disabled={outcome.isPending}
+            onPrefetch={() => prefetchNote(item.noteId)}
+            onOpenNote={() => {
+              void navigate({
+                to: prototypeNoteRouteTo(),
+                params: { noteId: noteParamSlug(item.noteId!) },
+                search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+              });
+            }}
+            onVerdict={(value) => answer(value)}
+          />
         ) : noteChoice ? (
           /*
            * A note rung asks what goes with the note: the passage it studies, the note it links
-           * to, the folder it is filed in. The note's name on the rail — never a line of it, which
-           * is what the two retired rungs quoted — and the place the answer goes under it.
+           * to. The note's name on the rail — never a line of it, which is what the two retired
+           * rungs quoted — and the place the answer goes under it.
            */
           <ExerciseStage
             task={item.prompt}

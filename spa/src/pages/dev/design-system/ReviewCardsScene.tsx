@@ -23,6 +23,7 @@ import { GapLine } from '../../prototype/review-exercises/GapLine';
 import { OpeningLine, PairRail, Rail } from '../../prototype/review-exercises/RailSlot';
 import { InitialsTiles, MarkedExercise, WordTicks } from '../../prototype/review-exercises/VerseSurface';
 import { BookShelf, SpeakerScene, TagSlotScene } from '../../prototype/review-exercises/IllustratedScenes';
+import { TakeawayCard } from '../../prototype/review-exercises/TakeawayCard';
 import ProtoLoadingDots from '../../prototype/ProtoLoadingDots';
 import PrototypeReviewSample from '../../prototype/PrototypeReviewSample';
 import PrototypeReviewSittingCard from '../../prototype/PrototypeReviewSittingCard';
@@ -586,17 +587,12 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
     ),
   },
   {
-    id: 'folder',
-    title: 'Folder',
-    note: 'note.folder. The note on the rail and the folder it is filed in; the options are the reader’s other folders.',
+    id: 'takeaway',
+    title: 'Takeaway',
+    note: 'note.takeaway. Self-rated: bring it to mind, open the note, then the three verdicts. Tap "Open my note" to see them.',
     card: (
-      <Card family="folder">
-        <ExerciseStage
-          task="Pick a folder Shepherd psalms is in."
-          scene={<Rail fromLabel="Your note" from={<p>Shepherd psalms</p>} slotLabel="Filed in" fill={null} join="link" />}
-        >
-          <ChoiceOptions options={['Providence', 'Exile', 'Psalms of ascent', 'Kingship']} variant="folder" disabled={false} onPick={none} />
-        </ExerciseStage>
+      <Card family="takeaway">
+        <TakeawayCard task="What did you take from Shepherd psalms?" onOpenNote={none} onVerdict={none} />
       </Card>
     ),
   },

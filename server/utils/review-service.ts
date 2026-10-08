@@ -51,6 +51,7 @@ import {
   BiblePlaces,
   UserMetadata,
   isNull,
+  like,
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
 import {
@@ -104,6 +105,7 @@ import {
   chapterCueCandidates,
   chapterCueFor,
   chapterFinishCandidates,
+  chapterEngagedCueCount,
   gradeChapterMarked,
   gradeChapterVerse,
   type ChapterFinishExercise,
@@ -197,7 +199,7 @@ import {
   type ChurchExerciseDefinition,
 } from './church-review-definitions';
 import { rungIdentityIsTheAnswer } from '@/utils/review-row-subtitle';
-import { nodeKey as studyNodeKey } from '@/utils/study-bible-nodes';
+import { VERSE_NODE_CAP, nodeKey as studyNodeKey, referenceCoversVerse } from '@/utils/study-bible-nodes';
 import { fetchVerseText } from './fetch-verse-text';
 import { getUserDefaultTranslation } from './votd-user-translation';
 import { recordNoteRecallEngaged } from './note-recall-state';
@@ -218,6 +220,7 @@ import {
 } from '@/utils/study-bible-nodes';
 import {
   buildNoteChoice,
+  buildNoteTakeaway,
   labelNamesWhat,
   gradeNoteChoice,
   noteChoiceBuildable,
@@ -225,7 +228,6 @@ import {
   type NoteChoiceInput,
   type NoteMaterial,
 } from '@/utils/note-ladder-exercises';
-import { noteFolderMembershipLabels, normalizeFolderKey } from '@/utils/note-folder-display';
 import type { ChoiceExercise } from '@/utils/choice-exercise';
 import { reviewExerciseFamily } from '@/utils/review-exercise-families';
 import {
@@ -477,52 +479,6 @@ async function loadNoteLabelPoolUncached(
 }
 
 /**
- * Every folder this reader files notes in, most used first.
- *
- * The wrong answers for "pick a folder it is in". My Pile is not a folder anyone chose, and
- * apostrophe variants of one label are one folder — see `normalizeFolderKey`.
- */
-async function loadNoteFolderPool(userId: string): Promise<string[]> {
-  return memoisedMaterial(`${userId}:note-folder-pool`, async () => {
-    const rows = await db
-      .select({ primary: Notes.primaryCollection, secondary: Notes.secondaryCollections })
-      .from(Notes)
-      .where(
-        and(
-          eq(Notes.userId, userId),
-          ne(Notes.noteType, 'scripture'),
-          countableUserNotesWhere(),
-          or(isNotNull(Notes.primaryCollection), isNotNull(Notes.secondaryCollections)),
-        ),
-      );
-    const counts = new Map<string, { label: string; n: number }>();
-    for (const row of rows) {
-      for (const label of folderLabelsOf(row)) {
-        const key = normalizeFolderKey(label);
-        const entry = counts.get(key);
-        if (entry) entry.n += 1;
-        else counts.set(key, { label, n: 1 });
-      }
-    }
-    return [...counts.values()].sort((a, b) => b.n - a.n).map((entry) => entry.label);
-  });
-}
-
-/** A note's folders, primary first. `secondaryCollections` is a JSON array stored as text. */
-function folderLabelsOf(row: { primary: string | null; secondary: string | null }): string[] {
-  let secondary: string[] = [];
-  if (row.secondary) {
-    try {
-      const parsed: unknown = JSON.parse(row.secondary);
-      if (Array.isArray(parsed)) secondary = parsed.filter((v): v is string => typeof v === 'string');
-    } catch {
-      // An unreadable column is no secondaries, not a failed question.
-    }
-  }
-  return noteFolderMembershipLabels({ primaryCollection: row.primary, secondaryCollections: secondary });
-}
-
-/**
  * Everything each note question is built from — the right answers and the pool of wrong ones —
  * for a batch of notes.
  *
@@ -539,8 +495,15 @@ function folderLabelsOf(row: { primary: string | null; secondary: string | null 
 interface NoteChoiceSet {
   passage: Omit<NoteChoiceInput, 'seed'>;
   connect: Omit<NoteChoiceInput, 'seed'>;
-  folder: Omit<NoteChoiceInput, 'seed'>;
+  /** The Takeaway question's cue, or null when it cannot be asked — `buildNoteTakeaway`'s verdict. */
+  takeaway: { cue: string | null };
 }
+
+/**
+ * How much of a note's stored body to read to count its words for the Takeaway floor. The floor
+ * is twenty-five words; this is generous for that, and still a prefix rather than the whole body.
+ */
+const TAKEAWAY_BODY_SOURCE_CHARS = 4000;
 
 async function loadNoteChoiceSets(
   userId: string,
@@ -560,13 +523,15 @@ async function loadNoteChoiceSetsUncached(
 ): Promise<Map<string, NoteChoiceSet>> {
   const out = new Map<string, NoteChoiceSet>();
 
-  const [owned, titles, passages, links, labelPool, verseReferences, folderPool] = await Promise.all([
+  const [owned, titles, passages, links, labelPool, verseReferences] = await Promise.all([
     db
       .select({
         id: Notes.id,
-        primary: Notes.primaryCollection,
-        secondary: Notes.secondaryCollections,
         linkedFrom: Notes.linkedFromNoteId,
+        // For the Takeaway floor: how much is written, and whether it is locked. A locked body is
+        // ciphertext, so it is never counted — the lock alone decides.
+        bodyPrefix: sql<string>`left(${Notes.content}, ${TAKEAWAY_BODY_SOURCE_CHARS})`,
+        locked: Notes.contentEncrypted,
       })
       .from(Notes)
       .where(and(eq(Notes.userId, userId), inArray(Notes.id, unique))),
@@ -575,7 +540,6 @@ async function loadNoteChoiceSetsUncached(
     loadNoteNeighbourIds(userId, unique),
     loadNoteLabelPool(userId),
     listUserVerseReferences(userId, ''),
-    loadNoteFolderPool(userId),
   ]);
 
   // The notes on the other end of every link, named the way the label pool names them.
@@ -613,9 +577,13 @@ async function loadNoteChoiceSetsUncached(
     const closeNotes = noteBooks.close.map(labelFor).filter((label): label is string => Boolean(label));
     const restNotes = noteBooks.rest.map(labelFor).filter((label): label is string => Boolean(label));
 
-    // Which folder: every folder it is filed in is right; the reader's other folders are not.
-    const folders = folderLabelsOf(row);
-    const folderKeys = new Set(folders.map(normalizeFolderKey));
+    // What you took from it: no options, only a name to ask it by — the probe is the builder.
+    const takeaway = buildNoteTakeaway({
+      title: title?.title ?? null,
+      citedPassages: cited,
+      bodyWordCount: row.locked ? 0 : stripHtml(row.bodyPrefix ?? '').split(/\s+/).filter(Boolean).length,
+      locked: Boolean(row.locked),
+    });
 
     out.set(row.id, {
       passage: {
@@ -630,11 +598,7 @@ async function loadNoteChoiceSetsUncached(
         fallbackLabels: closeNotes.length ? restNotes : undefined,
         shown,
       },
-      folder: {
-        acceptable: folders,
-        poolLabels: folderPool.filter((label) => !folderKeys.has(normalizeFolderKey(label))),
-        shown,
-      },
+      takeaway: { cue: takeaway?.cue ?? null },
     });
   }
   return out;
@@ -763,7 +727,8 @@ async function loadNoteMaterial(
       out.set(id, {
         canPassage: noteChoiceBuildable(set.passage),
         canConnect: noteChoiceBuildable(set.connect),
-        canFolder: noteChoiceBuildable(set.folder),
+        canTakeaway: set.takeaway.cue != null,
+        takeawayCue: set.takeaway.cue,
         skip: rungPrefs.skip,
         prefer: rungPrefs.prefer,
       });
@@ -776,7 +741,7 @@ async function loadNoteMaterial(
 const EMPTY_NOTE_MATERIAL: NoteMaterial = {
   canPassage: false,
   canConnect: false,
-  canFolder: false,
+  canTakeaway: false,
 };
 
 /**
@@ -1046,11 +1011,55 @@ function loadFramingFacts(userId: string, rows: readonly ReviewItemRow[]) {
             and(
               eq(StudyThreadEntries.userId, userId),
               isNull(StudyThreadEntries.parentNoteId),
-              inArray(StudyThreadEntries.scriptureReference, references),
+              /*
+               * By chapter, not by exact reference: a verse split out of a range the reader marked
+               * in one drag ("John 15:5-7") is keyed "John 15:6", which no mark spells. The
+               * chapter prefix finds the range; `marksCoveringReference` decides containment.
+               */
+              or(
+                inArray(StudyThreadEntries.scriptureReference, references),
+                ...chapterPrefixesOf(references).map((prefix) =>
+                  like(StudyThreadEntries.scriptureReference, `${prefix}:%`),
+                ),
+              ),
             ),
           )
       : Promise.resolve([]),
   ]);
+}
+
+/** "John 15" for each verse reference, deduplicated: the LIKE prefixes a covering mark starts with. */
+function chapterPrefixesOf(references: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const reference of references) {
+    const at = lastVerseOf(reference);
+    // Only references that are verses: a chapter row's reference is already matched exactly.
+    if (at && /:\d/.test(reference)) out.add(`${at.book} ${at.chapter}`);
+  }
+  return [...out];
+}
+
+/**
+ * Every mark's excerpt that takes in this reference, longest first.
+ *
+ * Exact matches always count; otherwise the mark must cover the reference's (last) verse, so a
+ * range highlight answers for each verse inside it. `readerSpanFragment` then finds the words
+ * that fall inside the verse being asked about.
+ */
+function marksCoveringReference(
+  marks: readonly { reference: string | null; excerpt: string | null }[],
+  reference: string,
+): string[] {
+  const wanted = reference.trim().toLowerCase();
+  const at = /:\d/.test(reference) ? lastVerseOf(reference) : null;
+  const out: string[] = [];
+  for (const mark of marks) {
+    const ref = mark.reference?.trim();
+    const excerpt = mark.excerpt?.trim();
+    if (!ref || !excerpt) continue;
+    if (ref.toLowerCase() === wanted || (at && referenceCoversVerse(ref, at))) out.push(excerpt);
+  }
+  return out.sort((a, b) => b.length - a.length);
 }
 
 export async function buildReviewItemViews(
@@ -1088,8 +1097,20 @@ export async function buildReviewItemViews(
   ]);
 
   const nodeByKey = new Map(nodes.map((n) => [n.nodeKey, n]));
-  const markedReferences = new Set(marks.map((m) => m.reference?.trim().toLowerCase()).filter(Boolean));
-  const readerSpans = readerSpansByReference(marks);
+  /*
+   * The reader's marks per row reference, by containment — so a verse inside a range they
+   * highlighted reads "You marked this" and opens on their own words, like one marked alone.
+   */
+  const readerSpans = new Map<string, string[]>();
+  for (const row of rows) {
+    const reference = row.scriptureReference?.trim();
+    if (reference && !readerSpans.has(reference.toLowerCase())) {
+      readerSpans.set(reference.toLowerCase(), marksCoveringReference(marks, reference));
+    }
+  }
+  const markedReferences = new Set(
+    [...readerSpans].filter(([, excerpts]) => excerpts.length > 0).map(([reference]) => reference),
+  );
 
   // One probe per passage per build, however many rows share it.
   const materialCache = new Map<string, Promise<VerseKnowledgeMaterial>>();
@@ -1165,6 +1186,8 @@ export async function buildReviewItemViews(
      * showing a question with no possible answer.
      */
     const noteRung = noteRungFor(row, material);
+    const takeawayCue =
+      noteRung === 'note.takeaway' && row.noteId ? material.get(row.noteId)?.takeawayCue ?? null : null;
 
     /*
      * A note the resolver can ask nothing about is not shown at all.
@@ -1314,8 +1337,17 @@ export async function buildReviewItemViews(
       framing,
       // Real context on the note rungs too: `fillReviewPrompt(noteRung, {})` was throwing the
       // note's own name away, so every note prompt rendered in its nameless form.
+      /*
+       * The Takeaway card names the note by its cue — the title when it names the note, else
+       * "your note on {passage}" — and never by its opening line, which is often the takeaway.
+       */
       prompt: noteRung
-        ? fillReviewPrompt(noteRung, { reference: row.scriptureReference, noteTitle })
+        ? fillReviewPrompt(
+            noteRung,
+            noteRung === 'note.takeaway'
+              ? { noteTitle: takeawayCue }
+              : { reference: row.scriptureReference, noteTitle },
+          )
         : prompt,
       task: reviewTaskFor(noteRung ?? key),
       exercise: (() => {
@@ -1334,8 +1366,8 @@ export async function buildReviewItemViews(
       scriptureReference: row.scriptureReference,
       noteId: row.noteId,
       challengeId: row.challengeId,
-      noteLabel: noteTitle ?? primary?.excerpt ?? primary?.passage ?? null,
-      noteContext: primary?.excerpt ?? null,
+      noteLabel: takeawayCue ?? noteTitle ?? primary?.excerpt ?? primary?.passage ?? null,
+      noteContext: noteRung === 'note.takeaway' ? null : primary?.excerpt ?? null,
       noteWrittenAt: primary?.writtenAt?.toISOString() ?? null,
       sourceLabel: row.sourceLabel,
       sourceAt: row.sourceAt?.toISOString() ?? null,
@@ -1813,7 +1845,7 @@ export async function createReviewItem(
    * Citing a passage or linking it to something makes it reviewable.
    */
   if (input.kind === 'note' && noteId && !(await noteHasReviewableMaterial(userId, noteId))) {
-    return { error: 'Nothing to ask about yet — cite a passage or link it to another note' };
+    return { error: 'Nothing to ask about yet — write a little more, cite a passage or link it to another note' };
   }
 
   // A verse item made from a highlight inherits that highlight's reference and translation:
@@ -1840,7 +1872,11 @@ export async function createReviewItem(
     );
     if (!entry) return { error: 'Highlight not found' };
     scriptureReference = scriptureReference ?? entry.reference ?? null;
-    translation = translation ?? entry.translation ?? null;
+    /*
+     * An engine item's null translation means "no particular wording" (see the engine's own
+     * comment), and stamping its highlight must not quietly freeze it in the highlight's.
+     */
+    translation = translation ?? (input.origin === 'engine' ? null : entry.translation ?? null);
   }
 
   /*
@@ -2054,6 +2090,7 @@ export async function applyReviewOutcome(
    * from their answers — see `shouldEaseRung`.
    */
   const ease = shouldEaseRung({
+    kind: item.kind,
     ladderStep: item.ladderStep,
     previousOutcome: (item.lastOutcome as ReviewOutcome | null) ?? null,
     previousRungKey: item.lastRungKey ?? null,
@@ -2414,6 +2451,8 @@ interface VerseKnowledgeMaterial extends VerseMaterial {
   text: string;
   /** The span the reader marked on this verse, floored and verified against the text. */
   markedSpan: string | null;
+  /** Verse numbers of this verse's chapter the reader highlighted or cited. */
+  engagedNumbers: number[];
 }
 
 const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
@@ -2433,6 +2472,9 @@ const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
   text: '',
   markedSpan: null,
   readerSpanWords: 0,
+  engagedNumbers: [],
+  nextEngaged: false,
+  beforePartners: 0,
 };
 
 /**
@@ -2516,7 +2558,7 @@ async function loadVerseMaterialUncached(
   const at = lastVerseOf(ref);
   if (!at) return { ...EMPTY_VERSE_MATERIAL, reference: ref };
 
-  const [knowledge, citing, ownHtml, rivals, readerSpan, rungPrefs] = await Promise.all([
+  const [knowledge, citing, ownHtml, rivals, readerSpan, rungPrefs, engagedNumbers] = await Promise.all([
     getKnowledgeForReference(at.book, at.chapter, at.verse, {
       minRelevance: 0,
       minVotes: CROSSREF_MIN_VOTES,
@@ -2530,9 +2572,12 @@ async function loadVerseMaterialUncached(
     // What the reader marked on this verse, for the rung that asks them to find it again.
     loadReaderSpan(userId, ref).catch(() => null),
     loadRungPreferences(userId),
+    // Which verses beside this one are the reader's own, for the next/before rungs.
+    loadEngagedVerseNumbersInChapter(userId, at).catch(() => [] as number[]),
   ]);
   const text = ownHtml ? stripHtml(ownHtml) : '';
   const markedSpan = readerSpanFragment(readerSpan, text);
+  const next = nextVerseAddress(ref);
 
   const themesAbove = (knowledge?.themes ?? []).filter(
     (t) => t.relevance >= VERSE_THEME_MIN_RELEVANCE,
@@ -2575,6 +2620,12 @@ async function loadVerseMaterialUncached(
     contentWordCount: contentWords(text).length,
     readerSpanWords: markedSpan ? markedSpan.split(' ').filter(Boolean).length : 0,
     markedSpan,
+    engagedNumbers,
+    // "What follows" only when what follows is theirs too — inside the range they marked, say.
+    nextEngaged: Boolean(
+      next && next.book === at.book && next.chapter === at.chapter && engagedNumbers.includes(next.verse),
+    ),
+    beforePartners: verseBeforePartners(at.verse, engagedNumbers).length,
     skip: rungPrefs.skip,
     prefer: rungPrefs.prefer,
   };
@@ -2600,7 +2651,17 @@ async function loadNoteIdsCitingPassage(
       and(
         eq(ScriptureMetadata.book, at.book),
         eq(ScriptureMetadata.chapter, at.chapter),
-        at.verse !== undefined ? eq(ScriptureMetadata.verse, at.verse) : undefined,
+        /*
+         * Containment, not equality: a note citing "John 15:5-7" cites John 15:6. A range that
+         * runs on into a later chapter (`chapterEnd`) covers everything from its start verse.
+         * Still a lookup on the passage index — book and chapter lead it.
+         */
+        at.verse !== undefined
+          ? and(
+              lte(ScriptureMetadata.verse, at.verse),
+              sql`(coalesce(${ScriptureMetadata.verseEnd}, ${ScriptureMetadata.verse}) >= ${at.verse} or coalesce(${ScriptureMetadata.chapterEnd}, ${ScriptureMetadata.chapter}) > ${ScriptureMetadata.chapter})`,
+            )
+          : undefined,
       ),
     );
   if (!meta.length) return [];
@@ -2932,32 +2993,39 @@ async function buildVerseRecognizeFor(
 }
 
 /**
- * "Which comes first": this verse against another from the same chapter, never adjacent.
- *
- * Adjacent would make it a question about a digit. The partner is seeded from the non-adjacent
- * neighbours so the reveal and the grader pick the same one.
+ * "Which comes first": this verse against another the reader engaged with in the same chapter,
+ * never adjacent. Seeded so the reveal and the grader pick the same partner.
  */
 async function buildVerseBeforeFor(
   item: ReviewItemRow,
   text: string,
   seed: string,
   translation: string,
+  engagedNumbers: readonly number[],
 ) {
   if (!item.scriptureReference) return null;
   const at = lastVerseOf(item.scriptureReference);
   if (!at) return null;
-  const partners = neighbourVerseAddresses(item.scriptureReference, 8).filter(
-    (n) => Math.abs(n.verse - at.verse) >= 2,
-  );
+  // The same list the probe counted, so a rung the list promised is one this can build.
+  const partners = verseBeforePartners(at.verse, engagedNumbers);
   if (!partners.length) return null;
   const partner = partners[seededIndex(seed, partners.length)];
-  const html = await fetchVerseText(formatVerseAddress(partner), translation);
+  const html = await fetchVerseText(formatVerseAddress({ ...at, verse: partner }), translation);
   if (!html) return null;
   return buildVerseBefore({
     verse: { number: at.verse, text },
-    other: { number: partner.verse, text: stripHtml(html) },
+    other: { number: partner, text: stripHtml(html) },
     seed,
   });
+}
+
+/**
+ * The verses "which comes first" may set beside this one: verses of the same chapter the reader
+ * engaged with (highlighted or cited), at least two away. Adjacent would make it a question about
+ * a digit; a verse they never touched would make it a question about a neighbour, not their study.
+ */
+function verseBeforePartners(verse: number, engagedNumbers: readonly number[]): number[] {
+  return [...new Set(engagedNumbers)].filter((n) => Math.abs(n - verse) >= 2).sort((a, b) => a - b);
 }
 
 /**
@@ -3000,28 +3068,19 @@ function booksOf(references: readonly string[]): string[] {
 }
 
 /**
- * The longest span the reader marked on each passage, keyed by reference.
+ * Every span the reader marked that takes in this passage, longest first, for the reveal, which
+ * builds one item at a time.
  *
- * Longest, because a reader who marked "hate the light" and later the whole sentence around it
- * has told us which one carries the thought. Whether a span *fits* is decided at the point of
+ * Prefix-matched on the chapter and filtered by containment: a verse inside a range the reader
+ * marked in one drag is a verse they marked. Longest first, because a reader who marked "hate the
+ * light" and later the whole sentence around it has told us which one carries the thought. Whether
+ * a span *fits* — and which part of a range falls inside this verse — is decided at the point of
  * use by `readerSpanFragment`, since only there is the translation known.
  */
-function readerSpansByReference(
-  marks: readonly { reference: string | null; excerpt: string | null }[],
-): Map<string, string> {
-  const spans = new Map<string, string>();
-  for (const mark of marks) {
-    const key = mark.reference?.trim().toLowerCase();
-    const excerpt = mark.excerpt?.trim();
-    if (!key || !excerpt) continue;
-    const current = spans.get(key);
-    if (!current || excerpt.length > current.length) spans.set(key, excerpt);
-  }
-  return spans;
-}
-
-/** One passage's reader-marked span, for the reveal, which builds one item at a time. */
-async function loadReaderSpan(userId: string, reference: string): Promise<string | null> {
+async function loadReaderSpan(userId: string, reference: string): Promise<string[]> {
+  const ref = reference.trim();
+  const at = lastVerseOf(ref);
+  if (!at) return [];
   const marks = await db
     .select({
       reference: StudyThreadEntries.scriptureReference,
@@ -3032,10 +3091,13 @@ async function loadReaderSpan(userId: string, reference: string): Promise<string
       and(
         eq(StudyThreadEntries.userId, userId),
         isNull(StudyThreadEntries.parentNoteId),
-        eq(StudyThreadEntries.scriptureReference, reference),
+        or(
+          eq(StudyThreadEntries.scriptureReference, ref),
+          like(StudyThreadEntries.scriptureReference, `${at.book} ${at.chapter}:%`),
+        ),
       ),
     );
-  return readerSpansByReference(marks).get(reference.trim().toLowerCase()) ?? null;
+  return marksCoveringReference(marks, ref);
 }
 
 /* The book rung's stem is `verseLocateStem`, imported — it used to be a second copy of it here,
@@ -3058,6 +3120,11 @@ interface ChapterKnowledgeMaterial extends ChapterMaterial {
   verses: ChapterVerse[];
   /** Verse numbers the reader highlighted in this chapter, in the Bible reader. */
   highlightedNumbers: number[];
+  /**
+   * Verse numbers the reader engaged with here: highlighted, or cited in a note. The only verses
+   * a verse-level chapter rung may ask about.
+   */
+  engagedNumbers: number[];
   /** Everyone the index places in the chapter, barred names included (they bar distractors). */
   people: string[];
   /** Everywhere it names in the chapter, barred labels included (they bar distractors). */
@@ -3082,12 +3149,14 @@ const EMPTY_CHAPTER_MATERIAL: ChapterKnowledgeMaterial = {
   translation: '',
   verses: [],
   highlightedNumbers: [],
+  engagedNumbers: [],
   people: [],
   places: [],
   citedInNotes: 0,
   lastReadAt: null,
   verseCount: 0,
   finishCandidates: 0,
+  engagedCount: 0,
   personCount: 0,
   placeCount: 0,
   highlightCount: 0,
@@ -3170,6 +3239,87 @@ async function loadReaderHighlightsInChapter(
   return [...numbers].sort((a, b) => a - b);
 }
 
+/**
+ * The verse numbers of one chapter the reader cited in a note, by either join — a metadata row on
+ * the note itself, or a pill pointing at a scripture child note. The citation twin of
+ * `loadReaderHighlightsInChapter`.
+ *
+ * A citation spanning more than `VERSE_NODE_CAP` verses — "John 3" written as a whole chapter —
+ * singles out nothing, so it engages no verse; the chapter node carries that signal, as it does
+ * for highlights.
+ */
+async function loadCitedVerseNumbersInChapter(
+  userId: string,
+  parts: { book: string; chapter: number },
+): Promise<number[]> {
+  try {
+    const meta = await db
+      .select({
+        noteId: ScriptureMetadata.noteId,
+        verse: ScriptureMetadata.verse,
+        verseEnd: ScriptureMetadata.verseEnd,
+        chapterEnd: ScriptureMetadata.chapterEnd,
+      })
+      .from(ScriptureMetadata)
+      .where(and(eq(ScriptureMetadata.book, parts.book), eq(ScriptureMetadata.chapter, parts.chapter)));
+    if (!meta.length) return [];
+    const ids = [...new Set(meta.map((m) => m.noteId))];
+    const [direct, viaPill] = await Promise.all([
+      db
+        .select({ id: Notes.id })
+        .from(Notes)
+        .where(
+          and(
+            eq(Notes.userId, userId),
+            inArray(Notes.id, ids),
+            ne(Notes.noteType, 'scripture'),
+            countableUserNotesWhere(),
+          ),
+        ),
+      db
+        .select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+        .from(NoteScriptureReferences)
+        .innerJoin(Notes, eq(Notes.id, NoteScriptureReferences.noteId))
+        .where(
+          and(
+            inArray(NoteScriptureReferences.scriptureNoteId, ids),
+            eq(Notes.userId, userId),
+            ne(Notes.noteType, 'scripture'),
+            countableUserNotesWhere(),
+          ),
+        ),
+    ]);
+    const cited = new Set([...direct.map((row) => row.id), ...viaPill.map((row) => row.scriptureNoteId)]);
+    const numbers = new Set<number>();
+    for (const row of meta) {
+      if (!cited.has(row.noteId)) continue;
+      if (row.chapterEnd != null && row.chapterEnd > parts.chapter) continue;
+      const end = row.verseEnd ?? row.verse;
+      if (end < row.verse || end - row.verse + 1 > VERSE_NODE_CAP) continue;
+      for (let verse = row.verse; verse <= end; verse++) numbers.add(verse);
+    }
+    return [...numbers].sort((a, b) => a - b);
+  } catch {
+    // A missing table costs the chapter its citations, never its question.
+    return [];
+  }
+}
+
+/**
+ * The verses of one chapter the reader engaged with: highlighted in the reader, or cited in a
+ * note. The only verses a verse-level question may be about.
+ */
+export async function loadEngagedVerseNumbersInChapter(
+  userId: string,
+  parts: { book: string; chapter: number },
+): Promise<number[]> {
+  const [highlighted, cited] = await Promise.all([
+    loadReaderHighlightsInChapter(userId, parts),
+    loadCitedVerseNumbersInChapter(userId, parts),
+  ]);
+  return [...new Set([...highlighted, ...cited])].sort((a, b) => a - b);
+}
+
 async function loadChapterMaterialUncached(
   userId: string,
   reference: string | null,
@@ -3178,15 +3328,17 @@ async function loadChapterMaterialUncached(
   const parts = reference ? chapterKeyPartsFromReference(reference) : null;
   if (!parts) return EMPTY_CHAPTER_MATERIAL;
   const label = chapterReferenceLabel(parts);
-  const [html, highlightedNumbers, knowledge, citedInNotes, lastReadAt, rungPrefs] = await Promise.all([
+  const [html, highlightedNumbers, citedNumbers, knowledge, citedInNotes, lastReadAt, rungPrefs] = await Promise.all([
     fetchVerseText(label, translation).catch(() => ''),
     loadReaderHighlightsInChapter(userId, parts),
+    loadCitedVerseNumbersInChapter(userId, parts),
     getKnowledgeForChapter(parts.book, parts.chapter).catch(() => null),
     countNotesCitingChapter(userId, parts),
     loadLastReadAt(userId, parts),
     loadRungPreferences(userId),
   ]);
   const verses = html ? splitChapterHtmlIntoVerses(html) : [];
+  const engagedNumbers = [...new Set([...highlightedNumbers, ...citedNumbers])].sort((a, b) => a - b);
   const people = (knowledge?.people ?? []).map((p) => p.name);
   const places = (knowledge?.places ?? []).map((place) => place.name);
   return {
@@ -3196,12 +3348,14 @@ async function loadChapterMaterialUncached(
     translation,
     verses,
     highlightedNumbers,
+    engagedNumbers,
     people,
     places,
     citedInNotes,
     lastReadAt,
     verseCount: verses.length,
-    finishCandidates: chapterFinishCandidates(verses, highlightedNumbers).length,
+    finishCandidates: chapterFinishCandidates(verses, engagedNumbers).length,
+    engagedCount: chapterEngagedCueCount(verses, engagedNumbers),
     personCount: askablePeople(people).length,
     placeCount: askablePlaces(places).length,
     highlightCount: highlightedNumbers.length,
@@ -3269,7 +3423,13 @@ async function buildChapterVerseFor(
     const cue = await cueOf(label);
     if (cue) fallback.push(cue);
   }
-  return buildChapterVerse({ verses: material.verses, distractorTexts: own, fallbackTexts: fallback, seed });
+  return buildChapterVerse({
+    verses: material.verses,
+    engagedNumbers: material.engagedNumbers,
+    distractorTexts: own,
+    fallbackTexts: fallback,
+    seed,
+  });
 }
 
 function buildChapterFinishFor(
@@ -3281,7 +3441,7 @@ function buildChapterFinishFor(
   const spec = verseClozeSpec(pass, recallState);
   return buildChapterFinish({
     verses: material.verses,
-    highlightedNumbers: material.highlightedNumbers,
+    engagedNumbers: material.engagedNumbers,
     seed,
     ratio: spec.ratio,
     maxBlanks: spec.maxBlanks,
@@ -3354,13 +3514,16 @@ function markedCuesFor(material: ChapterKnowledgeMaterial): string[] {
 export async function gradeChapterAnswer(
   userId: string,
   item: ReviewItemRow,
-  answer: { order?: number[]; option?: string; words?: string[] },
+  answer: { order?: number[]; option?: string; words?: string[]; promptKey?: string },
 ): Promise<GradedAnswer | null> {
   const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   if (item.kind !== 'chapter' || !item.scriptureReference) return null;
   const seed = reviewSeed(item);
   const material = await loadChapterMaterial(userId, item.scriptureReference, translation);
   const rung = chapterRungFor(item.ladderStep, seed, material);
+  // The client says which question it was shown. A tab left open across a deploy that changed
+  // the ladder would otherwise be marked against a question it never asked.
+  if (answer.promptKey && answer.promptKey !== rung.key) return null;
 
   if (rung.key === 'chapter.verse' && typeof answer.option === 'string') {
     const exercise = await buildChapterVerseFor(userId, material, seed);
@@ -3467,13 +3630,15 @@ const CLOZE_BANK_NEIGHBOURS = 2;
 export async function gradeVerseAnswer(
   userId: string,
   item: ReviewItemRow,
-  answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[]; text?: string },
+  answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[]; text?: string; promptKey?: string },
 ): Promise<GradedAnswer | null> {
   const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
   const seedForRung = reviewSeed(item);
   const material = await loadVerseMaterial(userId, item.scriptureReference, translation);
   const rung = verseRungFor(item.ladderStep, seedForRung, material);
+  // Same guard as the note grader: disagreement means the question moved under the answer.
+  if (answer.promptKey && answer.promptKey !== rung.key) return null;
 
   if (VERSE_CONTEXT_KEYS.has(rung.key) && typeof answer.option === 'string') {
     const built = await buildVerseContextFor(userId, item, translation, rung.key, material, seedForRung);
@@ -3552,7 +3717,7 @@ export async function gradeVerseAnswer(
     };
   }
   if (rung.key === 'verse.before' && typeof answer.option === 'string') {
-    const exercise = await buildVerseBeforeFor(item, material.text, seedForRung, translation);
+    const exercise = await buildVerseBeforeFor(item, material.text, seedForRung, translation, material.engagedNumbers);
     if (!exercise) return null;
     return {
       correct: gradeVerseBefore(exercise, answer.option),
@@ -3757,8 +3922,10 @@ async function buildNoteExercise(
   const rung = resolveNoteRung(item.ladderStep, noteMaterial, seed);
   if (!rung) return null;
 
-  const input =
-    rung === 'note.passage' ? set.passage : rung === 'note.connect' ? set.connect : set.folder;
+  // The Takeaway card is self-rated: nothing to build, nothing to mark. The reader's own verdict
+  // is the outcome (`verdict ?? outcome` in the route).
+  if (rung === 'note.takeaway') return null;
+  const input = rung === 'note.passage' ? set.passage : set.connect;
   const exercise = buildNoteChoice({ ...input, seed });
   return exercise ? { rung, exercise, acceptable: [...input.acceptable] } : null;
 }
@@ -4099,7 +4266,7 @@ export async function buildReviewReveal(
           if (payload.keywords) payload.verseText = null;
         }
         if (rung.key === 'verse.before') {
-          const exercise = await buildVerseBeforeFor(item, text, seed, translation);
+          const exercise = await buildVerseBeforeFor(item, text, seed, translation, material.engagedNumbers);
           payload.before = exercise ? { options: exercise.options } : null;
           // One of the two openings is this verse; showing it would mark the pair.
           if (exercise) payload.verseText = null;
@@ -4327,6 +4494,54 @@ export async function buildReviewReveal(
 }
 
 /**
+ * The reader's highlights that take in one verse, newest first, with any thought written on them.
+ *
+ * Prefix-matched on the chapter (the index-friendly half) and filtered by containment (the half
+ * that understands ranges), so a highlight on "John 15:5-7" is found for John 15:6. Archived
+ * highlights are left out: they are not part of the reader's study any more.
+ */
+export async function loadCoveringMarks(
+  userId: string,
+  at: { book: string; chapter: number; verse: number },
+  options: { excludeId?: string } = {},
+): Promise<{ id: string; reference: string; excerpt: string | null; thought: string | null }[]> {
+  const rows = await db
+    .select({
+      id: StudyThreadEntries.id,
+      reference: StudyThreadEntries.scriptureReference,
+      excerpt: StudyThreadEntries.scripturePassageExcerpt,
+      miniNoteBody: StudyThreadEntries.miniNoteBody,
+      notesBody: StudyThreadEntries.notesBody,
+      createdAt: StudyThreadEntries.createdAt,
+      updatedAt: StudyThreadEntries.updatedAt,
+    })
+    .from(StudyThreadEntries)
+    .where(
+      and(
+        eq(StudyThreadEntries.userId, userId),
+        isNull(StudyThreadEntries.parentNoteId),
+        eq(StudyThreadEntries.isArchived, false),
+        or(
+          eq(StudyThreadEntries.scriptureReference, `${at.book} ${at.chapter}:${at.verse}`),
+          like(StudyThreadEntries.scriptureReference, `${at.book} ${at.chapter}:%`),
+        ),
+      ),
+    );
+  return rows
+    .filter((row) => row.id !== options.excludeId && referenceCoversVerse(row.reference, at))
+    .sort(
+      (a, b) =>
+        (b.updatedAt ?? b.createdAt).getTime() - (a.updatedAt ?? a.createdAt).getTime(),
+    )
+    .map((row) => ({
+      id: row.id,
+      reference: row.reference ?? '',
+      excerpt: row.excerpt,
+      thought: stripHtml(row.miniNoteBody || row.notesBody || '').trim() || null,
+    }));
+}
+
+/**
  * The highlight or note the item was made from, in the reader's own words.
  *
  * `ReviewItems.studyThreadEntryId` has been on the row since highlights became reviewable and
@@ -4342,7 +4557,26 @@ async function loadItemAnnotation(
   userId: string,
   item: ReviewItemRow,
 ): Promise<{ quote: string | null; thought: string | null } | null> {
-  if (!item.studyThreadEntryId) return null;
+  /*
+   * No stamped highlight — an item made before the engine recorded one, or one whose highlight
+   * was since deleted with others still covering the verse. The newest mark covering the verse
+   * stands in, one carrying a written thought first, so existing items show the reader's words
+   * with no backfill.
+   */
+  if (!item.studyThreadEntryId) {
+    if (item.kind !== 'verse' || !item.scriptureReference) return null;
+    try {
+      const at = lastVerseOf(item.scriptureReference);
+      if (!at) return null;
+      const covering = await loadCoveringMarks(userId, at);
+      const best = covering.find((mark) => mark.thought) ?? covering[0];
+      if (!best) return null;
+      const quote = stripHtml(best.excerpt ?? '').trim() || null;
+      return quote || best.thought ? { quote, thought: best.thought } : null;
+    } catch {
+      return null;
+    }
+  }
   try {
     const [row] = await db
       .select({
@@ -4375,6 +4609,13 @@ async function loadItemAnnotation(
  * reader's answers to this item are in ReviewEvents and are worth keeping — the item is what
  * has no subject any more, not the history of having worked at it.
  *
+ * **Only what the reader added from the highlight is retired outright.** An engine item is about
+ * the *verse*, and the highlight was only its provenance: deleting one of two marks on John 15:6,
+ * or a highlight on a verse three notes cite, leaves a verse the reader still engaged with. Those
+ * lose the link (the reveal then falls back to whatever still covers the verse) and are archived
+ * only when nothing of the reader's — no other highlight covering the verse, no citing note —
+ * remains.
+ *
  * Non-throwing on a missing table: this runs after a deletion that already committed.
  */
 export async function retireReviewForStudyThreadEntry(
@@ -4382,9 +4623,14 @@ export async function retireReviewForStudyThreadEntry(
   studyThreadEntryId: string,
   now: Date = new Date(),
 ): Promise<void> {
-  await db
-    .update(ReviewItems)
-    .set({ status: 'archived', updatedAt: now })
+  const anchored = await db
+    .select({
+      id: ReviewItems.id,
+      origin: ReviewItems.origin,
+      kind: ReviewItems.kind,
+      scriptureReference: ReviewItems.scriptureReference,
+    })
+    .from(ReviewItems)
     .where(
       and(
         eq(ReviewItems.userId, userId),
@@ -4392,6 +4638,39 @@ export async function retireReviewForStudyThreadEntry(
         inArray(ReviewItems.status, ['active', 'paused']),
       ),
     );
+  if (!anchored.length) return;
+
+  const archive: string[] = [];
+  const unlink: string[] = [];
+  for (const item of anchored) {
+    if (item.origin !== 'engine') {
+      archive.push(item.id);
+      continue;
+    }
+    const at = item.kind === 'verse' && item.scriptureReference ? lastVerseOf(item.scriptureReference) : null;
+    let remains = false;
+    if (at) {
+      const [covering, citing] = await Promise.all([
+        loadCoveringMarks(userId, at, { excludeId: studyThreadEntryId }).catch(() => []),
+        loadNoteIdsCitingPassage(userId, at).catch(() => []),
+      ]);
+      remains = covering.length > 0 || citing.length > 0;
+    }
+    (remains ? unlink : archive).push(item.id);
+  }
+
+  if (archive.length) {
+    await db
+      .update(ReviewItems)
+      .set({ status: 'archived', updatedAt: now })
+      .where(and(eq(ReviewItems.userId, userId), inArray(ReviewItems.id, archive)));
+  }
+  if (unlink.length) {
+    await db
+      .update(ReviewItems)
+      .set({ studyThreadEntryId: null, updatedAt: now })
+      .where(and(eq(ReviewItems.userId, userId), inArray(ReviewItems.id, unlink)));
+  }
 }
 
 

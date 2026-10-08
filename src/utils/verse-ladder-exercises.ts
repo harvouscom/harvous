@@ -210,13 +210,67 @@ const FALLBACK_REFERENCES = [
 export const READER_SPAN_MIN_WORDS = 3;
 export const READER_SPAN_MAX_WORDS = 12;
 
-export function readerSpanFragment(excerpt: string | null | undefined, verseText: string): string | null {
-  const words = (excerpt ?? '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-  if (words.length < READER_SPAN_MIN_WORDS) return null;
-  const span = words.slice(0, READER_SPAN_MAX_WORDS).join(' ');
-  const normalise = (s: string) => s.replace(/\s+/g, ' ').toLowerCase();
-  if (!normalise(verseText).includes(normalise(span))) return null;
-  return span;
+export function readerSpanFragment(
+  /** One marked excerpt, or every mark covering the verse — the longest fit among them wins. */
+  excerpt: string | readonly string[] | null | undefined,
+  verseText: string,
+): string | null {
+  if (typeof excerpt === 'string' || excerpt == null) return readerSpanWithinVerse(excerpt, verseText);
+  let best: string | null = null;
+  let bestWords = 0;
+  for (const candidate of excerpt) {
+    const span = readerSpanWithinVerse(candidate, verseText);
+    const words = span ? span.split(' ').length : 0;
+    if (span && words > bestWords) {
+      best = span;
+      bestWords = words;
+    }
+  }
+  return best;
+}
+
+/**
+ * The part of a marked span that falls inside one verse: the longest run of the excerpt's words
+ * found in the verse, in the reader's own spelling.
+ *
+ * A highlight is often a range — "John 15:5-7" marked in one drag — and its excerpt is three
+ * verses of text. Asked whether that whole excerpt occurs in verse 6, the answer is always no, so
+ * the verse split out of the range never found the words the reader marked on it. The run is
+ * what they marked *on this verse*. Words compare bare (case and punctuation aside), because the
+ * excerpt's edges are cut wherever the drag landed and the verse number may be fused to the first
+ * word. At least `READER_SPAN_MIN_WORDS` long, or it is a bookmark; at most
+ * `READER_SPAN_MAX_WORDS`, cut from the front, or it is the verse rather than a fragment of it.
+ */
+export function readerSpanWithinVerse(excerpt: string | null | undefined, verseText: string): string | null {
+  const span = (excerpt ?? '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (span.length < READER_SPAN_MIN_WORDS) return null;
+  const verse = (verseText ?? '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (verse.length < READER_SPAN_MIN_WORDS) return null;
+  const bare = (value: string) => value.replace(/[^\p{L}\p{N}']/gu, '').toLowerCase();
+  const spanBare = span.map(bare);
+  const verseBare = verse.map(bare);
+
+  // Longest common run of words, earliest in the excerpt on a tie. Both sides are a verse or two
+  // long, so the quadratic table is a few thousand cells at most.
+  let bestLength = 0;
+  let bestEnd = -1;
+  let previous = new Array<number>(verseBare.length + 1).fill(0);
+  for (let i = 1; i <= spanBare.length; i++) {
+    const current = new Array<number>(verseBare.length + 1).fill(0);
+    for (let j = 1; j <= verseBare.length; j++) {
+      if (spanBare[i - 1] && spanBare[i - 1] === verseBare[j - 1]) {
+        current[j] = previous[j - 1] + 1;
+        if (current[j] > bestLength) {
+          bestLength = current[j];
+          bestEnd = i;
+        }
+      }
+    }
+    previous = current;
+  }
+  if (bestLength < READER_SPAN_MIN_WORDS) return null;
+  const start = bestEnd - bestLength;
+  return span.slice(start, start + Math.min(bestLength, READER_SPAN_MAX_WORDS)).join(' ');
 }
 
 /**

@@ -55,7 +55,7 @@ const chapterEverything = {
   placeCount: 2,
   highlightCount: 2,
 };
-const noteEverything = { canPassage: true, canConnect: true, canFolder: true };
+const noteEverything = { canPassage: true, canConnect: true, canTakeaway: true };
 
 describe('reading the stored preference', () => {
   it('treats never having opened the page as everything at its ordinary rate', () => {
@@ -131,11 +131,14 @@ describe('a version-1 skip-list', () => {
   });
 
   it('drops a family whose old switch never changed how often it was asked', () => {
-    const v1 = JSON.stringify({
-      version: 1,
-      skip: [...reviewPromptKeysInFamily('memory'), ...reviewPromptKeysInFamily('next')],
-    });
+    const v1 = JSON.stringify({ version: 1, skip: reviewPromptKeysInFamily('memory') });
     expect(parseReviewExerciseSettings(v1).emphasis).toEqual({});
+  });
+
+  it('reads an old "next" switch as Less, now that it shares its step with the verse\'s own order', () => {
+    // `next` used to own both members of its step; `verse.sequence` joined it, so Less is real.
+    const v1 = JSON.stringify({ version: 1, skip: reviewPromptKeysInFamily('next') });
+    expect(parseReviewExerciseSettings(v1).emphasis).toEqual({ next: 'less' });
   });
 
   it('leaves a partly skipped family Normal, because the page never wrote one', () => {
@@ -229,7 +232,7 @@ describe('what the engine does with Less', () => {
   it('still asks a note something when every note family is Less', () => {
     // Every note family has a control. The walk's second pass is what keeps a note askable, not a
     // family that cannot be leaned away from.
-    const material = { ...noteEverything, ...rungPreferencesFor(lessOf('folder', 'cited', 'linked')) };
+    const material = { ...noteEverything, ...rungPreferencesFor(lessOf('takeaway', 'cited', 'linked')) };
     for (let step = 0; step < NOTE_LADDER.length; step++) {
       expect(resolveNoteRung(step, material, `note:${step}`)).toBeTruthy();
     }

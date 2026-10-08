@@ -35,7 +35,11 @@ export function reviewRowSubtitle(
 ): string | null {
   if (rungIdentityIsTheAnswer(item)) return null;
 
-  const context = item.noteContext?.trim();
+  /*
+   * Never the note's opening line under "What did you take from it?": the opening line is very
+   * often the takeaway, printed under the question that asks the reader to bring it to mind.
+   */
+  const context = item.promptKey === 'note.takeaway' ? null : item.noteContext?.trim();
   if (context) return context;
 
   const identity =

@@ -52,11 +52,13 @@ export const REVIEW_PROMPT_KEYS = [
   'chapter.place',
   'chapter.marked',
   'verse.marked',
-  'note.folder',
+  // `note.folder` was here, retired Oct 2026 the way `note.recognize` was: nothing indexes this
+  // list by position, and the note ladder below is what a stored step names.
   // A church's own questions (docs/CHURCH_V2_ROADMAP.md §B): staff's words, shuffled.
   'church.choice',
   'church.order',
   'church.match',
+  'note.takeaway',
 ] as const;
 
 export type ReviewPromptKey = (typeof REVIEW_PROMPT_KEYS)[number];
@@ -112,8 +114,8 @@ function named(ctx: ReviewPromptContext, inside: (s: string) => string, bare: st
  */
 export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) => string> = {
   /*
-   * Three instructions about what a note belongs to — the passage it studies, the note it is
-   * linked to, the folder it lives in — and never about its wording.
+   * Two instructions about what a note belongs to — the passage it studies, the note it is
+   * linked to — and one question about what the reader took from it. Never about its wording.
    *
    * These replaced five open reflective prompts — "what made you write this?", "what is clearer
    * to you now?" — which turned out not to be review questions at all. Two quiz-the-line rungs
@@ -127,8 +129,15 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     named(ctx, (s) => `Pick a passage you cited in ${s}.`, 'Pick a passage you cited here.'),
   'note.connect': (ctx) =>
     named(ctx, (s) => `Pick a note you linked to ${s}.`, 'Pick a note you linked to this one.'),
-  'note.folder': (ctx) =>
-    named(ctx, (s) => `Pick a folder ${s} is in.`, 'Pick a folder this note is in.'),
+  /*
+   * **The one question-form prompt, and the one self-rated one.** Every other prompt is an
+   * instruction that ends in a full stop, because every other rung is marked. This one cannot be:
+   * what someone took from their own note has no answer key, so it is asked as a question, the
+   * reader brings the answer to mind, opens the note to check, and says how it went. The subject is
+   * the Takeaway cue — the note's title, or "your note on {passage}" — never a line of the note.
+   */
+  'note.takeaway': (ctx) =>
+    named(ctx, (s) => `What did you take from ${s}?`, 'What did you take from this note?'),
   /*
    * A church's question is asked in the church's words. The bare forms are only for a row whose
    * definition could not be read — which is then dropped as unaskable before anyone sees it.
@@ -291,7 +300,7 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
 export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'note.passage': 'Pick a passage you cited',
   'note.connect': 'Pick a note you linked',
-  'note.folder': 'Pick a folder it is in',
+  'note.takeaway': 'Recall what you took from it',
   'verse.recognize': 'Pick how it begins',
   'verse.rebuild': 'Fill in the blanks',
   'verse.initials': 'Fill it in from first letters',
@@ -325,7 +334,7 @@ export function reviewTaskFor(key: ReviewPromptKey): string {
 }
 
 /**
- * The note ladder: what the note studies, what it is linked to, where it is filed.
+ * The note ladder: what the note studies, what it is linked to, what the reader took from it.
  *
  * Unlike the verse ladder these are *material-gated*: a note with no links cannot be asked what
  * it was linked to. `resolveNoteRung` in note-ladder-exercises.ts turns this nominal position
@@ -336,7 +345,8 @@ export function reviewTaskFor(key: ReviewPromptKey): string {
 export const NOTE_LADDER: readonly ReviewPromptKey[] = [
   'note.passage',
   'note.connect',
-  'note.folder',
+  // Took the folder question's place (Oct 2026); same step, so no stored step moves.
+  'note.takeaway',
 ];
 
 export const NOTE_LADDER_MAX_STEP = NOTE_LADDER.length - 1;
@@ -350,7 +360,8 @@ export const VERSE_LADDER: readonly ReviewPromptKey[] = [
   'verse.recognize',
   'verse.rebuild',
   'verse.recall',
-  'verse.next',
+  // Family 3's default is the verse's own order now; next/before ask about a verse beside it.
+  'verse.sequence',
   'verse.connect',
   'verse.sequence',
   'verse.locate',
@@ -363,9 +374,13 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
  * First-sitting rungs the engine may open on, so a handful of new verses is not five
  * "pick how it begins".
  *
- * Recognize, rebuild (blanks), next/before, the context step — what the verse is connected to,
- * by the reader or by the index — and the locate step, where the reader's own mark can be the
- * answer.
+ * Recognize, rebuild (blanks), the context step — what the verse is connected to, by the reader
+ * or by the index — and the locate step, where the reader's own mark can be the answer.
+ *
+ * **Never step 3.** Its family asks about a verse *beside* this one ("pick what follows", "which
+ * comes first"), and a first meeting with a verse should be about the verse the reader engaged
+ * with, not its neighbour. Step 3 is reached by climbing, and even then its neighbour rungs only
+ * draw partners the reader engaged with too — see `verseFamilyMemberAvailable`.
  *
  * **Step 6 is here on purpose, and it argues with the rest of the list.** The rule used to read
  * "never recall or locate on a first asking: those are how a verse is kept, not how it is met",
@@ -385,7 +400,7 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
  *
  * Notes walk their three rungs so a handful of new notes is not five "pick a passage you cited".
  */
-export const VERSE_OPENING_STEPS = [0, 1, 3, 4, 6] as const;
+export const VERSE_OPENING_STEPS = [0, 1, 4, 6] as const;
 export const CHAPTER_OPENING_STEPS = [0, 1] as const;
 export const NOTE_OPENING_STEPS = [0, 1, 2] as const;
 
@@ -465,6 +480,17 @@ export interface VerseMaterial {
   /** Words in the span the reader marked on this verse, 0 when they marked none. */
   readerSpanWords?: number;
   /**
+   * The following verse is one the reader engaged with too (highlighted or cited) — inside the
+   * same range they marked, say. Only then is "pick the verse that follows" about their study
+   * rather than about a neighbour they never touched. Absent means no.
+   */
+  nextEngaged?: boolean;
+  /**
+   * Verses in this chapter the reader engaged with, at least two away from this one: the only
+   * partners "which comes first" may draw. Absent means none.
+   */
+  beforePartners?: number;
+  /**
    * Rungs the reader has asked not to be given, from Settings.
    *
    * Read here rather than in the engine because this is the one place a step becomes a rung, and
@@ -499,7 +525,12 @@ export const VERSE_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
   ['verse.recognize'],
   ['verse.rebuild', 'verse.initials'],
   ['verse.recall', 'verse.keywords'],
-  ['verse.next', 'verse.before'],
+  /*
+   * The verse in its own order first. Next and before ask about a verse *beside* this one, so
+   * they are members only where that verse is the reader's own too — `nextEngaged`,
+   * `beforePartners` — and the default never needs a neighbour at all.
+   */
+  ['verse.sequence', 'verse.next', 'verse.before'],
   // The context step: what this verse is connected to, by the reader or by the index.
   ['verse.connect', 'verse.theme', 'verse.person', 'verse.place', 'verse.crossref'],
   ['verse.sequence'],
@@ -569,6 +600,10 @@ export function verseFamilyMemberAvailable(
       return (material.contentWordCount ?? 4) >= 4;
     case 'verse.marked':
       return (material.readerSpanWords ?? 0) >= 3;
+    case 'verse.next':
+      return material.nextEngaged === true;
+    case 'verse.before':
+      return (material.beforePartners ?? 0) >= 1;
     default:
       return true;
   }
@@ -675,7 +710,7 @@ export function verseRungFor(step: number, seed?: string, material?: VerseMateri
 export interface ChapterMaterial {
   /** Verses the text actually has — Psalm 117 has two, whatever the canon table says. */
   verseCount: number;
-  /** Verses fit to be finished: the reader's own highlights in the chapter, else long enough. */
+  /** Engaged verses (highlighted or cited) long enough to be finished. Never "any verse". */
   finishCandidates: number;
   /** People the index places in the chapter, after the trivial names are barred. */
   personCount: number;
@@ -689,6 +724,12 @@ export interface ChapterMaterial {
    * builder could not write.
    */
   markedAnswerable?: number;
+  /**
+   * Verses of this chapter the reader engaged with — highlighted or cited in a note — whose
+   * opening can stand as a cue: exactly the set `buildChapterVerse` draws from. Zero for a chapter
+   * that was only read, which then gets whole-chapter questions alone.
+   */
+  engagedCount?: number;
   /** Rungs the reader has asked not to be given. See `VerseMaterial.skip`. */
   skip?: ReadonlySet<ReviewPromptKey>;
   /** Rungs the reader asked for more of. See `VerseMaterial.prefer`. */
@@ -698,24 +739,35 @@ export interface ChapterMaterial {
 /**
  * The chapter ladder, as families like the verse ladder's.
  *
- * Three steps: pick the verse that is in it, finish a verse from it, then put verses in order
- * or say who appears. `chapter.verse` closes every family because it is the one member that
- * always builds — its distractors fall back to well-known chapters — so a step can never resolve
- * to nothing.
+ * **Verse-level questions only about verses the reader engaged with.** A chapter that was only
+ * read used to be asked "pick the verse that is in it" about a verse drawn at random, which is a
+ * quiz on the chapter rather than a review of the reader's study. Now `chapter.verse`,
+ * `chapter.finish` and `chapter.marked` build only from verses the reader highlighted or cited;
+ * a chapter with none is asked the whole-chapter questions — who appears, where, the order of
+ * its movement — which are about having read it.
  *
- * The closing member is a fallback, not a peer, and that is the one way this differs from
- * `verseRungFor`. A verse family draws by seed across all its members; here the draw runs over
- * the members *before* `chapter.verse` and reaches it only when none of them can be built —
- * otherwise a seeded draw would show "pick the verse" on step 1 to half of all readers while
- * the cloze was there to be asked. Among the real members the draw is seeded as usual: on step 2
- * a chapter is asked to order its verses or to say who appears, and which one varies by item and
- * by pass, so the maintenance cycle does not ask the same one forever.
+ * Every member is a peer in the seeded draw (there is no closing fallback member any more). When
+ * nothing in the step's family can be built, `chapterRungFor` walks `CHAPTER_WHOLE_FLOOR`, and
+ * past that asks `chapter.order`; if even that cannot be built (a chapter under three verses),
+ * the sitting rests the item — see `server/utils/review-sitting.ts`.
  */
 export const CHAPTER_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
-  ['chapter.verse'],
-  ['chapter.finish', 'chapter.marked', 'chapter.verse'],
-  // `chapter.verse` stays last: it is the fallback the draw reaches only when nothing else builds.
-  ['chapter.order', 'chapter.person', 'chapter.place', 'chapter.verse'],
+  // `chapter.verse`: engaged verses only.
+  ['chapter.verse', 'chapter.person', 'chapter.place'],
+  // Both engaged verses only: a verse to finish, the verse they marked.
+  ['chapter.finish', 'chapter.marked'],
+  ['chapter.order', 'chapter.person', 'chapter.place'],
+];
+
+/**
+ * The questions any read chapter can be asked: about the chapter as a whole, never one verse.
+ * Walked in this order when a step's own family has nothing to build. Ignores the reader's Less —
+ * a preference is a reason to walk past a member, never to return no question.
+ */
+export const CHAPTER_WHOLE_FLOOR: readonly ReviewPromptKey[] = [
+  'chapter.order',
+  'chapter.person',
+  'chapter.place',
 ];
 
 export const CHAPTER_LADDER_MAX_STEP = CHAPTER_FAMILIES.length - 1;
@@ -727,9 +779,11 @@ export function chapterFamilyMemberAvailable(
   key: ReviewPromptKey,
   material: ChapterMaterial | undefined,
 ): boolean {
-  if (!material) return key === 'chapter.verse';
+  if (!material) return false;
   if (material.skip?.has(key)) return false;
   switch (key) {
+    case 'chapter.verse':
+      return (material.engagedCount ?? 0) >= 1;
     case 'chapter.finish':
       return material.finishCandidates >= 1;
     case 'chapter.order':
@@ -743,31 +797,57 @@ export function chapterFamilyMemberAvailable(
       if (material.markedAnswerable !== undefined) return material.markedAnswerable >= 1;
       return (material.highlightCount ?? 0) >= 1 && material.verseCount >= 4;
     default:
-      return true;
+      return false;
   }
 }
 
-export function chapterRungFor(step: number, seed?: string, material?: ChapterMaterial): VerseRung {
+/** Which chapter family a step names, and how many times the maintenance cycle has come round. */
+function chapterFamilyAt(step: number): { family: number; pass: number } {
   const clamped = Number.isFinite(step) ? Math.max(0, Math.trunc(step)) : 0;
-  let family: number;
-  let pass: number;
-  if (clamped < CHAPTER_FAMILIES.length) {
-    family = clamped;
-    pass = 0;
-  } else {
-    const offset = clamped - CHAPTER_FAMILIES.length;
-    family = CHAPTER_MAINTENANCE_FAMILIES[offset % CHAPTER_MAINTENANCE_FAMILIES.length];
-    pass = 1 + Math.floor(offset / CHAPTER_MAINTENANCE_FAMILIES.length);
-  }
+  if (clamped < CHAPTER_FAMILIES.length) return { family: clamped, pass: 0 };
+  const offset = clamped - CHAPTER_FAMILIES.length;
+  return {
+    family: CHAPTER_MAINTENANCE_FAMILIES[offset % CHAPTER_MAINTENANCE_FAMILIES.length],
+    pass: 1 + Math.floor(offset / CHAPTER_MAINTENANCE_FAMILIES.length),
+  };
+}
+
+/**
+ * Which rung a chapter step resolves to.
+ *
+ * A seeded draw over the family (weighted by the reader's More), then the whole-chapter floor,
+ * then `chapter.order`. Without material — a caller that knows nothing about the chapter — the
+ * family's first member, nominally, as `verseRungFor` does.
+ */
+export function chapterRungFor(step: number, seed?: string, material?: ChapterMaterial): VerseRung {
+  const { family, pass } = chapterFamilyAt(step);
   const members = CHAPTER_FAMILIES[family];
-  // Weighted over the peers only: the closing fallback is never something a reader can ask for.
-  const real = emphasisDraw(members.slice(0, -1), material?.prefer);
-  const start = real.length && seed ? seededIndex(seed, real.length) : 0;
-  for (let i = 0; i < real.length; i++) {
-    const key = real[(start + i) % real.length];
+  if (!material) return { key: members[0], pass, family };
+  const draw = emphasisDraw(members, material.prefer);
+  const start = seed ? seededIndex(seed, draw.length) : 0;
+  for (let i = 0; i < draw.length; i++) {
+    const key = draw[(start + i) % draw.length];
     if (chapterFamilyMemberAvailable(key, material)) return { key, pass, family };
   }
-  return { key: members[members.length - 1], pass, family };
+  const unskipped = { ...material, skip: undefined };
+  for (const key of CHAPTER_WHOLE_FLOOR) {
+    if (chapterFamilyMemberAvailable(key, unskipped)) return { key, pass, family };
+  }
+  return { key: 'chapter.order', pass, family };
+}
+
+/**
+ * Every rung a step can resolve to: its family's members, plus the floor it falls to when none of
+ * them builds. For the kinds that climb in families — so "the same family twice" can be judged
+ * from the step the item stands on rather than from a key, now that one key (`chapter.person`,
+ * `verse.sequence`) can sit in more than one family. Null for a note or a church question.
+ */
+export function ladderStepKeysAt(kind: string, step: number): readonly ReviewPromptKey[] | null {
+  if (kind === 'verse') return [...VERSE_FAMILIES[verseRungFor(step).family], VERSE_FLOOR_KEY];
+  if (kind === 'chapter') {
+    return [...new Set([...CHAPTER_FAMILIES[chapterFamilyAt(step).family], ...CHAPTER_WHOLE_FLOOR])];
+  }
+  return null;
 }
 
 export const VERSE_REBUILD_STEP = 1;
@@ -815,7 +895,9 @@ export function reviewRungIsGraded(item: {
   /** The resolved rung, when the caller has it. Otherwise the family default is judged. */
   promptKey?: string | null;
 }): boolean {
-  // Every note rung is a multiple choice now, and every chapter rung is keyed to the text.
+  // The Takeaway card is the one rung the reader rates themselves: there is no key to mark.
+  if (item.promptKey === 'note.takeaway') return false;
+  // Every other note rung is a multiple choice, and every chapter rung is keyed to the text.
   // A church question always has staff's key.
   if (item.kind === 'note' || item.kind === 'chapter' || item.kind === 'church') return true;
   if (item.kind !== 'verse') return false;
@@ -887,7 +969,7 @@ export function pickPromptKey(
   }
   /*
    * The *nominal* rung for a note. What it can actually be asked depends on whether it has a
-   * passage to name, a link to recall or a folder to find — see `resolveNoteRung`, which the
+   * passage to name, a link to recall or enough written to have taken something from — see `resolveNoteRung`, which the
    * server calls with the material in hand. This is the fallback when nothing is known.
    */
   const step = Math.min(Math.max(0, Math.trunc(ladderStep)), NOTE_LADDER_MAX_STEP);
