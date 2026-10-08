@@ -25969,3 +25969,29 @@ html[data-proto-keyboard-open] .proto-callout-anchor {
     animation-direction: reverse;
   }
 }
+
+/*
+ * ─── Notes from Harvous, above the sheet ───────────────────────────────────────────────────
+ *
+ * What's new, importing and the founder's letter (`PrototypeHomeNotices.tsx`), on the canvas
+ * above the day's paper rather than inside it — beside the install and reminders cards, which
+ * are the same kind of thing. The sheet's own width, so the panel and the paper share edges.
+ * Real glass here: it sits on the canvas, where the blur has something to sample.
+ */
+.proto-home-notices {
+  flex-shrink: 0;
+  width: calc(100% - 2 * var(--pds-space-5));
+  max-width: var(--pds-feed-sheet-max);
+  margin: var(--pds-space-4) auto 0;
+}
+
+/* Every row put away: no empty glass. */
+.proto-home-notices:not(:has(.proto-home-notices__panel > *)) {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .proto-home-notices {
+    width: calc(100% - 2 * var(--pds-shell-gutter));
+  }
+}

@@ -32,14 +32,11 @@
  * It still takes the whole of `useHomeSurfaceData` as one prop, so a value added there cannot go
  * unnoticed here.
  */
-import Icon from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import ProtoDeck, { DECK_SHOW_EVENT } from './ProtoDeck';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import PrototypeHomeReadingPlan from './PrototypeHomeReadingPlan';
 import PrototypeHomeChurchFeed from './PrototypeHomeChurchFeed';
-import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
-import PrototypeWhatsNewPill from './PrototypeWhatsNewPill';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeDailyPassageCard, { dailyPassageShowsCard } from './PrototypeDailyPassageCard';
 import PrototypeRecallCarousel from './PrototypeRecallCarousel';
@@ -55,14 +52,8 @@ import { protoRelativeCaptionAbbrev } from './proto-time';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { LOOSE_MIN, type useHomeSurfaceData } from './use-home-surface-data';
 
-import { useDismissibleImportPrompt } from './use-dismissible-import-prompt';
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import ProtoChipBar from './components/ProtoChipBar';
-import { useNavigate } from '@tanstack/react-router';
-import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
-import { prototypeSettingsDataRouteTo } from '@/lib/prototype-path';
-import { onboardingOwnsOffer } from './onboarding-visible-steps';
-import { useOnboardingState } from './useOnboardingState';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { OnboardingStepId } from '@/utils/onboarding-state';
 
@@ -169,18 +160,6 @@ export default function PrototypeStudyFeedToday({
 }) {
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const libraryNav = useLibraryPanelNav();
-  const navigate = useNavigate();
-  /* The checklist lists importing too, and both land on this same screen. While its row is
-     up, this one steps aside; when the checklist retires, this becomes the only pointer to
-     importing again — which is the audience it was aimed at in the first place. */
-  const { state: onboardingState } = useOnboardingState();
-  const { isGuest } = useHarvousIdentity();
-  const onboardingOwnsImport = onboardingOwnsOffer(onboardingState, 'import', isGuest);
-  const {
-    dismissed: importDismissed,
-    ready: importPromptReady,
-    dismiss: dismissImportPrompt,
-  } = useDismissibleImportPrompt();
   /* Which Up next card is in front, so a recall prompt counts as seen only when it is. */
   const [upNextShownId, setUpNextShownId] = useState<string | null>(null);
   const [chosenTab, setChosenTab] = useState<TodayTab>(readTodayTab);
@@ -359,41 +338,12 @@ export default function PrototypeStudyFeedToday({
                   onClick={() => libraryNav.openUnfiledNotes()}
                 />
               ) : null}
-              {/*
-                * The one pointer anyone gets to the fact that importing exists at all, shown to every
-                * account: the people likeliest to have a shelf of notes elsewhere are the ones who have
-                * been here longest. So the dismissal is the whole design — saying no is permanent and
-                * account-wide, because whether you have notes to bring across is a fact about you.
-                */}
-              {!isGuest && importPromptReady && !importDismissed && !onboardingOwnsImport ? (
-                <PrototypeHomeRow
-                  deckId="import"
-                  icon="cloud-arrow-up"
-                  title="Bring your notes from another app"
-                  meta={['Markdown, Word, Evernote, or a folder of files']}
-                  onClick={() => void navigate({ to: prototypeSettingsDataRouteTo() })}
-                  trailing={
-                    <button
-                      type="button"
-                      className="proto-side-panel__action-btn"
-                      aria-label="Hide this"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        dismissImportPrompt();
-                      }}
-                    >
-                      <Icon name="xmark" size={12} aria-hidden />
-                    </button>
-                  }
-                />
-              ) : null}
               {/* The free history window's soft landing — only while something is in its last week
                   of view, and only for free accounts. */}
               <PrototypeHistoryLeavingRow />
-              {/* Above the founder letter: one is news, the other has been true since the app
-                  existed. */}
-              <PrototypeWhatsNewPill />
-              <PrototypeFounderLetterPill />
+              {/* What's new, importing and the founder's letter are Harvous talking about
+                  itself, not suggestions about your study — they sit above the sheet
+                  (`PrototypeHomeNotices`). */}
             </ProtoDeck>
           </div>
         </div>
