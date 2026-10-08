@@ -23025,7 +23025,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * The opening sentence, scaled up on the sheet.
  *
  * The greeting was sized for the sidebar, where 15px is already large against a 304px rail.
- * On a 640px sheet it is the first thing read and the only prose on the page, so it can
+ * On the feed sheet it is the first thing read and the only prose on the page, so it can
  * carry more weight — but only where there is room for it. Below the shell's mobile
  * breakpoint it keeps the sidebar's size, because the sheet is the full width of a phone
  * and a larger line would cost lines rather than presence.
@@ -23044,10 +23044,23 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    * canvas without rewriting its four exit points. Scoped to `__body` it was Activity's
    * greeting only, and the hub's quietly kept the retired sidebar's 15px.
    */
+  /*
+   * 21px since the sheet grew to the paper's widest column (784). At 17px the sentence was
+   * sized for a 640px sheet and read as a caption once the decks under it sat two to a row;
+   * it is the page's one piece of prose and its opening line, so it takes the room. The chips
+   * are sized in `em` off this, so they grow with it.
+   */
   .proto-feed-sheet .proto-home-greeting,
   .proto-feed-sheet__body .proto-feed-sheet__summary {
+    font-size: 21px;
+    line-height: 1.6;
+  }
+
+  /* The field under it, one step up with it, so the pair keeps its proportion. Scoped to the
+     sheet because the base rule sits later in this file and would win a tie. */
+  .proto-feed-sheet .proto-feed-compose {
     font-size: 17px;
-    line-height: 1.7;
+    padding: 13px 16px;
   }
 }
 
