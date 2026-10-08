@@ -8371,6 +8371,12 @@ button.proto-home-greeting__chip:hover {
   flex-shrink: 0;
 }
 
+/* The glyph fills its `em`-sized box (see `ChipIcon`); the markup's own width is in pixels. */
+.proto-home-greeting__chip-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
 /* Tappable scripture chip — keeps the scripture text color on the glass surface. */
 button.proto-home-greeting__chip--passage {
   color: var(--pds-scripture-fg);
