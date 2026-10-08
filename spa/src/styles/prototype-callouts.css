@@ -98,6 +98,7 @@
 
 .proto-callout-art--today-tabs { background-image: url("/images/callouts/today-tabs.webp"); }
 .proto-callout-art--legal { background-image: url("/images/callouts/legal.webp"); }
+/* The letter wears harvous.com's homepage hero sky (ai_bg_053, cropped from the site's copy). */
 .proto-callout-art--letter { background-image: url("/images/callouts/letter.webp"); }
 
 /* The images are painted for a light canvas; dim them a little under a dark sheet. */
@@ -409,6 +410,7 @@
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.01em;
+  text-wrap: pretty;
 }
 
 .proto-callout__body {
