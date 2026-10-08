@@ -249,6 +249,19 @@ export const REVIEW_SEE_LESS_COPY = 'Show fewer';
 export const REVIEW_ADD_COPY = 'Add to Review';
 export const REVIEW_ADDED_COPY = 'In Review';
 
+/*
+ * The Takeaway card, the one self-rated question. The reader brings it to mind, opens the note,
+ * then says how it went — in that order, and the verdicts are not on screen until the note is.
+ */
+export const REVIEW_TAKEAWAY_ASK_COPY = 'Bring it to mind first, then check.';
+export const REVIEW_TAKEAWAY_OPEN_NOTE_COPY = 'Open my note';
+
+/** The three answers. Descriptions of a memory, never ratings of the app. */
+export const REVIEW_RECALLED_COPY = 'I recalled it';
+export const REVIEW_ALMOST_COPY = 'I almost had it';
+/** After looking without having it: the honest answer is that it needed the look. */
+export const REVIEW_REVEALED_ACK_COPY = 'Got it now';
+
 /**
  * What the dock says back after an answer, before the next return.
  *

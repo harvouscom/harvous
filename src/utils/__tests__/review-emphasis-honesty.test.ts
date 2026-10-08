@@ -51,7 +51,7 @@ const chapter = {
   highlightCount: 2,
   engagedCount: 3,
 };
-const note = { canPassage: true, canConnect: true, canFolder: true };
+const note = { canPassage: true, canConnect: true, canTakeaway: true };
 
 interface Prefs {
   skip?: ReadonlySet<ReviewPromptKey>;
@@ -128,9 +128,9 @@ describe('where Settings offers More and Less', () => {
     expect(ALWAYS_ON_FAMILIES).toEqual(['memory', 'changed']);
   });
 
-  it('gives a control to order and folder, which share a draw with other families', () => {
-    // `chapter.order` is drawn against who and places; `note.folder` against cited and linked.
+  it('gives a control to order and takeaway, which share a draw with other families', () => {
+    // `chapter.order` is drawn against who and places; `note.takeaway` against cited and linked.
     expect(emphasisIsOfferable('order')).toBe(true);
-    expect(emphasisIsOfferable('folder')).toBe(true);
+    expect(emphasisIsOfferable('takeaway')).toBe(true);
   });
 });

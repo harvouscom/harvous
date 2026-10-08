@@ -55,7 +55,7 @@ const chapterEverything = {
   placeCount: 2,
   highlightCount: 2,
 };
-const noteEverything = { canPassage: true, canConnect: true, canFolder: true };
+const noteEverything = { canPassage: true, canConnect: true, canTakeaway: true };
 
 describe('reading the stored preference', () => {
   it('treats never having opened the page as everything at its ordinary rate', () => {
@@ -232,7 +232,7 @@ describe('what the engine does with Less', () => {
   it('still asks a note something when every note family is Less', () => {
     // Every note family has a control. The walk's second pass is what keeps a note askable, not a
     // family that cannot be leaned away from.
-    const material = { ...noteEverything, ...rungPreferencesFor(lessOf('folder', 'cited', 'linked')) };
+    const material = { ...noteEverything, ...rungPreferencesFor(lessOf('takeaway', 'cited', 'linked')) };
     for (let step = 0; step < NOTE_LADDER.length; step++) {
       expect(resolveNoteRung(step, material, `note:${step}`)).toBeTruthy();
     }

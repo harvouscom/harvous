@@ -1126,3 +1126,37 @@ describe('one stem, quoted the same way by both rungs that use it', () => {
     }
   });
 });
+
+describe('the Takeaway card', () => {
+  /*
+   * The one self-rated rung. Nothing is built and nothing is marked: the grader returns null and
+   * the route records the reader's own verdict (`verdict ?? outcome`), which it already did for
+   * any rung the server cannot mark.
+   */
+  it('is never built into a choice and never graded', () => {
+    const text = service();
+    const build = text.slice(text.indexOf('async function buildNoteExercise'));
+    expect(build.slice(0, 1200)).toMatch(/if \(rung === 'note\.takeaway'\) return null;/);
+    expect(review()).toMatch(/verdict \?\? outcome/);
+  });
+
+  it('decides whether it can be asked with the builder, from the same loader as the choices', () => {
+    const text = service();
+    const sets = text.slice(text.indexOf('async function loadNoteChoiceSetsUncached'));
+    expect(sets.slice(0, 5000)).toContain('buildNoteTakeaway({');
+    expect(text).toContain('canTakeaway: set.takeaway.cue != null');
+    // The folder question's pool and labels are gone with it.
+    expect(text).not.toContain('loadNoteFolderPool');
+    expect(text).not.toContain('folderLabelsOf');
+  });
+
+  it('names the note by its cue and never sends its opening line under the question', () => {
+    const text = service();
+    expect(text).toMatch(/noteRung === 'note\.takeaway'\s*\? \{ noteTitle: takeawayCue \}/);
+    expect(text).toContain("noteContext: noteRung === 'note.takeaway' ? null : primary?.excerpt ?? null");
+  });
+
+  it('tells a reader adding a bare note what would make it askable', () => {
+    expect(service()).toContain('Nothing to ask about yet — write a little more, cite a passage or link it to another note');
+  });
+});

@@ -52,11 +52,13 @@ export const REVIEW_PROMPT_KEYS = [
   'chapter.place',
   'chapter.marked',
   'verse.marked',
-  'note.folder',
+  // `note.folder` was here, retired Oct 2026 the way `note.recognize` was: nothing indexes this
+  // list by position, and the note ladder below is what a stored step names.
   // A church's own questions (docs/CHURCH_V2_ROADMAP.md §B): staff's words, shuffled.
   'church.choice',
   'church.order',
   'church.match',
+  'note.takeaway',
 ] as const;
 
 export type ReviewPromptKey = (typeof REVIEW_PROMPT_KEYS)[number];
@@ -112,8 +114,8 @@ function named(ctx: ReviewPromptContext, inside: (s: string) => string, bare: st
  */
 export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) => string> = {
   /*
-   * Three instructions about what a note belongs to — the passage it studies, the note it is
-   * linked to, the folder it lives in — and never about its wording.
+   * Two instructions about what a note belongs to — the passage it studies, the note it is
+   * linked to — and one question about what the reader took from it. Never about its wording.
    *
    * These replaced five open reflective prompts — "what made you write this?", "what is clearer
    * to you now?" — which turned out not to be review questions at all. Two quiz-the-line rungs
@@ -127,8 +129,15 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     named(ctx, (s) => `Pick a passage you cited in ${s}.`, 'Pick a passage you cited here.'),
   'note.connect': (ctx) =>
     named(ctx, (s) => `Pick a note you linked to ${s}.`, 'Pick a note you linked to this one.'),
-  'note.folder': (ctx) =>
-    named(ctx, (s) => `Pick a folder ${s} is in.`, 'Pick a folder this note is in.'),
+  /*
+   * **The one question-form prompt, and the one self-rated one.** Every other prompt is an
+   * instruction that ends in a full stop, because every other rung is marked. This one cannot be:
+   * what someone took from their own note has no answer key, so it is asked as a question, the
+   * reader brings the answer to mind, opens the note to check, and says how it went. The subject is
+   * the Takeaway cue — the note's title, or "your note on {passage}" — never a line of the note.
+   */
+  'note.takeaway': (ctx) =>
+    named(ctx, (s) => `What did you take from ${s}?`, 'What did you take from this note?'),
   /*
    * A church's question is asked in the church's words. The bare forms are only for a row whose
    * definition could not be read — which is then dropped as unaskable before anyone sees it.
@@ -291,7 +300,7 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
 export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'note.passage': 'Pick a passage you cited',
   'note.connect': 'Pick a note you linked',
-  'note.folder': 'Pick a folder it is in',
+  'note.takeaway': 'Recall what you took from it',
   'verse.recognize': 'Pick how it begins',
   'verse.rebuild': 'Fill in the blanks',
   'verse.initials': 'Fill it in from first letters',
@@ -325,7 +334,7 @@ export function reviewTaskFor(key: ReviewPromptKey): string {
 }
 
 /**
- * The note ladder: what the note studies, what it is linked to, where it is filed.
+ * The note ladder: what the note studies, what it is linked to, what the reader took from it.
  *
  * Unlike the verse ladder these are *material-gated*: a note with no links cannot be asked what
  * it was linked to. `resolveNoteRung` in note-ladder-exercises.ts turns this nominal position
@@ -336,7 +345,8 @@ export function reviewTaskFor(key: ReviewPromptKey): string {
 export const NOTE_LADDER: readonly ReviewPromptKey[] = [
   'note.passage',
   'note.connect',
-  'note.folder',
+  // Took the folder question's place (Oct 2026); same step, so no stored step moves.
+  'note.takeaway',
 ];
 
 export const NOTE_LADDER_MAX_STEP = NOTE_LADDER.length - 1;
@@ -885,7 +895,9 @@ export function reviewRungIsGraded(item: {
   /** The resolved rung, when the caller has it. Otherwise the family default is judged. */
   promptKey?: string | null;
 }): boolean {
-  // Every note rung is a multiple choice now, and every chapter rung is keyed to the text.
+  // The Takeaway card is the one rung the reader rates themselves: there is no key to mark.
+  if (item.promptKey === 'note.takeaway') return false;
+  // Every other note rung is a multiple choice, and every chapter rung is keyed to the text.
   // A church question always has staff's key.
   if (item.kind === 'note' || item.kind === 'chapter' || item.kind === 'church') return true;
   if (item.kind !== 'verse') return false;
@@ -957,7 +969,7 @@ export function pickPromptKey(
   }
   /*
    * The *nominal* rung for a note. What it can actually be asked depends on whether it has a
-   * passage to name, a link to recall or a folder to find — see `resolveNoteRung`, which the
+   * passage to name, a link to recall or enough written to have taken something from — see `resolveNoteRung`, which the
    * server calls with the material in hand. This is the fallback when nothing is known.
    */
   const step = Math.min(Math.max(0, Math.trunc(ladderStep)), NOTE_LADDER_MAX_STEP);

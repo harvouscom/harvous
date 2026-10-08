@@ -220,6 +220,7 @@ import {
 } from '@/utils/study-bible-nodes';
 import {
   buildNoteChoice,
+  buildNoteTakeaway,
   labelNamesWhat,
   gradeNoteChoice,
   noteChoiceBuildable,
@@ -227,7 +228,6 @@ import {
   type NoteChoiceInput,
   type NoteMaterial,
 } from '@/utils/note-ladder-exercises';
-import { noteFolderMembershipLabels, normalizeFolderKey } from '@/utils/note-folder-display';
 import type { ChoiceExercise } from '@/utils/choice-exercise';
 import { reviewExerciseFamily } from '@/utils/review-exercise-families';
 import {
@@ -479,52 +479,6 @@ async function loadNoteLabelPoolUncached(
 }
 
 /**
- * Every folder this reader files notes in, most used first.
- *
- * The wrong answers for "pick a folder it is in". My Pile is not a folder anyone chose, and
- * apostrophe variants of one label are one folder — see `normalizeFolderKey`.
- */
-async function loadNoteFolderPool(userId: string): Promise<string[]> {
-  return memoisedMaterial(`${userId}:note-folder-pool`, async () => {
-    const rows = await db
-      .select({ primary: Notes.primaryCollection, secondary: Notes.secondaryCollections })
-      .from(Notes)
-      .where(
-        and(
-          eq(Notes.userId, userId),
-          ne(Notes.noteType, 'scripture'),
-          countableUserNotesWhere(),
-          or(isNotNull(Notes.primaryCollection), isNotNull(Notes.secondaryCollections)),
-        ),
-      );
-    const counts = new Map<string, { label: string; n: number }>();
-    for (const row of rows) {
-      for (const label of folderLabelsOf(row)) {
-        const key = normalizeFolderKey(label);
-        const entry = counts.get(key);
-        if (entry) entry.n += 1;
-        else counts.set(key, { label, n: 1 });
-      }
-    }
-    return [...counts.values()].sort((a, b) => b.n - a.n).map((entry) => entry.label);
-  });
-}
-
-/** A note's folders, primary first. `secondaryCollections` is a JSON array stored as text. */
-function folderLabelsOf(row: { primary: string | null; secondary: string | null }): string[] {
-  let secondary: string[] = [];
-  if (row.secondary) {
-    try {
-      const parsed: unknown = JSON.parse(row.secondary);
-      if (Array.isArray(parsed)) secondary = parsed.filter((v): v is string => typeof v === 'string');
-    } catch {
-      // An unreadable column is no secondaries, not a failed question.
-    }
-  }
-  return noteFolderMembershipLabels({ primaryCollection: row.primary, secondaryCollections: secondary });
-}
-
-/**
  * Everything each note question is built from — the right answers and the pool of wrong ones —
  * for a batch of notes.
  *
@@ -541,8 +495,15 @@ function folderLabelsOf(row: { primary: string | null; secondary: string | null 
 interface NoteChoiceSet {
   passage: Omit<NoteChoiceInput, 'seed'>;
   connect: Omit<NoteChoiceInput, 'seed'>;
-  folder: Omit<NoteChoiceInput, 'seed'>;
+  /** The Takeaway question's cue, or null when it cannot be asked — `buildNoteTakeaway`'s verdict. */
+  takeaway: { cue: string | null };
 }
+
+/**
+ * How much of a note's stored body to read to count its words for the Takeaway floor. The floor
+ * is twenty-five words; this is generous for that, and still a prefix rather than the whole body.
+ */
+const TAKEAWAY_BODY_SOURCE_CHARS = 4000;
 
 async function loadNoteChoiceSets(
   userId: string,
@@ -562,13 +523,15 @@ async function loadNoteChoiceSetsUncached(
 ): Promise<Map<string, NoteChoiceSet>> {
   const out = new Map<string, NoteChoiceSet>();
 
-  const [owned, titles, passages, links, labelPool, verseReferences, folderPool] = await Promise.all([
+  const [owned, titles, passages, links, labelPool, verseReferences] = await Promise.all([
     db
       .select({
         id: Notes.id,
-        primary: Notes.primaryCollection,
-        secondary: Notes.secondaryCollections,
         linkedFrom: Notes.linkedFromNoteId,
+        // For the Takeaway floor: how much is written, and whether it is locked. A locked body is
+        // ciphertext, so it is never counted — the lock alone decides.
+        bodyPrefix: sql<string>`left(${Notes.content}, ${TAKEAWAY_BODY_SOURCE_CHARS})`,
+        locked: Notes.contentEncrypted,
       })
       .from(Notes)
       .where(and(eq(Notes.userId, userId), inArray(Notes.id, unique))),
@@ -577,7 +540,6 @@ async function loadNoteChoiceSetsUncached(
     loadNoteNeighbourIds(userId, unique),
     loadNoteLabelPool(userId),
     listUserVerseReferences(userId, ''),
-    loadNoteFolderPool(userId),
   ]);
 
   // The notes on the other end of every link, named the way the label pool names them.
@@ -615,9 +577,13 @@ async function loadNoteChoiceSetsUncached(
     const closeNotes = noteBooks.close.map(labelFor).filter((label): label is string => Boolean(label));
     const restNotes = noteBooks.rest.map(labelFor).filter((label): label is string => Boolean(label));
 
-    // Which folder: every folder it is filed in is right; the reader's other folders are not.
-    const folders = folderLabelsOf(row);
-    const folderKeys = new Set(folders.map(normalizeFolderKey));
+    // What you took from it: no options, only a name to ask it by — the probe is the builder.
+    const takeaway = buildNoteTakeaway({
+      title: title?.title ?? null,
+      citedPassages: cited,
+      bodyWordCount: row.locked ? 0 : stripHtml(row.bodyPrefix ?? '').split(/\s+/).filter(Boolean).length,
+      locked: Boolean(row.locked),
+    });
 
     out.set(row.id, {
       passage: {
@@ -632,11 +598,7 @@ async function loadNoteChoiceSetsUncached(
         fallbackLabels: closeNotes.length ? restNotes : undefined,
         shown,
       },
-      folder: {
-        acceptable: folders,
-        poolLabels: folderPool.filter((label) => !folderKeys.has(normalizeFolderKey(label))),
-        shown,
-      },
+      takeaway: { cue: takeaway?.cue ?? null },
     });
   }
   return out;
@@ -765,7 +727,8 @@ async function loadNoteMaterial(
       out.set(id, {
         canPassage: noteChoiceBuildable(set.passage),
         canConnect: noteChoiceBuildable(set.connect),
-        canFolder: noteChoiceBuildable(set.folder),
+        canTakeaway: set.takeaway.cue != null,
+        takeawayCue: set.takeaway.cue,
         skip: rungPrefs.skip,
         prefer: rungPrefs.prefer,
       });
@@ -778,7 +741,7 @@ async function loadNoteMaterial(
 const EMPTY_NOTE_MATERIAL: NoteMaterial = {
   canPassage: false,
   canConnect: false,
-  canFolder: false,
+  canTakeaway: false,
 };
 
 /**
@@ -1223,6 +1186,8 @@ export async function buildReviewItemViews(
      * showing a question with no possible answer.
      */
     const noteRung = noteRungFor(row, material);
+    const takeawayCue =
+      noteRung === 'note.takeaway' && row.noteId ? material.get(row.noteId)?.takeawayCue ?? null : null;
 
     /*
      * A note the resolver can ask nothing about is not shown at all.
@@ -1372,8 +1337,17 @@ export async function buildReviewItemViews(
       framing,
       // Real context on the note rungs too: `fillReviewPrompt(noteRung, {})` was throwing the
       // note's own name away, so every note prompt rendered in its nameless form.
+      /*
+       * The Takeaway card names the note by its cue — the title when it names the note, else
+       * "your note on {passage}" — and never by its opening line, which is often the takeaway.
+       */
       prompt: noteRung
-        ? fillReviewPrompt(noteRung, { reference: row.scriptureReference, noteTitle })
+        ? fillReviewPrompt(
+            noteRung,
+            noteRung === 'note.takeaway'
+              ? { noteTitle: takeawayCue }
+              : { reference: row.scriptureReference, noteTitle },
+          )
         : prompt,
       task: reviewTaskFor(noteRung ?? key),
       exercise: (() => {
@@ -1392,8 +1366,8 @@ export async function buildReviewItemViews(
       scriptureReference: row.scriptureReference,
       noteId: row.noteId,
       challengeId: row.challengeId,
-      noteLabel: noteTitle ?? primary?.excerpt ?? primary?.passage ?? null,
-      noteContext: primary?.excerpt ?? null,
+      noteLabel: takeawayCue ?? noteTitle ?? primary?.excerpt ?? primary?.passage ?? null,
+      noteContext: noteRung === 'note.takeaway' ? null : primary?.excerpt ?? null,
       noteWrittenAt: primary?.writtenAt?.toISOString() ?? null,
       sourceLabel: row.sourceLabel,
       sourceAt: row.sourceAt?.toISOString() ?? null,
@@ -1871,7 +1845,7 @@ export async function createReviewItem(
    * Citing a passage or linking it to something makes it reviewable.
    */
   if (input.kind === 'note' && noteId && !(await noteHasReviewableMaterial(userId, noteId))) {
-    return { error: 'Nothing to ask about yet — cite a passage or link it to another note' };
+    return { error: 'Nothing to ask about yet — write a little more, cite a passage or link it to another note' };
   }
 
   // A verse item made from a highlight inherits that highlight's reference and translation:
@@ -3948,8 +3922,10 @@ async function buildNoteExercise(
   const rung = resolveNoteRung(item.ladderStep, noteMaterial, seed);
   if (!rung) return null;
 
-  const input =
-    rung === 'note.passage' ? set.passage : rung === 'note.connect' ? set.connect : set.folder;
+  // The Takeaway card is self-rated: nothing to build, nothing to mark. The reader's own verdict
+  // is the outcome (`verdict ?? outcome` in the route).
+  if (rung === 'note.takeaway') return null;
+  const input = rung === 'note.passage' ? set.passage : set.connect;
   const exercise = buildNoteChoice({ ...input, seed });
   return exercise ? { rung, exercise, acceptable: [...input.acceptable] } : null;
 }

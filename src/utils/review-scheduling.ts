@@ -80,8 +80,11 @@ export const REVIEW_DEFER_DAYS = 1;
 export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
   'note.passage': 1.0,
   'note.connect': 1.0,
-  // A tap among four folder names, on screen — below 1 by the rule above.
-  'note.folder': 0.8,
+  /*
+   * Self-rated: the reader says how it went after opening the note, and self-ratings run
+   * overconfident — so a "recalled" here earns a little less than a marked one does.
+   */
+  'note.takeaway': 0.9,
   'verse.recognize': 0.6,
   'verse.rebuild': 1.0,
   'verse.initials': 1.1,
@@ -183,10 +186,9 @@ export const NEVER_LAPSES: ReadonlySet<ReviewPromptKey> = new Set([
   // why `verse.place` is absent: `verse.person` is not here either.
   'chapter.place',
   /*
-   * A folder is often the app's filing before it is the reader's — auto-folder places a note by
-   * its strongest topic — so missing it can be a disagreement with that filing, not forgetting.
+   * `note.folder` was here: a folder is often the app's filing before the reader's. The Takeaway
+   * card that replaced it is the reader's own recall and lapses like any other.
    */
-  'note.folder',
 ]);
 
 export function lapseDamping(lapseCount: number): number {

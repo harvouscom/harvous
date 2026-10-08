@@ -73,9 +73,34 @@ describe('REVIEW_PROMPTS', () => {
      */
     for (const key of REVIEW_PROMPT_KEYS) {
       const text = fillReviewPrompt(key, CTX);
+      // The one exception, by design: the self-rated Takeaway question has no key to mark, so it
+      // is asked as a question — see its docblock.
+      if (key === 'note.takeaway') {
+        expect(text.endsWith('?')).toBe(true);
+        continue;
+      }
       expect(text.endsWith('.')).toBe(true);
       expect(text).not.toContain('?');
     }
+  });
+
+  it('asks the Takeaway question of the note by its cue', () => {
+    expect(fillReviewPrompt('note.takeaway', { noteTitle: 'Adoption, not slavery' })).toBe(
+      'What did you take from Adoption, not slavery?',
+    );
+    expect(fillReviewPrompt('note.takeaway', { noteTitle: 'your note on Romans 8:15' })).toBe(
+      'What did you take from your note on Romans 8:15?',
+    );
+    expect(REVIEW_TASKS['note.takeaway']).toBe('Recall what you took from it');
+    // Retired, the way note.recognize was.
+    expect(REVIEW_PROMPT_KEYS).not.toContain('note.folder');
+    // Appended, never inserted.
+    expect(REVIEW_PROMPT_KEYS[REVIEW_PROMPT_KEYS.length - 1]).toBe('note.takeaway');
+  });
+
+  it('marks every rung but the Takeaway card', () => {
+    expect(reviewRungIsGraded({ kind: 'note', ladderStep: 2, promptKey: 'note.takeaway' })).toBe(false);
+    expect(reviewRungIsGraded({ kind: 'note', ladderStep: 0, promptKey: 'note.passage' })).toBe(true);
   });
 
   it('never splices a bare "this" into a slot that wanted a name', () => {
@@ -161,20 +186,21 @@ describe('the note ladder', () => {
   it('climbs by rung, not by how many times it has come round', () => {
     expect(pickPromptKey('note', 0, 0)).toBe('note.passage');
     expect(pickPromptKey('note', 0, 1)).toBe('note.connect');
-    expect(pickPromptKey('note', 0, 2)).toBe('note.folder');
+    expect(pickPromptKey('note', 0, 2)).toBe('note.takeaway');
     // Review count is irrelevant now — the rung is the question.
     expect(pickPromptKey('note', 47, 0)).toBe('note.passage');
   });
 
   it('clamps at the top rather than falling off it', () => {
-    expect(pickPromptKey('note', 0, 99)).toBe('note.folder');
+    expect(pickPromptKey('note', 0, 99)).toBe('note.takeaway');
     expect(pickPromptKey('note', 0, -3)).toBe('note.passage');
   });
 
   it('instructs rather than asking about motive', () => {
     for (const key of NOTE_LADDER) {
       const rendered = fillReviewPrompt(key, {});
-      expect(rendered).toMatch(/\.$/);
+      // The Takeaway card is the one question; it asks what was taken, never why it was written.
+      expect(rendered).toMatch(key === 'note.takeaway' ? /\?$/ : /\.$/);
       // No "why did you", no "what made you" — those are the ones that left.
       expect(rendered).not.toMatch(/why did you|what made you|clearer/i);
     }
@@ -676,7 +702,7 @@ describe('openingLadderStep', () => {
     expect(VERSE_OPENING_STEPS).not.toContain(7);
   });
 
-  it('walks new notes across passage, connect, folder', () => {
+  it('walks new notes across passage, connect, takeaway', () => {
     expect([0, 1, 2].map((n) => openingLadderStep('note', n))).toEqual([0, 1, 2]);
     expect(openingLadderStep('note', 3)).toBe(0);
   });

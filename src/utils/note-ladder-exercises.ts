@@ -6,8 +6,9 @@
  * something, and they have moved to Home as exactly that. What is left here is retrieval: a
  * question about your own note that you can be right about.
  *
- * **What a note is asked about: its context, its connections, its themes.** Which passage it
- * studies, which of your notes it is linked to, which folder it lives in. Never its wording. Two
+ * **What a note is asked about: its context, its connections, what you took from it.** Which
+ * passage it studies, which of your notes it is linked to, and — self-rated — what you took from
+ * it. Never its wording. Two
  * rungs used to quote the reader's prose back at them — a line of the note, or the words they
  * typed on a highlight — and ask where it came from. Derek found them unhelpful (Sept 2026), and
  * they were also the two rungs most likely to reach the reader as a prompt over an empty card,
@@ -16,12 +17,15 @@
  * sentence someone could read back to you.
  *
  * **What may be graded.** The answer key is something visible in the reader's own library and
- * theirs to change: a reference they cited, an edge they drew, the folder the note is filed in.
- * The folder is the one of these the app may have chosen first — auto-folder files a note by its
- * strongest topic — but it is shown on the note, named in the Library, and corrected in one tap,
- * which is what separates it from a hidden reading like `NoteFingerprints.themes` or the
- * auto-generated tags. Those stay out of this file: grading them would grade a machine's reading
- * of someone's study that they have never been shown.
+ * theirs to change: a reference they cited, an edge they drew. A hidden reading like
+ * `NoteFingerprints.themes` or the auto-generated tags stays out of this file: grading it would
+ * grade a machine's reading of someone's study that they have never been shown.
+ *
+ * **The folder question is gone (Oct 2026).** "Pick a folder this note is in" was the app's own
+ * filing handed back as a quiz — auto-folder files a note by its strongest topic — and Derek found
+ * it useless. Its place on the ladder is the Takeaway card: the reader brings to mind what they
+ * took from the note, opens it to check, and says how it went. Ungraded, because the answer is
+ * theirs and no key could mark it; see `buildNoteTakeaway`.
  *
  * Pure. The server brings the material; this decides the shape.
  */
@@ -44,8 +48,16 @@ export interface NoteMaterial {
   canPassage: boolean;
   /** It is linked to another note, and enough unlinked notes are nameable to ask against. */
   canConnect: boolean;
-  /** It is filed in a folder, and the reader has enough other folders to ask against. */
-  canFolder: boolean;
+  /**
+   * It has enough written in it to have been about something, is not locked, and can be named
+   * in the question — see `buildNoteTakeaway`.
+   */
+  canTakeaway: boolean;
+  /**
+   * What the Takeaway question calls the note: its title when the title names what it is, else
+   * "your note on {passage}". Present exactly when `canTakeaway` is, from the same build.
+   */
+  takeawayCue?: string | null;
   /**
    * Rungs the reader has asked not to be given, from Settings.
    *
@@ -66,9 +78,9 @@ export interface NoteMaterial {
  * position and this resolves the effective one, walking forward and wrapping once.
  *
  * Returns null when the note can be asked nothing, which is a real answer: see the floor in
- * `review-opportunities.ts`. A note that cites nothing, links to nothing and sits in no folder
- * has nothing Review can ask about, and inventing a question for it would mean inventing the
- * answer too.
+ * `review-opportunities.ts`. A note that cites nothing, links to nothing and has too little in it
+ * (or nothing to call it by) has nothing Review can ask about, and inventing a question for it
+ * would mean inventing the answer too.
  */
 export function resolveNoteRung(
   step: number,
@@ -78,7 +90,7 @@ export function resolveNoteRung(
   const can: Partial<Record<ReviewPromptKey, boolean>> = {
     'note.passage': material.canPassage,
     'note.connect': material.canConnect,
-    'note.folder': material.canFolder,
+    'note.takeaway': material.canTakeaway,
   };
   /* What the note could be asked before any preference is applied — the floor for the second
      pass below, so a skip can never be the reason a note goes unasked. */
@@ -230,6 +242,37 @@ export function buildNoteChoice(input: NoteChoiceInput): ChoiceExercise | null {
  */
 export function noteChoiceBuildable(input: Omit<NoteChoiceInput, 'seed'>): boolean {
   return buildNoteChoice({ ...input, seed: 'probe' }) !== null;
+}
+
+/** Below this many words a note is a jotting, and "what did you take from it" has no answer. */
+export const TAKEAWAY_MIN_WORDS = 25;
+
+/**
+ * "What did you take from {title}?" — the one self-rated note question, and its probe.
+ *
+ * **The builder is the probe.** It returns the cue the question names the note by, or null when
+ * the note cannot be asked: locked (a locked note stays out of Review's sight), too short to have
+ * been about anything, or with nothing to call it — a title that only says when it was written
+ * ("August 13, 2026") and no passage cited. The server decides `canTakeaway` by calling this, and
+ * the item view builds the prompt from the same cue, so the list can never promise a question
+ * this cannot ask.
+ *
+ * Seed-independent: there are no options to draw.
+ */
+export function buildNoteTakeaway(input: {
+  title: string | null | undefined;
+  /** References the note cites, in the order they were found. */
+  citedPassages: readonly string[];
+  bodyWordCount: number;
+  locked: boolean;
+}): { cue: string } | null {
+  if (input.locked) return null;
+  if (!(input.bodyWordCount >= TAKEAWAY_MIN_WORDS)) return null;
+  const title = input.title?.trim() ?? '';
+  if (title && labelNamesWhat(title)) return { cue: title };
+  const passage = input.citedPassages.find((p) => p.trim())?.trim();
+  if (passage) return { cue: `your note on ${passage}` };
+  return null;
 }
 
 /** True when the reader picked any of the answers that are genuinely right. */

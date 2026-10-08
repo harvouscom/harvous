@@ -25,6 +25,11 @@ describe('revealCarriesExercise', () => {
     expect(revealCarriesExercise('verse.recall', {})).toBe(true);
   });
 
+  it('passes the Takeaway card, which needs nothing built: the prompt, the note, the verdicts', () => {
+    expect(REVEAL_EXERCISE_FIELD['note.takeaway']).toBe('always');
+    expect(revealCarriesExercise('note.takeaway', { noteChoice: null })).toBe(true);
+  });
+
   it('fails a rung it does not know, and a missing reveal', () => {
     expect(revealCarriesExercise('note.recognize', { noteChoice: { options: [] } })).toBe(false);
     expect(revealCarriesExercise('verse.locate', null)).toBe(false);

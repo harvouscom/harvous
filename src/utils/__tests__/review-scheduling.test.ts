@@ -252,6 +252,11 @@ describe('firstDueAtFor', () => {
   it('never counts a disagreement with the index as forgetting', () => {
     expect(NEVER_LAPSES.has('chapter.person')).toBe(true);
   });
+  it('lets the Takeaway card lapse, and weighs a self-rating a little under a marked answer', () => {
+    // The reader's own recall, not the app's filing: forgetting it is forgetting.
+    expect(NEVER_LAPSES.has('note.takeaway')).toBe(false);
+    expect(rungWeight('note.takeaway')).toBe(0.9);
+  });
 });
 
 describe('describeNextDue', () => {

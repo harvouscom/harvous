@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  TAKEAWAY_MIN_WORDS,
   buildNoteChoice,
+  buildNoteTakeaway,
   gradeNoteChoice,
   labelNamesWhat,
   noteChoiceBuildable,
@@ -8,8 +10,8 @@ import {
   type NoteMaterial,
 } from '@/utils/note-ladder-exercises';
 
-const ALL: NoteMaterial = { canPassage: true, canConnect: true, canFolder: true };
-const NONE: NoteMaterial = { canPassage: false, canConnect: false, canFolder: false };
+const ALL: NoteMaterial = { canPassage: true, canConnect: true, canTakeaway: true };
+const NONE: NoteMaterial = { canPassage: false, canConnect: false, canTakeaway: false };
 
 describe('a preference can never be the reason a note goes unasked', () => {
   /*
@@ -19,19 +21,19 @@ describe('a preference can never be the reason a note goes unasked', () => {
    * Turning "ask me this less" into "never show me this note" is the failure being pinned here.
    */
   it('still resolves when the only buildable rung is skipped', () => {
-    const onlyFolder: NoteMaterial = {
+    const onlyTakeaway: NoteMaterial = {
       canPassage: false,
       canConnect: false,
-      canFolder: true,
-      skip: new Set(['note.folder' as const]),
+      canTakeaway: true,
+      skip: new Set(['note.takeaway' as const]),
     };
-    expect(resolveNoteRung(0, onlyFolder, 'seed')).toBe('note.folder');
+    expect(resolveNoteRung(0, onlyTakeaway, 'seed')).toBe('note.takeaway');
   });
 
   it('still resolves when every rung the note has is skipped', () => {
     const allSkipped: NoteMaterial = {
       ...ALL,
-      skip: new Set(['note.passage', 'note.connect', 'note.folder'] as const),
+      skip: new Set(['note.passage', 'note.connect', 'note.takeaway'] as const),
     };
     expect(resolveNoteRung(0, allSkipped, 'seed')).not.toBeNull();
   });
@@ -40,8 +42,8 @@ describe('a preference can never be the reason a note goes unasked', () => {
     const both: NoteMaterial = {
       canPassage: true,
       canConnect: false,
-      canFolder: true,
-      skip: new Set(['note.folder' as const]),
+      canTakeaway: true,
+      skip: new Set(['note.takeaway' as const]),
     };
     expect(resolveNoteRung(0, both, 'seed')).toBe('note.passage');
   });
@@ -56,17 +58,17 @@ describe('resolveNoteRung', () => {
   it('asks the rung the note has climbed to when it can answer it', () => {
     expect(resolveNoteRung(0, ALL)).toBe('note.passage');
     expect(resolveNoteRung(1, ALL)).toBe('note.connect');
-    expect(resolveNoteRung(2, ALL)).toBe('note.folder');
+    expect(resolveNoteRung(2, ALL)).toBe('note.takeaway');
   });
 
   it('walks past a rung the note has no material for', () => {
     // A note with no links cannot be asked what it was linked to, whatever step it is on.
-    expect(resolveNoteRung(1, { ...ALL, canConnect: false })).toBe('note.folder');
+    expect(resolveNoteRung(1, { ...ALL, canConnect: false })).toBe('note.takeaway');
     expect(resolveNoteRung(0, { ...ALL, canPassage: false })).toBe('note.connect');
   });
 
   it('wraps once rather than falling off the end', () => {
-    expect(resolveNoteRung(2, { canPassage: true, canConnect: false, canFolder: false })).toBe('note.passage');
+    expect(resolveNoteRung(2, { canPassage: true, canConnect: false, canTakeaway: false })).toBe('note.passage');
   });
 
   it('says nothing can be asked, which is a real answer', () => {
@@ -253,5 +255,36 @@ describe('noteChoiceBuildable', () => {
         expect(buildNoteChoice({ ...input, seed }) !== null).toBe(buildable);
       }
     }
+  });
+});
+
+describe('buildNoteTakeaway', () => {
+  const base = { title: 'Adoption, not slavery', citedPassages: ['Romans 8:15'], bodyWordCount: 80, locked: false };
+
+  it('names the note by its title when the title says what it is', () => {
+    expect(buildNoteTakeaway(base)).toEqual({ cue: 'Adoption, not slavery' });
+  });
+
+  it('falls back to the passage it studies when the title is only a date', () => {
+    expect(buildNoteTakeaway({ ...base, title: 'August 13, 2026' })).toEqual({ cue: 'your note on Romans 8:15' });
+    expect(buildNoteTakeaway({ ...base, title: null })).toEqual({ cue: 'your note on Romans 8:15' });
+  });
+
+  it('cannot be asked of a note with nothing to call it by', () => {
+    expect(buildNoteTakeaway({ ...base, title: 'Written 10 Jul', citedPassages: [] })).toBeNull();
+  });
+
+  it('cannot be asked of a jotting', () => {
+    expect(buildNoteTakeaway({ ...base, bodyWordCount: TAKEAWAY_MIN_WORDS - 1 })).toBeNull();
+    expect(buildNoteTakeaway({ ...base, bodyWordCount: TAKEAWAY_MIN_WORDS })).not.toBeNull();
+  });
+
+  it('never asks about a locked note', () => {
+    expect(buildNoteTakeaway({ ...base, locked: true })).toBeNull();
+  });
+
+  it('makes a note that cites and links nothing askable, where it has enough written', () => {
+    const material: NoteMaterial = { canPassage: false, canConnect: false, canTakeaway: true };
+    expect(resolveNoteRung(0, material, 'seed')).toBe('note.takeaway');
   });
 });
