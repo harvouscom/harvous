@@ -297,68 +297,46 @@
   color: #fff;
 }
 
-/* Import: two file tiles, tipped, sliding onto the list. */
-.proto-callout-art__files {
-  position: absolute;
-  left: calc(50% - 104px);
-  bottom: 18px;
-  width: 64px;
-  height: 64px;
-}
-
-.proto-callout-art__file {
-  position: absolute;
-  left: 14px;
-  top: 4px;
-  box-sizing: border-box;
-  width: 42px;
-  height: 52px;
-  padding: 0 0 6px 6px;
+/* Import: the Settings fan itself, scaled to the panel. Scaled rather than re-sized through its
+   variables so the format tags shrink with the paper and stay in proportion. */
+.proto-callout-art__fan {
+  align-self: center;
+  width: 300px;
+  flex: none;
   display: flex;
-  align-items: flex-end;
-  border-radius: 5px;
-  background: var(--pds-bg-page);
-  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--pds-text-primary) 14%, transparent), 0 4px 12px rgb(0 0 0 / 0.14);
-  color: var(--pds-text-secondary);
-  font-size: 8px;
-  font-weight: 600;
-  transform: rotate(5deg);
+  justify-content: center;
 }
 
-/* Its label at the top, the one corner the front tile leaves showing. */
-.proto-callout-art__file--behind {
-  left: 0;
-  top: 8px;
-  align-items: flex-start;
-  padding: 5px 0 0 5px;
-  transform: rotate(-9deg);
+.proto-callout-art__fan .proto-import-fan {
+  flex: none;
+  width: 300px;
+  margin: 0;
+  scale: 0.66;
 }
 
-/* The letter: the reading serif, signed with a face. */
+/* The letter: lines of writing, then the signature from the letter itself. */
 .proto-callout-art__sheet--letter {
-  gap: 7px;
+  gap: 4px;
+  padding-top: 14px;
 }
 
-.proto-callout-art__salutation {
-  font-family: var(--pds-font-choice-serif);
-  font-size: 12px;
-}
-
-.proto-callout-art__sign {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-family: var(--pds-font-choice-serif);
-  font-size: 10px;
-  font-style: italic;
-}
-
-.proto-callout-art__sign img {
+.proto-callout-art__signature {
   display: block;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  object-fit: cover;
+  width: 112px;
+  height: auto;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+/* Dark ink on a transparent PNG: inverted on night paper, as the letter does. */
+:root[data-color-scheme="dark"] .proto-callout-art__signature {
+  filter: invert(1) brightness(1.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) .proto-callout-art__signature {
+    filter: invert(1) brightness(1.7);
+  }
 }
 
 /* The one moving part settles in after the card arrives. */
