@@ -9,8 +9,9 @@
  * bars; only labels a person would recognise at a glance are real words.
  *
  * The backdrops are small crops of the canvas presets (`public/images/callouts/`, made from
- * `public/images/prototype-backgrounds/`), a few KB each. What's new is the exception: it wears
- * the Welcome 3 sheet's ruled ground and traced "3", because that is the release it opens.
+ * `public/images/prototype-backgrounds/`), a few KB each. Two exceptions: What's new wears the
+ * Welcome 3 sheet's ruled ground and traced "3", because that is the release it opens; Import
+ * keeps the plain panel, where the Settings fan gathers and spreads on a slow loop.
  *
  * One part of each scene settles in after the card arrives, and holds still for reduced motion.
  */

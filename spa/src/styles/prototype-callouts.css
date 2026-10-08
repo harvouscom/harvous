@@ -98,7 +98,6 @@
 
 .proto-callout-art--today-tabs { background-image: url("/images/callouts/today-tabs.webp"); }
 .proto-callout-art--legal { background-image: url("/images/callouts/legal.webp"); }
-.proto-callout-art--import { background-image: url("/images/callouts/import.webp"); }
 .proto-callout-art--letter { background-image: url("/images/callouts/letter.webp"); }
 
 /* The images are painted for a light canvas; dim them a little under a dark sheet. */
@@ -312,6 +311,58 @@
   width: 300px;
   margin: 0;
   scale: 0.66;
+}
+
+/*
+ * On the plain panel, the fan breathes: the scatter squares up into one pile and spreads out
+ * again — the same gather Settings plays on drag-over, which is what the feature does. Outermost
+ * sheets move first, a beat apart, as on the drop zone. Keyframes restate each card's transform
+ * because the fan's position variables are not registered and cannot interpolate.
+ */
+.proto-callout-art--import .proto-import-fan__card {
+  animation: 6400ms cubic-bezier(0.22, 1, 0.36, 1) 900ms infinite both;
+}
+
+.proto-callout-art--import .proto-import-fan__card--far-left { animation-name: proto-callout-fan-far-left; }
+.proto-callout-art--import .proto-import-fan__card--left { animation-name: proto-callout-fan-left; animation-delay: 1010ms; }
+.proto-callout-art--import .proto-import-fan__card--right { animation-name: proto-callout-fan-right; animation-delay: 1055ms; }
+.proto-callout-art--import .proto-import-fan__card--far-right { animation-name: proto-callout-fan-far-right; animation-delay: 955ms; }
+
+.proto-callout-art--import .proto-import-fan__tag {
+  animation: proto-callout-fan-tag 6400ms ease 900ms infinite both;
+}
+
+@keyframes proto-callout-fan-far-left {
+  0%, 30%, 92%, 100% { transform: translate(-50%, -50%) translate(-92.3px, -13px) rotate(-15deg); }
+  44%, 76% { transform: translate(-50%, -50%) translate(-7px, -5px) rotate(-2.5deg); }
+}
+
+@keyframes proto-callout-fan-left {
+  0%, 30%, 92%, 100% { transform: translate(-50%, -50%) translate(-30.8px, 5px) rotate(-3deg); }
+  44%, 76% { transform: translate(-50%, -50%) translate(-2px, -1px) rotate(1.5deg); }
+}
+
+@keyframes proto-callout-fan-right {
+  0%, 30%, 92%, 100% { transform: translate(-50%, -50%) translate(26.2px, -7px) rotate(6.5deg); }
+  44%, 76% { transform: translate(-50%, -50%) translate(3px, 3px) rotate(-1deg); }
+}
+
+@keyframes proto-callout-fan-far-right {
+  0%, 30%, 92%, 100% { transform: translate(-50%, -50%) translate(85.5px, 8px) rotate(11deg); }
+  44%, 76% { transform: translate(-50%, -50%) translate(8px, 6px) rotate(3deg); }
+}
+
+/* Gathered, the labels go, as on the drop zone: the pile is everything, not "a DOCX". */
+@keyframes proto-callout-fan-tag {
+  0%, 32%, 88%, 100% { opacity: 1; }
+  42%, 78% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-callout-art--import .proto-import-fan__card,
+  .proto-callout-art--import .proto-import-fan__tag {
+    animation: none;
+  }
 }
 
 /* The letter: lines of writing, then the signature from the letter itself. */
