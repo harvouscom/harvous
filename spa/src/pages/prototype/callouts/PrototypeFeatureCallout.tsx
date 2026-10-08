@@ -188,6 +188,7 @@ export function CalloutCard({
   callout,
   variant,
   compact = false,
+  actionStyle = 'button',
   exiting = false,
   onDismiss,
   onAct,
@@ -196,6 +197,12 @@ export function CalloutCard({
   variant: 'corner' | 'inline';
   /** Without the drawing, for a card that has none. */
   compact?: boolean;
+  /**
+   * `button` — the full-width blue button, for a card on its own. `arrow` — the action's words
+   * beside a quiet arrow circle, for cards listed together: four blue buttons down an opened
+   * stack were four loudest things on the screen, all saying the same "do this".
+   */
+  actionStyle?: 'button' | 'arrow';
   exiting?: boolean;
   onDismiss: () => void;
   onAct: () => void;
@@ -234,9 +241,18 @@ export function CalloutCard({
         {callout.title}
       </p>
       <p className="proto-callout__body">{callout.body}</p>
-      <button type="button" className="proto-settings-btn proto-callout__action" onClick={onAct}>
-        {callout.action.label}
-      </button>
+      {actionStyle === 'arrow' ? (
+        <button type="button" className="proto-callout__go" onClick={onAct}>
+          <span>{callout.action.label}</span>
+          <span className="proto-callout__go-circle" aria-hidden>
+            <Icon name="arrow-right" size={12} />
+          </span>
+        </button>
+      ) : (
+        <button type="button" className="proto-settings-btn proto-callout__action" onClick={onAct}>
+          {callout.action.label}
+        </button>
+      )}
     </div>
   );
 }
@@ -291,6 +307,7 @@ export function CalloutStack({
               key={item.id}
               callout={asContent(item)}
               variant={variant}
+              actionStyle="arrow"
               onDismiss={item.dismiss}
               onAct={item.act}
             />
