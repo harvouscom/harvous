@@ -243,6 +243,28 @@ export function verseNodesForReference(
 }
 
 /**
+ * Does a stored reference — a highlight's, a citation's — take in this verse?
+ *
+ * A reader who marks "John 15:5-7" in one drag has marked John 15:6, and the Review item made
+ * for 15:6 is keyed by that verse alone, so an exact string match on the reference never finds
+ * the mark. Expanded through `verseNodesForReference` so cross-chapter ranges and canonical book
+ * names are handled in the one place that already handles them. A whole chapter named as such
+ * covers every verse in it. The cap is wide (200) because a long marked range is still a mark on
+ * every verse inside it; past that the chapter node carries the signal, as everywhere else.
+ */
+export function referenceCoversVerse(reference: string | null | undefined, at: VerseKeyParts | string): boolean {
+  if (!reference) return false;
+  const target =
+    typeof at === 'string' ? verseNodesForReference(at, { cap: 1 }).verses[0] ?? null : at;
+  if (!target) return false;
+  const { verses, chapters } = verseNodesForReference(reference, { cap: 200 });
+  if (verses.some((v) => v.book === target.book && v.chapter === target.chapter && v.verse === target.verse)) {
+    return true;
+  }
+  return verses.length === 0 && chapters.some((c) => c.book === target.book && c.chapter === target.chapter);
+}
+
+/**
  * The `ReviewItems.sourceKey` a node would produce, so the engine can skip nodes already queued.
  *
  * Deliberately mirrors `reviewSourceKey` in server/utils/review-service.ts rather than importing

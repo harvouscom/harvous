@@ -128,6 +128,21 @@ describe('the two graded rungs are marked on the server', () => {
     expect(block).toMatch(/default:\s*return null/);
   });
 
+  it('refuses to mark an answer against a question the client was not shown', () => {
+    /*
+     * A tab left open across a deploy that changed the ladder resolves a different rung on the
+     * server than the one on screen. Every grader compares the client's `promptKey` with the rung
+     * it resolved and returns null on disagreement — the reader's own verdict then stands, which
+     * is the safe failure — rather than marking a cloze answer against a "who appears" key.
+     */
+    const text = service();
+    for (const grader of ['gradeNoteAnswer', 'gradeVerseAnswer', 'gradeChapterAnswer']) {
+      const fn = text.slice(text.indexOf(`export async function ${grader}`));
+      const head = fn.slice(0, fn.indexOf('if (rung.key') > 0 ? fn.indexOf('if (rung.key') : 900);
+      expect(head, grader).toMatch(/answer\.promptKey && answer\.promptKey !== (built\.)?rung(\.key)?\) return null/);
+    }
+  });
+
   it('never sends a chapter rung the chapter\'s text, or its answer', () => {
     const text = service();
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));

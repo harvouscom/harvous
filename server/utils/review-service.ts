@@ -51,6 +51,7 @@ import {
   BiblePlaces,
   UserMetadata,
   isNull,
+  like,
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
 import {
@@ -197,7 +198,7 @@ import {
   type ChurchExerciseDefinition,
 } from './church-review-definitions';
 import { rungIdentityIsTheAnswer } from '@/utils/review-row-subtitle';
-import { nodeKey as studyNodeKey } from '@/utils/study-bible-nodes';
+import { nodeKey as studyNodeKey, referenceCoversVerse } from '@/utils/study-bible-nodes';
 import { fetchVerseText } from './fetch-verse-text';
 import { getUserDefaultTranslation } from './votd-user-translation';
 import { recordNoteRecallEngaged } from './note-recall-state';
@@ -1046,11 +1047,55 @@ function loadFramingFacts(userId: string, rows: readonly ReviewItemRow[]) {
             and(
               eq(StudyThreadEntries.userId, userId),
               isNull(StudyThreadEntries.parentNoteId),
-              inArray(StudyThreadEntries.scriptureReference, references),
+              /*
+               * By chapter, not by exact reference: a verse split out of a range the reader marked
+               * in one drag ("John 15:5-7") is keyed "John 15:6", which no mark spells. The
+               * chapter prefix finds the range; `marksCoveringReference` decides containment.
+               */
+              or(
+                inArray(StudyThreadEntries.scriptureReference, references),
+                ...chapterPrefixesOf(references).map((prefix) =>
+                  like(StudyThreadEntries.scriptureReference, `${prefix}:%`),
+                ),
+              ),
             ),
           )
       : Promise.resolve([]),
   ]);
+}
+
+/** "John 15" for each verse reference, deduplicated: the LIKE prefixes a covering mark starts with. */
+function chapterPrefixesOf(references: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const reference of references) {
+    const at = lastVerseOf(reference);
+    // Only references that are verses: a chapter row's reference is already matched exactly.
+    if (at && /:\d/.test(reference)) out.add(`${at.book} ${at.chapter}`);
+  }
+  return [...out];
+}
+
+/**
+ * Every mark's excerpt that takes in this reference, longest first.
+ *
+ * Exact matches always count; otherwise the mark must cover the reference's (last) verse, so a
+ * range highlight answers for each verse inside it. `readerSpanFragment` then finds the words
+ * that fall inside the verse being asked about.
+ */
+function marksCoveringReference(
+  marks: readonly { reference: string | null; excerpt: string | null }[],
+  reference: string,
+): string[] {
+  const wanted = reference.trim().toLowerCase();
+  const at = /:\d/.test(reference) ? lastVerseOf(reference) : null;
+  const out: string[] = [];
+  for (const mark of marks) {
+    const ref = mark.reference?.trim();
+    const excerpt = mark.excerpt?.trim();
+    if (!ref || !excerpt) continue;
+    if (ref.toLowerCase() === wanted || (at && referenceCoversVerse(ref, at))) out.push(excerpt);
+  }
+  return out.sort((a, b) => b.length - a.length);
 }
 
 export async function buildReviewItemViews(
@@ -1088,8 +1133,20 @@ export async function buildReviewItemViews(
   ]);
 
   const nodeByKey = new Map(nodes.map((n) => [n.nodeKey, n]));
-  const markedReferences = new Set(marks.map((m) => m.reference?.trim().toLowerCase()).filter(Boolean));
-  const readerSpans = readerSpansByReference(marks);
+  /*
+   * The reader's marks per row reference, by containment — so a verse inside a range they
+   * highlighted reads "You marked this" and opens on their own words, like one marked alone.
+   */
+  const readerSpans = new Map<string, string[]>();
+  for (const row of rows) {
+    const reference = row.scriptureReference?.trim();
+    if (reference && !readerSpans.has(reference.toLowerCase())) {
+      readerSpans.set(reference.toLowerCase(), marksCoveringReference(marks, reference));
+    }
+  }
+  const markedReferences = new Set(
+    [...readerSpans].filter(([, excerpts]) => excerpts.length > 0).map(([reference]) => reference),
+  );
 
   // One probe per passage per build, however many rows share it.
   const materialCache = new Map<string, Promise<VerseKnowledgeMaterial>>();
@@ -1840,7 +1897,11 @@ export async function createReviewItem(
     );
     if (!entry) return { error: 'Highlight not found' };
     scriptureReference = scriptureReference ?? entry.reference ?? null;
-    translation = translation ?? entry.translation ?? null;
+    /*
+     * An engine item's null translation means "no particular wording" (see the engine's own
+     * comment), and stamping its highlight must not quietly freeze it in the highlight's.
+     */
+    translation = translation ?? (input.origin === 'engine' ? null : entry.translation ?? null);
   }
 
   /*
@@ -2600,7 +2661,17 @@ async function loadNoteIdsCitingPassage(
       and(
         eq(ScriptureMetadata.book, at.book),
         eq(ScriptureMetadata.chapter, at.chapter),
-        at.verse !== undefined ? eq(ScriptureMetadata.verse, at.verse) : undefined,
+        /*
+         * Containment, not equality: a note citing "John 15:5-7" cites John 15:6. A range that
+         * runs on into a later chapter (`chapterEnd`) covers everything from its start verse.
+         * Still a lookup on the passage index — book and chapter lead it.
+         */
+        at.verse !== undefined
+          ? and(
+              lte(ScriptureMetadata.verse, at.verse),
+              sql`(coalesce(${ScriptureMetadata.verseEnd}, ${ScriptureMetadata.verse}) >= ${at.verse} or coalesce(${ScriptureMetadata.chapterEnd}, ${ScriptureMetadata.chapter}) > ${ScriptureMetadata.chapter})`,
+            )
+          : undefined,
       ),
     );
   if (!meta.length) return [];
@@ -3000,28 +3071,19 @@ function booksOf(references: readonly string[]): string[] {
 }
 
 /**
- * The longest span the reader marked on each passage, keyed by reference.
+ * Every span the reader marked that takes in this passage, longest first, for the reveal, which
+ * builds one item at a time.
  *
- * Longest, because a reader who marked "hate the light" and later the whole sentence around it
- * has told us which one carries the thought. Whether a span *fits* is decided at the point of
+ * Prefix-matched on the chapter and filtered by containment: a verse inside a range the reader
+ * marked in one drag is a verse they marked. Longest first, because a reader who marked "hate the
+ * light" and later the whole sentence around it has told us which one carries the thought. Whether
+ * a span *fits* — and which part of a range falls inside this verse — is decided at the point of
  * use by `readerSpanFragment`, since only there is the translation known.
  */
-function readerSpansByReference(
-  marks: readonly { reference: string | null; excerpt: string | null }[],
-): Map<string, string> {
-  const spans = new Map<string, string>();
-  for (const mark of marks) {
-    const key = mark.reference?.trim().toLowerCase();
-    const excerpt = mark.excerpt?.trim();
-    if (!key || !excerpt) continue;
-    const current = spans.get(key);
-    if (!current || excerpt.length > current.length) spans.set(key, excerpt);
-  }
-  return spans;
-}
-
-/** One passage's reader-marked span, for the reveal, which builds one item at a time. */
-async function loadReaderSpan(userId: string, reference: string): Promise<string | null> {
+async function loadReaderSpan(userId: string, reference: string): Promise<string[]> {
+  const ref = reference.trim();
+  const at = lastVerseOf(ref);
+  if (!at) return [];
   const marks = await db
     .select({
       reference: StudyThreadEntries.scriptureReference,
@@ -3032,10 +3094,13 @@ async function loadReaderSpan(userId: string, reference: string): Promise<string
       and(
         eq(StudyThreadEntries.userId, userId),
         isNull(StudyThreadEntries.parentNoteId),
-        eq(StudyThreadEntries.scriptureReference, reference),
+        or(
+          eq(StudyThreadEntries.scriptureReference, ref),
+          like(StudyThreadEntries.scriptureReference, `${at.book} ${at.chapter}:%`),
+        ),
       ),
     );
-  return readerSpansByReference(marks).get(reference.trim().toLowerCase()) ?? null;
+  return marksCoveringReference(marks, ref);
 }
 
 /* The book rung's stem is `verseLocateStem`, imported — it used to be a second copy of it here,
@@ -3354,13 +3419,16 @@ function markedCuesFor(material: ChapterKnowledgeMaterial): string[] {
 export async function gradeChapterAnswer(
   userId: string,
   item: ReviewItemRow,
-  answer: { order?: number[]; option?: string; words?: string[] },
+  answer: { order?: number[]; option?: string; words?: string[]; promptKey?: string },
 ): Promise<GradedAnswer | null> {
   const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   if (item.kind !== 'chapter' || !item.scriptureReference) return null;
   const seed = reviewSeed(item);
   const material = await loadChapterMaterial(userId, item.scriptureReference, translation);
   const rung = chapterRungFor(item.ladderStep, seed, material);
+  // The client says which question it was shown. A tab left open across a deploy that changed
+  // the ladder would otherwise be marked against a question it never asked.
+  if (answer.promptKey && answer.promptKey !== rung.key) return null;
 
   if (rung.key === 'chapter.verse' && typeof answer.option === 'string') {
     const exercise = await buildChapterVerseFor(userId, material, seed);
@@ -3467,13 +3535,15 @@ const CLOZE_BANK_NEIGHBOURS = 2;
 export async function gradeVerseAnswer(
   userId: string,
   item: ReviewItemRow,
-  answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[]; text?: string },
+  answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[]; text?: string; promptKey?: string },
 ): Promise<GradedAnswer | null> {
   const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
   const seedForRung = reviewSeed(item);
   const material = await loadVerseMaterial(userId, item.scriptureReference, translation);
   const rung = verseRungFor(item.ladderStep, seedForRung, material);
+  // Same guard as the note grader: disagreement means the question moved under the answer.
+  if (answer.promptKey && answer.promptKey !== rung.key) return null;
 
   if (VERSE_CONTEXT_KEYS.has(rung.key) && typeof answer.option === 'string') {
     const built = await buildVerseContextFor(userId, item, translation, rung.key, material, seedForRung);
@@ -4327,6 +4397,54 @@ export async function buildReviewReveal(
 }
 
 /**
+ * The reader's highlights that take in one verse, newest first, with any thought written on them.
+ *
+ * Prefix-matched on the chapter (the index-friendly half) and filtered by containment (the half
+ * that understands ranges), so a highlight on "John 15:5-7" is found for John 15:6. Archived
+ * highlights are left out: they are not part of the reader's study any more.
+ */
+export async function loadCoveringMarks(
+  userId: string,
+  at: { book: string; chapter: number; verse: number },
+  options: { excludeId?: string } = {},
+): Promise<{ id: string; reference: string; excerpt: string | null; thought: string | null }[]> {
+  const rows = await db
+    .select({
+      id: StudyThreadEntries.id,
+      reference: StudyThreadEntries.scriptureReference,
+      excerpt: StudyThreadEntries.scripturePassageExcerpt,
+      miniNoteBody: StudyThreadEntries.miniNoteBody,
+      notesBody: StudyThreadEntries.notesBody,
+      createdAt: StudyThreadEntries.createdAt,
+      updatedAt: StudyThreadEntries.updatedAt,
+    })
+    .from(StudyThreadEntries)
+    .where(
+      and(
+        eq(StudyThreadEntries.userId, userId),
+        isNull(StudyThreadEntries.parentNoteId),
+        eq(StudyThreadEntries.isArchived, false),
+        or(
+          eq(StudyThreadEntries.scriptureReference, `${at.book} ${at.chapter}:${at.verse}`),
+          like(StudyThreadEntries.scriptureReference, `${at.book} ${at.chapter}:%`),
+        ),
+      ),
+    );
+  return rows
+    .filter((row) => row.id !== options.excludeId && referenceCoversVerse(row.reference, at))
+    .sort(
+      (a, b) =>
+        (b.updatedAt ?? b.createdAt).getTime() - (a.updatedAt ?? a.createdAt).getTime(),
+    )
+    .map((row) => ({
+      id: row.id,
+      reference: row.reference ?? '',
+      excerpt: row.excerpt,
+      thought: stripHtml(row.miniNoteBody || row.notesBody || '').trim() || null,
+    }));
+}
+
+/**
  * The highlight or note the item was made from, in the reader's own words.
  *
  * `ReviewItems.studyThreadEntryId` has been on the row since highlights became reviewable and
@@ -4342,7 +4460,26 @@ async function loadItemAnnotation(
   userId: string,
   item: ReviewItemRow,
 ): Promise<{ quote: string | null; thought: string | null } | null> {
-  if (!item.studyThreadEntryId) return null;
+  /*
+   * No stamped highlight — an item made before the engine recorded one, or one whose highlight
+   * was since deleted with others still covering the verse. The newest mark covering the verse
+   * stands in, one carrying a written thought first, so existing items show the reader's words
+   * with no backfill.
+   */
+  if (!item.studyThreadEntryId) {
+    if (item.kind !== 'verse' || !item.scriptureReference) return null;
+    try {
+      const at = lastVerseOf(item.scriptureReference);
+      if (!at) return null;
+      const covering = await loadCoveringMarks(userId, at);
+      const best = covering.find((mark) => mark.thought) ?? covering[0];
+      if (!best) return null;
+      const quote = stripHtml(best.excerpt ?? '').trim() || null;
+      return quote || best.thought ? { quote, thought: best.thought } : null;
+    } catch {
+      return null;
+    }
+  }
   try {
     const [row] = await db
       .select({
@@ -4375,6 +4512,13 @@ async function loadItemAnnotation(
  * reader's answers to this item are in ReviewEvents and are worth keeping — the item is what
  * has no subject any more, not the history of having worked at it.
  *
+ * **Only what the reader added from the highlight is retired outright.** An engine item is about
+ * the *verse*, and the highlight was only its provenance: deleting one of two marks on John 15:6,
+ * or a highlight on a verse three notes cite, leaves a verse the reader still engaged with. Those
+ * lose the link (the reveal then falls back to whatever still covers the verse) and are archived
+ * only when nothing of the reader's — no other highlight covering the verse, no citing note —
+ * remains.
+ *
  * Non-throwing on a missing table: this runs after a deletion that already committed.
  */
 export async function retireReviewForStudyThreadEntry(
@@ -4382,9 +4526,14 @@ export async function retireReviewForStudyThreadEntry(
   studyThreadEntryId: string,
   now: Date = new Date(),
 ): Promise<void> {
-  await db
-    .update(ReviewItems)
-    .set({ status: 'archived', updatedAt: now })
+  const anchored = await db
+    .select({
+      id: ReviewItems.id,
+      origin: ReviewItems.origin,
+      kind: ReviewItems.kind,
+      scriptureReference: ReviewItems.scriptureReference,
+    })
+    .from(ReviewItems)
     .where(
       and(
         eq(ReviewItems.userId, userId),
@@ -4392,6 +4541,39 @@ export async function retireReviewForStudyThreadEntry(
         inArray(ReviewItems.status, ['active', 'paused']),
       ),
     );
+  if (!anchored.length) return;
+
+  const archive: string[] = [];
+  const unlink: string[] = [];
+  for (const item of anchored) {
+    if (item.origin !== 'engine') {
+      archive.push(item.id);
+      continue;
+    }
+    const at = item.kind === 'verse' && item.scriptureReference ? lastVerseOf(item.scriptureReference) : null;
+    let remains = false;
+    if (at) {
+      const [covering, citing] = await Promise.all([
+        loadCoveringMarks(userId, at, { excludeId: studyThreadEntryId }).catch(() => []),
+        loadNoteIdsCitingPassage(userId, at).catch(() => []),
+      ]);
+      remains = covering.length > 0 || citing.length > 0;
+    }
+    (remains ? unlink : archive).push(item.id);
+  }
+
+  if (archive.length) {
+    await db
+      .update(ReviewItems)
+      .set({ status: 'archived', updatedAt: now })
+      .where(and(eq(ReviewItems.userId, userId), inArray(ReviewItems.id, archive)));
+  }
+  if (unlink.length) {
+    await db
+      .update(ReviewItems)
+      .set({ studyThreadEntryId: null, updatedAt: now })
+      .where(and(eq(ReviewItems.userId, userId), inArray(ReviewItems.id, unlink)));
+  }
 }
 
 

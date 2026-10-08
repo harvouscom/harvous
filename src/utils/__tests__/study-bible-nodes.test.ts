@@ -4,6 +4,7 @@ import {
   chapterKeyForVerse,
   nodeKey,
   parseNodeKey,
+  referenceCoversVerse,
   reviewSourceKeyForNode,
   chapterKeyPartsFromReference,
   chapterKeyPartsFromNodeKey,
@@ -169,5 +170,36 @@ describe('chapterKeyPartsFromReference', () => {
     expect(chapterKeyPartsFromNodeKey(key)).toEqual({ book: 'John', chapter: 3 });
     expect(chapterReferenceLabel({ book: 'John', chapter: 3 })).toBe('John 3');
     expect(chapterKeyPartsFromNodeKey('verse:John|3|16')).toBeNull();
+  });
+});
+
+describe('referenceCoversVerse', () => {
+  it('finds a verse inside a range the reader marked in one drag', () => {
+    expect(referenceCoversVerse('John 15:5-7', 'John 15:6')).toBe(true);
+    expect(referenceCoversVerse('John 15:5-7', { book: 'John', chapter: 15, verse: 7 })).toBe(true);
+    expect(referenceCoversVerse('John 15:5-7', 'John 15:8')).toBe(false);
+    expect(referenceCoversVerse('John 15:5-7', 'John 14:6')).toBe(false);
+  });
+
+  it('matches a single verse to itself', () => {
+    expect(referenceCoversVerse('John 15:5', 'John 15:5')).toBe(true);
+    expect(referenceCoversVerse('John 15:5', 'John 15:50')).toBe(false);
+  });
+
+  it('follows a range across a chapter break', () => {
+    expect(referenceCoversVerse('Exodus 6:28-7:2', 'Exodus 7:1')).toBe(true);
+    expect(referenceCoversVerse('Exodus 6:28-7:2', 'Exodus 6:29')).toBe(true);
+    expect(referenceCoversVerse('Exodus 6:28-7:2', 'Exodus 7:3')).toBe(false);
+  });
+
+  it('counts a whole chapter as covering each of its verses', () => {
+    expect(referenceCoversVerse('Psalm 23', 'Psalm 23:4')).toBe(true);
+    expect(referenceCoversVerse('Psalm 23', 'Psalm 24:1')).toBe(false);
+  });
+
+  it('is false for nothing', () => {
+    expect(referenceCoversVerse(null, 'John 3:16')).toBe(false);
+    expect(referenceCoversVerse('', 'John 3:16')).toBe(false);
+    expect(referenceCoversVerse('John 3:16', 'not a reference')).toBe(false);
   });
 });
