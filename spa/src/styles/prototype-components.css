@@ -8140,9 +8140,9 @@ button.proto-home-card--tappable:hover {
 /*
  * "Friday nights", with the hour drawn beside it (`ProtoDaypartMark.tsx`).
  *
- * Not a chip: chips are things you can open, and this is a fact about when you study. It is
- * the words in a touch more weight with a glyph in front, kept on one line together. Neutral ink
- * throughout — the accent is for things you act on. The glyph moves for a few beats when the
+ * Not a chip: chips are things you can open, and this is a fact about when you study. It is the
+ * sentence's own words, in its own weight and ink, with a glyph in front, kept on one line
+ * together. The accent is for things you act on. The glyph moves for a few beats when the
  * greeting lands, then rests; the pointer wakes it again.
  */
 .proto-daypart {
@@ -8152,9 +8152,6 @@ button.proto-home-card--tappable:hover {
   white-space: nowrap;
 }
 
-.proto-daypart__words {
-  font-weight: 500;
-}
 
 .proto-daypart__glyph {
   flex: 0 0 auto;
@@ -8162,7 +8159,8 @@ button.proto-home-card--tappable:hover {
   width: 1.05em;
   height: 1.05em;
   overflow: visible;
-  color: var(--pds-text-secondary);
+  /* The sentence's ink: a quieter glyph read as a different, lesser thing beside its words. */
+  color: currentColor;
   transform: translateY(-0.04em);
 }
 
@@ -23410,13 +23408,42 @@ button.proto-feed-sheet__stat:hover {
  * toolbar. Sized to their labels they read as a heading over the deck. The shared bar's 12px
  * inset is for a sidebar list; here it would leave the bar hanging inboard of every card.
  */
-.proto-feed-tabs > .proto-chip-bar {
-  align-self: flex-start;
-  margin: 0;
-  max-width: 100%;
+/* Tabs left, the showing deck's pager right, on one line. */
+.proto-feed-tabs__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+  min-width: 0;
 }
 
-.proto-feed-tabs > .proto-chip-bar .proto-chip {
+.proto-feed-tabs__pager {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* A pager that lives in the tab row: no foot inside the card, no room kept for one. */
+.proto-feed-tabs__pager .proto-deck__foot {
+  position: static;
+  transform: none;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+}
+
+.proto-feed-tabs__pager .proto-deck__nav {
+  width: 26px;
+  height: 26px;
+}
+
+.proto-feed-tabs__bar > .proto-chip-bar {
+  margin: 0;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.proto-feed-tabs__bar > .proto-chip-bar .proto-chip {
   flex: 0 0 auto;
   padding-inline: 14px;
 }
@@ -25356,6 +25383,22 @@ button.proto-feed-sheet__stat:hover {
   font-synthesis: weight;
   font-size: 15px;
   line-height: 1.7;
+}
+
+/*
+ * Today's passage reads a step larger than the review card's verse: it is the day's text, on
+ * its own card, and 15px read as a footnote under the greeting. A step, not the greeting's
+ * size — the sentence over it stays the largest words on the sheet.
+ */
+.proto-daily-passage .proto-review-dock__verse--scripture {
+  font-size: 16px;
+}
+
+@container proto-feed-sheet (min-width: 600px) {
+  .proto-daily-passage .proto-review-dock__verse--scripture {
+    font-size: 18px;
+    line-height: 1.6;
+  }
 }
 
 /* The inline locator stays on the body face, exactly as the reader keeps its own. */

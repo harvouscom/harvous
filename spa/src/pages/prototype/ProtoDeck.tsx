@@ -34,6 +34,7 @@ import {
   type ReactNode,
   type MouseEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 
 /** How far a finger has to travel sideways before a drag counts as a swipe. */
@@ -73,6 +74,7 @@ export default function ProtoDeck({
   className,
   onActiveChange,
   pager = 'inline',
+  pagerSlot,
 }: {
   /** The eyebrow over the deck, and its accessible name. */
   label: string;
@@ -95,6 +97,12 @@ export default function ProtoDeck({
    * line. `foot` keeps it under the card, for a deck whose cards are tall (the Review sample).
    */
   pager?: 'inline' | 'foot';
+  /**
+   * Somewhere else to put the pager — Home's tab row, beside the tabs — portaled there. Null
+   * shows no pager at all (a deck behind a tab that is not showing). Left undefined, the pager
+   * sits in the card as `pager` says.
+   */
+  pagerSlot?: HTMLElement | null;
   className?: string;
   /** Which card is in front, by `data-deck-id`, each time that changes. */
   onActiveChange?: (deckId: string | null) => void;
@@ -261,10 +269,44 @@ export default function ProtoDeck({
   /* A one-row deck shows one edge at most: two thin edges under a short card read as a smudge
      rather than a stack. Tall cards (the foot pager) have the height to carry two. */
   const peekLevel = peek ?? (Math.min(pager === 'inline' ? 1 : 2, Math.max(0, count - 1)) as 0 | 1 | 2);
-  const classes = ['proto-deck', `proto-deck--pager-${pager}`, className].filter(Boolean).join(' ');
+  const pagerElsewhere = pagerSlot !== undefined;
+  const classes = [
+    'proto-deck',
+    pagerElsewhere ? 'proto-deck--pager-external' : `proto-deck--pager-${pager}`,
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const pagerNode =
+    counter && count > 1 ? (
+      <div className="proto-deck__foot">
+        <button
+          type="button"
+          className="proto-deck__nav"
+          aria-label={`Previous in ${label}`}
+          onClick={() => go(-1)}
+        >
+          <Icon name="caret-left" size={12} />
+        </button>
+        <span className="proto-caption proto-deck__count" aria-live="polite">
+          {index + 1} of {count}
+        </span>
+        <button
+          type="button"
+          className="proto-deck__nav"
+          aria-label={`Next in ${label}`}
+          onClick={() => go(1)}
+        >
+          <Icon name="caret-right" size={12} />
+        </button>
+      </div>
+    ) : null;
 
   return (
-    <section
+    <>
+      {pagerElsewhere && pagerSlot && pagerNode ? createPortal(pagerNode, pagerSlot) : null}
+      <section
       className={classes}
       aria-roledescription="carousel"
       aria-label={label}
@@ -288,32 +330,11 @@ export default function ProtoDeck({
           >
             {children}
           </div>
-          {counter && count > 1 ? (
-            <div className="proto-deck__foot">
-              <button
-                type="button"
-                className="proto-deck__nav"
-                aria-label={`Previous in ${label}`}
-                onClick={() => go(-1)}
-              >
-                <Icon name="caret-left" size={12} />
-              </button>
-              <span className="proto-caption proto-deck__count" aria-live="polite">
-                {index + 1} of {count}
-              </span>
-              <button
-                type="button"
-                className="proto-deck__nav"
-                aria-label={`Next in ${label}`}
-                onClick={() => go(1)}
-              >
-                <Icon name="caret-right" size={12} />
-              </button>
-            </div>
-          ) : null}
+          {!pagerElsewhere && pagerNode}
           {footer}
         </div>
       </div>
     </section>
+    </>
   );
 }
