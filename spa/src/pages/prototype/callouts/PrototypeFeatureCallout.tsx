@@ -305,14 +305,20 @@ export function CalloutStack({
   return (
     <div className="proto-callout-stack" data-direction={direction} data-peek={peeks}>
       {rest.length > 0 ? (
-        <button
-          type="button"
-          className="proto-callout-stack__more"
-          aria-label={`Show all ${items.length}`}
-          onClick={() => setOpen(true)}
-        >
-          <span className="proto-callout-stack__more-label">{rest.length} more</span>
-        </button>
+        /* The edges behind the front card, back to front: a narrower one when there are three or
+           more, then the one that says how many and opens the stack. Real elements in paint
+           order, so the further edge can never draw over the nearer one. */
+        <div className="proto-callout-stack__edges">
+          {peeks === 2 ? <span className="proto-callout-stack__edge-back" aria-hidden /> : null}
+          <button
+            type="button"
+            className="proto-callout-stack__more"
+            aria-label={`Show all ${items.length}`}
+            onClick={() => setOpen(true)}
+          >
+            <span className="proto-callout-stack__more-label">{rest.length} more</span>
+          </button>
+        </div>
       ) : null}
       <CalloutCard
         callout={asContent(front!)}

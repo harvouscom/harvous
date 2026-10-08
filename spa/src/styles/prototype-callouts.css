@@ -213,44 +213,52 @@
   isolation: isolate;
 }
 
-/* The edges behind the front card, as a button: pressing them opens the stack. */
-.proto-callout-stack__more {
-  appearance: none;
+/*
+ * The edges behind the front card, in paint order: the far edge (narrowest), the near edge
+ * that says "3 more" and opens the stack, then the card. Each tucks 10px under the next.
+ */
+.proto-callout-stack__edges {
   position: relative;
+  z-index: 0;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  /* 30px under a 10px overlap leaves a 20px strip — room for the "3 more" label to sit whole. */
-  height: 30px;
-  margin: 0 7%;
-  padding: 4px 0 0;
-  border: 0;
-  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
-  background: var(--pds-bg-popover-solid);
-  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-popover);
-  color: var(--pds-text-secondary);
-  font: 500 11px/1.4 var(--pds-font-body);
-  cursor: pointer;
-  z-index: -1;
+  flex-direction: column;
   margin-bottom: -10px;
 }
 
-/* A second, narrower edge behind the first when there are three or more. */
-.proto-callout-stack[data-peek='2'] .proto-callout-stack__more::before {
-  content: '';
-  position: absolute;
-  left: 6%;
-  right: 6%;
-  top: -7px;
-  height: 14px;
-  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
-  background: var(--pds-bg-popover-solid);
-  box-shadow: 0 0 0 0.5px var(--pds-border-control);
-  z-index: -1;
+.proto-callout-stack > .proto-callout {
+  z-index: 1;
 }
 
-.proto-callout-stack[data-peek='2'] .proto-callout-stack__more {
-  margin-top: 7px;
+.proto-callout-stack__edge-back,
+.proto-callout-stack__more {
+  position: relative;
+  border: 0;
+  background: var(--pds-bg-popover-solid);
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-popover);
+}
+
+.proto-callout-stack__edge-back {
+  z-index: 0;
+  display: block;
+  height: 18px;
+  margin: 0 14% -10px;
+  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
+}
+
+.proto-callout-stack__more {
+  appearance: none;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  /* 30px under the card's 10px overlap leaves a 20px strip — room for the label to sit whole. */
+  height: 30px;
+  margin: 0 7%;
+  padding: 4px 0 0;
+  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
+  color: var(--pds-text-secondary);
+  font: 500 11px/1.4 var(--pds-font-body);
+  cursor: pointer;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -264,28 +272,26 @@
   outline-offset: 2px;
 }
 
-/* At the top of Home the stack opens downward, so the edges sit under the card. */
+/* At the top of Home the stack opens downward: the edges sit under the card, far edge last. */
 .proto-callout-stack[data-direction='down'] {
   flex-direction: column-reverse;
+}
+
+.proto-callout-stack[data-direction='down'] .proto-callout-stack__edges {
+  flex-direction: column-reverse;
+  margin-bottom: 0;
+  margin-top: -10px;
+}
+
+.proto-callout-stack[data-direction='down'] .proto-callout-stack__edge-back {
+  margin: -10px 14% 0;
+  border-radius: 0 0 var(--pds-radius-card) var(--pds-radius-card);
 }
 
 .proto-callout-stack[data-direction='down'] .proto-callout-stack__more {
   align-items: flex-end;
   padding: 0 0 4px;
-  margin-bottom: 0;
-  margin-top: -10px;
   border-radius: 0 0 var(--pds-radius-card) var(--pds-radius-card);
-}
-
-.proto-callout-stack[data-direction='down'][data-peek='2'] .proto-callout-stack__more::before {
-  top: auto;
-  bottom: -7px;
-  border-radius: 0 0 var(--pds-radius-card) var(--pds-radius-card);
-}
-
-.proto-callout-stack[data-direction='down'][data-peek='2'] .proto-callout-stack__more {
-  margin-top: -10px;
-  margin-bottom: 7px;
 }
 
 /* Opened: every card, each with its own ×, under a bar that can put them all away. In the
