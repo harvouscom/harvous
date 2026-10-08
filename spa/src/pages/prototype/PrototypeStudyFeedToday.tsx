@@ -151,57 +151,50 @@ export default function PrototypeStudyFeedToday({
 
   return (
     <div className="proto-feed-today">
-      {/*
-        * One grid for all three. On a wide sheet Pick up and Up next stack on the left and Review
-        * takes the right column beside both — side by side with Pick up alone, the short Pick up
-        * card left a patch of empty paper under it. On a phone the same three stack in this order.
-        */}
       <div className="proto-feed-decks">
-        <div className="proto-feed-decks__pick">
-          <ProtoDeck label="Pick up">
-            {onboardingLeads ? onboarding : null}
-            {continueRow ? (
-              <ContinueNoteRow icon="pen-to-square" note={continueRow} onOpen={home.onOpenNote} />
-            ) : revisitRow ? (
-              <ContinueNoteRow
-                icon="arrow-rotate-left"
-                note={revisitRow}
-                onOpen={handleOpenRevisitNote}
-              />
-            ) : null}
+        <ProtoDeck label="Pick up">
+          {onboardingLeads ? onboarding : null}
+          {continueRow ? (
+            <ContinueNoteRow icon="pen-to-square" note={continueRow} onOpen={home.onOpenNote} />
+          ) : revisitRow ? (
+            <ContinueNoteRow
+              icon="arrow-rotate-left"
+              note={revisitRow}
+              onOpen={handleOpenRevisitNote}
+            />
+          ) : null}
 
-            {continueReadingSuggestion ? (
-              <PrototypeHomeRow
-                deckId="continue-reading"
-                icon="book-open"
-                title={`${continueReadingSuggestion.book} ${continueReadingSuggestion.chapter}`}
-                meta={[
-                  continueReadingEyebrow(continueReadingSuggestion),
-                  continueReadingMeta(continueReadingSuggestion),
-                ]}
-                onClick={openContinueReading}
-              />
-            ) : null}
+          {continueReadingSuggestion ? (
+            <PrototypeHomeRow
+              deckId="continue-reading"
+              icon="book-open"
+              title={`${continueReadingSuggestion.book} ${continueReadingSuggestion.chapter}`}
+              meta={[
+                continueReadingEyebrow(continueReadingSuggestion),
+                continueReadingMeta(continueReadingSuggestion),
+              ]}
+              onClick={openContinueReading}
+            />
+          ) : null}
 
-            {spotlightThread ? (
-              <PrototypeHomeRow
-                deckId={`thread:${spotlightThread.id}`}
-                icon="arrow-right-arrow-left"
-                title={spotlightThread.title}
-                meta={[
-                  `${spotlightThread.noteCount} ${spotlightThread.noteCount === 1 ? 'note' : 'notes'}`,
-                ]}
-                onClick={() => openThread(spotlightThread.id)}
-              />
-            ) : null}
+          {spotlightThread ? (
+            <PrototypeHomeRow
+              deckId={`thread:${spotlightThread.id}`}
+              icon="arrow-right-arrow-left"
+              title={spotlightThread.title}
+              meta={[
+                `${spotlightThread.noteCount} ${spotlightThread.noteCount === 1 ? 'note' : 'notes'}`,
+              ]}
+              onClick={() => openThread(spotlightThread.id)}
+            />
+          ) : null}
 
-            {/* A study plan's current step continues something you started, so it is picked up
-                here rather than listed among what is arriving. */}
-            <PrototypeHomeReadingPlan />
-            <PrototypeChallengeContinueRow />
-            {onboardingLeads ? null : onboarding}
-          </ProtoDeck>
-        </div>
+          {/* A study plan's current step continues something you started, so it is picked up
+              here rather than listed among what is arriving. */}
+          <PrototypeHomeReadingPlan />
+          <PrototypeChallengeContinueRow />
+          {onboardingLeads ? null : onboarding}
+        </ProtoDeck>
 
         {/*
           * Review, beside what you were doing rather than above it — a page that opens by asking
@@ -209,89 +202,85 @@ export default function PrototypeStudyFeedToday({
           * strategy doc rules out. Decides its own visibility, including whether it exists at all
           * for this account.
           */}
-        <div className="proto-feed-decks__review">
-          <PrototypeReviewSection />
-        </div>
-
-        {/*
-          * Everything offered or arriving, in one deck. Each source still decides for itself
-          * whether it has anything to show; the deck counts what rendered.
-          */}
-        <div className="proto-feed-decks__next">
-          <ProtoDeck label="Up next" spotlight="home-up-next" onActiveChange={setUpNextShownId}>
-            {votd && passageCard ? (
-              <PrototypeDailyPassageCard homeSpaceId={homeSpaceId ?? ''} notes={notes} votd={votd} />
-            ) : null}
-            <PrototypeHomeThisSunday homeSpaceId={homeSpaceId ?? ''} />
-            <PrototypeHomeChurchFeed />
-            {/*
-              * The shelf's own rows, not a copy of them: the overflow with snooze and dismiss is the
-              * carousel's, and rebuilding a second one here is how two menus start disagreeing about
-              * what "not now" means.
-              */}
-            <PrototypeRecallCarousel
-              opportunities={recallOpportunities}
-              onSnooze={handleRecallSnooze}
-              onDismiss={handleRecallDismiss}
-              onOpened={handleRecallOpened}
-              onRecallSynced={handleRecallSynced}
-              homeSpaceId={homeSpaceId}
-              shownId={upNextShownId}
-            />
-            {/* A Thread with enough in it to be worth a path through. Renders nothing when there
-                is no such Thread, when one already has a challenge open, or without the key. */}
-            <PrototypeStrengthenThreadRow />
-            {votd && !passageCard ? (
-              <PrototypeDailyPassagePill homeSpaceId={homeSpaceId ?? ''} notes={notes} votd={votd} />
-            ) : null}
-            {/* Filing is a suggestion like any other. It opens the unfiled notes themselves, in
-                select mode — the row names a job, so it lands where the job is done. */}
-            {looseCount >= LOOSE_MIN ? (
-              <PrototypeHomeRow
-                deckId="unfiled"
-                icon="folder"
-                title={`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a folder`}
-                onClick={() => libraryNav.openUnfiledNotes()}
-              />
-            ) : null}
-            {/*
-              * The one pointer anyone gets to the fact that importing exists at all, shown to every
-              * account: the people likeliest to have a shelf of notes elsewhere are the ones who have
-              * been here longest. So the dismissal is the whole design — saying no is permanent and
-              * account-wide, because whether you have notes to bring across is a fact about you.
-              */}
-            {!isGuest && importPromptReady && !importDismissed && !onboardingOwnsImport ? (
-              <PrototypeHomeRow
-                deckId="import"
-                icon="cloud-arrow-up"
-                title="Bring your notes from another app"
-                meta={['Markdown, Word, Evernote, or a folder of files']}
-                onClick={() => void navigate({ to: prototypeSettingsDataRouteTo() })}
-                trailing={
-                  <button
-                    type="button"
-                    className="proto-side-panel__action-btn"
-                    aria-label="Hide this"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      dismissImportPrompt();
-                    }}
-                  >
-                    <Icon name="xmark" size={12} aria-hidden />
-                  </button>
-                }
-              />
-            ) : null}
-            {/* The free history window's soft landing — only while something is in its last week
-                of view, and only for free accounts. */}
-            <PrototypeHistoryLeavingRow />
-            {/* Above the founder letter: one is news, the other has been true since the app
-                existed. */}
-            <PrototypeWhatsNewPill />
-            <PrototypeFounderLetterPill />
-          </ProtoDeck>
-        </div>
+        <PrototypeReviewSection />
       </div>
+
+      {/*
+        * Everything offered or arriving, in one deck. Each source still decides for itself
+        * whether it has anything to show; the deck counts what rendered.
+        */}
+      <ProtoDeck label="Up next" spotlight="home-up-next" onActiveChange={setUpNextShownId}>
+        {votd && passageCard ? (
+          <PrototypeDailyPassageCard homeSpaceId={homeSpaceId ?? ''} notes={notes} votd={votd} />
+        ) : null}
+        <PrototypeHomeThisSunday homeSpaceId={homeSpaceId ?? ''} />
+        <PrototypeHomeChurchFeed />
+        {/*
+          * The shelf's own rows, not a copy of them: the overflow with snooze and dismiss is the
+          * carousel's, and rebuilding a second one here is how two menus start disagreeing about
+          * what "not now" means.
+          */}
+        <PrototypeRecallCarousel
+          opportunities={recallOpportunities}
+          onSnooze={handleRecallSnooze}
+          onDismiss={handleRecallDismiss}
+          onOpened={handleRecallOpened}
+          onRecallSynced={handleRecallSynced}
+          homeSpaceId={homeSpaceId}
+          shownId={upNextShownId}
+        />
+        {/* A Thread with enough in it to be worth a path through. Renders nothing when there
+            is no such Thread, when one already has a challenge open, or without the key. */}
+        <PrototypeStrengthenThreadRow />
+        {votd && !passageCard ? (
+          <PrototypeDailyPassagePill homeSpaceId={homeSpaceId ?? ''} notes={notes} votd={votd} />
+        ) : null}
+        {/* Filing is a suggestion like any other. It opens the unfiled notes themselves, in
+            select mode — the row names a job, so it lands where the job is done. */}
+        {looseCount >= LOOSE_MIN ? (
+          <PrototypeHomeRow
+            deckId="unfiled"
+            icon="folder"
+            title={`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a folder`}
+            onClick={() => libraryNav.openUnfiledNotes()}
+          />
+        ) : null}
+        {/*
+          * The one pointer anyone gets to the fact that importing exists at all, shown to every
+          * account: the people likeliest to have a shelf of notes elsewhere are the ones who have
+          * been here longest. So the dismissal is the whole design — saying no is permanent and
+          * account-wide, because whether you have notes to bring across is a fact about you.
+          */}
+        {!isGuest && importPromptReady && !importDismissed && !onboardingOwnsImport ? (
+          <PrototypeHomeRow
+            deckId="import"
+            icon="cloud-arrow-up"
+            title="Bring your notes from another app"
+            meta={['Markdown, Word, Evernote, or a folder of files']}
+            onClick={() => void navigate({ to: prototypeSettingsDataRouteTo() })}
+            trailing={
+              <button
+                type="button"
+                className="proto-side-panel__action-btn"
+                aria-label="Hide this"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  dismissImportPrompt();
+                }}
+              >
+                <Icon name="xmark" size={12} aria-hidden />
+              </button>
+            }
+          />
+        ) : null}
+        {/* The free history window's soft landing — only while something is in its last week
+            of view, and only for free accounts. */}
+        <PrototypeHistoryLeavingRow />
+        {/* Above the founder letter: one is news, the other has been true since the app
+            existed. */}
+        <PrototypeWhatsNewPill />
+        <PrototypeFounderLetterPill />
+      </ProtoDeck>
     </div>
   );
 }
