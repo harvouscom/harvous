@@ -436,7 +436,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin: 6px 0 0;
+  /* Pulled left by the pill's own extra inset, so the label lines up with the title and body
+     (6px in) while the hover fill still has room around the words. */
+  margin: 6px 0 0 -6px;
   padding: 6px 6px 6px 12px;
   border: 0;
   border-radius: var(--pds-radius-pill);
