@@ -23179,9 +23179,10 @@ button.proto-feed-sheet__stat:hover {
   display: grid;
   gap: var(--pds-space-4);
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
-  /* Each deck its own height. Stretched to match, a one-row Pick up card beside the taller
-     Review card was mostly empty paper with its pager stranded at the foot. */
-  align-items: start;
+  /* Side by side, the two decks are one height. Pick up's cards are built like Review's (an
+     eyebrow, a title in large type, a button at the foot), so stretched they fill the height
+     rather than leaving a short row beside a tall card. */
+  align-items: stretch;
 }
 
 /* A deck that is going to hide itself must not hold a grid column open while it does. */
@@ -23282,6 +23283,131 @@ button.proto-feed-sheet__stat:hover {
 .proto-deck__track:not([data-ready]) > :nth-child(n + 2),
 .proto-deck .proto-deck__track > [data-deck-off] {
   display: none;
+}
+
+/*
+ * A deck of cards rather than rows (Pick up): the card in front fills the deck's height, so
+ * beside Review the two end on the same line, and the pager drops into the card's foot, on the
+ * left, level with its Open button on the right.
+ */
+.proto-deck--cards .proto-deck__track {
+  display: flex;
+  flex-direction: column;
+}
+
+.proto-deck--cards .proto-deck__track > * {
+  flex: 1 1 auto;
+}
+
+.proto-deck--cards .proto-deck__foot {
+  position: absolute;
+  left: var(--pds-space-3);
+  bottom: var(--pds-space-3);
+  padding: 0;
+}
+
+/*
+ * One thing to pick up, as a card — the anatomy of Review's sitting card beside it: what it is
+ * on the caption line, the title in large type, a line of what it says, and a gray Open at the
+ * foot. `PrototypeHomeRow` draws this when a deck asks for cards (`HomeRowPresentation`).
+ */
+.proto-pickup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: var(--pds-space-4) var(--pds-space-4) var(--pds-space-3);
+}
+
+.proto-pickup-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-2);
+  min-height: 20px;
+}
+
+.proto-pickup-card__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+.proto-pickup-card__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--pds-text-secondary);
+}
+
+.proto-pickup-card__eyebrow-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-pickup-card__trailing {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin: -4px -6px -4px 0;
+}
+
+/* The way in: a bare button around the title and excerpt, so the words are the target. */
+.proto-pickup-card__main {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-pickup-card__main:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* The same size and face as the sitting card's question, so the pair read as one family. */
+.proto-pickup-card__title {
+  font-family: var(--pds-font-body);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--pds-text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.proto-pickup-card__excerpt {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.proto-pickup-card__foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: var(--pds-space-2);
 }
 
 /* Rows draw a hairline above every row but the first; in a deck the card in front is usually
