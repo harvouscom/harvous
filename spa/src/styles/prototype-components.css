@@ -25382,22 +25382,6 @@ button.proto-feed-sheet__stat:hover {
   line-height: 1.7;
 }
 
-/*
- * Today's passage reads a step larger than the review card's verse: it is the day's text, on
- * its own card, and 15px read as a footnote under the greeting. A step, not the greeting's
- * size — the sentence over it stays the largest words on the sheet.
- */
-.proto-daily-passage .proto-review-dock__verse--scripture {
-  font-size: 16px;
-}
-
-@container proto-feed-sheet (min-width: 600px) {
-  .proto-daily-passage .proto-review-dock__verse--scripture {
-    font-size: 18px;
-    line-height: 1.6;
-  }
-}
-
 /* The inline locator stays on the body face, exactly as the reader keeps its own. */
 .proto-review-dock__verse--scripture sup.verse-num,
 .proto-challenge__verse--scripture sup.verse-num {
