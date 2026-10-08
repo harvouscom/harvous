@@ -5,7 +5,7 @@ const setTheme = vi.fn();
 const setVolume = vi.fn();
 vi.mock('cuelume', () => ({ play, setTheme, setVolume }));
 
-import { playSound, resetSoundsForTests, warmSounds } from '../sounds';
+import { SOUND_CUES, playSound, resetSoundsForTests, warmSounds } from '../sounds';
 import { resetSoundPreferenceForTests, writeSoundPreference } from '../sound-prefs';
 
 /** The synth loads as a dynamic import; let it land before asserting on what it played. */
@@ -83,6 +83,85 @@ describe('the palette', () => {
       'navigate',
       expect.objectContaining({ direction: 'back', emphasis: 'subtle', volume: 0.7 }),
     ]);
+  });
+});
+
+describe('three voices', () => {
+  async function play1(moment: Parameters<typeof playSound>[0]) {
+    gesture();
+    playSound(moment);
+    await vi.advanceTimersByTimeAsync(50);
+    const last = heard().at(-1);
+    await vi.advanceTimersByTimeAsync(500);
+    return last;
+  }
+
+  it('keeps the paper for pages, on the default theme', async () => {
+    expect(await play1('nav.open')).toEqual(['open', expect.objectContaining({ theme: undefined })]);
+    expect(await play1('nav.forward')).toEqual([
+      'navigate',
+      expect.objectContaining({ direction: 'forward', theme: undefined }),
+    ]);
+  });
+
+  it('plays a dock in the press theme', async () => {
+    expect(await play1('dock.open')).toEqual([
+      'open',
+      expect.objectContaining({ theme: 'press', emphasis: 'subtle', volume: 0.7 }),
+    ]);
+    expect(await play1('dock.close')).toEqual(['close', expect.objectContaining({ theme: 'press' })]);
+  });
+
+  it('plays a panel in the mech theme', async () => {
+    expect(await play1('panel.open')).toEqual([
+      'open',
+      expect.objectContaining({ theme: 'mech', emphasis: 'subtle', volume: 0.7 }),
+    ]);
+    expect(await play1('panel.close')).toEqual(['close', expect.objectContaining({ theme: 'mech' })]);
+  });
+
+  it('drills inside a panel with the detent, shaped by direction', async () => {
+    expect(await play1('nav.drillIn')).toEqual([
+      'select',
+      expect.objectContaining({ direction: 'forward', theme: undefined }),
+    ]);
+    expect(await play1('nav.drillOut')).toEqual([
+      'select',
+      expect.objectContaining({ direction: 'back', theme: undefined }),
+    ]);
+  });
+
+  it('never changes the active theme to play a voice', async () => {
+    setTheme.mockClear();
+    await play1('panel.open');
+    await play1('dock.open');
+    expect(setTheme).not.toHaveBeenCalled();
+  });
+
+  it('files docks and panels with the interface, ranked like the paper open/close', () => {
+    for (const m of ['dock.open', 'dock.close', 'panel.open', 'panel.close'] as const) {
+      expect(SOUND_CUES[m]).toMatchObject({ class: 'nav', priority: 2 });
+    }
+    for (const m of ['nav.drillIn', 'nav.drillOut'] as const) {
+      expect(SOUND_CUES[m]).toMatchObject({ class: 'nav', priority: 1 });
+    }
+  });
+
+  it('lets a page move win over a panel closing in the same tap', async () => {
+    gesture();
+    playSound('panel.close');
+    playSound('nav.forward');
+    await vi.advanceTimersByTimeAsync(50);
+    expect(heard().map(([sound]) => sound)).toEqual(['navigate']);
+  });
+
+  it('keeps a panel voice out of Moments only', async () => {
+    writeSoundPreference('moments');
+    gesture();
+    playSound('panel.open');
+    playSound('dock.open');
+    await vi.advanceTimersByTimeAsync(400);
+    expect(heard()).toEqual([]);
   });
 });
 

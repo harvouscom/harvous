@@ -561,3 +561,20 @@
     opacity: 1;
   }
 }
+
+/* "By continuing, you agree to the Terms…" — quiet, above the switch line, links underlined
+   so they read as links in such small type. */
+.auth-page.auth-page--site .auth-page__legal {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--site-ink-faint);
+  text-align: center;
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+
+.auth-page.auth-page--site .auth-page__legal a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

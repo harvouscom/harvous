@@ -16,6 +16,7 @@ import {
   filterSharingItems,
   sharingEmptyCopy,
   sharingItemMeta,
+  sharingKindsPresent,
   SHARING_FILTERS,
 } from '../sharing-items';
 
@@ -162,14 +163,35 @@ describe('sharingItemMeta', () => {
       buildSharingItems({ discover: [submission('d1', 'submitted', '2026-09-01T00:00:00Z')] })[0],
     ];
     expect(sharingItemMeta(linkItem, relative)).toEqual(['Public link', '2d']);
-    expect(sharingItemMeta(spaceItem, relative)).toEqual(['Shared space', 'Owner', '5 members']);
+    expect(sharingItemMeta(spaceItem, relative)).toEqual(['Shared space', '5 members']);
     expect(sharingItemMeta(noteItem, relative)).toEqual(['In Family', '2d']);
-    expect(sharingItemMeta(discoverItem, relative)).toEqual(['Discover', 'Waiting', '2d']);
+    expect(sharingItemMeta(discoverItem, relative)).toEqual(['Discover', 'Waiting']);
   });
 
   it('says one member, not one members', () => {
     const [item] = buildSharingItems({ spaces: { memberOf: [space('s1', '2026-09-01T00:00:00Z', 1)] } });
-    expect(sharingItemMeta(item, relative)).toEqual(['Shared space', 'Member', '1 member']);
+    expect(sharingItemMeta(item, relative)).toEqual(['Shared space', '1 member']);
+  });
+
+  it('never runs past two parts', () => {
+    const listed = { ...submission('d2', 'listed', '2026-09-01T00:00:00Z'), installCount: 3 };
+    const [item] = buildSharingItems({ discover: [listed] });
+    expect(sharingItemMeta(item, relative)).toEqual(['Discover', 'Saved by 3']);
+  });
+});
+
+describe('sharingKindsPresent', () => {
+  it('counts the narrower choices the list can actually be narrowed to', () => {
+    const linksOnly = buildSharingItems({
+      links: [link('n1', '2026-09-01T00:00:00Z'), link('n2', '2026-09-02T00:00:00Z')],
+    });
+    expect(sharingKindsPresent(linksOnly)).toBe(1);
+    const mixed = buildSharingItems({
+      links: [link('n1', '2026-09-01T00:00:00Z')],
+      spaceNotes: [spaceNote('n2', 's1', '2026-09-01T00:00:00Z')],
+    });
+    expect(sharingKindsPresent(mixed)).toBe(2);
+    expect(sharingKindsPresent([])).toBe(0);
   });
 });
 

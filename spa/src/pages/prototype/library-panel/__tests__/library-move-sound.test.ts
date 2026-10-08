@@ -33,19 +33,19 @@ describe('how deep a view is', () => {
 });
 
 describe('the sound a move makes', () => {
-  it('goes forward into a drill and back out of it', () => {
-    expect(libraryMoveSound(tab('threads'), thread)).toBe('nav.forward');
-    expect(libraryMoveSound(thread, tab('threads'))).toBe('nav.back');
-    expect(libraryMoveSound(books, passages)).toBe('nav.forward');
-    expect(libraryMoveSound(passageNotes, passages)).toBe('nav.back');
+  it('drills in and back out with the detent, never the paper whoosh', () => {
+    expect(libraryMoveSound(tab('threads'), thread)).toBe('nav.drillIn');
+    expect(libraryMoveSound(thread, tab('threads'))).toBe('nav.drillOut');
+    expect(libraryMoveSound(books, passages)).toBe('nav.drillIn');
+    expect(libraryMoveSound(passageNotes, passages)).toBe('nav.drillOut');
   });
 
   it('is a choice, not a journey, when stepping sideways between tabs', () => {
     expect(libraryMoveSound(tab('all'), tab('notes'))).toBe('nav.select');
   });
 
-  it('still goes somewhere when one drill replaces another on the same tab', () => {
-    expect(libraryMoveSound(thread, otherThread)).toBe('nav.forward');
+  it('still drills in when one drill replaces another on the same tab', () => {
+    expect(libraryMoveSound(thread, otherThread)).toBe('nav.drillIn');
   });
 
   it('is silent when nothing moved, or when there was no panel to move in', () => {

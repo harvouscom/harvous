@@ -17,6 +17,7 @@ import {
   gradeVerseBefore,
   buildVerseBook,
   readerSpanFragment,
+  readerSpanWithinVerse,
   READER_SPAN_MAX_WORDS,
   gradeVerseRecall,
   verseRecallCoverage,
@@ -337,6 +338,42 @@ describe('readerSpanFragment', () => {
     expect(whole).not.toBeNull();
     expect(whole!.split(' ')).toHaveLength(READER_SPAN_MAX_WORDS);
     expect(verse).toContain(whole!);
+  });
+});
+
+describe('readerSpanWithinVerse', () => {
+  const v5 = 'I am the vine; you are the branches. The one who remains in me and I in him bears much fruit,';
+  const v6 = 'If anyone does not remain in me, he is thrown out like a branch, and dries up;';
+  const v7 = 'If you remain in me and my words remain in you, ask whatever you want, and it will be done for you.';
+
+  it('finds the words marked on one verse of a range highlight', () => {
+    // A drag across John 15:5-7: the excerpt is three verses long, with verse numbers fused on.
+    const excerpt = `${v5} 6${v6} 7${v7}`;
+    expect(readerSpanWithinVerse(excerpt, v6)).toBe('anyone does not remain in me, he is thrown out like a');
+    const seven = readerSpanWithinVerse(excerpt, v7);
+    expect(seven).not.toBeNull();
+    expect(seven!.startsWith('you remain in me')).toBe(true);
+  });
+
+  it('takes the longest run, not the first', () => {
+    const excerpt = 'in me and in him bears much fruit for ever';
+    expect(readerSpanWithinVerse(excerpt, v5)).toBe('in him bears much fruit');
+  });
+
+  it('refuses when the verse shares fewer than three words with the mark', () => {
+    expect(readerSpanWithinVerse('the branches of the tree', v6)).toBeNull();
+    expect(readerSpanWithinVerse(v5, '')).toBeNull();
+  });
+
+  it('picks the best fit among every mark covering the verse', () => {
+    // The longest excerpt is a different translation; the shorter one is this verse's own words.
+    const marks = ['Whoever abides in Me shall surely bring forth fruit abundantly, as the vine does', 'The one who remains in me'];
+    expect(readerSpanFragment(marks, v5)).toBe('The one who remains in me');
+    expect(readerSpanFragment([], v5)).toBeNull();
+  });
+
+  it('is what readerSpanFragment returns', () => {
+    expect(readerSpanFragment(`${v5} 6${v6}`, v6)).toBe(readerSpanWithinVerse(`${v5} 6${v6}`, v6));
   });
 });
 

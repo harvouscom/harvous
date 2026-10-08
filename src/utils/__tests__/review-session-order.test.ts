@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { composeSitting, sessionGroupKeyFor, todaySitting } from '../review-session-order';
+import { composeSitting, interleaveSession, sessionGroupKeyFor, todaySitting } from '../review-session-order';
 
 const now = new Date('2026-09-08T12:00:00Z');
 
@@ -140,5 +140,16 @@ describe('composeSitting and the same question asked again', () => {
   it('still fills the sitting from them when nothing else is waiting', () => {
     const due = ['c1', 'c2', 'c3', 'c4', 'c5'].map((id) => row(id, 'chapter', 0, 17));
     expect(composeSitting(due, [], 5, now)).toHaveLength(5);
+  });
+});
+
+describe('interleaving by rung', () => {
+  it('reads a step number per kind, so a chapter on step 1 is not "the same rung" as a verse on step 1', () => {
+    // Step numbers belong to each kind's own ladder: verse step 1 is blanks, chapter step 1 is
+    // finish-or-marked, note step 1 is "what you linked". Only the same kind on the same step repeats.
+    const v = item({ id: '1', kind: 'verse', ladderStep: 1, scriptureReference: 'John 15:1' });
+    const c = item({ id: 'c', kind: 'chapter', ladderStep: 1, scriptureReference: 'Romans 8' });
+    const n = item({ id: 'n', kind: 'note', ladderStep: 2 });
+    expect(interleaveSession([v, c, n], now).map((row) => row.id)).toEqual(['1', 'c', 'n']);
   });
 });

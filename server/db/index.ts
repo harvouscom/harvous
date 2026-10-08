@@ -54,6 +54,7 @@ export {
   NoteFingerprints,
   RecallEvents,
   SearchEvents,
+  LegalAcknowledgments,
   ReadingEvents,
   NoteVisitEvents,
   ReviewItems,

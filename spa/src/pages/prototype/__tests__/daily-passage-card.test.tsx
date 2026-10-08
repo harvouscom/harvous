@@ -79,7 +79,9 @@ describe('the card', () => {
 
   it('shows the words, the reference and the translation', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    expect(screen.getByText('Psalm 18:1-2 · NET')).toBeTruthy();
+    /* The reference sits in its own span so it never breaks; the line still reads as one. */
+    const eyebrow = document.querySelector('.proto-daily-passage__eyebrow');
+    expect(eyebrow?.textContent).toBe('Today’s passage · Psalm 18:1-2 · NET');
     expect(screen.getByText(/I love you, LORD, my strength\./)).toBeTruthy();
     expect(document.getElementById('todays-passage')).toBeTruthy();
   });

@@ -1,5 +1,6 @@
 import { useState, useEffect, useSyncExternalStore } from 'react';
 import { useSignIn, useSignUp } from '@clerk/clerk-react';
+import { postLegalAcknowledgment } from '../../hooks/queries/useLegalStatus';
 import type { SignUpResource } from '@clerk/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -178,6 +179,16 @@ export default function HarvousAuthForm({
         email: email.trim(),
       });
       void queryClient.invalidateQueries({ queryKey: ['profile'] });
+      /*
+       * The sign-up page says that continuing is agreeing to the Terms and acknowledging the
+       * Privacy Policy; this records it, against the versions current on the server. Not
+       * awaited: a failed write must not stand between someone and their new account — the
+       * in-app notice simply asks them once instead.
+       *
+       * Clerk's own "require express consent" setting stays off on purpose: with it on, this
+       * custom form would fail sign-up with Clerk's generic "additional information required".
+       */
+      void postLegalAcknowledgment(['privacy', 'terms'], 'signup').catch(() => {});
     }
     redirectAfterAuth();
   }

@@ -16,13 +16,13 @@ describe('the sound of a sheet', () => {
     expect(playSound).not.toHaveBeenCalled();
   });
 
-  it('breathes in on opening and falls shut on closing, once each', () => {
+  it('plays the panel voice on opening and on closing, once each', () => {
     const { rerender } = renderHook(({ open }) => useProtoOverlayMotion(open), {
       initialProps: { open: false },
     });
     rerender({ open: true });
     rerender({ open: true });
     rerender({ open: false });
-    expect(playSound.mock.calls).toEqual([['nav.open'], ['nav.close']]);
+    expect(playSound.mock.calls).toEqual([['panel.open'], ['panel.close']]);
   });
 });

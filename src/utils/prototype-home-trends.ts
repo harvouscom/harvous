@@ -614,7 +614,7 @@ export function homeLeadCopyLayout(lead: HomeLeadTheme): HomeLeadCopyLayout {
     case 'thread':
       return {
         beforeChip: lead.tone === 'started' ? 'You started ' : "You've been working through ",
-        afterChip: ', with ',
+        afterChip: ' with ',
         showCount: true,
       };
     case 'book':
@@ -624,7 +624,7 @@ export function homeLeadCopyLayout(lead: HomeLeadTheme): HomeLeadCopyLayout {
       if (lead.tone === 'mentioned-once') {
         return { beforeChip: '', afterChip: ' is in your notes, with ', showCount: true };
       }
-      return { beforeChip: 'You keep coming back to ', afterChip: ', with ', showCount: true };
+      return { beforeChip: 'You keep coming back to ', afterChip: ' with ', showCount: true };
     case 'folder':
       if (lead.tone === 'single') {
         return { beforeChip: '', afterChip: ' has a note in it, with ', showCount: true };

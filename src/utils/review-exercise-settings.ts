@@ -70,16 +70,12 @@ export interface RungPreferences {
  * Every draw a rung is chosen from — the only places a preference can move a question.
  *
  * - A verse step draws over its whole family.
- * - A chapter step draws over the members *before* its closing `chapter.verse`. That one is the
- *   fallback, not a peer (see `CHAPTER_FAMILIES`), so no preference may reach it.
+ * - A chapter step draws over its whole family too. Its floor (`CHAPTER_WHOLE_FLOOR`) is walked
+ *   only when nothing in the family builds, and ignores preferences, so it is not a draw.
  * - A note walks the whole ladder from a rotated start.
  */
 function rungDraws(): readonly (readonly ReviewPromptKey[])[] {
-  return [
-    ...VERSE_FAMILIES,
-    ...CHAPTER_FAMILIES.map((members) => members.slice(0, -1)),
-    NOTE_LADDER,
-  ];
+  return [...VERSE_FAMILIES, ...CHAPTER_FAMILIES, NOTE_LADDER];
 }
 
 const OFFERABLE = new Set<ReviewExerciseFamilyId>(
@@ -107,15 +103,14 @@ export function emphasisIsOfferable(id: ReviewExerciseFamilyId): boolean {
  *
  * Written out so the page and the tests have a list a person can read, and asserted equal to the
  * derivation so the two cannot drift. Each is the only family in every draw it is part of:
- * `opening` and `changed` are the sole exercise on their verse steps — and `opening` is also every
- * chapter step's fallback — while `memory` and `next` own both members of theirs.
+ * `changed` is the sole exercise on its verse step, and `memory` owns both members of its own.
+ *
+ * `next` left this list when the verse's own order joined its step (`verse.sequence` first, next
+ * and before only where the neighbour is the reader's own), and `opening` left it when
+ * `chapter.verse` became a peer of who and where on a chapter's first step. Both now share a draw
+ * with another family, so More and Less on them genuinely change how often they are asked.
  */
-export const ALWAYS_ON_FAMILIES: readonly ReviewExerciseFamilyId[] = [
-  'opening',
-  'memory',
-  'next',
-  'changed',
-];
+export const ALWAYS_ON_FAMILIES: readonly ReviewExerciseFamilyId[] = ['memory', 'changed'];
 
 export function familyIsAlwaysOn(id: ReviewExerciseFamilyId): boolean {
   return !emphasisIsOfferable(id);
@@ -141,8 +136,7 @@ function cleanEmphasis(raw: Record<string, unknown>): ReviewExerciseSettings['em
  *
  * A family whose every key was skipped becomes Less, which is lossless: the old page only ever
  * wrote whole families, and Less resolves to the same skip set. A family now offered no control
- * is dropped — `memory` and `next` among them, whose switches never changed how often they were
- * asked. A partly skipped family is left Normal, because that document was not written by the page.
+ * is dropped — `memory` among them, whose switch never changed how often it was asked. A partly skipped family is left Normal, because that document was not written by the page.
  */
 function emphasisFromSkipList(skip: readonly unknown[]): ReviewExerciseSettings['emphasis'] {
   const skipped = new Set(skip.filter((key): key is string => typeof key === 'string'));

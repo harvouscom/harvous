@@ -36,13 +36,13 @@ export default function PrototypeSettingsLayout() {
     // would abandon work the user can't see from anywhere else. The header's close
     // button stays available as the deliberate way out.
     if (isSettingsCloseBlocked()) return;
-    playSound('nav.close');
+    playSound('panel.close');
     const to = readSettingsOpenerPath();
     navigate({ to: to as '/', replace: true });
   }, [navigate]);
 
   const goToSettingsList = useCallback(() => {
-    playSound('nav.back');
+    playSound('nav.drillOut');
     navigate({ to: prototypeSettingsRouteTo(), replace: true });
   }, [navigate]);
 

@@ -197,7 +197,6 @@ const CHOICE_RUNGS = new Set<string>([
   'verse.crossref',
   'note.passage',
   'note.connect',
-  'note.folder',
   'chapter.verse',
   'chapter.person',
   'chapter.place',

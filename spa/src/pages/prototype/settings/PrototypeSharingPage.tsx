@@ -4,14 +4,18 @@
  * Sharing happens four ways that do not look alike from the inside: a public link on a note, a
  * note added to a shared space, the shared spaces themselves, and what you have offered to
  * Discover. Each used to be answerable only from where it was done, so "what have I shared" had no
- * single place to ask it. This is that place: one list, newest first, narrowed by kind, and each
- * row carrying the one or two things you can do about it.
+ * single place to ask it. This is that place: one list, newest first, narrowed by kind.
+ *
+ * Each row is a title, one line saying what it is, and one ⋮. Tapping the row opens the thing;
+ * everything you can do about it is in the menu. Rows used to carry their actions inline — 11px
+ * text links beside 36px pills, up to three per row, with a confirm that took over the row — and
+ * that, more than the number of rows, is what made the page busy.
  *
  * The merge itself is `sharing-items.ts`, pure and tested; this file fetches, renders and wires
  * the actions.
  */
-import { useMemo, useState, type MouseEvent } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
@@ -41,12 +45,14 @@ import { useDeletedSpaces, type DeletedSpaceItem } from '../../../hooks/queries/
 import { useRestoreSpace } from '../../../hooks/mutations/useRestoreSpace';
 import { APIError } from '../../../lib/api';
 import ProtoSpaceMenuIcon from '../ProtoSpaceMenuIcon';
+import PrototypeSidebarRowMenuPopover from '../PrototypeSidebarRowMenuPopover';
 import {
   buildSharingItems,
   discoverActionFor,
   filterSharingItems,
   sharingEmptyCopy,
   sharingItemMeta,
+  sharingKindsPresent,
   SHARING_FILTERS,
   type SharingFilter,
   type SharingItem,
@@ -129,17 +135,122 @@ function errorMessage(err: unknown, fallback: string): string {
   return err instanceof APIError ? err.message : err instanceof Error ? err.message : fallback;
 }
 
-/** A pending destructive action that needs a second press, anchored to the button that asked. */
+/** A destructive or replacing action that needs a second press, anchored to the row that asked. */
 type PendingConfirm =
+  | { kind: 'refresh'; item: Extract<SharingItem, { kind: 'link' }>; anchorRect: DOMRect }
   | { kind: 'leave'; item: Extract<SharingItem, { kind: 'space' }>; anchorRect: DOMRect }
   | { kind: 'remove'; item: Extract<SharingItem, { kind: 'space-note' }>; anchorRect: DOMRect };
+
+/** One entry in a row's ⋮ menu. */
+type SharingMenuAction = {
+  key: string;
+  label: string;
+  icon: IconName;
+  destructive?: boolean;
+  /** The row's own rect, for actions that open a confirm anchored to it. */
+  onSelect: (rowRect: DOMRect) => void;
+};
+
+/**
+ * One row: tile, title, one line of meta, one ⋮.
+ *
+ * Its own component because the menu needs refs — the row it hangs from and the trigger that
+ * must not count as "outside" — and those are per row.
+ */
+function SharingRow({
+  item,
+  leading,
+  meta,
+  note,
+  busy,
+  onOpen,
+  actions,
+}: {
+  item: SharingItem;
+  leading: ReactNode;
+  meta: string;
+  /** A second line only a declined Discover offer carries: the reason, for the person who asked. */
+  note?: string | null;
+  busy: boolean;
+  onOpen: (() => void) | null;
+  actions: SharingMenuAction[];
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const triggerRootRef = useRef<HTMLSpanElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const text = (
+    <>
+      <span className="proto-sharing-card__title pds-list-title">{item.title}</span>
+      <span className="pds-list-preview proto-sharing-card__meta">{busy ? 'Working…' : meta}</span>
+      {note ? <span className="pds-list-preview proto-sharing-card__meta">{note}</span> : null}
+    </>
+  );
+
+  return (
+    <div ref={rowRef} className="proto-sharing-card">
+      {leading}
+      {onOpen ? (
+        <button type="button" className="proto-sharing-card__main" onClick={onOpen}>
+          {text}
+        </button>
+      ) : (
+        <div className="proto-sharing-card__main">{text}</div>
+      )}
+      {actions.length > 0 ? (
+        <span ref={triggerRootRef} className="proto-sharing-card__more">
+          <button
+            type="button"
+            className="proto-side-panel__action-btn"
+            aria-label={`More for ${item.title}`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            disabled={busy}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <Icon name="ellipsis-vertical" size={12} aria-hidden />
+          </button>
+          <PrototypeSidebarRowMenuPopover
+            open={menuOpen}
+            rowRef={rowRef}
+            triggerRootRef={triggerRootRef}
+            onDismiss={() => setMenuOpen(false)}
+            aria-label={`More for ${item.title}`}
+            zIndex="var(--pds-z-modal-popover)"
+          >
+            <div className="proto-menu-section" role="group">
+              {actions.map((action) => (
+                <button
+                  key={action.key}
+                  type="button"
+                  role="menuitem"
+                  className={`proto-menu-item${action.destructive ? ' proto-menu-item--destructive' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const rect = rowRef.current?.getBoundingClientRect() ?? new DOMRect();
+                    setMenuOpen(false);
+                    action.onSelect(rect);
+                  }}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name={action.icon} size={14} />
+                  </span>
+                  <span className="proto-menu-item__label">{action.label}</span>
+                </button>
+              ))}
+            </div>
+          </PrototypeSidebarRowMenuPopover>
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 export default function PrototypeSharingPage() {
   const [filter, setFilter] = useState<SharingFilter>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [confirmRefreshId, setConfirmRefreshId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [deletedOpen, setDeletedOpen] = useState(false);
 
   const sharingQuery = useMySharing();
   const spacesQuery = useMySharedSpaces();
@@ -167,7 +278,11 @@ export default function PrototypeSharingPage() {
       }),
     [sharingQuery.data, spacesQuery.data, spaceNotesQuery.data, discoverQuery.data],
   );
-  const visible = useMemo(() => filterSharingItems(items, filter), [items, filter]);
+  /* With one kind on the page there is nothing to narrow, so a filter left on another kind
+     from earlier would only hide the list. */
+  const showFilter = sharingKindsPresent(items) > 1;
+  const activeFilter = showFilter ? filter : 'all';
+  const visible = useMemo(() => filterSharingItems(items, activeFilter), [items, activeFilter]);
 
   /*
    * Four sources, each allowed to fail on its own. The list renders whatever has arrived rather
@@ -191,13 +306,6 @@ export default function PrototypeSharingPage() {
     rowCount: deletedSpaces.length,
   });
 
-  const flashCopied = (id: string) => {
-    setCopiedId(id);
-    window.setTimeout(() => {
-      setCopiedId((current) => (current === id ? null : current));
-    }, 1400);
-  };
-
   const handleDisableNote = async (itemId: string, note: SharedNoteItem) => {
     setBusyId(itemId);
     try {
@@ -216,7 +324,7 @@ export default function PrototypeSharingPage() {
     try {
       await shareNote.mutateAsync({ noteId: note.id, action: 'refresh' });
       await queryClient.invalidateQueries({ queryKey: mySharingQueryKey });
-      setConfirmRefreshId(null);
+      setPendingConfirm(null);
       toast.success('New share link created');
     } catch (err) {
       toast.error(errorMessage(err, 'Could not create a new link'));
@@ -225,13 +333,19 @@ export default function PrototypeSharingPage() {
     }
   };
 
-  const handleCopy = async (itemId: string, url: string) => {
-    if (await copyToClipboard(url)) flashCopied(itemId);
+  /* The row has no Copy button of its own any more, so the confirmation is a toast rather than
+     a label flipping to "Copied" on a control that is now inside a closed menu. */
+  const handleCopy = async (url: string, what: string) => {
+    if (await copyToClipboard(url)) toast.success(`${what} copied`);
   };
 
   const handleOpenSpace = (spaceId: string) => {
     switchToSpace(spaceId);
     void navigate({ to: prototypeHomeRouteTo() });
+  };
+
+  const handleOpenNote = (noteId: string) => {
+    void navigate({ to: prototypeNoteRouteTo(), params: { noteId: noteParamSlug(noteId) }, search: {} });
   };
 
   const handleWithdraw = (itemId: string, listingId: string, stopping: boolean) => {
@@ -243,12 +357,12 @@ export default function PrototypeSharingPage() {
     });
   };
 
-  const askToConfirm = (event: MouseEvent<HTMLButtonElement>, next: Omit<PendingConfirm, 'anchorRect'>) => {
-    setPendingConfirm({ ...next, anchorRect: event.currentTarget.getBoundingClientRect() } as PendingConfirm);
-  };
-
   const confirmPending = () => {
     if (!pendingConfirm) return;
+    if (pendingConfirm.kind === 'refresh') {
+      void handleRefreshNote(pendingConfirm.item.id, pendingConfirm.item.note);
+      return;
+    }
     if (pendingConfirm.kind === 'leave') {
       const { space } = pendingConfirm.item;
       leaveSpace.mutate(
@@ -299,8 +413,8 @@ export default function PrototypeSharingPage() {
   const renderLeading = (item: SharingItem) => {
     if (item.kind === 'space') {
       return (
-        <span className="proto-settings-list-row__leading proto-sharing-deleted__space-icon" aria-hidden>
-          <ProtoSpaceMenuIcon color={item.space.color || 'paper'} size={40} radius={10} glyphSize={18} />
+        <span className="proto-settings-list-row__leading proto-settings-list-row__leading--bare" aria-hidden>
+          <ProtoSpaceMenuIcon color={item.space.color || 'paper'} size={32} radius={8} glyphSize={15} />
         </span>
       );
     }
@@ -313,193 +427,161 @@ export default function PrototypeSharingPage() {
         : resolveSharedItemLeadingMeta('note');
     return (
       <span className="proto-settings-list-row__leading" aria-label={meta.label} title={meta.label}>
-        <Icon name={meta.icon} size={18} />
+        <Icon name={meta.icon} size={15} />
       </span>
     );
   };
 
-  const renderTitle = (item: SharingItem) => {
-    const noteId =
-      item.kind === 'link' ? item.note.id : item.kind === 'space-note' ? item.spaceNote.noteId : null;
-    if (noteId) {
-      return (
-        <Link
-          to={prototypeNoteRouteTo()}
-          params={{ noteId: noteParamSlug(noteId) }}
-          search={{}}
-          className="proto-sharing-card__title pds-list-title"
-        >
-          {item.title}
-        </Link>
-      );
+  /** What tapping the row does: the thing itself, wherever it lives. Null when there is nowhere to go. */
+  const openFor = (item: SharingItem): (() => void) | null => {
+    switch (item.kind) {
+      case 'link':
+        return () => handleOpenNote(item.note.id);
+      case 'space-note':
+        return () => handleOpenNote(item.spaceNote.noteId);
+      case 'space':
+        return () => handleOpenSpace(item.space.id);
+      case 'discover': {
+        const { slug, status } = item.submission;
+        return status === 'listed' && slug
+          ? () => window.open(`/discover/${slug}`, '_blank', 'noopener,noreferrer')
+          : null;
+      }
     }
-    return <span className="proto-sharing-card__title pds-list-title">{item.title}</span>;
   };
 
-  const renderActions = (item: SharingItem) => {
-    const isBusy = busyId === item.id;
+  /** The ⋮ menu: the way in first, then sharing, then the undo — destructive last, as everywhere. */
+  const actionsFor = (item: SharingItem): SharingMenuAction[] => {
     switch (item.kind) {
       case 'link': {
         const { note } = item;
-        if (confirmRefreshId === item.id) {
-          return (
-            <>
-              <span className="proto-sharing-card__confirm-prompt">
-                Replace this link? The old one stops working.
-              </span>
-              <button
-                type="button"
-                className="proto-sharing-card__text-action"
-                disabled={isBusy}
-                onClick={() => setConfirmRefreshId(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="proto-sharing-card__text-action proto-sharing-card__text-action--accent"
-                disabled={isBusy}
-                onClick={() => void handleRefreshNote(item.id, note)}
-              >
-                {isBusy ? 'Working…' : 'Replace'}
-              </button>
-            </>
-          );
-        }
-        return (
-          <>
-            <button
-              type="button"
-              className="proto-sharing-card__text-action"
-              disabled={isBusy}
-              onClick={() => setConfirmRefreshId(item.id)}
-            >
-              New link
-            </button>
-            <button
-              type="button"
-              className="proto-sharing-card__text-action proto-sharing-card__text-action--danger"
-              disabled={isBusy}
-              onClick={() => void handleDisableNote(item.id, note)}
-            >
-              {isBusy ? 'Working…' : 'Stop sharing'}
-            </button>
-            <button
-              type="button"
-              className="proto-thread-review__dismiss"
-              disabled={isBusy}
-              onClick={() => void handleCopy(item.id, note.shareUrl)}
-              title={displayShareUrl(note.shareUrl)}
-              aria-label={copiedId === item.id ? 'Copied' : 'Copy link'}
-            >
-              {copiedId === item.id ? 'Copied' : 'Copy'}
-            </button>
-          </>
-        );
+        return [
+          {
+            key: 'copy',
+            label: 'Copy link',
+            icon: 'copy',
+            onSelect: () => void handleCopy(note.shareUrl, 'Link'),
+          },
+          {
+            key: 'refresh',
+            label: 'New link',
+            icon: 'arrows-rotate',
+            onSelect: (anchorRect) => setPendingConfirm({ kind: 'refresh', item, anchorRect }),
+          },
+          {
+            key: 'stop',
+            label: 'Stop sharing',
+            icon: 'eye-slash',
+            destructive: true,
+            onSelect: () => void handleDisableNote(item.id, note),
+          },
+        ];
       }
       case 'space': {
         const { space } = item;
-        return (
-          <>
-            {/* An owner cannot leave — the server refuses it — so Leave is a member's verb, and
-                the owner's is sharing the invite. */}
-            {item.role === 'member' ? (
-              <button
-                type="button"
-                className="proto-sharing-card__text-action proto-sharing-card__text-action--danger"
-                disabled={leaveSpace.isPending}
-                onClick={(event) => askToConfirm(event, { kind: 'leave', item })}
-              >
-                Leave
-              </button>
-            ) : space.shareUrl ? (
-              <button
-                type="button"
-                className="proto-sharing-card__text-action"
-                onClick={() => void handleCopy(item.id, space.shareUrl!)}
-                title={displayShareUrl(space.shareUrl)}
-              >
-                {copiedId === item.id ? 'Copied' : 'Copy invite link'}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="proto-thread-review__dismiss"
-              onClick={() => handleOpenSpace(space.id)}
-            >
-              Open
-            </button>
-          </>
-        );
+        const actions: SharingMenuAction[] = [
+          { key: 'open', label: 'Open space', icon: 'arrow-right', onSelect: () => handleOpenSpace(space.id) },
+        ];
+        /* An owner cannot leave — the server refuses it — so Leave is a member's verb, and
+           the owner's is sharing the invite. */
+        if (item.role === 'owner' && space.shareUrl) {
+          const url = space.shareUrl;
+          actions.push({
+            key: 'invite',
+            label: 'Copy invite link',
+            icon: 'copy',
+            onSelect: () => void handleCopy(url, 'Invite link'),
+          });
+        }
+        if (item.role === 'member') {
+          actions.push({
+            key: 'leave',
+            label: 'Leave space',
+            icon: 'right-from-bracket',
+            destructive: true,
+            onSelect: (anchorRect) => setPendingConfirm({ kind: 'leave', item, anchorRect }),
+          });
+        }
+        return actions;
       }
       case 'space-note':
-        return (
-          <button
-            type="button"
-            className="proto-sharing-card__text-action proto-sharing-card__text-action--danger"
-            disabled={removeNoteFromSpace.isPending}
-            onClick={(event) => askToConfirm(event, { kind: 'remove', item })}
-          >
-            Remove from space
-          </button>
-        );
+        return [
+          {
+            key: 'open',
+            label: 'Open note',
+            icon: 'note-sticky',
+            onSelect: () => handleOpenNote(item.spaceNote.noteId),
+          },
+          {
+            key: 'remove',
+            label: 'Remove from space',
+            icon: 'circle-minus',
+            destructive: true,
+            onSelect: (anchorRect) => setPendingConfirm({ kind: 'remove', item, anchorRect }),
+          },
+        ];
       case 'discover': {
         const { submission } = item;
+        const actions: SharingMenuAction[] = [];
+        if (submission.status === 'listed' && submission.slug) {
+          const slug = submission.slug;
+          actions.push({
+            key: 'view',
+            label: 'View in Discover',
+            icon: 'arrow-up-right-from-square',
+            onSelect: () => window.open(`/discover/${slug}`, '_blank', 'noopener,noreferrer'),
+          });
+        }
         const action = discoverActionFor(submission.status);
-        return (
-          <>
-            {submission.status === 'listed' && submission.slug ? (
-              <a
-                className="proto-sharing-card__text-action"
-                href={`/discover/${submission.slug}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View
-              </a>
-            ) : null}
-            {action ? (
-              <button
-                type="button"
-                className="proto-sharing-card__text-action proto-sharing-card__text-action--danger"
-                disabled={isBusy}
-                onClick={() => handleWithdraw(item.id, submission.id, action === 'stop')}
-              >
-                {isBusy ? 'Working…' : action === 'stop' ? 'Stop sharing' : 'Withdraw'}
-              </button>
-            ) : null}
-          </>
-        );
+        if (action) {
+          actions.push({
+            key: action,
+            label: action === 'stop' ? 'Stop sharing' : 'Withdraw',
+            icon: 'eye-slash',
+            destructive: true,
+            onSelect: () => handleWithdraw(item.id, submission.id, action === 'stop'),
+          });
+        }
+        return actions;
       }
     }
   };
 
   const confirmCopy =
-    pendingConfirm?.kind === 'leave'
+    pendingConfirm?.kind === 'refresh'
       ? {
-          /* The People sheet's own words for leaving, so the two doors say the same thing. */
-          title: 'Leave this space?',
-          description: 'Your notes stay in My Home.',
-          confirmLabel: 'Leave',
-          busy: leaveSpace.isPending,
+          title: 'Replace this link?',
+          description: 'The old one stops working.',
+          confirmLabel: 'Replace',
+          busy: busyId === pendingConfirm.item.id,
         }
-      : pendingConfirm?.kind === 'remove'
+      : pendingConfirm?.kind === 'leave'
         ? {
-            title: `Remove from ${pendingConfirm.item.spaceNote.spaceTitle}?`,
-            description: 'The note stays in My Home. People in the space stop seeing it.',
-            confirmLabel: 'Remove',
-            busy: removeNoteFromSpace.isPending,
+            /* The People sheet's own words for leaving, so the two doors say the same thing. */
+            title: 'Leave this space?',
+            description: 'Your notes stay in My Home.',
+            confirmLabel: 'Leave',
+            busy: leaveSpace.isPending,
           }
-        : null;
+        : pendingConfirm?.kind === 'remove'
+          ? {
+              title: `Remove from ${pendingConfirm.item.spaceNote.spaceTitle}?`,
+              description: 'The note stays in My Home. People in the space stop seeing it.',
+              confirmLabel: 'Remove',
+              busy: removeNoteFromSpace.isPending,
+            }
+          : null;
 
   return (
     <SettingsShell wide>
-      <ProtoChipBar
-        ariaLabel="Which sharing to show"
-        options={SHARING_FILTERS}
-        selectedId={filter}
-        onSelect={setFilter}
-      />
+      {showFilter ? (
+        <ProtoChipBar
+          ariaLabel="Which sharing to show"
+          options={SHARING_FILTERS}
+          selectedId={activeFilter}
+          onSelect={setFilter}
+        />
+      ) : null}
 
       {loading ? (
         <p className="pds-caption" style={{ marginTop: 20, color: 'var(--pds-text-secondary)' }}>Loading…</p>
@@ -522,35 +604,29 @@ export default function PrototypeSharingPage() {
 
       {!loading && visible.length === 0 ? (
         <p className="pds-caption" style={{ marginTop: 20, color: 'var(--pds-text-secondary)' }}>
-          {sharingEmptyCopy(filter)}
+          {sharingEmptyCopy(activeFilter)}
         </p>
       ) : null}
 
       {visible.length > 0 ? (
         <SettingsGroup>
           <div className="proto-sharing-list">
-            {visible.map((item) => {
-              const meta = sharingItemMeta(item, relative);
-              return (
-                <div key={item.id} className="proto-sharing-card">
-                  {renderLeading(item)}
-
-                  <div className="proto-sharing-card__main">
-                    {renderTitle(item)}
-                    {meta.length > 0 ? (
-                      <span className="pds-list-preview proto-sharing-card__meta">{meta.join(' · ')}</span>
-                    ) : null}
-                    {/* A decline carries a reason, and the person who asked is the one who needs
-                        to read it. */}
-                    {item.kind === 'discover' && item.submission.status === 'declined' && item.submission.reviewNote ? (
-                      <span className="pds-list-preview proto-sharing-card__meta">{item.submission.reviewNote}</span>
-                    ) : null}
-                  </div>
-
-                  <span className="proto-sharing-card__actions">{renderActions(item)}</span>
-                </div>
-              );
-            })}
+            {visible.map((item) => (
+              <SharingRow
+                key={item.id}
+                item={item}
+                leading={renderLeading(item)}
+                meta={sharingItemMeta(item, relative).join(' · ')}
+                note={
+                  item.kind === 'discover' && item.submission.status === 'declined'
+                    ? item.submission.reviewNote
+                    : null
+                }
+                busy={busyId === item.id}
+                onOpen={openFor(item)}
+                actions={actionsFor(item)}
+              />
+            ))}
           </div>
         </SettingsGroup>
       ) : null}
@@ -569,68 +645,77 @@ export default function PrototypeSharingPage() {
         />
       ) : null}
 
-      {deletedSectionState !== 'hidden' ? (
-        <section className="proto-sharing-deleted" aria-labelledby="proto-sharing-deleted-title">
-          <h2 id="proto-sharing-deleted-title" className="pds-inspector-label proto-sharing-deleted__title">
-            Recently deleted spaces
-          </h2>
+      {/*
+        * Recently deleted spaces, folded into one line.
+        *
+        * It was a second headed section under the list, which gave a page about what you share a
+        * standing block about what you deleted. Spaces wait here for days at most, so it is a
+        * row you open when you are looking for one, not furniture. Nothing shows while it loads:
+        * a row that appears late is better than a heading that says "Loading…" over nothing.
+        */}
+      {deletedSectionState === 'error' ? (
+        <div className="proto-sharing-deleted__status" role="alert">
+          <span className="pds-caption">Could not load recently deleted spaces.</span>
+          <button
+            type="button"
+            className="proto-thread-review__dismiss"
+            onClick={() => void deletedSpacesQuery.refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
 
-          {deletedSectionState === 'loading' ? (
-            <p className="pds-caption proto-sharing-deleted__status" role="status">
-              Loading recently deleted spaces…
-            </p>
-          ) : null}
-
-          {deletedSectionState === 'error' ? (
-            <div className="proto-sharing-deleted__status" role="alert">
-              <span className="pds-caption">Could not load recently deleted spaces.</span>
-              <button
-                type="button"
-                className="proto-thread-review__dismiss"
-                onClick={() => void deletedSpacesQuery.refetch()}
-              >
-                Retry
-              </button>
+      {deletedSectionState === 'rows' ? (
+        <SettingsGroup>
+          <button
+            type="button"
+            className="proto-note-row proto-settings-row proto-sharing-deleted__toggle"
+            aria-expanded={deletedOpen}
+            onClick={() => setDeletedOpen((open) => !open)}
+          >
+            <span className="proto-settings-list-row__main">
+              <span className="pds-list-title">Recently deleted spaces</span>
+            </span>
+            <span className="proto-settings-list-row__trailing">
+              <span className="pds-caption" style={{ color: 'var(--pds-text-secondary)' }}>
+                {deletedSpaces.length}
+              </span>
+              <span className="proto-sharing-deleted__chevron" aria-hidden>
+                <Icon name="caret-right" size={12} />
+              </span>
+            </span>
+          </button>
+          {deletedOpen ? (
+            <div className="proto-sharing-deleted__list">
+              {deletedSpaces.map((space) => {
+                const isRestoring = restoreSpace.isPending && restoreSpace.variables === space.id;
+                return (
+                  <div key={space.id} className="proto-sharing-deleted__row">
+                    <span
+                      className="proto-settings-list-row__leading proto-settings-list-row__leading--bare"
+                      aria-hidden
+                    >
+                      <ProtoSpaceMenuIcon color={space.color || 'paper'} size={32} radius={8} glyphSize={15} />
+                    </span>
+                    <span className="proto-sharing-deleted__main">
+                      <span className="pds-list-title">{space.title}</span>
+                      <span className="pds-list-preview">{deletedSpaceRecoveryLabel(space)}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="proto-thread-review__dismiss"
+                      disabled={restoreSpace.isPending}
+                      onClick={() => void handleRestoreSpace(space)}
+                    >
+                      {isRestoring ? 'Restoring…' : 'Restore'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           ) : null}
-
-          {deletedSectionState === 'rows' ? (
-            <SettingsGroup>
-              <div className="proto-sharing-deleted__list">
-                {deletedSpaces.map((space) => {
-                  const isRestoring = restoreSpace.isPending && restoreSpace.variables === space.id;
-                  return (
-                    <div key={space.id} className="proto-sharing-deleted__row">
-                      <span
-                        className="proto-settings-list-row__leading proto-sharing-deleted__space-icon"
-                        aria-hidden
-                      >
-                        <ProtoSpaceMenuIcon
-                          color={space.color || 'paper'}
-                          size={40}
-                          radius={10}
-                          glyphSize={18}
-                        />
-                      </span>
-                      <span className="proto-sharing-deleted__main">
-                        <span className="pds-list-title">{space.title}</span>
-                        <span className="pds-list-preview">{deletedSpaceRecoveryLabel(space)}</span>
-                      </span>
-                      <button
-                        type="button"
-                        className="proto-thread-review__dismiss"
-                        disabled={restoreSpace.isPending}
-                        onClick={() => void handleRestoreSpace(space)}
-                      >
-                        {isRestoring ? 'Restoring…' : 'Restore'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </SettingsGroup>
-          ) : null}
-        </section>
+        </SettingsGroup>
       ) : null}
     </SettingsShell>
   );

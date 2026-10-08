@@ -153,6 +153,13 @@ export interface OnboardingState {
    * set, so every state that predates it serializes unchanged.
    */
   churchSetupDismissedAt?: string;
+  /**
+   * Feature callouts this account has already been shown and put away, by id, with when.
+   * Account-wide for the reason the checklist is: a callout dismissed on the laptop must not
+   * come back on the phone. Absent until the first one, so older states serialize unchanged.
+   * See `spa/src/pages/prototype/callouts/callout-registry.ts`.
+   */
+  calloutsSeen?: Record<string, string>;
 }
 
 export interface OnboardingSignals {
@@ -224,6 +231,13 @@ export function parseOnboardingState(raw: string | null | undefined): Onboarding
       ? obj.churchSetupDismissedAt
       : null;
 
+  const calloutsSeen: Record<string, string> = {};
+  if (isPlainObject(obj.calloutsSeen)) {
+    for (const [id, at] of Object.entries(obj.calloutsSeen)) {
+      if (id && typeof at === 'string' && at) calloutsSeen[id] = at;
+    }
+  }
+
   return {
     version,
     dismissedVersion,
@@ -231,6 +245,7 @@ export function parseOnboardingState(raw: string | null | undefined): Onboarding
     completedAt,
     steps: settleStepsAddedAfterFinishing(steps),
     ...(churchSetupDismissedAt ? { churchSetupDismissedAt } : {}),
+    ...(Object.keys(calloutsSeen).length > 0 ? { calloutsSeen } : {}),
   };
 }
 
@@ -259,6 +274,11 @@ export function mergeOnboardingStates(a: OnboardingState, b: OnboardingState): O
   const churchSetup = earliestIso(a.churchSetupDismissedAt, b.churchSetupDismissedAt);
   const steps = {} as Record<OnboardingStepId, OnboardingStepState>;
   for (const id of ALL_STEP_IDS) steps[id] = mergeStep(a.steps[id], b.steps[id]);
+  /* Union, keeping the first time: seen on any device is seen everywhere, and never unseen. */
+  const calloutsSeen: Record<string, string> = { ...(a.calloutsSeen ?? {}) };
+  for (const [id, at] of Object.entries(b.calloutsSeen ?? {})) {
+    calloutsSeen[id] = earliestIso(calloutsSeen[id], at) ?? at;
+  }
   return {
     version: Math.max(a.version, b.version),
     dismissedVersion: Math.max(a.dismissedVersion, b.dismissedVersion),
@@ -267,6 +287,7 @@ export function mergeOnboardingStates(a: OnboardingState, b: OnboardingState): O
     steps,
     // Monotonic like everything else here: put away on any device, put away everywhere.
     ...(churchSetup ? { churchSetupDismissedAt: churchSetup } : {}),
+    ...(Object.keys(calloutsSeen).length > 0 ? { calloutsSeen } : {}),
   };
 }
 
@@ -372,6 +393,12 @@ export function shouldShowOnboarding(state: OnboardingState | null): boolean {
   if (!state) return true;
   if (isOnboardingClusterDismissed(state)) return false;
   return !ONBOARDING_STEP_IDS.every((id) => isStepSettled(state.steps[id]));
+}
+
+/** Record a feature callout as shown and put away. Idempotent — the first time is kept. */
+export function markCalloutSeen(state: OnboardingState, id: string, nowIso: string): OnboardingState {
+  if (state.calloutsSeen?.[id]) return state;
+  return { ...state, calloutsSeen: { ...(state.calloutsSeen ?? {}), [id]: nowIso } };
 }
 
 /** Put away the church hub's setup card. Idempotent — the first dismissal is the one kept. */

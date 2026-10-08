@@ -47,7 +47,7 @@ import {
   type NodeKind,
 } from '@/utils/study-bible-nodes';
 import { openingLadderStep } from '@/utils/review-prompts';
-import { createReviewItem, noteHasReviewableMaterial, type ReviewItemRow } from './review-service';
+import { createReviewItem, loadCoveringMarks, noteHasReviewableMaterial, type ReviewItemRow } from './review-service';
 import {
   isUserNodeStatesTableMissing,
   isReviewItemsTableMissing,
@@ -443,6 +443,22 @@ async function runRefill(userId: string, now: Date): Promise<ReviewItemRow[]> {
           ? chapterReferenceLabel(chapterParts)
           : null;
 
+      /*
+       * The highlight that made this verse worth asking about, so the reveal can show the
+       * reader's own words. Engine items never recorded one, and the reveal had nothing of theirs
+       * to show. One carrying a written thought first; a range they marked counts for every verse
+       * inside it. Never `noteId`: a verse item is keyed by its reference, not by a note.
+       */
+      let studyThreadEntryId: string | null = null;
+      if (verseParts) {
+        try {
+          const covering = await loadCoveringMarks(userId, verseParts);
+          studyThreadEntryId = (covering.find((mark) => mark.thought) ?? covering[0])?.id ?? null;
+        } catch {
+          // Provenance is a nicety; the question stands without it.
+        }
+      }
+
       const result = await createReviewItem(
         userId,
         {
@@ -450,6 +466,7 @@ async function runRefill(userId: string, now: Date): Promise<ReviewItemRow[]> {
           noteId: pick.noteId,
           // Only a connection ever had a second note, and the engine no longer makes those.
           secondaryNoteId: null,
+          studyThreadEntryId,
           scriptureReference: reference,
           /*
            * The translation it was read in, off the node's own meta — so a chapter question is

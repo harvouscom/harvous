@@ -78,6 +78,14 @@ export async function listUserExportKeys(): Promise<string[]> {
   return keys;
 }
 
+/** One account's backups, as `<userId>/<file>` keys — for deleting them with the account. */
+export async function listUserExportKeysForUser(userId: string): Promise<string[]> {
+  const store = requireClient().storage.from(USER_EXPORTS_BUCKET);
+  const { data: files, error } = await store.list(userId, { limit: LIST_PAGE_SIZE });
+  if (error) throw new Error(`list ${userId} failed: ${error.message}`);
+  return (files ?? []).filter((file) => file.id).map((file) => `${userId}/${file.name}`);
+}
+
 export async function deleteUserExports(keys: string[]): Promise<void> {
   if (keys.length === 0) return;
   const { error } = await requireClient().storage.from(USER_EXPORTS_BUCKET).remove(keys);

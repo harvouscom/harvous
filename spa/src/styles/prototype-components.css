@@ -1892,8 +1892,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
    These used to wash the row in an 8%-alpha red on hover, which read as a
    faint pink smear rather than a warning. The red *text* is the signal; the
    hover just says "this is the row under your cursor", same as every
-   non-destructive sibling. Matches `.proto-fte-row__btn--danger` and
-   `.proto-sharing-card__text-action--danger`, which never tinted. */
+   non-destructive sibling. Matches `.proto-fte-row__btn--danger`, which
+   never tinted. */
 .proto-menu-item--destructive:hover,
 .proto-menu-item--destructive:focus-visible {
   background: var(--pds-bg-subtle);
@@ -6192,19 +6192,17 @@ a.proto-copy-row__value:hover {
 }
 
 /*
- * One shared link, on two lines instead of four.
+ * One shared thing: a tile, its title over one line of meta, and one ⋮.
  *
- * It used to stack a title, a meta line, the share URL in a monospace face, and a row of text
- * actions — then put Copy beside all of it. The URL was the heaviest thing in the row and the
- * least use: every link reads `/shared/note/<id>`, so it identified nothing the title did not,
- * while looking like a config file. Centred now, with the text on the left and everything you
- * can do on the right.
+ * Everything you can do about it lives in the menu. The row used to hold up to three actions
+ * inline — 11px text links beside a 36px pill — and a confirm that took the row over; that mix,
+ * more than the number of rows, is what made the page read as busy.
  */
 .proto-sharing-card {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 10px 8px 10px 12px;
   min-width: 0;
 }
 
@@ -6212,99 +6210,62 @@ a.proto-copy-row__value:hover {
   border-top: 0.5px solid var(--pds-border-soft);
 }
 
-.proto-sharing-card .proto-settings-list-row__leading {
+/* 32px rather than the settings tile's 40: the tile names a kind, it is not the row's subject. */
+.proto-sharing-card .proto-settings-list-row__leading,
+.proto-sharing-deleted__row .proto-settings-list-row__leading {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   color: var(--pds-text-primary);
   flex-shrink: 0;
 }
 
-/*
- * The actions, held together at the end of the row.
- *
- * `flex-shrink: 0` against the global reset is what keeps them on one line as the title grows;
- * the text column beside them is the part that gives.
- */
-.proto-sharing-card__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
+/* The text column is the way in: a bare button the width of everything but the tile and ⋮. */
 .proto-sharing-card__main {
+  appearance: none;
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
+  align-items: flex-start;
   gap: 2px;
   min-width: 0;
-}
-
-.proto-sharing-card__title {
-  color: var(--pds-text-primary);
-  text-decoration: none;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.proto-sharing-card__title:hover {
-  color: var(--pds-accent);
-}
-
-.proto-sharing-card__meta {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.proto-sharing-card__text-action {
   margin: 0;
   padding: 0;
-  border: none;
+  border: 0;
   background: none;
-  color: var(--pds-text-secondary);
-  font: 500 11px/1.35 var(--pds-font-body);
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+
+button.proto-sharing-card__main {
   cursor: pointer;
 }
 
-.proto-sharing-card__text-action:hover:not(:disabled) {
+button.proto-sharing-card__main:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.proto-sharing-card__title {
+  max-width: 100%;
   color: var(--pds-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.proto-sharing-card__text-action:disabled {
-  opacity: 0.55;
-  cursor: default;
+.proto-sharing-card__meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.proto-sharing-card__text-action--danger:hover:not(:disabled) {
-  color: var(--pds-destructive);
-}
-
-.proto-sharing-card__text-action--accent {
-  color: var(--pds-accent);
-}
-
-/* The question sits in the actions row it replaces, so the row keeps its height. */
-.proto-sharing-card__confirm-prompt {
-  color: var(--pds-text-secondary);
-  font: 500 11px/1.35 var(--pds-font-body);
-  text-align: right;
-}
-
-.proto-sharing-card__actions > .proto-thread-review__dismiss {
+.proto-sharing-card__more {
   flex-shrink: 0;
-}
-
-.proto-sharing-deleted {
-  margin-top: 24px;
-}
-
-.proto-sharing-deleted__title {
-  margin: 0;
-  padding: 0 12px 6px;
-  color: var(--pds-text-tertiary);
-  text-transform: uppercase;
+  display: inline-flex;
 }
 
 .proto-sharing-deleted__status {
@@ -6316,9 +6277,21 @@ a.proto-copy-row__value:hover {
   color: var(--pds-text-secondary);
 }
 
+/* The folded "Recently deleted spaces" line; its caret turns down while it is open. */
+.proto-sharing-deleted__chevron {
+  display: flex;
+  color: var(--pds-text-tertiary);
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.proto-sharing-deleted__toggle[aria-expanded='true'] .proto-sharing-deleted__chevron {
+  transform: rotate(90deg);
+}
+
 .proto-sharing-deleted__list {
   display: flex;
   flex-direction: column;
+  border-top: 0.5px solid var(--pds-border-soft);
 }
 
 .proto-sharing-deleted__row {
@@ -6326,15 +6299,7 @@ a.proto-copy-row__value:hover {
   align-items: center;
   gap: 12px;
   min-width: 0;
-  padding: 12px;
-}
-
-/* Space accent tile fills the leading slot — no gray settings tile behind it. */
-.proto-sharing-deleted__space-icon {
-  background: transparent;
-  border: none;
-  padding: 0;
-  color: inherit;
+  padding: 10px 12px;
 }
 
 .proto-sharing-deleted__row + .proto-sharing-deleted__row {
@@ -6689,12 +6654,65 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   text-align: left;
 }
 
-.proto-lock-pin-settings__lead {
-  margin: 0 0 14px;
+/*
+ * Settings → Lock PIN: a padlock tile beside the state and the step's one instruction, over the
+ * digits. The group around it is `overflow: hidden` with no padding of its own, so the body has to
+ * bring its own — without it the first digit's focus ring and the group's rounded corners clip.
+ */
+.proto-lock-pin-settings__body {
+  padding: 16px;
+}
+
+.proto-lock-pin-settings__hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.proto-lock-pin-settings__glyph {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--pds-radius-menu);
+  background: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+}
+
+.proto-lock-pin-settings__hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.proto-lock-pin-settings__status {
   font-family: var(--pds-font-body);
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+}
+
+.proto-lock-pin-settings__lead {
+  font-family: var(--pds-font-body);
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.35;
+  color: var(--pds-text-secondary);
+}
+
+/* "Lock a note from its ⋮ menu" — the glyph sits in the line, at the caption's x-height. */
+.proto-lock-pin-settings__howto {
+  margin: 4px 2px 0;
+  color: var(--pds-text-secondary);
+}
+
+.proto-lock-pin-settings__howto-icon {
+  vertical-align: -2px;
   color: var(--pds-text-primary);
 }
 
@@ -7318,21 +7336,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   element, the whole group goes, heading and all.
 */
 .proto-home-section--group:not(:has(.proto-home-section__list > *)) {
-  display: none;
-}
-
-/*
-  A row folded away behind the section's "N more" bar.
-
-  `PrototypeHomeSection` puts this class on the rows itself, from a layout effect, because
-  the rows are opaque children it cannot re-render — the same reason the empty-group rule
-  above has to ask `:has()` rather than decide in the parent.
-
-  Written as a child selector rather than with `!important` so it simply out-specifies each
-  row's own `display` (0,2,0 against `.proto-list-panel__row`'s 0,1,0). A bare class would
-  tie on specificity and leave the outcome to whichever stylesheet happened to load last.
-*/
-.proto-home-section__list > .proto-home-section__row--folded {
   display: none;
 }
 
@@ -8152,6 +8155,183 @@ button.proto-home-card--tappable:hover {
   font-weight: 600;
 }
 
+/*
+ * "Friday nights", with the hour drawn beside it (`ProtoDaypartMark.tsx`).
+ *
+ * Not a chip: chips are things you can open, and this is a fact about when you study. It is the
+ * sentence's own words, in its own weight and ink, with a glyph in front, kept on one line
+ * together. The accent is for things you act on. The glyph moves for a few beats when the
+ * greeting lands, then rests; the pointer wakes it again.
+ */
+.proto-daypart {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+
+
+.proto-daypart__glyph {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 1.05em;
+  height: 1.05em;
+  overflow: visible;
+  /* The sentence's ink: a quieter glyph read as a different, lesser thing beside its words. */
+  color: currentColor;
+  transform: translateY(-0.04em);
+}
+
+.proto-daypart__moon,
+.proto-daypart__star,
+.proto-daypart__sun circle {
+  fill: currentColor;
+}
+
+.proto-daypart__rays line,
+.proto-daypart__horizon {
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
+
+.proto-daypart__horizon--short {
+  opacity: 0.5;
+}
+
+/* Every moving part turns about its own middle. */
+.proto-daypart__star,
+.proto-daypart__sun,
+.proto-daypart__rays {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Night: the two stars take turns. */
+.proto-daypart__star {
+  animation: proto-daypart-twinkle 2.4s var(--pds-ease-standard) 3;
+}
+
+.proto-daypart__star--b {
+  animation-delay: 1.2s;
+}
+
+/* Afternoon: the rays turn a little, as if the light were moving. */
+.proto-daypart__sun--turn .proto-daypart__rays {
+  animation: proto-daypart-turn 6s var(--pds-ease-standard) 1;
+}
+
+/* Morning: the sun comes up over its line. Evening: it settles below it. */
+.proto-daypart__sun--rise {
+  animation: proto-daypart-rise 2.2s var(--pds-ease-standard) 1 both;
+}
+
+.proto-daypart__sun--set {
+  animation: proto-daypart-set 2.2s var(--pds-ease-standard) 1 both;
+}
+
+.proto-daypart__sun--rise .proto-daypart__rays,
+.proto-daypart__sun--set .proto-daypart__rays {
+  animation: proto-daypart-glow 2.2s var(--pds-ease-standard) 1 both;
+}
+
+/* Under the pointer, the same motion again, for as long as it stays. */
+@media (hover: hover) {
+  .proto-daypart:hover .proto-daypart__star {
+    animation-name: proto-daypart-twinkle-again;
+    animation-iteration-count: infinite;
+  }
+
+  .proto-daypart:hover .proto-daypart__sun--turn .proto-daypart__rays {
+    animation: proto-daypart-turn-again 6s linear infinite;
+  }
+}
+
+@keyframes proto-daypart-twinkle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(0.6);
+  }
+}
+
+/* A second name for the same frames, so hovering restarts it. */
+@keyframes proto-daypart-twinkle-again {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes proto-daypart-turn {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(45deg);
+  }
+}
+
+@keyframes proto-daypart-turn-again {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes proto-daypart-rise {
+  from {
+    transform: translateY(2.5px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes proto-daypart-set {
+  from {
+    transform: translateY(-1.5px);
+  }
+  to {
+    transform: translateY(1px);
+  }
+}
+
+@keyframes proto-daypart-glow {
+  from {
+    opacity: 0.2;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-daypart__star,
+  .proto-daypart__sun,
+  .proto-daypart__rays,
+  .proto-daypart:hover .proto-daypart__star,
+  .proto-daypart:hover .proto-daypart__sun--turn .proto-daypart__rays {
+    animation: none;
+  }
+}
+
+/* A chip and the comma after it: never split across lines (see `withTrailingPunctuation`). */
+.proto-home-greeting__glue {
+  white-space: nowrap;
+}
+
 /* Inline stat chips — same glass recipe as the cards, shrunk to pill size. */
 .proto-home-greeting__chip {
   display: inline-flex;
@@ -8207,6 +8387,12 @@ button.proto-home-greeting__chip:hover {
 .proto-home-greeting__chip svg {
   display: block;
   flex-shrink: 0;
+}
+
+/* The glyph fills its `em`-sized box (see `ChipIcon`); the markup's own width is in pixels. */
+.proto-home-greeting__chip-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
 /* Tappable scripture chip — keeps the scripture text color on the glass surface. */
@@ -10523,9 +10709,7 @@ button.proto-appearance-hero__card {
  * glyph's true edge and the weight is exactly the font's.
  */
 .proto-welcome3__numeral-path {
-  /* On the element rather than the glyph in `defs`, so the gleam below can wear its own. */
-  fill: url(#proto-welcome3-grad);
-  stroke: url(#proto-welcome3-grad);
+  /* Fill and stroke are set inline by `Harvous3Numeral`: the gradient ids are per instance. */
   stroke-width: 28;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -10568,7 +10752,6 @@ button.proto-appearance-hero__card {
  * two copies gets the same result out of `fill-opacity`, which can.
  */
 .proto-welcome3__numeral-drift {
-  fill: url(#proto-welcome3-grad-drift);
   fill-opacity: 0;
   /* Begins once the opening draw and fill have finished and had a beat to settle. */
   animation: proto-welcome3-drift 14000ms ease-in-out 2400ms infinite;
@@ -11312,32 +11495,6 @@ html.harvous-prototype-route
 }
 
 /* ── Recall carousel (Home resurfacing) ─────────────────────────────────── */
-/* ─── Card stack ─────────────────────────────────────────────────────────────
-   An overlapping deck that fans out on tap, replacing the dot-and-caret pager.
-   Tappability is fixed by having no small targets at all: collapsed, the whole
-   deck is one button; fanned, every card is a full-size one. */
-
-/* Hover spreads the deck: layers slide down and widen toward the top card's
-   edges, showing more of what's underneath without committing to the fan.
-   Hover-only by construction — there is no hovering on touch, where the tap
-   fans it anyway. */
-
-/* The fan. Each card begins where the collapsed deck sat — pulled up under the
-   one above and slightly narrowed, as if it had been underneath — then settles
-   into place one beat after its predecessor. The stagger is what makes it read
-   as a deck spreading rather than a list fading in.
-   Overshoot easing (the 1.24 in the curve) gives the settle a little weight. */
-@keyframes proto-card-stack-fan {
-  from {
-    opacity: 0;
-    transform: translateY(-14px) scale(0.965);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 /*
  * One line, truncated — a recall card's meta is a reminder of what the note was about, not
  * the note.
@@ -19226,8 +19383,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * ─── The translations behind the page ───────────────────────────────────────────────────
  *
  * Activity's day stack cannot be reused here, and the reason is worth stating because the
- * markup looks identical: `.proto-feed-stack` is `max-width: 640px` and declares no query
- * container, so its sheet would come out *narrower than the 656px measure inside it*. The
+ * markup looks identical: `.proto-feed-stack` is capped by `--pds-feed-sheet-max` and declares
+ * no query container, so its sheet would not follow the reader column's widening clamp. The
  * reader is on the shared paper column and has to stay there — the whole point of
  * `--pds-paper-measure` is that no line ever rewraps.
  *
@@ -22327,14 +22484,14 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 
 .proto-hub-frame > .proto-feed-sheet {
   width: 100%;
-  max-width: 640px;
+  max-width: var(--pds-feed-sheet-max);
   margin: 0 auto;
 }
 
 /*
  * Phones: the paper runs out to the toolbar's own edges, and finishes inside the frame's.
  *
- * ── Width. On a desktop the 20px here is invisible, because the stack caps at 640px and
+ * ── Width. On a desktop the 20px here is invisible, because the stack caps at its max and
  * centres long before the padding matters. On a 359px shell it is the whole story: the sheet
  * started 14px inside the first toolbar button and ended 14px inside the avatar, so the two
  * surfaces that share the window's left edge did not share it. `--pds-shell-gutter` is the
@@ -22411,7 +22568,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    *
    * Zero now, and the rule below takes the same 14px off the body. It was the retired rail's
    * gutter: a 304px sidebar has to hold its content off the edge, and the hub carried that
-   * inset onto a 640px sheet where Activity's body has none — so the room's sentence started
+   * inset onto a feed sheet where Activity's body has none — so the room's sentence started
    * 14px further in than the same sentence on the surface beside it. The header follows the
    * body rather than leading it: the title and the greeting under it have to start on the
    * same line, which is the whole reason this is one number and not two.
@@ -22668,7 +22825,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 .proto-feed-stack {
   position: relative;
   width: 100%;
-  max-width: 640px;
+  max-width: var(--pds-feed-sheet-max);
   margin: 0 auto;
   min-height: 0;
   display: flex;
@@ -22810,6 +22967,10 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 
 /* The sheet: today's page, or whichever day is in front. */
 .proto-feed-sheet {
+  /* A size container, so what lives on the sheet can respond to the sheet's width rather than
+     the window's (the greeting does). Inline size only: the sheet's height still follows its
+     content. */
+  container: proto-feed-sheet / inline-size;
   position: relative;
   z-index: 1;
   display: flex;
@@ -22856,8 +23017,8 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * the tray it is lying in.
  *
  * Phones only, and that is the narrower breakpoint on purpose. Above 600px the gutter goes
- * back to 10px — where the same wedge is under 2px tall — and past roughly 676px the stack
- * hits its 640px cap and centres, so the sheet is nowhere near the frame's corners and a
+ * back to 10px — where the same wedge is under 2px tall — and well past that the stack hits
+ * its `--pds-feed-sheet-max` cap and centres, so the sheet is nowhere near the frame's corners and a
  * rounded bottom on it would be exactly the card bottom this surface keeps being mistaken
  * for.
  */
@@ -23086,12 +23247,18 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * The opening sentence, scaled up on the sheet.
  *
  * The greeting was sized for the sidebar, where 15px is already large against a 304px rail.
- * On a 640px sheet it is the first thing read and the only prose on the page, so it can
+ * On the feed sheet it is the first thing read and the only prose on the page, so it can
  * carry more weight — but only where there is room for it. Below the shell's mobile
  * breakpoint it keeps the sidebar's size, because the sheet is the full width of a phone
  * and a larger line would cost lines rather than presence.
  */
-@media (min-width: 900px) {
+/*
+ * Keyed to the sheet's own width, not the viewport's. The sheet reaches its full measure at
+ * about 824px of window, so a 900px media query left a band where a full-width sheet still
+ * carried the phone's small, left-set greeting; and a Library panel open beside it narrows
+ * the sheet without the window changing at all.
+ */
+@container proto-feed-sheet (min-width: 600px) {
   /*
    * Both scoped to the body, and the summary's scoping is load-bearing rather than tidiness:
    * `.proto-feed-sheet__summary` alone matches the base rule below at equal specificity, and
@@ -23105,10 +23272,41 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    * canvas without rewriting its four exit points. Scoped to `__body` it was Activity's
    * greeting only, and the hub's quietly kept the retired sidebar's 15px.
    */
+  /*
+   * 21px since the sheet grew to the paper's widest column (784). At 17px the sentence was
+   * sized for a 640px sheet and read as a caption once the decks under it sat two to a row;
+   * it is the page's one piece of prose and its opening line, so it takes the room. The chips
+   * are sized in `em` off this, so they grow with it.
+   */
   .proto-feed-sheet .proto-home-greeting,
   .proto-feed-sheet__body .proto-feed-sheet__summary {
+    font-size: 21px;
+    line-height: 1.6;
+  }
+
+  /*
+   * The greeting as the sheet's opening line: a narrower measure, centred, its lines balanced.
+   *
+   * Across the full 744px it ran as one long line and a stub, which read as a paragraph that
+   * happened to be first. Held to about 34em and set centred it reads as a title-like sentence
+   * over the decks, and `balance` keeps two lines roughly equal rather than full-then-short.
+   * Wide sheets only: on a phone the measure is already narrow, and centred prose there would
+   * just be ragged on both sides.
+   */
+  .proto-feed-sheet .proto-home-greeting {
+    /* 34em, not 28: "Good afternoon" and a long chip broke 28em into three lines. */
+    max-width: 34em;
+    margin-inline: auto;
+    padding-block: 10px 6px;
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  /* The field under it, one step up with it, so the pair keeps its proportion. Scoped to the
+     sheet because the base rule sits later in this file and would win a tie. */
+  .proto-feed-sheet .proto-feed-compose {
     font-size: 17px;
-    line-height: 1.7;
+    padding: 13px 16px;
   }
 }
 
@@ -23184,13 +23382,363 @@ button.proto-feed-sheet__stat:hover {
   display: flex;
   flex-direction: column;
   gap: var(--pds-space-5);
-  margin-bottom: var(--pds-space-5);
 }
 
 /* The band borrows Home's section anatomy, which brings Home's own left inset with it —
    pull it back so eyebrows line up with the day's parts below. */
 .proto-feed-today .proto-home-section__eyebrow {
   padding-left: var(--pds-space-1);
+}
+
+/*
+ * ─── Decks and the Today tabs ──────────────────────────────────────────────────────────────
+ *
+ * Today's offers as stacks (`ProtoDeck.tsx`): one card in front, the rest behind it, cycled with
+ * ‹ › or a swipe. On Home the three decks — Pick up, Review, Suggestions — share one tab group
+ * and show one at a time, full width, under today's passage. All three stay mounted so their
+ * data loads with the page; `hidden` takes the other two out of layout.
+ */
+.proto-feed-today__passage {
+  margin: 0;
+}
+
+.proto-feed-tabs {
+  display: flex;
+  flex-direction: column;
+  /* Tight: the tabs are the deck's heading, not a block of their own. */
+  gap: 10px;
+}
+
+/*
+ * The tabs hug their labels and start on the cards' own edge.
+ *
+ * Stretched across the sheet, three short words floated in a long grey trough and read as a
+ * toolbar. Sized to their labels they read as a heading over the deck. The shared bar's 12px
+ * inset is for a sidebar list; here it would leave the bar hanging inboard of every card.
+ */
+/* The tab row. */
+.proto-feed-tabs__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-3);
+  min-width: 0;
+}
+
+.proto-feed-tabs__bar > .proto-chip-bar {
+  margin: 0;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.proto-feed-tabs__bar > .proto-chip-bar .proto-chip {
+  flex: 0 0 auto;
+  padding-inline: 14px;
+}
+
+/* Every deck hid itself: no tab bar over nothing. */
+.proto-feed-tabs:not(:has(.proto-deck:not([data-count='0']))) {
+  display: none;
+}
+
+/* The tab already names the deck, so the deck's own eyebrow would say it twice. Kept for
+   screen readers rather than removed: it is still the section's name. */
+.proto-feed-tabs .proto-deck__eyebrow {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.proto-deck {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Every source declined to render: no eyebrow over an empty card. */
+.proto-deck[data-count='0'] {
+  display: none;
+}
+
+.proto-deck__eyebrow {
+  margin: 0 0 6px;
+  padding: 0 0 0 var(--pds-space-1);
+}
+
+/*
+ * The stack: the card, and up to two edges peeking under it.
+ *
+ * The marketing site's `.aact__deck`, on this sheet's material. The edges are the paper panel's
+ * own fill and rim with no `backdrop-filter` — the card above them is the sheet's no-blur panel
+ * too, because a blur over opaque paper samples nothing and stacked blurs have crashed the GPU
+ * here before (docs/troubleshooting/PROTOTYPE_AW_SNAP_ERROR_5.md). Each edge is narrower than the
+ * one in front of it, which is what reads as depth.
+ */
+.proto-deck__stack {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.proto-deck[data-peek='1'] .proto-deck__stack {
+  padding-bottom: 6px;
+}
+
+.proto-deck[data-peek='2'] .proto-deck__stack {
+  padding-bottom: 12px;
+}
+
+.proto-deck__stack::before,
+.proto-deck__stack::after {
+  content: '';
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 0;
+  height: 24px;
+  display: none;
+  border-radius: 0 0 14px 14px;
+  background: var(--pds-paper-panel-bottom);
+  box-shadow:
+    0 0 0 0.5px var(--pds-border-control),
+    var(--pds-shadow-paper-panel);
+  z-index: -1;
+}
+
+.proto-deck[data-peek='1'] .proto-deck__stack::before,
+.proto-deck[data-peek='2'] .proto-deck__stack::before,
+.proto-deck[data-peek='2'] .proto-deck__stack::after {
+  display: block;
+}
+
+.proto-deck[data-peek='2'] .proto-deck__stack::before {
+  bottom: 6px;
+}
+
+.proto-deck[data-peek='2'] .proto-deck__stack::after {
+  left: 8%;
+  right: 8%;
+  z-index: -2;
+}
+
+.proto-deck__card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+/* Sideways belongs to the deck; up and down still scroll the sheet. */
+.proto-deck__track {
+  flex: 1 1 auto;
+  touch-action: pan-y;
+}
+
+/* Before the first measure, only the first card — so a deck never paints all of itself and
+   then blinks down to one. */
+.proto-deck__track:not([data-ready]) > :nth-child(n + 2),
+.proto-deck .proto-deck__track > [data-deck-off] {
+  display: none;
+}
+
+/* Rows draw a hairline above every row but the first; in a deck the card in front is usually
+   not the first child, and it has nothing above it. */
+.proto-deck .proto-deck__track > * {
+  border-top: none;
+}
+
+.proto-deck__track[data-moved] > :not([data-deck-off]) {
+  animation: proto-deck-card-in 200ms var(--pds-ease-standard);
+}
+
+@keyframes proto-deck-card-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * An expanding deck (`expand`): the edge under the card is a tab — "2 more" — that opens the
+ * deck into a list of every card. The callout stack's edge, on the deck's paper.
+ */
+.proto-deck__more {
+  appearance: none;
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 38px under the card's 10px overlap leaves a 28px strip, the label centred in it with room
+     above and below. The padding is the overlap, so centring counts only what shows. */
+  height: 38px;
+  margin: -10px 4% 0;
+  padding: 10px 0 0;
+  border: 0;
+  border-radius: 0 0 14px 14px;
+  background: var(--pds-paper-panel-bottom);
+  box-shadow:
+    0 0 0 0.5px var(--pds-border-control),
+    var(--pds-shadow-paper-panel);
+  color: var(--pds-text-secondary);
+  font: 500 11px/1.4 var(--pds-font-body);
+  cursor: pointer;
+}
+
+.proto-deck__less {
+  appearance: none;
+  align-self: center;
+  margin: 8px 0 0;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--pds-radius-pill);
+  background: transparent;
+  color: var(--pds-text-secondary);
+  font: 500 12px/1.4 var(--pds-font-body);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-deck__more:hover,
+  .proto-deck__less:hover {
+    color: var(--pds-text-primary);
+  }
+
+  .proto-deck__less:hover {
+    background: var(--pds-bg-control);
+  }
+}
+
+.proto-deck__more:focus-visible,
+.proto-deck__less:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+/* Opened, the cards are a list again, with the rows' own hairlines between them. */
+.proto-deck .proto-deck__track[data-open] > * + * {
+  border-top: 0.5px solid var(--pds-border-control);
+}
+
+.proto-deck .proto-deck__track[data-open] > * {
+  animation: proto-deck-list-in 220ms var(--pds-ease-standard) both;
+}
+
+@keyframes proto-deck-list-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-deck .proto-deck__track[data-open] > * {
+    animation: none;
+  }
+}
+
+/* The pager: small, at the card's foot, out of the way of whatever the card says. */
+.proto-deck__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: auto;
+  padding: 0 6px 6px;
+}
+
+/*
+ * The pager beside a one-row card rather than under it (`pager="inline"`, the default).
+ *
+ * A deck of rows was a row and then a whole line for "‹ 1 of 3 ›" — most of the card was its
+ * pager. Now the pager sits at the row's right, centred on it, where the chevron was, and the
+ * track keeps room for it so a row's own trailing control (a ⋮, an ×) stays clear of it. The
+ * chevron goes: with arrows beside it, a second arrow saying "this opens" is one too many.
+ */
+.proto-deck--pager-inline .proto-deck__foot {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  margin: 0;
+  padding: 0;
+  gap: 0;
+}
+
+.proto-deck--pager-inline:not([data-count='0']):not([data-count='1']) .proto-deck__track {
+  padding-right: 96px;
+}
+
+.proto-deck--pager-inline:not([data-count='0']):not([data-count='1']) .proto-list-panel__row-chevron {
+  display: none;
+}
+
+.proto-deck--pager-inline .proto-deck__nav {
+  width: 24px;
+  height: 24px;
+}
+
+.proto-deck--pager-inline .proto-deck__count {
+  min-width: 3em;
+}
+
+.proto-deck__nav {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--pds-radius-pill);
+  background: transparent;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-deck__nav:hover {
+    background: var(--pds-bg-control);
+  }
+}
+
+.proto-deck__nav:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 0;
+}
+
+.proto-deck__count {
+  min-width: 3.5em;
+  text-align: center;
+  color: var(--pds-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-deck__track[data-moved] > :not([data-deck-off]) {
+    animation: proto-feed-block-in-reduced 120ms var(--pds-ease-standard);
+  }
+}
+
+/*
+ * Under today's band, the quiet-day line is a caption to what is above it, not a sentence alone
+ * in the middle of the sheet: it sat 46px under the tabs and drifted to the sheet's centre.
+ * A day flipped back to has nothing above it, and keeps the centred line.
+ */
+.proto-feed-today + .proto-feed-sheet__rest {
+  margin: 0;
+  padding: var(--pds-space-2) 0 var(--pds-space-5);
 }
 
 .proto-feed-sheet__rest {
@@ -23513,7 +24061,7 @@ button.proto-feed-sheet__stat:hover {
  */
 .proto-feed-sheet__body > .proto-home-greeting,
 .proto-feed-sheet__body > .proto-feed-sheet__rest,
-.proto-feed-sheet__body > .proto-feed-today > .proto-home-section,
+.proto-feed-sheet__body > .proto-feed-today > *,
 .proto-feed-sheet__body > .proto-feed-part {
   animation: proto-feed-block-in var(--pds-duration-sheet) var(--pds-ease-standard) both;
 }
@@ -23527,18 +24075,14 @@ button.proto-feed-sheet__stat:hover {
   animation-delay: 0ms;
 }
 
-.proto-feed-sheet__body > .proto-feed-today > .proto-home-section:nth-child(1) {
+/* Today's passage, then the tab group. Two beats rather than one per section: the band is two
+   blocks now, not five. */
+.proto-feed-sheet__body > .proto-feed-today > :nth-child(1) {
   animation-delay: 45ms;
 }
 
-.proto-feed-sheet__body > .proto-feed-today > .proto-home-section:nth-child(2) {
+.proto-feed-sheet__body > .proto-feed-today > :nth-child(n + 2) {
   animation-delay: 90ms;
-}
-
-/* Everything past the third holds at the same beat — a long day should not have its last
-   part arrive half a second after its first. */
-.proto-feed-sheet__body > .proto-feed-today > .proto-home-section:nth-child(n + 3) {
-  animation-delay: 135ms;
 }
 
 .proto-feed-sheet__body > .proto-feed-part:nth-child(n + 1) {
@@ -23568,7 +24112,7 @@ button.proto-feed-sheet__stat:hover {
 @media (prefers-reduced-motion: reduce) {
   .proto-feed-sheet__body > .proto-home-greeting,
   .proto-feed-sheet__body > .proto-feed-sheet__rest,
-  .proto-feed-sheet__body > .proto-feed-today > .proto-home-section,
+  .proto-feed-sheet__body > .proto-feed-today > *,
   .proto-feed-sheet__body > .proto-feed-part {
     animation-duration: 120ms;
     animation-name: proto-feed-block-in-reduced;
@@ -24621,7 +25165,8 @@ button.proto-feed-sheet__stat:hover {
   align-items: center;
   gap: var(--pds-space-2);
   width: 100%;
-  margin: var(--pds-space-3) 0 0;
+  /* No margin of its own: the sheet body's 20px gap is the one step between every block. */
+  margin: 0;
   padding: 11px 14px;
   border: 0.5px solid var(--pds-border-control);
   border-radius: var(--pds-radius-row);
@@ -24690,13 +25235,27 @@ button.proto-feed-sheet__stat:hover {
 
 .proto-daily-passage__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--pds-space-2);
 }
 
+/* Allowed to shrink and wrap (a global rule pins flex children at `flex-shrink: 0`, which ran
+   the line off the card on a phone and pushed the × out). It breaks at the dot before the
+   reference, which stays whole — see `__ref`. */
 .proto-daily-passage__eyebrow {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
+  text-wrap: pretty;
+}
+
+.proto-daily-passage__ref {
+  white-space: nowrap;
+}
+
+.proto-daily-passage__head > .proto-side-panel__action-btn {
+  flex: none;
 }
 
 /*
@@ -24911,6 +25470,22 @@ button.proto-feed-sheet__stat:hover {
 .proto-challenge__verse--scripture sup.verse-num {
   font-family: var(--pds-font-body);
   color: var(--pds-text-tertiary);
+}
+
+/*
+ * Today's passage on Home wears the reader's own locator (`.pds-reader-verse-num`): the body
+ * face at 11px and 600, raised, with a quarter-em before the first word. The bare `sup` sat
+ * light and tight against the verse, as if it were a footnote mark.
+ */
+.proto-daily-passage .proto-review-dock__verse--scripture sup.verse-num {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-synthesis: none;
+  font-variation-settings: 'ROND' 0, 'wght' 600;
+  line-height: 1;
+  vertical-align: super;
+  margin-inline-end: 0.25em;
+  user-select: none;
 }
 
 /*
@@ -25287,4 +25862,27 @@ button.proto-feed-sheet__stat:hover {
   align-items: center;
   gap: 5px;
   color: var(--pds-text-tertiary);
+}
+
+
+
+/* "Privacy · Terms" at the foot of the account menu: caption-sized, quiet, underlined on hover. */
+.proto-account-menu__legal {
+  margin: 4px 0 2px;
+  padding: 6px 10px 2px;
+  border-top: 0.5px solid var(--pds-border-control);
+  font-size: 11px;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-account-menu__legal a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.proto-account-menu__legal a:hover,
+.proto-account-menu__legal a:focus-visible {
+  color: var(--pds-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

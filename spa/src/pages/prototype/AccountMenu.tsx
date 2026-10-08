@@ -9,6 +9,7 @@
  * and a row that cannot do anything is worse than no row.
  */
 import { useClerk, useUser } from '@clerk/clerk-react';
+import { LEGAL } from '@/utils/legal-versions';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
@@ -165,7 +166,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               onFocus={prefetchSettingsOpenPath}
               onClick={() => {
                 setOpen(false);
-                playSound('nav.open');
+                playSound('panel.open');
                 storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);
                 // Desktop: open Account detail directly so the settings Outlet never
                 // briefly hits TanStack's default Not Found during the index redirect.
@@ -197,6 +198,16 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>{isSigningOut ? 'Logging out…' : 'Log out'}</span>
             </button>
+            {/* The fine print, where people look for it — at the foot of the account menu. */}
+            <p className="proto-account-menu__legal">
+              <a href={LEGAL.privacy.url} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
+                Privacy
+              </a>
+              <span aria-hidden> · </span>
+              <a href={LEGAL.terms.url} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
+                Terms
+              </a>
+            </p>
           </div>
           )}
         </ProtoPopoverShell>

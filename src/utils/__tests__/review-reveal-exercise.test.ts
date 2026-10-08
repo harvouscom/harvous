@@ -25,6 +25,11 @@ describe('revealCarriesExercise', () => {
     expect(revealCarriesExercise('verse.recall', {})).toBe(true);
   });
 
+  it('passes the Takeaway card, which needs nothing built: the prompt, the note, the verdicts', () => {
+    expect(REVEAL_EXERCISE_FIELD['note.takeaway']).toBe('always');
+    expect(revealCarriesExercise('note.takeaway', { noteChoice: null })).toBe(true);
+  });
+
   it('fails a rung it does not know, and a missing reveal', () => {
     expect(revealCarriesExercise('note.recognize', { noteChoice: { options: [] } })).toBe(false);
     expect(revealCarriesExercise('verse.locate', null)).toBe(false);
@@ -34,7 +39,7 @@ describe('revealCarriesExercise', () => {
 
 describe('alternativeSteps', () => {
   it('tries the opening steps nearest where the item stands, never its own', () => {
-    expect(alternativeSteps('verse', 4)).toEqual([3, 6, 1, 0]);
+    expect(alternativeSteps('verse', 4)).toEqual([6, 1, 0]);
     expect(alternativeSteps('note', 0)).toEqual([1, 2]);
     expect(alternativeSteps('chapter', 1)).toEqual([0]);
   });

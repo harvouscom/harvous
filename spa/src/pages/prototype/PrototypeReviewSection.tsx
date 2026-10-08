@@ -1,11 +1,8 @@
 import { Suspense, lazy, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
-import PrototypeHomeSection from './PrototypeHomeSection';
-import {
-  enclosingHomeSection,
-  scrollCollapsedSectionIntoView,
-} from '../../lib/proto-collapse-scroll';
+import ProtoDeck from './ProtoDeck';
+import { scrollCollapsedSectionIntoView } from '../../lib/proto-collapse-scroll';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
 import PrototypeReviewSittingCard from './PrototypeReviewSittingCard';
@@ -27,7 +24,6 @@ import { REVIEW_MAX_ATTEMPTS, REVIEW_INBOX_MAX_ROWS } from '@/utils/review-item-
  * every route, including sign-in, for every subscriber who will never see it.
  */
 const PrototypeReviewSample = lazy(() => import('./PrototypeReviewSample'));
-import { useHomeChallenges } from '../../hooks/queries/useChallenges';
 import { useDeferReview, useSetReviewStatus } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -48,13 +44,11 @@ import {
   reviewColdStartOpensCopy,
 } from './proto-review-copy';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
-import { prototypeChallengeRouteTo } from '@/lib/prototype-path';
 import { fillFraming } from '@/utils/review-framing';
 import { reviewRowSource, reviewRowSubject } from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
 import { describeNextDue } from '@/utils/review-scheduling';
 import { recallChip } from './PrototypeRecallStateChip';
-import { collapsedReviewRows } from './review-collapsed-rows';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
 import { useDismissibleReviewSample } from './use-dismissible-review-sample';
 
@@ -81,6 +75,20 @@ function reviewRowTask(item: { task: string; exercise?: { label: string } | null
   );
 }
 
+/**
+ * Review on Home, as a deck: the question you would be asked next on top, the rest of today's
+ * sitting peeking out under it.
+ *
+ * It was a section — a heading over the sitting card, two rows of the next questions, the
+ * active challenge and a "See all" bar. The two rows were the same promise as the card ("there
+ * is more after this one") said twice, and they are what the deck's edges now say without words.
+ * The fold stays, at the card's foot, for anyone who wants the whole list. The challenge moved
+ * to Pick up (`PrototypeChallengeContinueRow`): a challenge in progress is something you were
+ * doing, not a question.
+ *
+ * Who sees what is unchanged: a guest nothing, an account without Review the daily sample and
+ * the Plus offer (as two cards), a cold start its empty state, Plus with nothing due nothing.
+ */
 export default function PrototypeReviewSection() {
   const navigate = useNavigate();
   const { openReviewDock } = useProtoShell();
@@ -108,7 +116,6 @@ export default function PrototypeReviewSection() {
   const allQuery = useReviewItems(undefined, {
     enabled: expanded || nothingActive,
   });
-  const challengesQuery = useHomeChallenges();
   /*
    * The sitting the dock will ask, already warm — Home fetches it with its other queries
    * (`use-home-surface-data.ts`), under the same key. Read here only to pick the card's question,
@@ -144,7 +151,7 @@ export default function PrototypeReviewSection() {
     const sample = sampleQuery.data?.sample ?? null;
     if (plusPromptDismissed && !sample) return null;
     return (
-      <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
+      <ProtoDeck label={REVIEW_SECTION_TITLE} pager="foot">
         {sample ? (
           /* No fallback: the card only exists once its own fetch has answered, and a
              placeholder would flash where it is about to be. */
@@ -185,7 +192,7 @@ export default function PrototypeReviewSection() {
           }
         />
         )}
-      </PrototypeHomeSection>
+      </ProtoDeck>
     );
   };
 
@@ -215,21 +222,13 @@ export default function PrototypeReviewSection() {
   const items = (expanded ? (dueActive ?? inboxItems) : inboxItems)
     .filter((item) => item.id !== head?.id)
     .slice(0, REVIEW_INBOX_MAX_ROWS);
-  const activeChallenges = (challengesQuery.data?.challenges ?? []).filter(
-    (c) => c.status === 'active',
-  );
-
-  const challengeRow = activeChallenges[0];
-  const reviewRows = expanded ? items : collapsedReviewRows(items);
   const today = inboxQuery.data?.today ?? null;
-  const moreThanShown = items.length > reviewRows.length;
   /*
-   * Whether today has rows the closed lane is not showing — measured on the closed lane, so it
-   * holds while the fold is open (opened, every row is shown and `moreThanShown` is always false).
+   * The rest of today, behind the card. Closed, none of it is listed — the deck's edges are what
+   * say it is there — so the fold has more of today to open whenever anything follows the head.
    */
-  /* The card holds the head, so it is not behind the fold either. */
   const inboxShown = inboxItems.filter((item) => item.id !== head?.id).slice(0, REVIEW_INBOX_MAX_ROWS);
-  const moreToday = inboxShown.length > collapsedReviewRows(inboxShown).length;
+  const moreToday = inboxShown.length > 0;
   /*
    * The bar opens the other two sections as well, so it shows whenever any of the three has
    * something in it — including when today is finished and only the later ones remain.
@@ -239,15 +238,10 @@ export default function PrototypeReviewSection() {
    * none — the reader pressed it and found only things not due yet. Then the bar names what it
    * actually opens: what is coming back later, else what was set aside.
    */
-  const canExpand =
-    moreThanShown || expanded || comingBackCount > 0 || setAside.length > 0;
+  const canExpand = moreToday || expanded || comingBackCount > 0 || setAside.length > 0;
 
   const hasRows =
-    Boolean(head) ||
-    reviewRows.length > 0 ||
-    Boolean(challengeRow) ||
-    comingBackCount > 0 ||
-    setAside.length > 0;
+    Boolean(head) || items.length > 0 || comingBackCount > 0 || setAside.length > 0;
 
   /*
    * Today is finished — the one state the shelf could never reach, because a sitting that
@@ -261,7 +255,7 @@ export default function PrototypeReviewSection() {
   if (!hasRows && coldStart) {
     const opensIn = describeNextDue(coldStart.opensAt);
     return (
-      <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
+      <ProtoDeck label={REVIEW_SECTION_TITLE}>
         <PrototypeListEmptyState
           iconName="seedling"
           title={REVIEW_EMPTY_NOTHING_YET_TITLE}
@@ -274,12 +268,12 @@ export default function PrototypeReviewSection() {
             </>
           }
         />
-      </PrototypeHomeSection>
+      </ProtoDeck>
     );
   }
 
   // A church reader whose church has not given them anything yet: the ordinary offer.
-  if (accessLevel === 'church' && !hasRows && !doneForToday && !challengeRow) {
+  if (accessLevel === 'church' && !hasRows && !doneForToday) {
     return inboxQuery.isSettled ? renderOffer() : null;
   }
 
@@ -289,65 +283,52 @@ export default function PrototypeReviewSection() {
 
   const nextReturn = doneForToday ? describeNextDue(nextSittingAt(summaryItems, nowMs)) : null;
 
-  return (
-    <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
-      {head || doneForToday ? (
-        <PrototypeReviewSittingCard
-          head={doneForToday ? null : head}
-          today={today}
-          nextReturn={nextReturn}
-          onBegin={openInDock}
-        />
-      ) : null}
-      {reviewRows.map((item) => (
-        <PrototypeReviewRow
-          key={item.id}
-          icon={reviewKindIcon(item.kind)}
-          title={reviewRowSubject(item)}
-          meta={[
-            reviewRowTask(item),
-            item.framing ? fillFraming(item.framing) : reviewRowSource(item, reviewRowSubject(item)),
-          ]}
-          titleTrailing={recallChip(item)}
-          onOpen={() => openInDock(item.id)}
-          actions={reviewRowActions({
-            onDefer: () => defer.mutate(item.id),
-            onPause: () => setStatus.mutate({ itemId: item.id, status: 'paused' }),
-            onRemove: () => setStatus.mutate({ itemId: item.id, status: 'archived' }),
-          })}
-        />
-      ))}
+  /*
+   * The card on top: the sitting's question, or the day's full stop. Without either — nothing due
+   * now, only things coming back later or set aside — the rows themselves are the cards.
+   */
+  const reviewRow = (item: (typeof items)[number]) => (
+    <PrototypeReviewRow
+      key={item.id}
+      icon={reviewKindIcon(item.kind)}
+      title={reviewRowSubject(item)}
+      meta={[
+        reviewRowTask(item),
+        item.framing ? fillFraming(item.framing) : reviewRowSource(item, reviewRowSubject(item)),
+      ]}
+      titleTrailing={recallChip(item)}
+      onOpen={() => openInDock(item.id)}
+      actions={reviewRowActions({
+        onDefer: () => defer.mutate(item.id),
+        onPause: () => setStatus.mutate({ itemId: item.id, status: 'paused' }),
+        onRemove: () => setStatus.mutate({ itemId: item.id, status: 'archived' }),
+      })}
+    />
+  );
+  const hasCard = Boolean(head) || doneForToday;
+  /* One edge per question still to come today, at most two — the deck is as deep as the sitting. */
+  const peek = (hasCard && !doneForToday ? Math.min(2, inboxShown.length) : undefined) as
+    | 0
+    | 1
+    | 2
+    | undefined;
 
-      {challengeRow ? (
-        <PrototypeHomeRow
-          icon="list-check"
-          title={challengeRow.title}
-          meta={[`Step ${Math.min(challengeRow.currentStepIndex + 1, challengeRow.totalSteps)} of ${challengeRow.totalSteps}`]}
-          onClick={() =>
-            void navigate({
-              to: prototypeChallengeRouteTo(),
-              params: { challengeId: challengeRow.id },
-            })
-          }
-        />
-      ) : null}
-
+  const footer = (
+    <>
       {/*
         * The fold says only "See all". Today's progress is on the card above, which outlives the
         * fold — answer down to the last question and there is nothing left to open, which is
-        * exactly when a reader most wants to see how close they are — and the lane must never
+        * exactly when a reader most wants to see how close they are — and the deck must never
         * carry two things saying the same number.
         */}
       {canExpand ? (
         <button
           type="button"
           className="proto-feed-part__more"
-          /* Same as every other fold on Home: collapsing brings the lane's top
-             back, because this bar is below the rows it just removed. Found from
-             the button rather than a ref — this toggle lives inside a
-             `PrototypeHomeSection` it does not own. */
+          /* Collapsing brings the deck's top back, because this bar is below the rows it just
+             removed. */
           onClick={(e) => {
-            if (expanded) scrollCollapsedSectionIntoView(enclosingHomeSection(e.currentTarget));
+            if (expanded) scrollCollapsedSectionIntoView(e.currentTarget.closest('.proto-deck'));
             setExpanded((open) => !open);
           }}
         >
@@ -364,12 +345,10 @@ export default function PrototypeReviewSection() {
         </button>
       ) : null}
 
-      {/*
-        * Opened, the lane reads as one list: the rest of today, then what is coming back, then
-        * what has been set aside. Headings rather than three more buttons — these are parts of
-        * the same queue, and pressing a second control to reach the second part of a list you
-        * have already opened is a control that earns nothing.
-        */}
+      {/* Opened, one list: the rest of today, then what is coming back, then what was set
+          aside — headings inside it rather than three more buttons. */}
+      {expanded && hasCard ? items.map(reviewRow) : null}
+
       {expanded && comingBack.length > 0 ? (
         <>
           <p className="proto-review-section__subhead">{REVIEW_COMING_BACK_HEADING}</p>
@@ -435,6 +414,21 @@ export default function PrototypeReviewSection() {
           }
         />
       ) : null}
-    </PrototypeHomeSection>
+    </>
+  );
+
+  return (
+    <ProtoDeck label={REVIEW_SECTION_TITLE} counter={!hasCard} peek={peek} footer={footer}>
+      {hasCard ? (
+        <PrototypeReviewSittingCard
+          head={doneForToday ? null : head}
+          today={today}
+          nextReturn={nextReturn}
+          onBegin={openInDock}
+        />
+      ) : (
+        items.map(reviewRow)
+      )}
+    </ProtoDeck>
   );
 }

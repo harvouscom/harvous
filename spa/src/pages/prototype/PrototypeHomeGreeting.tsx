@@ -30,6 +30,19 @@ import { currentLiturgicalSeason } from '@/utils/liturgical-season';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import { protoRelativeCaption } from './proto-time';
 import { recallKindIcon } from './recall-kind-icons';
+
+/**
+ * A glyph inside a greeting chip, sized against the chip's own text rather than in pixels.
+ *
+ * `size` is the pixel size each glyph was drawn at against the chip's original flat 12px, and is
+ * kept as that ratio: the chip's type is relative now (it grows with the sentence on the sheet),
+ * and a fixed 10–11px glyph beside 17px words read as shrunken.
+ */
+function ChipIcon({ name, size }: { name: IconName; size: number }) {
+  const em = `${size / 12}em`;
+  return <Icon name={name} size={size} className="proto-home-greeting__chip-icon" style={{ width: em, height: em }} aria-hidden />;
+}
+import ProtoDaypartMark, { isDaypart, type Daypart } from './ProtoDaypartMark';
 import { HOME_INTRO_LIST_MODES, type SidebarListModeEntry } from './proto-sidebar-list-modes';
 import type { SidebarListMode } from '../../layouts/proto-shell-context';
 
@@ -104,7 +117,21 @@ export default function PrototypeHomeGreeting({
       }),
     [rhythm, weeklyDays, lastActivityMs, countForLogic],
   );
-  const activityClause = activityTail ? <>, {activityTail}</> : null;
+  /*
+   * "often on Friday nights" gets the hour drawn beside it (`ProtoDaypartMark`). Matched on the
+   * rhythm phrase's own shape, so every other tail — "twice this week", "here yesterday" — stays
+   * plain words.
+   */
+  const rhythmMatch = activityTail ? /^often on (\S+) (\S+)$/.exec(activityTail) : null;
+  const activityClause = activityTail ? (
+    rhythmMatch && isDaypart(rhythmMatch[2]!) ? (
+      <>
+        , often on <ProtoDaypartMark day={rhythmMatch[1]!} daypart={rhythmMatch[2] as Daypart} />
+      </>
+    ) : (
+      <>, {activityTail}</>
+    )
+  ) : null;
 
   const trendClause = trend ? (
     <>
@@ -128,7 +155,7 @@ export default function PrototypeHomeGreeting({
               /* Same words, same glass, no press — the chip styling's hover and cursor are
                  keyed on `button`, so a span is the honest version of it. */
               <span className={chipClass}>
-                <Icon name={iconName} size={iconSize} aria-hidden />
+                <ChipIcon name={iconName} size={iconSize} />
                 <span>{label}</span>
               </span>
             ) : (
@@ -138,7 +165,7 @@ export default function PrototypeHomeGreeting({
                 aria-label={`Open ${label}`}
                 onClick={trend.onOpen}
               >
-                <Icon name={iconName} size={iconSize} aria-hidden />
+                <ChipIcon name={iconName} size={iconSize} />
                 <span>{label}</span>
               </button>
             )}
@@ -179,7 +206,7 @@ export default function PrototypeHomeGreeting({
      until it does a pill that presses and does nothing is worse than one that does not press. */
   const seasonLine = season ? (
     <span className="proto-glass-surface proto-home-greeting__season">
-      <Icon name="calendar" size={11} aria-hidden />
+      <ChipIcon name="calendar" size={11} />
       <span>{season.label}</span>
     </span>
   ) : null;
@@ -206,7 +233,7 @@ export default function PrototypeHomeGreeting({
             nav.openList(mode);
           }}
         >
-          <Icon name={entry.icon} size={10} aria-hidden />
+          <ChipIcon name={entry.icon} size={10} />
           <span>{entry.label}</span>
         </button>
       );
@@ -221,7 +248,7 @@ export default function PrototypeHomeGreeting({
         aria-label="Open Today's Passage"
         onClick={onOpenTodaysPassage}
       >
-        <Icon name="book" size={11} aria-hidden />
+        <ChipIcon name="book" size={11} />
         <span>Today's Passage</span>
       </button>
     ) : (
@@ -252,7 +279,7 @@ export default function PrototypeHomeGreeting({
           nav.openThread(slug);
         }}
       >
-        <Icon name="arrow-right-arrow-left" size={10} aria-hidden />
+        <ChipIcon name="arrow-right-arrow-left" size={10} />
         <span>{lead.thread.title}</span>
       </button>
     ) : null;
@@ -265,7 +292,7 @@ export default function PrototypeHomeGreeting({
         aria-label={`Open ${lead.book.title} in Scripture`}
         onClick={() => nav.openScriptureBook(lead.book.bookOrder)}
       >
-        <Icon name="scroll" size={11} aria-hidden />
+        <ChipIcon name="scroll" size={11} />
         <span>{lead.book.title}</span>
       </button>
     ) : null;
@@ -280,7 +307,7 @@ export default function PrototypeHomeGreeting({
           nav.openFolder(lead.folder.name);
         }}
       >
-        <Icon name="folder" size={10} aria-hidden />
+        <ChipIcon name="folder" size={10} />
         <span>{lead.folder.name}</span>
       </button>
     ) : null;
@@ -293,13 +320,35 @@ export default function PrototypeHomeGreeting({
         aria-label={`Search notes tagged ${lead.tag.name}`}
         onClick={() => nav.openTag(lead.tag.id, lead.tag.name)}
       >
-        <Icon name="tag" size={10} aria-hidden />
+        <ChipIcon name="tag" size={10} />
         <span>{lead.tag.name}</span>
       </button>
     ) : null;
 
   const layout = homeLeadCopyLayout(lead);
   const subjectChip = threadChip || bookChip || folderChip || tagChip;
+
+  /*
+   * A chip and the punctuation after it, kept on one line.
+   *
+   * The chip is an inline-flex box, and a line may break between a box and the text that
+   * follows it — so ", with" could start the next line on its own, which reads as a typo. It
+   * only showed once the greeting was centred and balanced, because balancing moves the break.
+   */
+  const withTrailingPunctuation = (chip: ReactNode, after: ReactNode) => {
+    if (!chip || typeof after !== 'string') return <>{chip}{after}</>;
+    const match = /^[,.;:!?]+/.exec(after);
+    if (!match) return <>{chip}{after}</>;
+    return (
+      <>
+        <span className="proto-home-greeting__glue">
+          {chip}
+          {match[0]}
+        </span>
+        {after.slice(match[0].length)}
+      </>
+    );
+  };
 
   const leadSentence = (() => {
     if (lead.kind === 'book' && lead.tone === 'single-note') {
@@ -323,8 +372,7 @@ export default function PrototypeHomeGreeting({
       return (
         <>
           {layout.beforeChip}
-          {countChip}
-          {layout.afterChip}
+          {withTrailingPunctuation(countChip, layout.afterChip)}
           {sentenceEnd}
         </>
       );
@@ -332,8 +380,7 @@ export default function PrototypeHomeGreeting({
     return (
       <>
         {layout.beforeChip}
-        {subjectChip}
-        {layout.afterChip}
+        {withTrailingPunctuation(subjectChip, layout.afterChip)}
         {layout.showCount ? (
           <>
             {countChip} saved so far{sentenceEnd}

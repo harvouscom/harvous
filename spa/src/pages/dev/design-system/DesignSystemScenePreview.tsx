@@ -2,12 +2,15 @@
  * Fixture previews for design-system foundation scenes.
  * Uses production tokens + primitives — edit linked files; HMR updates here.
  */
+import { CalloutCard } from '../../prototype/callouts/PrototypeFeatureCallout';
+import { CALLOUTS, type Callout } from '../../prototype/callouts/callout-registry';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import Icon from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from '../../prototype/ProtoRowSelectCheckbox';
 import ProtoIconBlock from '../../prototype/ProtoIconBlock';
 import ReviewCardsScene from './ReviewCardsScene';
+import SoundsScene from './SoundsScene';
 import { ChoiceOptions } from '../../prototype/review-exercises/ChoiceOptions';
 import PrototypeRecallStateChip from '../../prototype/PrototypeRecallStateChip';
 import {
@@ -1731,6 +1734,38 @@ function Welcome3Scene() {
  * uses one: the row shows for exactly one release per browser and reads the running build's
  * version to decide its shape, so neither variant can be summoned on demand.
  */
+/** Every registered callout, as the card, in both placements — fixtures, no account state. */
+function FeatureCalloutScene() {
+  const noop = () => {};
+  const legal: Callout = {
+    id: 'legal-sample',
+    title: 'We’ve updated our Privacy Policy',
+    body: 'Clearer about what we keep, why, and what deleting your account removes.',
+    illustration: 'legal',
+    action: { label: 'Review changes', href: 'https://harvous.com/legal/changes/' },
+  };
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        One at a time, never twice (seen is kept on the account), and not back to back. Desktop floats it in
+        the window&rsquo;s corner; phones show it at the top of Home.
+      </p>
+      <PrototypeSectionHeader>Corner (desktop)</PrototypeSectionHeader>
+      <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', padding: '12px 12px 0' }}>
+        {[...CALLOUTS, legal].map((callout) => (
+          <div key={callout.id} style={{ width: 300 }}>
+            <CalloutCard callout={callout} variant="corner" onDismiss={noop} onAct={noop} />
+          </div>
+        ))}
+      </div>
+      <PrototypeSectionHeader>Inline (phone, top of Home)</PrototypeSectionHeader>
+      <div style={{ maxWidth: 360 }}>
+        <CalloutCard callout={CALLOUTS[0]!} variant="inline" onDismiss={noop} onAct={noop} />
+      </div>
+    </div>
+  );
+}
+
 function WhatsNewRowScene() {
   const dismiss = (
     <button type="button" className="proto-side-panel__action-btn" aria-label="Dismiss what's new">
@@ -1828,8 +1863,12 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <Welcome3Scene />;
     case 'ds-23-whats-new-row':
       return <WhatsNewRowScene />;
+    case 'ds-27-feature-callout':
+      return <FeatureCalloutScene />;
     case 'ds-25-review-deck-cards':
       return <ReviewCardsScene />;
+    case 'ds-26-sounds':
+      return <SoundsScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

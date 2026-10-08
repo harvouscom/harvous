@@ -22,6 +22,7 @@ import {
 } from './review-item-kinds';
 import {
   CHAPTER_FAMILIES,
+  ladderStepKeysAt,
   nextLadderStep,
   openingStepsFor,
   VERSE_FAMILIES,
@@ -79,8 +80,11 @@ export const REVIEW_DEFER_DAYS = 1;
 export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
   'note.passage': 1.0,
   'note.connect': 1.0,
-  // A tap among four folder names, on screen — below 1 by the rule above.
-  'note.folder': 0.8,
+  /*
+   * Self-rated: the reader says how it went after opening the note, and self-ratings run
+   * overconfident — so a "recalled" here earns a little less than a marked one does.
+   */
+  'note.takeaway': 0.9,
   'verse.recognize': 0.6,
   'verse.rebuild': 1.0,
   'verse.initials': 1.1,
@@ -182,10 +186,9 @@ export const NEVER_LAPSES: ReadonlySet<ReviewPromptKey> = new Set([
   // why `verse.place` is absent: `verse.person` is not here either.
   'chapter.place',
   /*
-   * A folder is often the app's filing before it is the reader's — auto-folder places a note by
-   * its strongest topic — so missing it can be a disagreement with that filing, not forgetting.
+   * `note.folder` was here: a folder is often the app's filing before the reader's. The Takeaway
+   * card that replaced it is the reader's own recall and lapses like any other.
    */
-  'note.folder',
 ]);
 
 export function lapseDamping(lapseCount: number): number {
@@ -257,6 +260,13 @@ export const REVIEW_LEARNING_INTERVAL_DAYS: Record<ReviewOutcome, number> = {
 export const REVIEW_EASE_AFTER = 2;
 
 export function shouldEaseRung(state: {
+  /**
+   * The item's kind. With it, "the same family" is the family the step names — which is the
+   * family both answers were drawn from, since a non-clean answer never moves the step. Without
+   * it, each key's own family is looked up, which is ambiguous now that `chapter.person` and
+   * `verse.sequence` sit in more than one.
+   */
+  kind?: ReviewItemKind | string | null;
   ladderStep: number;
   previousOutcome?: ReviewOutcome | null;
   previousRungKey?: ReviewPromptKey | string | null;
@@ -278,6 +288,13 @@ export function shouldEaseRung(state: {
    * resets the count without a column to store it in: easing moves the item to a different
    * family, so the next miss cannot be the second of this pair.
    */
+  const members = state.kind ? ladderStepKeysAt(state.kind, state.ladderStep) : null;
+  if (members) {
+    return (
+      members.includes(state.rungKey as ReviewPromptKey) &&
+      members.includes(state.previousRungKey as ReviewPromptKey)
+    );
+  }
   const family = ladderFamilyOf(state.rungKey);
   return Boolean(family) && family === ladderFamilyOf(state.previousRungKey);
 }
@@ -295,8 +312,6 @@ export function ladderFamilyOf(key: ReviewPromptKey | string | null | undefined)
   if (!value || !value.includes('.')) return null;
   const verse = VERSE_FAMILIES.findIndex((members) => members.includes(value as ReviewPromptKey));
   if (verse >= 0) return `verse:${verse}`;
-  /* `chapter.verse` closes every chapter family as the fallback; it belongs to its own step. */
-  if (value === 'chapter.verse') return 'chapter:0';
   const chapter = CHAPTER_FAMILIES.findIndex((members) => members.includes(value as ReviewPromptKey));
   if (chapter >= 0) return `chapter:${chapter}`;
   return value;
