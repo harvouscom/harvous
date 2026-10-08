@@ -345,7 +345,7 @@ interface CardFullEditableProps {
   prototypeBodyMountId?: string | null;
   /** Prototype-only: parent signals draft→persist navigation so TipTap remounts with live body HTML. */
   prototypeDraftPersistRemount?: { content: string } | null;
-  /** Bumped with `prototypeDraftPersistRemount` so remount runs even when CardFullEditable remounts. */
+  /** Bumped with `prototypeDraftPersistRemount`. Only bumps after this instance mounted are acted on. */
   prototypeDraftPersistRemountTick?: number;
   /** ISO timestamp for default date title on first body edit (prototype compose / reopened notes). */
   noteCreatedAtIso?: string | null;
@@ -672,7 +672,12 @@ export default function CardFullEditable({
   const prevNoteIdForEditGuardRef = useRef(noteId);
   const prevNoteIdForProtoResetRef = useRef(noteId);
   const seededEditorForNoteRef = useRef<string | null>(null);
-  const handledPersistRemountTickRef = useRef(-1);
+  /*
+   * Starts at the tick this instance mounted under, not -1: the signal means "the draft you are
+   * holding just persisted", so one raised before this editor existed is not addressed to it.
+   * Answering a leftover one reseeds the fallback's empty body over a freshly seeded compose.
+   */
+  const handledPersistRemountTickRef = useRef(prototypeDraftPersistRemountTick);
   /** User clicked/tapped the body editor — skip any title auto-focus intent for this note. */
   const bodyInteractionRef = useRef(false);
   const onPrototypeEditorUnmountRef = useRef(onPrototypeEditorUnmount);
