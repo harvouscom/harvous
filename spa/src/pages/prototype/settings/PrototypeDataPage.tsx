@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { APIError } from '../../../lib/api';
 import { api } from '../../../lib/api';
 import {
   fetchAndValidateUserExport,
@@ -120,8 +121,14 @@ export default function PrototypeDataPage() {
     try {
       await api.delete('/api/user/delete-account');
       navigate({ to: '/sign-in' });
-    } catch {
-      setError("Couldn't delete your account. Please try again.");
+    } catch (err) {
+      /* The server says why when it is something the reader should know — a subscription that
+         could not be cancelled keeps the account, and says so. */
+      setError(
+        err instanceof APIError && err.code === 'DELETE_ACCOUNT_BILLING_FAILED'
+          ? err.message
+          : "Couldn't delete your account. Please try again.",
+      );
       setBusy(null);
       setConfirming(null);
     }

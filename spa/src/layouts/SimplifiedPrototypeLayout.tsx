@@ -167,6 +167,14 @@ import { useGuestAdoption } from '../hooks/useGuestAdoption';
 import { useGuestExitPrompt } from '../hooks/useGuestExitPrompt';
 import { useHistoryWindowReminder } from '../hooks/useHistoryWindowReminder';
 
+/* Never needed for first paint — a callout arrives after the page has — so it stays off the
+   critical path every route pays for. */
+const PrototypeFeatureCalloutCorner = lazy(() =>
+  import('../pages/prototype/callouts/PrototypeFeatureCallout').then((m) => ({
+    default: m.PrototypeFeatureCalloutCorner,
+  })),
+);
+
 /** Local cache of the zone we last told the account about, so a reload is not a write. */
 const TZ_SYNCED_KEY = 'harvous-proto-tz-synced';
 
@@ -1212,6 +1220,13 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
         {/* Sits beside the update toast because it answers the same question at a different
             size, and holds the toast back while it is up so they never stack. */}
         <PrototypeWelcome3 enabled={Boolean(userId) && !isGuest} />
+        {/* One feature callout at a time, in the window's corner on desktop (phones get it
+            inline on Home instead). Steps aside for the welcome above. */}
+        {userId && !isGuest ? (
+          <Suspense fallback={null}>
+            <PrototypeFeatureCalloutCorner />
+          </Suspense>
+        ) : null}
         <PrototypeFeedbackToast />
         <PrototypeShortcutBridge />
         <KeyboardShortcutsInit />

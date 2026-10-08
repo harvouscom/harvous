@@ -34,6 +34,14 @@
  *   GET  /api/profile/my-shared-spaces
  */
 
+import { acknowledgeLegal, legalStatusForUser } from '../utils/legal-acknowledgments';
+import { deleteAccountData } from '../utils/delete-account';
+import {
+  LEGAL_ACKNOWLEDGMENT_SURFACES,
+  LEGAL_DOCUMENTS,
+  type LegalAcknowledgmentSurface,
+  type LegalDocument,
+} from '@/utils/legal-versions';
 import { deleteSearchEventsForUser } from '../utils/record-search-event';
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
@@ -335,30 +343,30 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    // Delete data (same as clear-data)
-    const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId));
-    const noteIds = userNotes.map(n => n.id);
-    await deleteNotesCascadeForUser(auth.userId, noteIds);
-    await db.delete(Threads).where(eq(Threads.userId, auth.userId));
-
-    const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId));
-    for (const space of userSpaces) {
-      await db.delete(SpaceMemberships).where(eq(SpaceMemberships.spaceId, space.id));
-      await db.delete(SpaceInvites).where(eq(SpaceInvites.spaceId, space.id));
-      // Hygiene deletes on the frozen v1 tables (kept until they are dropped)
-      await db.delete(Members).where(eq(Members.spaceId, space.id));
+    /*
+     * Everything the account owns — here, in the backups, and at Polar, Audienceful and PostHog
+     * (see server/utils/delete-account.ts for the list, and for what stays on purpose). The
+     * Clerk user goes last, below; its `user.deleted` webhook runs the same routine again and
+     * finds nothing left.
+     */
+    const { failures } = await deleteAccountData(auth.userId);
+    if (failures.length > 0) {
+      console.error('[delete-account] incomplete for', auth.userId, failures);
     }
-    // Own membership rows in spaces owned by other people.
-    await db.delete(SpaceMemberships).where(eq(SpaceMemberships.userId, auth.userId));
-    await db.delete(Members).where(eq(Members.userId, auth.userId));
-    await db.delete(Spaces).where(eq(Spaces.userId, auth.userId));
-    await db.delete(Tags).where(eq(Tags.userId, auth.userId));
-    await db.delete(UserXP).where(eq(UserXP.userId, auth.userId));
-    await db.delete(UserMetadata).where(eq(UserMetadata.userId, auth.userId));
-    /* Same reason as clear-data: no noteId means the note cascade cannot see this table, and
-       a deleted account that leaves its owner's search history behind is the worst outcome
-       this feature can produce. */
-    await deleteSearchEventsForUser(auth.userId);
+    /*
+     * If the subscription could not be cancelled, keep the sign-in: deleting it would leave a
+     * paying customer with no account to retry from. Everything above is idempotent, so trying
+     * again finishes the job.
+     */
+    if (failures.includes('polar customer')) {
+      return c.json(
+        {
+          error: 'We couldn’t cancel your subscription, so your account is still here. Please try again, or contact support.',
+          code: 'DELETE_ACCOUNT_BILLING_FAILED',
+        },
+        502,
+      );
+    }
 
     // Delete from Clerk
     try {
@@ -1528,6 +1536,52 @@ app.post('/api/user/update-onboarding', requireAuth, rateLimit('write'), async (
     return c.json({ success: true, onboardingState });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/update-onboarding', action: 'update_onboarding' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/**
+ * Which Privacy Policy and Terms this account has acknowledged, and which have changed since.
+ *
+ * Read by the shell to decide whether to show the "we've updated" notice. Its own endpoint
+ * rather than a field on get-profile, so the notice can be cleared and re-read without
+ * refetching the whole profile.
+ */
+app.get('/api/user/legal-status', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const status = await legalStatusForUser(auth.userId);
+    c.header('Cache-Control', 'no-store');
+    return c.json(status);
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/legal-status', action: 'legal_status' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/**
+ * Record that this account acknowledged the current Privacy Policy and/or Terms.
+ *
+ * The body names documents and where the acknowledgment was given; the versions recorded are
+ * always the server's current ones. Idempotent per version.
+ */
+app.post('/api/user/legal-acknowledge', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => null);
+    const documents = Array.isArray(body?.documents)
+      ? (body.documents as unknown[]).filter((d): d is LegalDocument =>
+          (LEGAL_DOCUMENTS as readonly unknown[]).includes(d),
+        )
+      : [];
+    const surface = body?.surface;
+    if (documents.length === 0 || !(LEGAL_ACKNOWLEDGMENT_SURFACES as readonly unknown[]).includes(surface)) {
+      return c.json({ error: 'Invalid acknowledgment', code: 'LEGAL_ACK_INVALID' }, 400);
+    }
+    const status = await acknowledgeLegal(auth.userId, documents, surface as LegalAcknowledgmentSurface);
+    return c.json(status);
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/legal-acknowledge', action: 'legal_acknowledge' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

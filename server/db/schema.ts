@@ -1967,6 +1967,26 @@ export const SearchEvents = pgTable('SearchEvents', {
   index('SearchEvents_userId_queryIndex').on(table.userId, table.query),
 ]);
 
+// ─── LegalAcknowledgments (who saw which Privacy Policy / Terms, and where) ─────
+// Append-only: one row each time an account is shown a version of a legal document and
+// acknowledges it — at sign-up, from the in-app "we've updated" notice, or from Settings. The
+// current versions live in src/utils/legal-versions.ts; the latest row per (userId, document)
+// is the account's standing. Never updated, and deliberately not removed by the note cascade:
+// it is the record that the account was told.
+export const LegalAcknowledgments = pgTable('LegalAcknowledgments', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** 'privacy' | 'terms' */
+  document: text('document').notNull(),
+  /** The document's version (effective date, YYYY-MM-DD) at the time. */
+  version: text('version').notNull(),
+  /** 'signup' | 'notice' | 'settings' */
+  surface: text('surface').notNull(),
+  acknowledgedAt: ts('acknowledgedAt').notNull(),
+}, (table) => [
+  index('LegalAcknowledgments_userId_documentIndex').on(table.userId, table.document),
+]);
+
 // ─── ReviewItems (Plus: a scheduled return to your own study) ─────────────────
 // The sixth member of the memory-layer family above, and the first one the reader puts
 // something *into* deliberately. NoteFingerprints, RecallEvents, ReadingEvents,

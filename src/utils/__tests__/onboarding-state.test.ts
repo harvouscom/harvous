@@ -366,3 +366,34 @@ describe('church setup dismissal', () => {
     expect(mod.mergeOnboardingStates(b, a).churchSetupDismissedAt).toBe('2026-09-18T00:00:00.000Z');
   });
 });
+
+describe('calloutsSeen', () => {
+  it('records a callout once, keeping the first time', async () => {
+    const { emptyOnboardingState, markCalloutSeen } = await import('../onboarding-state');
+    const once = markCalloutSeen(emptyOnboardingState(), 'a', '2026-10-01T00:00:00Z');
+    const twice = markCalloutSeen(once, 'a', '2026-10-05T00:00:00Z');
+    expect(twice.calloutsSeen).toEqual({ a: '2026-10-01T00:00:00Z' });
+  });
+
+  it('merges across devices as a union, earliest time winning', async () => {
+    const { emptyOnboardingState, markCalloutSeen, mergeOnboardingStates } = await import('../onboarding-state');
+    const laptop = markCalloutSeen(emptyOnboardingState(), 'a', '2026-10-03T00:00:00Z');
+    const phone = markCalloutSeen(
+      markCalloutSeen(emptyOnboardingState(), 'a', '2026-10-01T00:00:00Z'),
+      'b',
+      '2026-10-02T00:00:00Z',
+    );
+    expect(mergeOnboardingStates(laptop, phone).calloutsSeen).toEqual({
+      a: '2026-10-01T00:00:00Z',
+      b: '2026-10-02T00:00:00Z',
+    });
+  });
+
+  it('survives a round trip, and leaves older states without the field', async () => {
+    const { emptyOnboardingState, markCalloutSeen, parseOnboardingState, serializeOnboardingState } =
+      await import('../onboarding-state');
+    const state = markCalloutSeen(emptyOnboardingState(), 'a', '2026-10-01T00:00:00Z');
+    expect(parseOnboardingState(serializeOnboardingState(state))?.calloutsSeen).toEqual({ a: '2026-10-01T00:00:00Z' });
+    expect('calloutsSeen' in (parseOnboardingState(serializeOnboardingState(emptyOnboardingState())) ?? {})).toBe(false);
+  });
+});

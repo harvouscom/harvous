@@ -312,6 +312,18 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     // the cards are still being redesigned family by family.
   },
   {
+    id: 'ds-27-feature-callout',
+    title: 'Feature callout',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/callouts/PrototypeFeatureCallout.tsx',
+      'spa/src/pages/prototype/callouts/CalloutIllustration.tsx',
+      'spa/src/pages/prototype/callouts/callout-registry.ts',
+      'spa/src/styles/prototype-callouts.css',
+    ],
+    screenshotSlug: 'ds-27-feature-callout',
+  },
+  {
     id: 'ds-26-sounds',
     title: 'Sounds',
     phase: 'Foundations',

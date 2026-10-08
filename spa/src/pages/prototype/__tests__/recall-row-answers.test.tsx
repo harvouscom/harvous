@@ -163,3 +163,37 @@ describe('a suggestion row', () => {
     },
   );
 });
+
+describe('impressions inside a deck', () => {
+  beforeEach(() => {
+    posted.length = 0;
+  });
+
+  const second = { ...op, id: 'hl:8', title: 'Abide in me' };
+
+  function renderDeckShelf(shownId: string | null) {
+    return render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PrototypeRecallCarousel
+          opportunities={[op, second]}
+          onSnooze={vi.fn()}
+          onDismiss={vi.fn()}
+          shownId={shownId}
+        />
+      </QueryClientProvider>,
+    );
+  }
+
+  it('counts only the prompt in front as seen', async () => {
+    const { recallDeckId } = await import('../PrototypeRecallCarousel');
+    renderDeckShelf(recallDeckId('hl:8'));
+    expect(posted.filter((e) => e.action === 'impression').map((e) => e.opportunityId)).toEqual([
+      'hl:8',
+    ]);
+  });
+
+  it('counts none while another card is in front', () => {
+    renderDeckShelf('todays-passage');
+    expect(posted.filter((e) => e.action === 'impression')).toHaveLength(0);
+  });
+});

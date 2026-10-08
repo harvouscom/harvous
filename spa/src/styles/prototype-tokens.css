@@ -561,6 +561,15 @@
    */
   --pds-paper-column-max: 784px;
   /*
+   * How wide Home's day sheet (and the hubs on the same measure) may grow.
+   *
+   * It was a bare 640px — narrower than the note's own text measure — and Home read as a column
+   * squeezed into the window, all the more once its sections became decks that sit two to a
+   * row. It takes the note paper's widest column instead of a number of its own, so Home, the
+   * note and the reader stop at the same edge.
+   */
+  --pds-feed-sheet-max: var(--pds-paper-column-max);
+  /*
    * The ceiling again, for a sheet holding two columns instead of one.
    *
    * Derived the same way and from the same parts, so it cannot drift: two measures, the gutter

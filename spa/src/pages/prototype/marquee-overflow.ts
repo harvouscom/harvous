@@ -3,7 +3,7 @@
  *
  * The hover marquee's fade was decided by a character count (`MARQUEE_FADE_MIN_CHARS`, 24),
  * which is a fair guess for the 304px sidebar rail it was tuned on and wrong everywhere else.
- * On a 640px feed sheet "Returned to God's Sovereignty" is 29 characters and fits with room
+ * On a 784px feed sheet "Returned to God's Sovereignty" is 29 characters and fits with room
  * to spare, so it stayed above the threshold, kept its `mask-image`, and picked up the faint
  * compositing haze that mask brings — a fade over a label with nothing to hide.
  *

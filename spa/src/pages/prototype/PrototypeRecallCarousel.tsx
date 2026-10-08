@@ -31,7 +31,10 @@ import { buildRecallCardStackOrigin } from './paper-stack-origins';
  * suggestions shelf is for. Selection and ordering are still done upstream by
  * selectRecallOpportunities; this is presentational.
  *
- * Every row records an impression once it is on screen (they all are, now).
+ * Every row records an impression once it is on screen. On Home they sit in the Up next deck,
+ * where only the card in front is on screen, so the deck says which one that is (`shownId`) and
+ * only that one counts — otherwise every prompt would be "seen" on every visit, and the snooze
+ * ladder and stability numbers would be learning from cards nobody looked at.
  *
  * Both answers live behind one overflow. They were split — a bare ✕ for "Not now" beside the
  * menu that held "Not interested" — on the reasoning that deferral is the common answer and
@@ -54,6 +57,11 @@ import { buildRecallCardStackOrigin } from './paper-stack-origins';
 
 /** Matches `.proto-recall-row__menu`; only used until the real popover can be measured. */
 const RECALL_MENU_WIDTH = 168;
+
+/** The `data-deck-id` a recall row carries, so a deck can say which prompt is in front. */
+export function recallDeckId(opportunityId: string): string {
+  return `recall:${opportunityId}`;
+}
 const RECALL_MENU_FALLBACK_HEIGHT = 92;
 
 export interface RecallOpportunity extends RecallCandidate {
@@ -92,8 +100,15 @@ export default function PrototypeRecallCarousel({
   onOpened,
   onRecallSynced,
   homeSpaceId,
+  shownId,
 }: {
   opportunities: RecallOpportunity[];
+  /**
+   * The deck card in front, when these rows sit in a deck. Omitted, every row counts as on
+   * screen; given, only the row whose `recallDeckId` it names does — and null means none of
+   * them is showing.
+   */
+  shownId?: string | null;
   /** Deferral. The window is chosen by the store from this card's history — see
    *  `nextSnoozeWindowDays`; nothing up here picks a number. */
   onSnooze: (id: string) => void;
@@ -135,6 +150,7 @@ export default function PrototypeRecallCarousel({
 
   useEffect(() => {
     for (const op of opportunities) {
+      if (shownId !== undefined && shownId !== recallDeckId(op.id)) continue;
       if (seenImpressionsRef.current.has(op.id)) continue;
       seenImpressionsRef.current.add(op.id);
       recordRecallOpportunityEvent({
@@ -144,7 +160,7 @@ export default function PrototypeRecallCarousel({
         noteId: op.noteId,
       });
     }
-  }, [opportunities]);
+  }, [opportunities, shownId]);
 
   if (opportunities.length === 0) return null;
 
@@ -320,6 +336,7 @@ function RecallRow({
 
   return (
     <PrototypeHomeRow
+      deckId={recallDeckId(op.id)}
       icon={op.iconName}
       title={op.title}
       meta={[op.eyebrow, op.meta]}

@@ -13,6 +13,7 @@ import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
 import { invalidateUserCache } from '../utils/user-cache';
 import { firstHeaderValue } from '../utils/polar-client';
+import { deleteAccountData } from '../utils/delete-account';
 import {
   polarBillingIntent,
   productIdFromPolarData,
@@ -279,8 +280,17 @@ async function handleUserUpdated(event: ClerkUserWebhookEvent): Promise<void> {
   }
 }
 
+/**
+ * A user deleted in Clerk — from its dashboard, or by our own delete-account route. Either way
+ * the account's data goes with it, through the same routine the route uses, so deleting someone
+ * in the dashboard cannot leave their notes, history and billing behind. Idempotent: when the
+ * route already ran, this finds nothing left and does nothing.
+ */
 async function handleUserDeleted(event: ClerkUserWebhookEvent): Promise<void> {
-  console.log('User deleted in Clerk:', event.data.id);
+  const userId = event.data.id;
+  if (!userId) return;
+  const { failures } = await deleteAccountData(userId);
+  console.log('User deleted in Clerk:', userId, failures.length ? `(failed: ${failures.join(', ')})` : '');
 }
 
 /**

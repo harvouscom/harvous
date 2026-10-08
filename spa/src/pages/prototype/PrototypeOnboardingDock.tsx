@@ -68,7 +68,14 @@ function customizeSettingsRoute(id: OnboardingCustomizeId) {
 
 type Props = {
   onStepAction: (id: OnboardingStepId) => void;
-  variant?: 'home' | 'popover';
+  /**
+   * `home` — the full block (Getting started, then Make it yours), for guest Home.
+   * `popover` — the toolbar chip's list.
+   * `deck` — each step as a bare row, so Home's Pick up deck can hold them one card at a time.
+   *   The checklist used to arrive on Home as a 450–700px block above everything else; in the
+   *   deck it is one card high, and the whole list is still a tap away in the toolbar.
+   */
+  variant?: 'home' | 'popover' | 'deck';
 };
 
 export default function PrototypeOnboardingDock({ onStepAction, variant = 'home' }: Props) {
@@ -240,6 +247,61 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
         )}
       </div>
     );
+
+  if (variant === 'deck') {
+    /* Each row names the checklist in its meta, since the deck's own eyebrow is "Pick up". A
+       step that has just been done leaves the deck at once rather than dwelling with a tick:
+       one card at a time has no room for a row on its way out. */
+    const label = `Getting started · ${shownProgress.done} of ${shownProgress.total}`;
+    return (
+      <>
+        {rows
+          .filter((step) => !exiting.includes(step.id))
+          .map((step) => (
+            <PrototypeHomeRow
+              key={step.id}
+              deckId={`onboarding:${step.id}`}
+              icon={step.icon}
+              title={step.title}
+              meta={[label, step.meta]}
+              onClick={() => onStepAction(step.id)}
+              trailing={
+                <button
+                  type="button"
+                  className="proto-side-panel__action-btn"
+                  aria-label={`Dismiss "${step.title}"`}
+                  onClick={() => dismissStep(step.id)}
+                >
+                  <Icon name="xmark" size={12} aria-hidden />
+                </button>
+              }
+            />
+          ))}
+        {customizeRows
+          .filter((step) => !exiting.includes(step.id))
+          .map((step) => (
+            <PrototypeHomeRow
+              key={step.id}
+              deckId={`onboarding:${step.id}`}
+              icon={step.icon}
+              title={step.title}
+              meta={['Make it yours', step.meta]}
+              onClick={() => pressCustomizeRow(step.id as OnboardingCustomizeId)}
+              trailing={
+                <button
+                  type="button"
+                  className="proto-side-panel__action-btn"
+                  aria-label={`Dismiss "${step.title}"`}
+                  onClick={() => dismissStep(step.id)}
+                >
+                  <Icon name="xmark" size={12} aria-hidden />
+                </button>
+              }
+            />
+          ))}
+      </>
+    );
+  }
 
   if (variant === 'popover') {
     return (

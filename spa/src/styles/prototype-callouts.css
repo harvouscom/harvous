@@ -1,0 +1,704 @@
+/*
+ * The feature callout and its stack (`callouts/PrototypeFeatureCallout.tsx`).
+ *
+ * Its own file, imported by that module, so it ships in the callout's lazy chunk rather than in
+ * `index.css`, which every route — sign-in included — pays for. Nothing here is needed until a
+ * callout arrives, and a callout always arrives after the page has.
+ */
+/*
+ * ─── Feature callout ────────────────────────────────────────────────────────────────────────
+ *
+ * "This is new", once (`callouts/PrototypeFeatureCallout.tsx`). A solid popover card — floating
+ * menus and cards stay solid here, never glass — with a drawing of the thing on a soft panel, a
+ * title, one line, one button, and a round × riding the top-right corner.
+ */
+.proto-callout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px 14px;
+  border-radius: var(--pds-radius-card);
+  background: var(--pds-bg-popover-solid);
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-popover);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+}
+
+/* Desktop: the window's bottom-right, on the same line the update toast keeps — lifted clear of
+   an open study dock, inside the safe area. */
+.proto-callout-anchor {
+  position: fixed;
+  right: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-right));
+  bottom: calc(
+    var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom) +
+      var(--proto-study-dock-band-height, 0px)
+  );
+  z-index: var(--pds-z-toast);
+  width: min(300px, calc(100vw - 32px));
+}
+
+.proto-callout--corner {
+  animation: proto-callout-in 320ms var(--pds-ease-standard) both;
+}
+
+.proto-callout--corner.proto-callout--exiting {
+  animation: proto-callout-out 200ms var(--pds-ease-standard) both;
+}
+
+@keyframes proto-callout-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes proto-callout-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* Phones: the same card in the flow of Home, so it never floats over what it points at. */
+.proto-callout--inline {
+  margin: 0;
+  /* On the paper, the paper's own shadow, as today's passage and the decks wear. The floating
+     card's popover shadow spreads past the sheet body, which scrolls and so clips it into a box. */
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-paper-panel);
+}
+
+/* The picture: a slice of the app on one of its own canvas images, cropped at its foot like the
+   example — the sheet runs off the bottom edge rather than floating in a box. */
+.proto-callout__art {
+  height: 112px;
+  margin-bottom: 6px;
+  border-radius: var(--pds-radius-menu);
+  background: var(--pds-bg-control);
+  overflow: hidden;
+}
+
+.proto-callout-art {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  font-family: var(--pds-font-display);
+  color: var(--pds-text-primary);
+  /* Fixed, small type: this is a picture of the interface, not more interface to read. */
+  font-size: 9px;
+  line-height: 1.25;
+  user-select: none;
+}
+
+.proto-callout-art--today-tabs { background-image: url("/images/callouts/today-tabs.webp"); }
+.proto-callout-art--legal { background-image: url("/images/callouts/legal.webp"); }
+/* The letter wears harvous.com's homepage hero sky (ai_bg_053, cropped from the site's copy). */
+.proto-callout-art--letter { background-image: url("/images/callouts/letter.webp"); }
+
+/* The images are painted for a light canvas; dim them a little under a dark sheet. */
+:root[data-color-scheme="dark"] .proto-callout-art:not(.proto-callout-art--whats-new) {
+  filter: brightness(0.82);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) .proto-callout-art:not(.proto-callout-art--whats-new) {
+    filter: brightness(0.82);
+  }
+}
+
+/* What's new: the Welcome 3 sheet's ground, and its numeral, on the page colour. */
+.proto-callout-art--whats-new {
+  align-items: center;
+  background: var(--pds-bg-page);
+}
+
+.proto-callout-art__numeral {
+  position: relative;
+  z-index: 1;
+  width: auto;
+  height: 74px;
+  margin: 0;
+}
+
+/* The paper sheet, as on Home: page colour, a hairline, the card's rounded top. */
+.proto-callout-art__sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: 196px;
+  height: 92px;
+  padding: 10px 12px 0;
+  border-radius: 10px 10px 0 0;
+  background: var(--pds-bg-page);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--pds-text-primary) 12%, transparent), 0 6px 20px rgb(0 0 0 / 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.proto-callout-art__sheet--narrow {
+  width: 160px;
+}
+
+.proto-callout-art__sheet--right {
+  width: 150px;
+  margin-left: 64px;
+  gap: 4px;
+}
+
+.proto-callout-art__head {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.proto-callout-art__head b {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.proto-callout-art__head span,
+.proto-callout-art__meta {
+  color: var(--pds-text-secondary);
+  font-size: 8px;
+}
+
+.proto-callout-art__title {
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.proto-callout-art__meta {
+  margin-top: -4px;
+}
+
+/* The Today tab group: a trough with the chosen chip lifted onto paper. */
+.proto-callout-art__chips {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px;
+  gap: 1px;
+  border-radius: 999px;
+  background: var(--pds-bg-control);
+}
+
+.proto-callout-art__chip {
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--pds-text-secondary);
+  font-size: 8px;
+  font-weight: 500;
+}
+
+.proto-callout-art__chip--on {
+  background: var(--pds-bg-page);
+  color: var(--pds-text-primary);
+  box-shadow: 0 0.5px 1.5px rgb(0 0 0 / 0.14);
+}
+
+/* A deck: the front row, with the edge of the next card showing under it. */
+.proto-callout-art__deck {
+  position: relative;
+  padding-bottom: 4px;
+}
+
+.proto-callout-art__deck::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 0;
+  height: 8px;
+  border-radius: 0 0 7px 7px;
+  background: var(--pds-bg-page);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--pds-text-primary) 10%, transparent);
+  z-index: -1;
+}
+
+.proto-callout-art__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  background: var(--pds-bg-page);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--pds-text-primary) 12%, transparent), 0 1px 3px rgb(0 0 0 / 0.06);
+}
+
+.proto-callout-art__row--flat {
+  padding: 2px 0;
+  box-shadow: none;
+  background: none;
+}
+
+.proto-callout-art__glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+}
+
+.proto-callout-art__row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.proto-callout-art__row-text b {
+  font-size: 8.5px;
+  font-weight: 600;
+}
+
+.proto-callout-art__row-text span {
+  color: var(--pds-text-secondary);
+  font-size: 7.5px;
+}
+
+/* Body copy as soft bars. */
+.proto-callout-art__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.proto-callout-art__bar {
+  display: block;
+  height: 4px;
+  max-width: 100%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--pds-text-primary) 14%, transparent);
+}
+
+.proto-callout-art__bar--strong {
+  background: color-mix(in srgb, var(--pds-text-primary) 30%, transparent);
+}
+
+/* Legal: the acknowledgement, in the one blue. */
+.proto-callout-art__badge {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--pds-bg-accent-button);
+  color: #fff;
+}
+
+/* Import: the Settings fan itself, scaled to the panel. Scaled rather than re-sized through its
+   variables so the format tags shrink with the paper and stay in proportion. */
+.proto-callout-art__fan {
+  align-self: center;
+  width: 300px;
+  flex: none;
+  display: flex;
+  justify-content: center;
+}
+
+.proto-callout-art__fan .proto-import-fan {
+  flex: none;
+  width: 300px;
+  margin: 0;
+  scale: 0.66;
+}
+
+/*
+ * On the plain panel, the fan breathes: the scatter squares up into one pile and spreads out
+ * again — the same gather Settings plays on drag-over, which is what the feature does. Outermost
+ * sheets move first, a beat apart, as on the drop zone. Keyframes restate each card's transform
+ * because the fan's position variables are not registered and cannot interpolate.
+ */
+.proto-callout-art--import .proto-import-fan__card {
+  animation: 6400ms cubic-bezier(0.22, 1, 0.36, 1) 900ms infinite both;
+}
+
+.proto-callout-art--import .proto-import-fan__card--far-left { animation-name: proto-callout-fan-far-left; }
+.proto-callout-art--import .proto-import-fan__card--left { animation-name: proto-callout-fan-left; animation-delay: 1010ms; }
+.proto-callout-art--import .proto-import-fan__card--right { animation-name: proto-callout-fan-right; animation-delay: 1055ms; }
+.proto-callout-art--import .proto-import-fan__card--far-right { animation-name: proto-callout-fan-far-right; animation-delay: 955ms; }
+
+.proto-callout-art--import .proto-import-fan__tag {
+  animation: proto-callout-fan-tag 6400ms ease 900ms infinite both;
+}
+
+@keyframes proto-callout-fan-far-left {
+  0%, 30%, 92%, 100% { transform: translate(-50%, -50%) translate(-92.3px, -13px) rotate(-15deg); }
+  44%, 76% { transform: translate(-50%, -50%) translate(-7px, -5px) rotate(-2.5deg); }
+}
+
+@keyframes proto-callout-fan-left {
+  0%, 30%, 92%, 100% { transform: translate(-50%, -50%) translate(-30.8px, 5px) rotate(-3deg); }
+  44%, 76% { transform: translate(-50%, -50%) translate(-2px, -1px) rotate(1.5deg); }
+}
+
+@keyframes proto-callout-fan-right {
+  0%, 30%, 92%, 100% { transform: translate(-50%, -50%) translate(26.2px, -7px) rotate(6.5deg); }
+  44%, 76% { transform: translate(-50%, -50%) translate(3px, 3px) rotate(-1deg); }
+}
+
+@keyframes proto-callout-fan-far-right {
+  0%, 30%, 92%, 100% { transform: translate(-50%, -50%) translate(85.5px, 8px) rotate(11deg); }
+  44%, 76% { transform: translate(-50%, -50%) translate(8px, 6px) rotate(3deg); }
+}
+
+/* Gathered, the labels go, as on the drop zone: the pile is everything, not "a DOCX". */
+@keyframes proto-callout-fan-tag {
+  0%, 32%, 88%, 100% { opacity: 1; }
+  42%, 78% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-callout-art--import .proto-import-fan__card,
+  .proto-callout-art--import .proto-import-fan__tag {
+    animation: none;
+  }
+}
+
+/* The letter: lines of writing, then the signature from the letter itself. */
+.proto-callout-art__sheet--letter {
+  gap: 4px;
+  padding-top: 14px;
+}
+
+.proto-callout-art__signature {
+  display: block;
+  width: 112px;
+  height: auto;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+/* Dark ink on a transparent PNG: inverted on night paper, as the letter does. */
+:root[data-color-scheme="dark"] .proto-callout-art__signature {
+  filter: invert(1) brightness(1.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) .proto-callout-art__signature {
+    filter: invert(1) brightness(1.7);
+  }
+}
+
+/* The one moving part settles in after the card arrives. */
+.proto-callout-art__front {
+  animation: proto-callout-art-settle 520ms var(--pds-ease-standard) 180ms both;
+}
+
+@keyframes proto-callout-art-settle {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.proto-callout__title {
+  margin: 0;
+  padding: 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
+}
+
+.proto-callout__body {
+  margin: 0;
+  padding: 0 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+  text-wrap: pretty;
+}
+
+/* The one blue on the card: `.proto-settings-btn` is the accent gradient with white text. */
+.proto-callout__action {
+  margin: 8px 6px 0;
+  width: auto;
+}
+
+/* The quiet way in, for cards listed together: the words, then a grey arrow circle. Neutral at
+   rest and on hover — the one blue on screen is the front card's button. */
+.proto-callout__go {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  /* Pulled left by the pill's own extra inset, so the label lines up with the title and body
+     (6px in) while the hover fill still has room around the words. */
+  margin: 6px 0 0 -6px;
+  padding: 6px 6px 6px 12px;
+  border: 0;
+  border-radius: var(--pds-radius-pill);
+  background: transparent;
+  font: 600 14px/1.3 var(--pds-font-body);
+  color: var(--pds-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-callout__go-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-callout__go:hover {
+    background: var(--pds-bg-control);
+  }
+
+  .proto-callout__go:hover .proto-callout__go-circle {
+    background: var(--pds-bg-control-hover);
+    transform: translateX(2px);
+  }
+}
+
+.proto-callout__go:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+/* The round × riding the corner — the card's edge runs under it. */
+.proto-callout__close {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--pds-bg-popover-solid);
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-popover);
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-callout__close:hover {
+    background: var(--pds-bg-control-hover);
+  }
+}
+
+.proto-callout__close:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+/* Inline on a phone the corner chip would hang off the sheet's edge; tuck it inside. */
+.proto-callout--inline .proto-callout__close {
+  top: 16px;
+  right: 16px;
+}
+
+/*
+ * The stack — several callouts as one card with the rest behind it (`CalloutStack`). In the
+ * window's corner the edges peek *above* the front card, since the stack grows up from the
+ * corner; at the top of Home on a phone they peek below it, since that stack grows down.
+ */
+.proto-callout-stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+
+/*
+ * The edges behind the front card, in paint order: the far edge (narrowest), the near edge
+ * that says "3 more" and opens the stack, then the card. Each tucks 10px under the next.
+ */
+.proto-callout-stack__edges {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: -10px;
+}
+
+.proto-callout-stack > .proto-callout {
+  z-index: 1;
+}
+
+.proto-callout-stack__edge-back,
+.proto-callout-stack__more {
+  position: relative;
+  border: 0;
+  background: var(--pds-bg-popover-solid);
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-popover);
+}
+
+.proto-callout-stack__edge-back {
+  z-index: 0;
+  display: block;
+  height: 18px;
+  margin: 0 14% -10px;
+  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
+}
+
+.proto-callout-stack__more {
+  appearance: none;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  /* 38px under the card's 10px overlap leaves a 28px strip, the label centred in it with room
+     above and below. The padding is the overlap, so centring counts only what shows. */
+  align-items: center;
+  height: 38px;
+  margin: 0 7%;
+  padding: 0 0 10px;
+  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
+  color: var(--pds-text-secondary);
+  font: 500 11px/1.4 var(--pds-font-body);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-callout-stack__more:hover {
+    color: var(--pds-text-primary);
+  }
+}
+
+.proto-callout-stack__more:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+/* At the top of Home the stack opens downward: the edges sit under the card, far edge last. */
+.proto-callout-stack[data-direction='down'] {
+  flex-direction: column-reverse;
+}
+
+.proto-callout-stack[data-direction='down'] .proto-callout-stack__edges {
+  flex-direction: column-reverse;
+  margin-bottom: 0;
+  margin-top: -10px;
+}
+
+.proto-callout-stack[data-direction='down'] .proto-callout-stack__edge-back {
+  margin: -10px 14% 0;
+  border-radius: 0 0 var(--pds-radius-card) var(--pds-radius-card);
+}
+
+.proto-callout-stack[data-direction='down'] .proto-callout-stack__more {
+  padding: 10px 0 0;
+  border-radius: 0 0 var(--pds-radius-card) var(--pds-radius-card);
+}
+
+/* On the paper the edges take the paper's shadow too (see `.proto-callout--inline`). */
+.proto-callout-stack[data-direction='down'] :is(.proto-callout-stack__edge-back, .proto-callout-stack__more) {
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-paper-panel);
+}
+
+/* Opened: every card, each with its own ×, under a bar that can put them all away. In the
+   corner it scrolls rather than run off the top of the window. */
+.proto-callout-stack--open {
+  gap: 8px;
+}
+
+.proto-callout-stack--open[data-direction='up'] {
+  max-height: calc(100vh - 2 * var(--pds-shell-frame-inset, 14px) - 120px);
+}
+
+.proto-callout-stack__bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.proto-callout-stack--open[data-direction='down'] {
+  flex-direction: column;
+}
+
+.proto-callout-stack__text-btn {
+  appearance: none;
+  margin: 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-popover-solid);
+  box-shadow: 0 0 0 0.5px var(--pds-border-control);
+  font: 500 12px/1.3 var(--pds-font-body);
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-callout-stack__text-btn:hover {
+    color: var(--pds-text-primary);
+    background: var(--pds-bg-control-hover);
+  }
+}
+
+.proto-callout-stack__list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Shrinks to the stack's max-height and scrolls. Stated outright: a global `*` rule sets
+     `flex-shrink: 0`, and without this the list ran off the foot of the window. */
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /*
+   * A scrolling box clips whatever its children paint outside it, shadows included — which cut
+   * every card's shadow off at the sides and foot. The padding gives the shadows room inside the
+   * box (and the corner × above each card), and the negative margin puts the cards back where
+   * they were.
+   */
+  padding: 14px 28px 32px;
+  margin: -14px -28px -32px;
+}
+
+/* A notice, or any card in an opened stack: no drawing, a little tighter. */
+.proto-callout--compact {
+  padding-top: 14px;
+}
+
+.proto-callout--compact .proto-callout__title {
+  padding-right: 24px;
+}
+
+/* Out of the way while typing on a phone, as the dock band is. */
+html[data-proto-keyboard-open] .proto-callout-anchor {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-callout--corner,
+  .proto-callout--corner.proto-callout--exiting,
+  .proto-callout-art__front {
+    animation-duration: 120ms;
+    animation-name: proto-feed-block-in-reduced;
+  }
+
+  .proto-callout--corner.proto-callout--exiting {
+    animation-direction: reverse;
+  }
+}

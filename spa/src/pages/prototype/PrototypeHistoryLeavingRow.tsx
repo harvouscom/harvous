@@ -2,7 +2,6 @@ import { useCallback, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
-import PrototypeHomeSection from './PrototypeHomeSection';
 import { PLUS_BADGE_COPY } from './proto-review-copy';
 import { useHistoryWindowStatus } from '../../hooks/queries/useHistoryWindowStatus';
 import { LEAVING_ROW_META, leavingRowTitle } from '../../lib/history-window-copy';
@@ -14,6 +13,9 @@ import { LEAVING_ROW_META, leavingRowTitle } from '../../lib/history-window-copy
  * puts this batch away: the key is the day the first item leaves, so the row comes back for
  * the *next* batch rather than never again — one quiet line per batch, not a standing ad.
  * Free accounts only; Plus has no window and guests no account, so both render nothing.
+ *
+ * A row, not a section: it is one card in Home's Up next deck. It used to be a section of its
+ * own headed "History", a heading over a single row.
  */
 const DISMISSED_KEY = 'harvous-history-leaving-dismissed';
 
@@ -25,7 +27,7 @@ function readDismissed(): string | null {
   }
 }
 
-export default function PrototypeHistoryLeavingSection() {
+export default function PrototypeHistoryLeavingRow() {
   const navigate = useNavigate();
   const { status } = useHistoryWindowStatus();
   const [dismissedFor, setDismissedFor] = useState(readDismissed);
@@ -45,29 +47,27 @@ export default function PrototypeHistoryLeavingSection() {
   if (!leaving || dismissedFor === batchKey) return null;
 
   return (
-    <PrototypeHomeSection title="History">
-      <PrototypeHomeRow
-        icon="clock-rotate-left"
-        title={leavingRowTitle(leaving)}
-        meta={[LEAVING_ROW_META]}
-        onClick={() => void navigate({ to: '/upgrade' })}
-        trailing={
-          <span className="proto-review-section__plus">
-            <span className="proto-menu-item__badge">{PLUS_BADGE_COPY}</span>
-            <button
-              type="button"
-              className="proto-side-panel__action-btn"
-              aria-label="Hide this"
-              onClick={(event) => {
-                event.stopPropagation();
-                dismiss();
-              }}
-            >
-              <Icon name="xmark" size={12} aria-hidden />
-            </button>
-          </span>
-        }
-      />
-    </PrototypeHomeSection>
+    <PrototypeHomeRow
+      icon="clock-rotate-left"
+      title={leavingRowTitle(leaving)}
+      meta={[LEAVING_ROW_META]}
+      onClick={() => void navigate({ to: '/upgrade' })}
+      trailing={
+        <span className="proto-review-section__plus">
+          <span className="proto-menu-item__badge">{PLUS_BADGE_COPY}</span>
+          <button
+            type="button"
+            className="proto-side-panel__action-btn"
+            aria-label="Hide this"
+            onClick={(event) => {
+              event.stopPropagation();
+              dismiss();
+            }}
+          >
+            <Icon name="xmark" size={12} aria-hidden />
+          </button>
+        </span>
+      }
+    />
   );
 }

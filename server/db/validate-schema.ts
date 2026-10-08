@@ -15,6 +15,7 @@ import { pathToFileURL } from 'node:url';
 config({ path: resolve(import.meta.dirname || __dirname, '..', '..', '.env') });
 
 export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
+  LegalAcknowledgments: ['id', 'userId', 'document', 'version', 'surface', 'acknowledgedAt'],
   Spaces: ['deletedAt', 'recoveryUntil', 'ministryId', 'audience'],
   ChurchMinistries: ['id', 'orgId', 'name', 'description', 'sortOrder', 'createdByUserId', 'archivedAt', 'createdAt', 'updatedAt'],
   ChurchMinistryStaff: ['id', 'orgId', 'ministryId', 'userId', 'createdByUserId', 'createdAt'],

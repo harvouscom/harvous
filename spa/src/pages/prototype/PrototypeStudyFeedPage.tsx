@@ -64,7 +64,6 @@ import { useTodaysPassageFocus } from './use-todays-passage-focus';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import PrototypeStudyFeedToday from './PrototypeStudyFeedToday';
-import PrototypeOnboardingDock from './PrototypeOnboardingDock';
 import { takeOnboardingStep } from './onboarding-step-handoff';
 import PrototypeThreadProposalReview from './PrototypeThreadProposalReview';
 import PrototypeFeedComposePrompt from './PrototypeFeedComposePrompt';
@@ -608,10 +607,6 @@ export default function PrototypeStudyFeedPage() {
 
 
 
-  /* Only on today's sheet: a checklist is about now, and a day you flipped back to has no
-     business asking you to go and read something. */
-  const onboardingDock =
-    safeIndex === 0 ? <PrototypeOnboardingDock onStepAction={home.handleOnboardingStep} /> : null;
 
   /*
    * The day's tally as a sentence fragment rather than a paragraph, so it can either join
@@ -939,18 +934,21 @@ export default function PrototypeStudyFeedPage() {
               }}
             />
 
-            {onboardingLeads ? onboardingDock : null}
-
-            {/* Home's own order: what you were doing, then what is coming, then what is
-                offered, and only then the record of the day itself. */}
+            {/*
+              * Today's offers as decks — what you were doing, the next question, what is
+              * arriving — each one card high, so the record of the day itself starts about a
+              * screen down instead of two. The getting-started checklist rides in the Pick up
+              * deck, one step at a time, and only on today's sheet: a day you flipped back to
+              * has no business asking you to go and read something.
+              */}
             {safeIndex === 0 && greeting.ready && !scopedSpace ? (
               <PrototypeStudyFeedToday
                 notes={greeting.notes}
                 home={home}
+                onboardingLeads={onboardingLeads}
+                onStepAction={home.handleOnboardingStep}
               />
             ) : null}
-
-            {onboardingLeads || scopedSpace ? null : onboardingDock}
 
             {day.isEmpty && scopedSpace && scopeNeverHadAnything ? (
               /*
