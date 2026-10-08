@@ -55,7 +55,10 @@ export default function PrototypeDailyPassageCard({
     <div className="proto-daily-passage" id="todays-passage" data-deck-id="todays-passage">
       <div className="proto-daily-passage__head">
         <p className="proto-caption proto-daily-passage__eyebrow">
-          {DAILY_PASSAGE_SECTION_TITLE} · {votd.reference} · {translationLabel}
+          {DAILY_PASSAGE_SECTION_TITLE} ·{' '}
+          <span className="proto-daily-passage__ref">
+            {votd.reference} · {translationLabel}
+          </span>
         </p>
         <button
           type="button"

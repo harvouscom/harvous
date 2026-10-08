@@ -25197,13 +25197,27 @@ button.proto-feed-sheet__stat:hover {
 
 .proto-daily-passage__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--pds-space-2);
 }
 
+/* Allowed to shrink and wrap (a global rule pins flex children at `flex-shrink: 0`, which ran
+   the line off the card on a phone and pushed the × out). It breaks at the dot before the
+   reference, which stays whole — see `__ref`. */
 .proto-daily-passage__eyebrow {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
+  text-wrap: pretty;
+}
+
+.proto-daily-passage__ref {
+  white-space: nowrap;
+}
+
+.proto-daily-passage__head > .proto-side-panel__action-btn {
+  flex: none;
 }
 
 /*
