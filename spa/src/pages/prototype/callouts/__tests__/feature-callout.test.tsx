@@ -3,7 +3,7 @@
  * what it says.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { emptyOnboardingState, type OnboardingState } from '@/utils/onboarding-state';
 
 let state: OnboardingState = emptyOnboardingState();
@@ -35,6 +35,17 @@ vi.mock('../../../../hooks/queries/useLegalStatus', () => ({
 }));
 const openWindow = vi.spyOn(window, 'open').mockImplementation(() => null);
 
+type Notice = { id: string; title: string; body: string; actionLabel: string; act: () => void; dismiss: () => void };
+let notices: Notice[] = [];
+vi.mock('../use-notice-items', () => ({
+  useNoticeItems: () => ({ items: notices, founderLetterOpen: false, closeFounderLetter: () => {} }),
+}));
+vi.mock('../../PrototypeFounderLetterSheet', () => ({ default: () => null }));
+
+function notice(id: string): Notice {
+  return { id, title: `Notice ${id}`, body: 'body', actionLabel: `Open ${id}`, act: vi.fn(), dismiss: vi.fn() };
+}
+
 const { PrototypeFeatureCalloutInline } = await import('../PrototypeFeatureCallout');
 
 beforeEach(() => {
@@ -42,6 +53,7 @@ beforeEach(() => {
   updates.length = 0;
   navigate.mockClear();
   legalDue = [];
+  notices = [];
   acknowledge.mockClear();
   openWindow.mockClear();
 });
@@ -92,5 +104,37 @@ describe('feature callout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review changes' }));
     expect(acknowledge).toHaveBeenCalledWith({ documents: ['terms'], surface: 'notice' });
     expect(openWindow).toHaveBeenCalledWith('https://harvous.com/legal/changes/', '_blank', 'noopener,noreferrer');
+  });
+
+  it('stacks Harvous notices behind the callout, and opens to show them all', () => {
+    notices = [notice('whats-new'), notice('import')];
+    render(<PrototypeFeatureCalloutInline />);
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 3' }));
+    expect(screen.getAllByRole('dialog')).toHaveLength(3);
+  });
+
+  it('puts one away from its own ×, or all of them at once', () => {
+    const a = notice('whats-new');
+    const b = notice('import');
+    notices = [a, b];
+    render(<PrototypeFeatureCalloutInline />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 3' }));
+    const dialogs = screen.getAllByRole('dialog');
+    fireEvent.click(within(dialogs[1]!).getByRole('button', { name: 'Dismiss' }));
+    expect(a.dismiss).toHaveBeenCalledTimes(1);
+    expect(b.dismiss).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss all' }));
+    expect(b.dismiss).toHaveBeenCalledTimes(1);
+    expect(state.calloutsSeen?.['today-tabs-2026-10']).toBeTruthy();
+  });
+
+  it('shows a notice on its own when there is no callout', () => {
+    state = { ...emptyOnboardingState(), calloutsSeen: { 'today-tabs-2026-10': '2026-10-01T00:00:00Z' } };
+    const n = notice('founder-letter');
+    notices = [n];
+    render(<PrototypeFeatureCalloutInline />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open founder-letter' }));
+    expect(n.act).toHaveBeenCalledTimes(1);
   });
 });

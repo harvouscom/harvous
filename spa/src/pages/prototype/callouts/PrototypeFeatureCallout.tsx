@@ -17,6 +17,7 @@
  */
 import { useCallback, useEffect, useId, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
+import '../../../styles/prototype-callouts.css';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { appVersion } from '@/utils/app-version';
@@ -29,7 +30,10 @@ import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { useProtoOverlayMotion } from '../../../hooks/useProtoOverlayMotion';
 import { isAppUpdateToastHeld, subscribeAppUpdateToastHold } from '../welcome3-bridge';
 import { useOnboardingState } from '../useOnboardingState';
-import CalloutIllustration from './CalloutIllustration';
+import CalloutIllustration, { type CalloutIllustrationKey } from './CalloutIllustration';
+import PrototypeFounderLetterSheet from '../PrototypeFounderLetterSheet';
+import { useNoticeItems } from './use-notice-items';
+import type { CalloutStackItem } from './callout-stack-item';
 import { useAcknowledgeLegal, useLegalStatus } from '../../../hooks/queries/useLegalStatus';
 import { LEGAL_CHANGES_URL, legalDocumentsPhrase, type LegalDocument } from '@/utils/legal-versions';
 import { CALLOUTS, pickCallout, type Callout, type CalloutActionContext } from './callout-registry';
@@ -149,24 +153,65 @@ export function useActiveCallout(): {
   return { callout, dismiss, act };
 }
 
+/**
+ * Everything the stack holds right now, in order: the legal notice, the one feature callout,
+ * then Harvous's own notices. The founder's letter opens from here, so the host renders its sheet.
+ */
+function useCalloutStack() {
+  const { callout, dismiss, act } = useActiveCallout();
+  const notices = useNoticeItems();
+  const items: CalloutStackItem[] = [];
+  if (callout) {
+    items.push({
+      id: callout.id,
+      title: callout.title,
+      body: callout.body,
+      illustration: callout.illustration,
+      actionLabel: callout.action.label,
+      act,
+      dismiss,
+    });
+  }
+  items.push(...notices.items);
+  return { items, founderLetterOpen: notices.founderLetterOpen, closeFounderLetter: notices.closeFounderLetter };
+}
+
+type CardContent = {
+  title: string;
+  body: string;
+  illustration?: CalloutIllustrationKey;
+  action: { label: string };
+};
+
 /** The card alone, for the design gallery and anything else that supplies its own answers. */
 export function CalloutCard({
   callout,
   variant,
+  compact = false,
   exiting = false,
   onDismiss,
   onAct,
 }: {
-  callout: Callout;
+  callout: CardContent;
   variant: 'corner' | 'inline';
+  /** Without the drawing — a notice, or any card in an opened stack. */
+  compact?: boolean;
   exiting?: boolean;
   onDismiss: () => void;
   onAct: () => void;
 }) {
   const titleId = useId();
+  const art = !compact && callout.illustration;
   return (
     <div
-      className={`proto-callout proto-callout--${variant}${exiting ? ' proto-callout--exiting' : ''}`}
+      className={[
+        'proto-callout',
+        `proto-callout--${variant}`,
+        art ? null : 'proto-callout--compact',
+        exiting ? 'proto-callout--exiting' : null,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       role="dialog"
       aria-modal="false"
       aria-labelledby={titleId}
@@ -180,9 +225,11 @@ export function CalloutCard({
       <button type="button" className="proto-callout__close" aria-label="Dismiss" onClick={onDismiss}>
         <Icon name="xmark" size={13} aria-hidden />
       </button>
-      <div className="proto-callout__art">
-        <CalloutIllustration name={callout.illustration} />
-      </div>
+      {art ? (
+        <div className="proto-callout__art">
+          <CalloutIllustration name={callout.illustration!} />
+        </div>
+      ) : null}
       <p id={titleId} className="proto-callout__title">
         {callout.title}
       </p>
@@ -194,37 +241,133 @@ export function CalloutCard({
   );
 }
 
-/** Desktop: the floating card in the window's corner. Mounted once, in the shell. */
-export function PrototypeFeatureCalloutCorner() {
-  const { isMobileSidebar, inspectorOpen } = useProtoShell();
-  const welcomeUp = useSyncExternalStore(subscribeAppUpdateToastHold, isAppUpdateToastHeld, () => false);
-  const { callout, dismiss, act } = useActiveCallout();
-  /*
-   * The card that is leaving, kept until its exit finishes — the active callout becomes null
-   * the moment it is put away, and the card would otherwise vanish rather than leave.
-   */
-  const [shown, setShown] = useState<Callout | null>(null);
-  const open = Boolean(callout) && !isMobileSidebar && !inspectorOpen && !welcomeUp;
-  useEffect(() => {
-    if (open && callout) setShown(callout);
-  }, [open, callout]);
-  const { mounted, exiting } = useProtoOverlayMotion(open);
+function asContent(item: CalloutStackItem): CardContent {
+  return { title: item.title, body: item.body, illustration: item.illustration, action: { label: item.actionLabel } };
+}
 
-  if (!mounted || !shown || typeof document === 'undefined') return null;
-  /* Portaled to body, so it carries `proto-theme` itself — outside the shell it would lose the
-     tokens and conventions scoped there (the Harvous 3 welcome does the same). */
-  return createPortal(
-    <div className="proto-theme proto-callout-anchor">
-      <CalloutCard callout={shown} variant="corner" exiting={exiting} onDismiss={dismiss} onAct={act} />
-    </div>,
-    document.body,
+/**
+ * The cards as a stack: the first in front, the rest as edges behind it — above it in the
+ * window's corner (`up`), below it at the top of Home on a phone (`down`). Opened, every card is
+ * listed, each with its own ×, and "Dismiss all" puts the lot away.
+ */
+export function CalloutStack({
+  items,
+  variant,
+  exiting = false,
+}: {
+  items: readonly CalloutStackItem[];
+  variant: 'corner' | 'inline';
+  exiting?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const direction = variant === 'corner' ? 'up' : 'down';
+  /* Nothing left to open once there is one card. */
+  useEffect(() => {
+    if (items.length < 2) setOpen(false);
+  }, [items.length]);
+  if (items.length === 0) return null;
+  const [front, ...rest] = items;
+
+  if (open) {
+    return (
+      <div className={`proto-callout-stack proto-callout-stack--open`} data-direction={direction}>
+        <div className="proto-callout-stack__bar">
+          <button
+            type="button"
+            className="proto-callout-stack__text-btn"
+            onClick={() => {
+              for (const item of items) item.dismiss();
+            }}
+          >
+            Dismiss all
+          </button>
+          <button type="button" className="proto-callout-stack__text-btn" onClick={() => setOpen(false)}>
+            Show less
+          </button>
+        </div>
+        <div className="proto-callout-stack__list">
+          {items.map((item) => (
+            <CalloutCard
+              key={item.id}
+              callout={asContent(item)}
+              variant={variant}
+              compact
+              onDismiss={item.dismiss}
+              onAct={item.act}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const peeks = Math.min(2, rest.length);
+  return (
+    <div className="proto-callout-stack" data-direction={direction} data-peek={peeks}>
+      {rest.length > 0 ? (
+        <button
+          type="button"
+          className="proto-callout-stack__more"
+          aria-label={`Show all ${items.length}`}
+          onClick={() => setOpen(true)}
+        >
+          <span className="proto-callout-stack__more-label">{rest.length} more</span>
+        </button>
+      ) : null}
+      <CalloutCard
+        callout={asContent(front!)}
+        variant={variant}
+        exiting={exiting}
+        onDismiss={front!.dismiss}
+        onAct={front!.act}
+      />
+    </div>
   );
 }
 
-/** Phones: the same card at the top of Home's Today band. */
+/** Desktop: the stack in the window's corner. Mounted once, in the shell. */
+export function PrototypeFeatureCalloutCorner() {
+  const { isMobileSidebar, inspectorOpen } = useProtoShell();
+  const welcomeUp = useSyncExternalStore(subscribeAppUpdateToastHold, isAppUpdateToastHeld, () => false);
+  const { items, founderLetterOpen, closeFounderLetter } = useCalloutStack();
+  /*
+   * The cards that are leaving, kept until their exit finishes — the list empties the moment the
+   * last is put away, and the stack would otherwise vanish rather than leave.
+   */
+  const [shown, setShown] = useState<readonly CalloutStackItem[]>([]);
+  const open = items.length > 0 && !isMobileSidebar && !inspectorOpen && !welcomeUp;
+  useEffect(() => {
+    if (open) setShown(items);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, items.map((item) => item.id).join(',')]);
+  const { mounted, exiting } = useProtoOverlayMotion(open);
+
+  return (
+    <>
+      {mounted && shown.length > 0 && typeof document !== 'undefined'
+        ? /* Portaled to body, so it carries `proto-theme` itself — outside the shell it would
+             lose the tokens and conventions scoped there (the Harvous 3 welcome does the same). */
+          createPortal(
+            <div className="proto-theme proto-callout-anchor">
+              <CalloutStack items={open ? items : shown} variant="corner" exiting={exiting} />
+            </div>,
+            document.body,
+          )
+        : null}
+      {!isMobileSidebar ? <PrototypeFounderLetterSheet open={founderLetterOpen} onClose={closeFounderLetter} /> : null}
+    </>
+  );
+}
+
+/** Phones: the same stack at the top of Home's Today band, opening downward. */
 export function PrototypeFeatureCalloutInline() {
   const { isMobileSidebar } = useProtoShell();
-  const { callout, dismiss, act } = useActiveCallout();
-  if (!isMobileSidebar || !callout) return null;
-  return <CalloutCard callout={callout} variant="inline" onDismiss={dismiss} onAct={act} />;
+  const { items, founderLetterOpen, closeFounderLetter } = useCalloutStack();
+  if (!isMobileSidebar) return null;
+  return (
+    <>
+      <CalloutStack items={items} variant="inline" />
+      <PrototypeFounderLetterSheet open={founderLetterOpen} onClose={closeFounderLetter} />
+    </>
+  );
 }

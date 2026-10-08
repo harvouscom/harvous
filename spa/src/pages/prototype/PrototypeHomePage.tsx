@@ -1,7 +1,6 @@
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypeInstallWebAppCard from './PrototypeInstallWebAppCard';
 import PrototypeRemindersCard from './PrototypeRemindersCard';
-import PrototypeHomeNotices from './PrototypeHomeNotices';
 import PrototypeStudyFeedPage from './PrototypeStudyFeedPage';
 import PrototypeChurchHub from './PrototypeChurchHub';
 import PrototypeSpaceHub from './PrototypeSpaceHub';
@@ -92,7 +91,6 @@ export default function PrototypeHomePage() {
     <PrototypeMainPaneShell>
       <PrototypeInstallWebAppCard />
       <PrototypeRemindersCard />
-      <PrototypeHomeNotices />
       <PrototypeStudyFeedPage />
     </PrototypeMainPaneShell>
   );

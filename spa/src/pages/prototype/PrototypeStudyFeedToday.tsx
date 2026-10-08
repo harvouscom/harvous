@@ -354,8 +354,8 @@ export default function PrototypeStudyFeedToday({
                   of view, and only for free accounts. */}
               <PrototypeHistoryLeavingRow />
               {/* What's new, importing and the founder's letter are Harvous talking about
-                  itself, not suggestions about your study — they sit above the sheet
-                  (`PrototypeHomeNotices`). */}
+                  itself, not suggestions about your study — they stack in the callout
+                  (`callouts/use-notice-items.ts`). */}
             </ProtoDeck>
           </div>
         </div>
