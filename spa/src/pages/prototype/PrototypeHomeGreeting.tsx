@@ -30,6 +30,7 @@ import { currentLiturgicalSeason } from '@/utils/liturgical-season';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import { protoRelativeCaption } from './proto-time';
 import { recallKindIcon } from './recall-kind-icons';
+import ProtoDaypartMark, { isDaypart, type Daypart } from './ProtoDaypartMark';
 import { HOME_INTRO_LIST_MODES, type SidebarListModeEntry } from './proto-sidebar-list-modes';
 import type { SidebarListMode } from '../../layouts/proto-shell-context';
 
@@ -104,7 +105,21 @@ export default function PrototypeHomeGreeting({
       }),
     [rhythm, weeklyDays, lastActivityMs, countForLogic],
   );
-  const activityClause = activityTail ? <>, {activityTail}</> : null;
+  /*
+   * "often on Friday nights" gets the hour drawn beside it (`ProtoDaypartMark`). Matched on the
+   * rhythm phrase's own shape, so every other tail — "twice this week", "here yesterday" — stays
+   * plain words.
+   */
+  const rhythmMatch = activityTail ? /^often on (\S+) (\S+)$/.exec(activityTail) : null;
+  const activityClause = activityTail ? (
+    rhythmMatch && isDaypart(rhythmMatch[2]!) ? (
+      <>
+        , often on <ProtoDaypartMark day={rhythmMatch[1]!} daypart={rhythmMatch[2] as Daypart} />
+      </>
+    ) : (
+      <>, {activityTail}</>
+    )
+  ) : null;
 
   const trendClause = trend ? (
     <>

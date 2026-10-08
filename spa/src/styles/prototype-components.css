@@ -8137,6 +8137,180 @@ button.proto-home-card--tappable:hover {
   font-weight: 600;
 }
 
+/*
+ * "Friday nights", with the hour drawn beside it (`ProtoDaypartMark.tsx`).
+ *
+ * Not a chip: chips are things you can open, and this is a fact about when you study. It is
+ * the words in a touch more weight with a glyph in front, kept on one line together. Neutral ink
+ * throughout — the accent is for things you act on. The glyph moves for a few beats when the
+ * greeting lands, then rests; the pointer wakes it again.
+ */
+.proto-daypart {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+
+.proto-daypart__words {
+  font-weight: 500;
+}
+
+.proto-daypart__glyph {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 1.05em;
+  height: 1.05em;
+  overflow: visible;
+  color: var(--pds-text-secondary);
+  transform: translateY(-0.04em);
+}
+
+.proto-daypart__moon,
+.proto-daypart__star,
+.proto-daypart__sun circle {
+  fill: currentColor;
+}
+
+.proto-daypart__rays line,
+.proto-daypart__horizon {
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
+
+.proto-daypart__horizon--short {
+  opacity: 0.5;
+}
+
+/* Every moving part turns about its own middle. */
+.proto-daypart__star,
+.proto-daypart__sun,
+.proto-daypart__rays {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Night: the two stars take turns. */
+.proto-daypart__star {
+  animation: proto-daypart-twinkle 2.4s var(--pds-ease-standard) 3;
+}
+
+.proto-daypart__star--b {
+  animation-delay: 1.2s;
+}
+
+/* Afternoon: the rays turn a little, as if the light were moving. */
+.proto-daypart__sun--turn .proto-daypart__rays {
+  animation: proto-daypart-turn 6s var(--pds-ease-standard) 1;
+}
+
+/* Morning: the sun comes up over its line. Evening: it settles below it. */
+.proto-daypart__sun--rise {
+  animation: proto-daypart-rise 2.2s var(--pds-ease-standard) 1 both;
+}
+
+.proto-daypart__sun--set {
+  animation: proto-daypart-set 2.2s var(--pds-ease-standard) 1 both;
+}
+
+.proto-daypart__sun--rise .proto-daypart__rays,
+.proto-daypart__sun--set .proto-daypart__rays {
+  animation: proto-daypart-glow 2.2s var(--pds-ease-standard) 1 both;
+}
+
+/* Under the pointer, the same motion again, for as long as it stays. */
+@media (hover: hover) {
+  .proto-daypart:hover .proto-daypart__star {
+    animation-name: proto-daypart-twinkle-again;
+    animation-iteration-count: infinite;
+  }
+
+  .proto-daypart:hover .proto-daypart__sun--turn .proto-daypart__rays {
+    animation: proto-daypart-turn-again 6s linear infinite;
+  }
+}
+
+@keyframes proto-daypart-twinkle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(0.6);
+  }
+}
+
+/* A second name for the same frames, so hovering restarts it. */
+@keyframes proto-daypart-twinkle-again {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes proto-daypart-turn {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(45deg);
+  }
+}
+
+@keyframes proto-daypart-turn-again {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes proto-daypart-rise {
+  from {
+    transform: translateY(2.5px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes proto-daypart-set {
+  from {
+    transform: translateY(-1.5px);
+  }
+  to {
+    transform: translateY(1px);
+  }
+}
+
+@keyframes proto-daypart-glow {
+  from {
+    opacity: 0.2;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-daypart__star,
+  .proto-daypart__sun,
+  .proto-daypart__rays,
+  .proto-daypart:hover .proto-daypart__star,
+  .proto-daypart:hover .proto-daypart__sun--turn .proto-daypart__rays {
+    animation: none;
+  }
+}
+
 /* A chip and the comma after it: never split across lines (see `withTrailingPunctuation`). */
 .proto-home-greeting__glue {
   white-space: nowrap;
