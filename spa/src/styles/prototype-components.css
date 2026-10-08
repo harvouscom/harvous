@@ -23282,13 +23282,14 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    * The greeting as the sheet's opening line: a narrower measure, centred, its lines balanced.
    *
    * Across the full 744px it ran as one long line and a stub, which read as a paragraph that
-   * happened to be first. Held to about 28em and set centred it reads as a title-like sentence
+   * happened to be first. Held to about 34em and set centred it reads as a title-like sentence
    * over the decks, and `balance` keeps two lines roughly equal rather than full-then-short.
    * Wide sheets only: on a phone the measure is already narrow, and centred prose there would
    * just be ragged on both sides.
    */
   .proto-feed-sheet .proto-home-greeting {
-    max-width: 28em;
+    /* 34em, not 28: "Good afternoon" and a long chip broke 28em into three lines. */
+    max-width: 34em;
     margin-inline: auto;
     padding-block: 10px 6px;
     text-align: center;
