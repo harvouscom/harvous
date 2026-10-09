@@ -14,6 +14,7 @@
  */
 
 import { buildChoiceExercise, gradeChoiceExercise, type ChoiceExercise } from '@/utils/choice-exercise';
+import type { ReviewTier } from '@/utils/review-difficulty';
 import { buildVerseCloze, hashSeed, mulberry32, seededIndex, verseCue, type VerseCloze } from '@/utils/verse-cloze';
 import {
   VERSE_NEXT_CUE_WORDS,
@@ -115,10 +116,13 @@ export function buildChapterVerse(input: {
   verses: readonly ChapterVerse[];
   /** Verse numbers the reader highlighted or cited in this chapter. */
   engagedNumbers: readonly number[];
-  /** Openings (or verse texts) from other chapters the reader has read. */
+  /** Openings (or verse texts) from other chapters the reader has read — with a tier, the same book's. */
   distractorTexts: readonly string[];
+  /** Openings from chapters the reader has read in other books: drawn first at tier 0. */
+  farTexts?: readonly string[];
   fallbackTexts?: readonly string[];
   seed: string;
+  tier?: ReviewTier | null;
 }): ChapterVerseExercise | null {
   const seed = `${input.seed}:verse`;
   const verse = pickSeeded(chapterEngagedCues(input.verses, input.engagedNumbers), seed);
@@ -132,7 +136,9 @@ export function buildChapterVerse(input: {
   const choice = buildChoiceExercise({
     answers: [answer],
     pool: cues(input.distractorTexts),
+    farPool: cues(input.farTexts ?? []),
     fallbackPool: cues(input.fallbackTexts ?? []),
+    tier: input.tier,
     seed,
   });
   return choice ? { ...choice, verse } : null;
@@ -181,6 +187,8 @@ export function buildChapterMarked(input: {
   /** Verse numbers the reader highlighted in this chapter. */
   highlightedNumbers: readonly number[];
   seed: string;
+  /** Three options at tier 0; every wrong answer is from this chapter either way. */
+  tier?: ReviewTier | null;
 }): ChapterVerseExercise | null {
   const seed = `${input.seed}:marked`;
   const { answers, viable, poolFor } = chapterMarkedDraw(input.verses, input.highlightedNumbers);
@@ -191,6 +199,7 @@ export function buildChapterMarked(input: {
     // Every marked verse is right; the primitive bars all of them as distractors.
     answers: answers.map((entry) => verseCue(entry.text, CHAPTER_CUE_WORDS)).filter(Boolean),
     pool: poolFor(verse),
+    tier: input.tier,
     seed,
   });
   return choice ? { ...choice, verse } : null;
@@ -385,6 +394,7 @@ export function buildChapterPerson(input: {
   pool: readonly string[];
   fallbackPool?: readonly string[];
   seed: string;
+  tier?: ReviewTier | null;
 }): ChoiceExercise | null {
   const answers = askablePeople(input.people);
   if (!answers.length) return null;
@@ -393,6 +403,7 @@ export function buildChapterPerson(input: {
     onVerse: input.people,
     pool: askablePeople(input.pool),
     fallbackPool: askablePeople(input.fallbackPool ?? []),
+    tier: input.tier,
     seed: `${input.seed}:person`,
   });
 }
@@ -437,6 +448,7 @@ export function buildChapterPlace(input: {
   pool: readonly string[];
   fallbackPool?: readonly string[];
   seed: string;
+  tier?: ReviewTier | null;
 }): ChoiceExercise | null {
   const answers = askablePlaces(input.places);
   if (!answers.length) return null;
@@ -445,6 +457,7 @@ export function buildChapterPlace(input: {
     onVerse: input.places,
     pool: askablePlaces(input.pool),
     fallbackPool: askablePlaces(input.fallbackPool ?? []),
+    tier: input.tier,
     seed: `${input.seed}:place`,
   });
 }

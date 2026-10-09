@@ -27,6 +27,8 @@ import {
   gradeVerseMarked,
   verseMarkedFitsVerse,
   verseLocateStem,
+  capPhrases,
+  partitionBooksByCanonDistance,
 } from '@/utils/verse-ladder-exercises';
 
 const JOHN_15_5 =
@@ -643,5 +645,101 @@ describe('verseLocateStem', () => {
     expect(built!.phrase).toBe(stem.phrase);
     expect(built!.leading).toBe(stem.leading);
     expect(built!.trailing).toBe(stem.trailing);
+  });
+});
+
+describe('verse choices by tier', () => {
+  const JOHN_15_5 =
+    'I am the vine; you are the branches. The one who remains in me — and I in him — bears much fruit, because apart from me you can accomplish nothing.';
+  const seeds = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  const wrong = (ex: { options: string[]; answerIndex: number }) => ex.options.filter((_, i) => i !== ex.answerIndex);
+
+  it('locate: three options from other books at tier 0, four from the same book at tier 2', () => {
+    const sameBook = ['John 1:1', 'John 3:16', 'John 14:6'];
+    const otherBooks = ['Genesis 1:1', 'Psalm 23:1', 'Romans 8:28'];
+    for (const seed of seeds) {
+      const easy = buildVerseLocate('John 15:5', JOHN_15_5, sameBook, seed, null, undefined, {
+        tier: 0,
+        farReferences: otherBooks,
+      })!;
+      expect(easy.options).toHaveLength(3);
+      for (const option of wrong(easy)) expect(otherBooks).toContain(option);
+
+      const hard = buildVerseLocate('John 15:5', JOHN_15_5, sameBook, seed, null, undefined, {
+        tier: 2,
+        farReferences: otherBooks,
+      })!;
+      expect(hard.options).toHaveLength(4);
+      for (const option of wrong(hard)) expect(sameBook).toContain(option);
+    }
+  });
+
+  it('locate: the quoted line does not move with the tier', () => {
+    const at = (tier: 0 | 2) =>
+      buildVerseLocate('John 15:5', JOHN_15_5, ['John 1:1'], 'seed', null, undefined, { tier, farReferences: ['Genesis 1:1'] })!.phrase;
+    expect(at(0)).toBe(at(2));
+  });
+
+  it('recognize: openings from other books first while the verse is new', () => {
+    const sameBook = ['In the beginning was the Word, and the Word was with God', 'For God so loved the world that he gave his one and only Son'];
+    const otherBooks = ['The LORD is my shepherd, I shall not want', 'And we know that all things work together for good'];
+    for (const seed of seeds) {
+      const easy = buildVerseRecognize({ answerText: JOHN_15_5, poolTexts: sameBook, farTexts: otherBooks, seed, tier: 0 })!;
+      expect(easy.options).toHaveLength(3);
+      for (const option of wrong(easy)) expect(otherBooks.some((t) => t.startsWith(option.split(' ').slice(0, 4).join(' ')))).toBe(true);
+    }
+  });
+
+  it('recognize: builds at tier 0 for a reader with only two other verses on file', () => {
+    const two = ['The LORD is my shepherd, I shall not want', 'And we know that all things work together for good'];
+    expect(buildVerseRecognize({ answerText: JOHN_15_5, poolTexts: two, seed: 's' })).toBeNull();
+    expect(buildVerseRecognize({ answerText: JOHN_15_5, poolTexts: [], farTexts: two, seed: 's', tier: 0 })).not.toBeNull();
+  });
+
+  it('book: neighbours in the canon are the look-alikes', () => {
+    expect(partitionBooksByCanonDistance('John', ['Luke', 'Acts', 'Genesis', 'Revelation', 'Nowhere'])).toEqual({
+      near: ['Luke', 'Acts'],
+      far: ['Genesis', 'Revelation', 'Nowhere'],
+    });
+    for (const seed of seeds) {
+      const easy = buildVerseBook({ book: 'John', poolBooks: ['Luke', 'Mark', 'Genesis', 'Exodus'], seed, tier: 0 })!;
+      expect(easy.options).toHaveLength(3);
+      for (const option of wrong(easy)) expect(['Genesis', 'Exodus']).toContain(option);
+      const hard = buildVerseBook({ book: 'John', poolBooks: ['Luke', 'Mark', 'Matthew', 'Genesis'], seed, tier: 2 })!;
+      for (const option of wrong(hard)) expect(['Luke', 'Mark', 'Matthew']).toContain(option);
+    }
+  });
+
+  it('next: three options at tier 0, every one still a neighbour', () => {
+    const neighbours = [
+      'Abide in me, and I in you. As the branch cannot bear fruit by itself',
+      'If anyone does not abide in me he is thrown away like a branch',
+      'By this my Father is glorified, that you bear much fruit',
+      'As the Father has loved me, so have I loved you',
+    ];
+    const ex = buildVerseNext({ answerText: JOHN_15_5, neighbourTexts: neighbours, seed: 's', tier: 0 })!;
+    expect(ex.options).toHaveLength(3);
+    expect(buildVerseNext({ answerText: JOHN_15_5, neighbourTexts: neighbours, seed: 's', tier: 2 })!.options).toHaveLength(4);
+  });
+
+  it('sequence: fewer pieces early, the whole verse either way', () => {
+    const LONG =
+      'Therefore, since we are surrounded by such a great cloud of witnesses, let us throw off everything that hinders and the sin that so easily entangles, and let us run with perseverance the race marked out before us, fixing our eyes upon Jesus, the pioneer and perfecter of faith.';
+    const full = splitVersePhrases(LONG);
+    expect(full.length).toBeGreaterThan(3);
+    const easy = buildVerseSequence(LONG, 'seed', 3)!;
+    expect(easy.phrases).toHaveLength(3);
+    const restored = easy.order.map((index) => easy.phrases[index]).join(' ');
+    expect(restored).toBe(full.join(' '));
+    expect(gradeVerseSequence(easy, easy.order)).toBe(true);
+    expect(buildVerseSequence(LONG, 'seed')!.phrases).toHaveLength(full.length);
+  });
+
+  it('capPhrases joins the shortest neighbours first', () => {
+    expect(capPhrases(['one two three', 'four five', 'six seven', 'eight nine ten eleven'], 3)).toEqual([
+      'one two three',
+      'four five six seven',
+      'eight nine ten eleven',
+    ]);
   });
 });

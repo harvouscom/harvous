@@ -18,6 +18,7 @@
  * Pure. No scripture knowledge, no note knowledge; the callers bring their own vocabulary.
  */
 
+import { choiceOptionCount, type ReviewTier } from '@/utils/review-difficulty';
 import { hashSeed, mulberry32 } from '@/utils/verse-cloze';
 
 export interface ChoiceExercise {
@@ -34,13 +35,26 @@ const normalise = (value: string) => value.trim().toLowerCase().replace(/\s+/g, 
 export interface BuildChoiceExerciseInput {
   /** Every acceptable answer. One is shown; the rest are barred from being distractors. */
   answers: readonly string[];
-  /** The reader's own material, drawn from first. */
+  /** The reader's own material, drawn from first. The look-alikes, where the caller can tell. */
   pool: readonly string[];
-  /** Used only once `pool` is exhausted — see the tier note below. */
+  /**
+   * The reader's own material that is *less* like the answer — another book, another part of the
+   * Bible. Still theirs, so it always comes before `fallbackPool`; which of `pool` and `farPool`
+   * comes first is what `tier` decides.
+   */
+  farPool?: readonly string[];
+  /** Used only once the reader's own material is exhausted — see the tier note below. */
   fallbackPool?: readonly string[];
   /** Never a distractor, even though it is not the shown answer. */
   exclude?: readonly string[];
   optionCount?: number;
+  /**
+   * How hard to ask (`reviewTierFor`). Tier 0 offers fewer options and draws from `farPool`
+   * first, so the wrong answers are plainly not the right one; tier 1 mixes the reader's material;
+   * tier 2 draws look-alikes first. Omitted, it asks the way it always did — `pool` first, the
+   * full option count.
+   */
+  tier?: ReviewTier | null;
   seed: string;
 }
 
@@ -52,7 +66,7 @@ export interface BuildChoiceExerciseInput {
  * one I recognise" and three strangers is not an exercise.
  */
 export function buildChoiceExercise(input: BuildChoiceExerciseInput): ChoiceExercise | null {
-  const optionCount = input.optionCount ?? DEFAULT_OPTION_COUNT;
+  const optionCount = choiceOptionCount(input.optionCount ?? DEFAULT_OPTION_COUNT, input.tier);
   const random = mulberry32(hashSeed(input.seed));
 
   const acceptable = input.answers.map((a) => a.trim()).filter(Boolean);
@@ -76,12 +90,17 @@ export function buildChoiceExercise(input: BuildChoiceExerciseInput): ChoiceExer
     return out;
   };
 
-  const own = take(input.pool);
+  const near = take(input.pool);
+  const far = take(input.farPool ?? []);
   const fallback = take(input.fallbackPool ?? []);
-  if (own.length + fallback.length < optionCount - 1) return null;
+  if (near.length + far.length + fallback.length < optionCount - 1) return null;
+
+  // The reader's own material always before the canned list; only its order moves with the tier.
+  const layers =
+    input.tier === 0 ? [far, near, fallback] : input.tier === 1 ? [[...near, ...far], fallback] : [near, far, fallback];
 
   const picked: string[] = [];
-  for (const tier of [own, fallback]) {
+  for (const tier of layers) {
     const remaining = [...tier];
     while (picked.length < optionCount - 1 && remaining.length) {
       picked.push(remaining.splice(Math.floor(random() * remaining.length), 1)[0]);

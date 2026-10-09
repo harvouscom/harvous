@@ -2,8 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   RECALL_LEAD_IN_WORDS,
   VERSE_KEYWORDS_MIN_COUNT,
+  EASY_CHOICE_OPTIONS,
+  TIER_1_STREAK,
+  TIER_2_STREAK,
+  choiceOptionCount,
   reviewTierFor,
+  reviewTierInput,
   verseClozeSpec,
+  verseSequenceMaxPhrases,
+  type ReviewTierInput,
   verseInitialsShare,
   verseKeywordsCount,
   verseRecallMode,
@@ -17,39 +24,74 @@ const HEBREWS =
   'Therefore, since we are surrounded by such a great cloud of witnesses, let us throw off everything that hinders and the sin that so easily entangles, and let us run with perseverance the race marked out before us, fixing our eyes upon Jesus, the pioneer and perfecter of faith.';
 
 describe('the tier a rung asks at', () => {
-  it('is the easiest one the first time a rung is met', () => {
-    // The rule the whole file is written around, and the one the owner asked for: whatever else
-    // is true of the verse, a first meeting is easy.
+  const tier = (input: Partial<ReviewTierInput>) => reviewTierFor({ pass: 0, ...input });
+
+  it('is the easiest one for a verse never asked before', () => {
     for (const state of ['new', 'fragile', 'forming', 'durable', 'slipping'] as const) {
-      expect(reviewTierFor(0, state)).toBe(0);
+      expect(tier({ recallState: state })).toBe(0);
     }
   });
 
-  it('rises with the pass, and stops at the top', () => {
-    expect(reviewTierFor(1)).toBe(1);
-    expect(reviewTierFor(2)).toBe(2);
-    expect(reviewTierFor(9)).toBe(2);
+  it('rises with a run of clean recalls, before the ladder has looped', () => {
+    // Derek, Oct 2026: start easy, and get harder as they keep getting it right.
+    expect(tier({ reviewCount: 1, successStreak: 1 })).toBe(0);
+    expect(tier({ reviewCount: 2, successStreak: TIER_1_STREAK })).toBe(1);
+    expect(tier({ reviewCount: 3, successStreak: TIER_2_STREAK - 1 })).toBe(1);
+    expect(tier({ reviewCount: 5, successStreak: TIER_2_STREAK })).toBe(2);
+  });
+
+  it('still rises with the pass, and stops at the top', () => {
+    expect(tier({ pass: 1 })).toBe(1);
+    expect(tier({ pass: 2 })).toBe(2);
+    expect(tier({ pass: 9 })).toBe(2);
   });
 
   it('reaches full strength sooner on a verse the reader demonstrably holds', () => {
-    /*
-     * Reaching tier 2 on pass alone takes a second full loop of the ladder — and intervals
-     * compound as a verse settles, so on the calendar that is a very long way out.
-     */
-    expect(reviewTierFor(1, 'durable')).toBe(2);
-    expect(reviewTierFor(1, 'forming')).toBe(1);
+    expect(tier({ pass: 1, recallState: 'durable' })).toBe(2);
+    expect(tier({ pass: 1, recallState: 'forming' })).toBe(1);
   });
 
-  it('never drops someone down a tier for missing one', () => {
-    // The ladder already steps back on a genuine stall. Taking the rung away the moment someone
-    // slips would remove the work just as they started doing it.
-    expect(reviewTierFor(1, 'slipping')).toBe(1);
-    expect(reviewTierFor(2, 'slipping')).toBe(2);
+  it('comes down a tier after a miss, and never below the floor', () => {
+    // A streak of 0 on an item asked before means the last answer was short of a clean recall.
+    expect(tier({ pass: 2, reviewCount: 6, successStreak: 0 })).toBe(1);
+    expect(tier({ pass: 1, reviewCount: 6, successStreak: 0, recallState: 'slipping' })).toBe(0);
+    expect(tier({ pass: 0, reviewCount: 6, successStreak: 0 })).toBe(0);
+  });
+
+  it('takes whichever road has got further', () => {
+    expect(tier({ pass: 1, reviewCount: 9, successStreak: TIER_2_STREAK })).toBe(2);
+    expect(tier({ pass: 2, reviewCount: 9, successStreak: 1 })).toBe(2);
+  });
+
+  it('reads the item as it was asked', () => {
+    expect(
+      reviewTierInput(0, { recallState: 'forming', successStreak: 2, reviewCount: 3 }),
+    ).toEqual({ pass: 0, recallState: 'forming', successStreak: 2, reviewCount: 3 });
+    expect(reviewTierFor(reviewTierInput(0, { successStreak: null, reviewCount: null }))).toBe(0);
   });
 
   it('treats nonsense as a first meeting rather than throwing', () => {
-    expect(reviewTierFor(Number.NaN)).toBe(0);
-    expect(reviewTierFor(-3)).toBe(0);
+    expect(tier({ pass: Number.NaN })).toBe(0);
+    expect(tier({ pass: -3, successStreak: -1 })).toBe(0);
+  });
+});
+
+describe('multiple choice by tier', () => {
+  it('offers three options at tier 0 and the full set above it', () => {
+    expect(choiceOptionCount(4, 0)).toBe(EASY_CHOICE_OPTIONS);
+    expect(choiceOptionCount(4, 1)).toBe(4);
+    expect(choiceOptionCount(4, 2)).toBe(4);
+    expect(choiceOptionCount(4, undefined)).toBe(4);
+  });
+
+  it('never grows a rung that already asks with fewer', () => {
+    expect(choiceOptionCount(2, 0)).toBe(2);
+  });
+
+  it('cuts the ordering rung into fewer pieces early on', () => {
+    expect(verseSequenceMaxPhrases(0)).toBeLessThan(verseSequenceMaxPhrases(1));
+    expect(verseSequenceMaxPhrases(1)).toBeLessThan(verseSequenceMaxPhrases(2));
+    expect(verseSequenceMaxPhrases(99)).toBe(verseSequenceMaxPhrases(2));
   });
 });
 
@@ -102,9 +144,6 @@ describe('every rung is gentle at tier 0 and hardest at tier 2', () => {
     expect(verseClozeSpec(0).wordBank).toBe(true);
     expect(verseClozeSpec(1).wordBank).toBe(false);
     expect(verseClozeSpec(2).wordBank).toBe(false);
-    // A durable verse accelerates past tier 0 only after its first pass, never on it.
-    expect(verseClozeSpec(0, 'durable').wordBank).toBe(true);
-    expect(verseClozeSpec(1, 'durable').wordBank).toBe(false);
   });
 
   it('reduces a share of the initials before the whole verse', () => {

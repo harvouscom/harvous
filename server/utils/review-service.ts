@@ -154,10 +154,14 @@ import {
   verseCue,
 } from '@/utils/verse-cloze';
 import {
+  reviewTierFor,
+  reviewTierInput,
   verseClozeSpec,
   verseInitialsShare,
   verseKeywordsCount,
   verseRecallMode,
+  verseSequenceMaxPhrases,
+  type ReviewTier,
 } from '@/utils/review-difficulty';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
@@ -1245,7 +1249,7 @@ export async function buildReviewItemViews(
     const promptSeed = reviewSeed(row);
     const promptPass =
       kind === 'verse' ? verseRungFor(row.ladderStep, promptSeed, verseMaterial).pass : 0;
-    const promptRecallState = row.recallState as RecallState;
+    const promptTier = askedTier(promptPass, row);
     const { key, prompt } = reviewPromptFor(
       {
         kind,
@@ -1262,10 +1266,9 @@ export async function buildReviewItemViews(
         noteTitle,
         secondaryNoteTitle,
         cue,
-        recallMode: kind === 'verse' ? verseRecallMode(promptPass, promptRecallState) : null,
-        keywordCount: kind === 'verse' ? verseKeywordsCount(promptPass, promptRecallState) : null,
-        initialsTier:
-          kind === 'verse' ? (verseInitialsShare(promptPass, promptRecallState) >= 1 ? 2 : 0) : null,
+        recallMode: kind === 'verse' ? verseRecallMode(promptTier) : null,
+        keywordCount: kind === 'verse' ? verseKeywordsCount(promptTier) : null,
+        initialsTier: kind === 'verse' ? (verseInitialsShare(promptTier) >= 1 ? 2 : 0) : null,
       },
     );
 
@@ -2717,6 +2720,7 @@ async function buildVerseContextFor(
   rungKey: ReviewPromptKey,
   material: VerseKnowledgeMaterial,
   seed: string,
+  tier: ReviewTier,
 ): Promise<{ exercise: ChoiceExercise; acceptable: string[] } | null> {
   if (!item.scriptureReference) return null;
 
@@ -2725,7 +2729,7 @@ async function buildVerseContextFor(
     const pool = (await loadNoteLabelPool(userId)).distinguishing.filter(
       (label) => !material.citingNoteLabels.includes(label),
     );
-    const exercise = buildNoteChoice({ acceptable: material.citingNoteLabels, poolLabels: pool, seed });
+    const exercise = buildNoteChoice({ acceptable: material.citingNoteLabels, poolLabels: pool, seed, tier });
     return exercise ? { exercise, acceptable: material.citingNoteLabels } : null;
   }
 
@@ -2761,6 +2765,7 @@ async function buildVerseContextFor(
       pool,
       fallbackPool: fallback,
       seed,
+      tier,
     });
     return exercise ? { exercise, acceptable: material.themes } : null;
   }
@@ -2775,6 +2780,7 @@ async function buildVerseContextFor(
       pool,
       fallbackPool: fallback,
       seed,
+      tier,
     });
     return exercise ? { exercise, acceptable: material.people } : null;
   }
@@ -2794,6 +2800,7 @@ async function buildVerseContextFor(
       pool,
       fallbackPool: fallback,
       seed,
+      tier,
     });
     return exercise ? { exercise, acceptable: answers } : null;
   }
@@ -2816,6 +2823,7 @@ async function buildVerseContextFor(
       pool: close,
       fallbackPool: rest,
       seed,
+      tier,
     });
     return exercise ? { exercise, acceptable: answers } : null;
   }
@@ -2944,6 +2952,7 @@ export async function verseTruthFor(item: ReviewItemRow, userId: string): Promis
 async function buildVerseNextFor(
   item: ReviewItemRow,
   translation: string,
+  tier: ReviewTier,
 ): Promise<VerseNextExercise | null> {
   if (!item.scriptureReference) return null;
 
@@ -2963,32 +2972,41 @@ async function buildVerseNextFor(
     answerText: stripHtml(answerHtml),
     neighbourTexts: texts.filter(Boolean).map((html) => stripHtml(html)),
     seed: reviewSeed(item),
+    tier,
   });
 }
 
 /**
- * The recognition rung's options: this verse's opening against three others the reader has cited.
+ * The recognition rung's options: this verse's opening against others the reader has cited.
  *
- * Their own passages first, so the choice is between things they have actually studied; a fixed
- * well-known set tops it up for a reader with nothing else on file yet.
+ * Their own passages only, so the choice is between things they have actually studied. Split by
+ * book so the tier can choose: openings from other books first while the verse is new (plainly
+ * not this one), the same book's first once it is held.
  */
 async function buildVerseRecognizeFor(
   userId: string,
   item: ReviewItemRow,
   text: string,
   translation: string,
+  tier: ReviewTier,
 ): Promise<VerseNextExercise | null> {
   if (!item.scriptureReference) return null;
   const others = (await listUserVerseReferences(userId, item.scriptureReference)).slice(0, 5);
-  const pool = (
-    await Promise.all(others.map((reference) => fetchVerseText(reference, translation)))
-  )
-    .filter(Boolean)
-    .map((html) => stripHtml(html));
+  const texts = await Promise.all(others.map((reference) => fetchVerseText(reference, translation)));
+  const { close } = partitionByBook([item.scriptureReference], others);
+  const sameBook = new Set(close);
+  const near: string[] = [];
+  const far: string[] = [];
+  others.forEach((reference, index) => {
+    const html = texts[index];
+    if (html) (sameBook.has(reference) ? near : far).push(stripHtml(html));
+  });
   return buildVerseRecognize({
     answerText: text,
-    poolTexts: pool,
+    poolTexts: near,
+    farTexts: far,
     seed: reviewSeed(item),
+    tier,
   });
 }
 
@@ -3040,6 +3058,7 @@ async function buildVerseMarkedFor(
   material: VerseKnowledgeMaterial,
   seed: string,
   translation: string,
+  tier: ReviewTier,
 ): Promise<ChoiceExercise | null> {
   if (!item.scriptureReference || !material.markedSpan) return null;
   const neighbours = neighbourVerseAddresses(item.scriptureReference, VERSE_MARKED_NEIGHBOURS);
@@ -3051,11 +3070,62 @@ async function buildVerseMarkedFor(
     neighbourTexts: texts.filter(Boolean).map((html) => stripHtml(html)),
     span: material.markedSpan,
     seed,
+    tier,
   });
 }
 
 /** Enough neighbours that a short verse still fills four options. */
 const VERSE_MARKED_NEIGHBOURS = 4;
+
+/**
+ * The tier an item is asked at, from the item as it stands *before* the answer lands.
+ *
+ * One function for the prompt, the reveal, the grader and the truth, because all four must agree
+ * on how hard the question was — a choice built with three options and marked against four is a
+ * reader marked wrong for a question they were never asked. The outcome route grades before the
+ * streak moves, so reading it here is reading the question as it was put.
+ */
+function askedTier(
+  pass: number,
+  item: { recallState?: string | null; successStreak?: number | null; reviewCount?: number | null },
+): ReviewTier {
+  return reviewTierFor(reviewTierInput(pass, item));
+}
+
+/**
+ * "Which passage is this from?" — one builder for the question and the marking.
+ *
+ * The reader's same-book passages are the look-alikes and their other books the far side; the
+ * tier decides which is drawn first. `readerPhrase` only moves the quoted stem, never the options,
+ * so the grader can leave it out.
+ */
+async function buildVerseLocateFor(
+  userId: string,
+  item: ReviewItemRow,
+  text: string,
+  seed: string,
+  tier: ReviewTier,
+  readerPhrase: string | null = null,
+) {
+  if (!item.scriptureReference) return null;
+  const pool = await listUserVerseReferences(userId, item.scriptureReference);
+  const { close, rest } = partitionByBook([item.scriptureReference], pool);
+  return buildVerseLocate(item.scriptureReference, text, close, seed, readerPhrase, undefined, {
+    tier,
+    farReferences: rest,
+  });
+}
+
+/** "Which book is this from?" — one builder for the question and the marking. */
+async function buildVerseBookFor(userId: string, item: ReviewItemRow, seed: string, tier: ReviewTier) {
+  if (!item.scriptureReference) return null;
+  return buildVerseBook({
+    book: lastVerseOf(item.scriptureReference)?.book ?? '',
+    poolBooks: booksOf(await listUserVerseReferences(userId, item.scriptureReference)),
+    seed,
+    tier,
+  });
+}
 
 /** The books behind a list of references, deduplicated, for the book rung's pool. */
 function booksOf(references: readonly string[]): string[] {
@@ -3405,6 +3475,7 @@ async function buildChapterVerseFor(
   userId: string,
   material: ChapterKnowledgeMaterial,
   seed: string,
+  tier: ReviewTier,
 ): Promise<ChapterVerseExercise | null> {
   if (!material.verses.length) return null;
   const others = await listUserReadChapters(userId, material, CHAPTER_DISTRACTOR_CHAPTERS);
@@ -3412,13 +3483,18 @@ async function buildChapterVerseFor(
     const html = await fetchVerseText(label, material.translation).catch(() => '');
     return html ? chapterCueFor(splitChapterHtmlIntoVerses(html), `${seed}:${label}`) : null;
   };
-  const own = (await Promise.all(others.map((c) => cueOf(chapterReferenceLabel(c))))).filter(
-    (cue): cue is string => Boolean(cue),
-  );
+  const cues = await Promise.all(others.map((c) => cueOf(chapterReferenceLabel(c))));
+  // Chapters of the same book are the look-alikes; the tier decides which side is drawn first.
+  const near: string[] = [];
+  const far: string[] = [];
+  others.forEach((chapter, index) => {
+    const cue = cues[index];
+    if (cue) (chapter.book === material.book ? near : far).push(cue);
+  });
   const fallback: string[] = [];
   const taken = new Set([material.reference, ...others.map(chapterReferenceLabel)]);
   for (const label of WELL_KNOWN_CHAPTERS) {
-    if (own.length + fallback.length >= CHAPTER_DISTRACTORS_NEEDED) break;
+    if (near.length + far.length + fallback.length >= CHAPTER_DISTRACTORS_NEEDED) break;
     if (taken.has(label)) continue;
     const cue = await cueOf(label);
     if (cue) fallback.push(cue);
@@ -3426,19 +3502,20 @@ async function buildChapterVerseFor(
   return buildChapterVerse({
     verses: material.verses,
     engagedNumbers: material.engagedNumbers,
-    distractorTexts: own,
+    distractorTexts: near,
+    farTexts: far,
     fallbackTexts: fallback,
     seed,
+    tier,
   });
 }
 
 function buildChapterFinishFor(
   material: ChapterKnowledgeMaterial,
   seed: string,
-  pass: number,
-  recallState?: RecallState | null,
+  tier: ReviewTier,
 ): ChapterFinishExercise | null {
-  const spec = verseClozeSpec(pass, recallState);
+  const spec = verseClozeSpec(tier);
   return buildChapterFinish({
     verses: material.verses,
     engagedNumbers: material.engagedNumbers,
@@ -3457,6 +3534,7 @@ async function buildChapterPersonFor(
   userId: string,
   material: ChapterKnowledgeMaterial,
   seed: string,
+  tier: ReviewTier,
 ): Promise<ChoiceExercise | null> {
   if (!askablePeople(material.people).length) return null;
   const others = await listUserReadChapters(userId, material, 3);
@@ -3464,7 +3542,7 @@ async function buildChapterPersonFor(
     await Promise.all(others.map((c) => getKnowledgeForChapter(c.book, c.chapter).catch(() => null)))
   ).flatMap((k) => k?.people.map((p) => p.name) ?? []);
   const fallback = await samplePeopleNames(seed);
-  return buildChapterPerson({ people: material.people, pool, fallbackPool: fallback, seed });
+  return buildChapterPerson({ people: material.people, pool, fallbackPool: fallback, seed, tier });
 }
 
 /**
@@ -3477,6 +3555,7 @@ async function buildChapterPlaceFor(
   userId: string,
   material: ChapterKnowledgeMaterial,
   seed: string,
+  tier: ReviewTier,
 ): Promise<ChoiceExercise | null> {
   if (!material.places.length) return null;
   const others = await listUserReadChapters(userId, material, CHAPTER_DISTRACTOR_CHAPTERS);
@@ -3484,7 +3563,7 @@ async function buildChapterPlaceFor(
     await Promise.all(others.map((c) => getKnowledgeForChapter(c.book, c.chapter).catch(() => null)))
   ).flatMap((k) => k?.places.map((place) => place.name) ?? []);
   const fallback = await samplePlaceNames(seed);
-  return buildChapterPlace({ places: material.places, pool, fallbackPool: fallback, seed });
+  return buildChapterPlace({ places: material.places, pool, fallbackPool: fallback, seed, tier });
 }
 
 /**
@@ -3494,11 +3573,13 @@ async function buildChapterPlaceFor(
 function buildChapterMarkedFor(
   material: ChapterKnowledgeMaterial,
   seed: string,
+  tier: ReviewTier,
 ): ChapterVerseExercise | null {
   return buildChapterMarked({
     verses: material.verses,
     highlightedNumbers: material.highlightedNumbers,
     seed,
+    tier,
   });
 }
 
@@ -3524,9 +3605,10 @@ export async function gradeChapterAnswer(
   // The client says which question it was shown. A tab left open across a deploy that changed
   // the ladder would otherwise be marked against a question it never asked.
   if (answer.promptKey && answer.promptKey !== rung.key) return null;
+  const tier = askedTier(rung.pass, item);
 
   if (rung.key === 'chapter.verse' && typeof answer.option === 'string') {
-    const exercise = await buildChapterVerseFor(userId, material, seed);
+    const exercise = await buildChapterVerseFor(userId, material, seed, tier);
     if (!exercise) return null;
     return {
       correct: gradeChapterVerse(exercise, answer.option),
@@ -3534,7 +3616,7 @@ export async function gradeChapterAnswer(
     };
   }
   if (rung.key === 'chapter.finish' && Array.isArray(answer.words)) {
-    const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
+    const exercise = buildChapterFinishFor(material, seed, tier);
     if (!exercise) return null;
     const marked = markVerseRebuild(exercise.cloze, answer.words);
     return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
@@ -3546,7 +3628,7 @@ export async function gradeChapterAnswer(
     return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
   }
   if (rung.key === 'chapter.person' && typeof answer.option === 'string') {
-    const exercise = await buildChapterPersonFor(userId, material, seed);
+    const exercise = await buildChapterPersonFor(userId, material, seed, tier);
     if (!exercise) return null;
     // Anyone the index places in the chapter is right, whichever one the build showed.
     return {
@@ -3555,7 +3637,7 @@ export async function gradeChapterAnswer(
     };
   }
   if (rung.key === 'chapter.marked' && typeof answer.option === 'string') {
-    const exercise = buildChapterMarkedFor(material, seed);
+    const exercise = buildChapterMarkedFor(material, seed, tier);
     if (!exercise) return null;
     // Any verse they marked is right, whichever one the build put forward.
     return {
@@ -3564,7 +3646,7 @@ export async function gradeChapterAnswer(
     };
   }
   if (rung.key === 'chapter.place' && typeof answer.option === 'string') {
-    const exercise = await buildChapterPlaceFor(userId, material, seed);
+    const exercise = await buildChapterPlaceFor(userId, material, seed, tier);
     if (!exercise) return null;
     // Anywhere the index names in the chapter is right, whichever one the build showed.
     return {
@@ -3586,8 +3668,9 @@ export async function chapterTruthFor(item: ReviewItemRow, userId: string): Prom
   const seed = reviewSeed(item);
   const material = await loadChapterMaterial(userId, item.scriptureReference, translation);
   const rung = chapterRungFor(item.ladderStep, seed, material);
+  const tier = askedTier(rung.pass, item);
   if (rung.key === 'chapter.finish') {
-    const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
+    const exercise = buildChapterFinishFor(material, seed, tier);
     return exercise ? verseHtml(exercise.verse) : null;
   }
   if (rung.key === 'chapter.order') {
@@ -3595,11 +3678,11 @@ export async function chapterTruthFor(item: ReviewItemRow, userId: string): Prom
     return exercise ? versesHtml(exercise.verses) : null;
   }
   if (rung.key === 'chapter.verse') {
-    const exercise = await buildChapterVerseFor(userId, material, seed);
+    const exercise = await buildChapterVerseFor(userId, material, seed, tier);
     return exercise ? verseHtml(exercise.verse) : null;
   }
   if (rung.key === 'chapter.marked') {
-    const exercise = buildChapterMarkedFor(material, seed);
+    const exercise = buildChapterMarkedFor(material, seed, tier);
     return exercise ? verseHtml(exercise.verse) : null;
   }
   return null;
@@ -3639,9 +3722,10 @@ export async function gradeVerseAnswer(
   const rung = verseRungFor(item.ladderStep, seedForRung, material);
   // Same guard as the note grader: disagreement means the question moved under the answer.
   if (answer.promptKey && answer.promptKey !== rung.key) return null;
+  const tier = askedTier(rung.pass, item);
 
   if (VERSE_CONTEXT_KEYS.has(rung.key) && typeof answer.option === 'string') {
-    const built = await buildVerseContextFor(userId, item, translation, rung.key, material, seedForRung);
+    const built = await buildVerseContextFor(userId, item, translation, rung.key, material, seedForRung, tier);
     if (!built) return null;
     return {
       correct: gradeChoiceExercise(built.exercise, answer.option, built.acceptable),
@@ -3650,7 +3734,7 @@ export async function gradeVerseAnswer(
   }
 
   if (rung.key === 'verse.recognize' && typeof answer.option === 'string') {
-    const exercise = await buildVerseRecognizeFor(userId, item, material.text, translation);
+    const exercise = await buildVerseRecognizeFor(userId, item, material.text, translation, tier);
     if (!exercise) return null;
     return {
       correct: gradeVerseNext(exercise, answer.option),
@@ -3664,7 +3748,7 @@ export async function gradeVerseAnswer(
      * At the lower tiers most of the verse is on screen and the reader writes the rest; marking
      * the coverage share against the full text would score a perfect finish at two thirds.
      */
-    const built = buildVerseRecall(material.text, verseRecallMode(rung.pass, item.recallState as RecallState));
+    const built = buildVerseRecall(material.text, verseRecallMode(tier));
     const marked = markVerseRecall(built.hiddenText, answer.text, RECALL_MIN_SHARE);
     return {
       correct: marked.correct,
@@ -3682,7 +3766,7 @@ export async function gradeVerseAnswer(
      * tier-0 item and the all-or-nothing subsequence match runs against a verse that was mostly
      * on screen. The tier is derived from stored state the client cannot set.
      */
-    const share = verseInitialsShare(rung.pass, item.recallState as RecallState);
+    const share = verseInitialsShare(tier);
     const exercise = buildVerseInitials(material.text, seedForRung, share);
     if (!exercise) return null;
     if (exercise.tier < 2 && Array.isArray(answer.words)) {
@@ -3707,7 +3791,7 @@ export async function gradeVerseAnswer(
     return null;
   }
   if (rung.key === 'verse.keywords' && Array.isArray(answer.words)) {
-    const count = verseKeywordsCount(rung.pass, item.recallState as RecallState);
+    const count = verseKeywordsCount(tier);
     const marked = markVerseKeywords(material.text, answer.words, count);
     return {
       correct: marked.correct,
@@ -3725,7 +3809,7 @@ export async function gradeVerseAnswer(
     };
   }
   if (rung.key === 'verse.marked' && typeof answer.option === 'string') {
-    const exercise = await buildVerseMarkedFor(item, material, seedForRung, translation);
+    const exercise = await buildVerseMarkedFor(item, material, seedForRung, translation, tier);
     if (!exercise) return null;
     return {
       correct: gradeVerseMarked(exercise, answer.option, material.markedSpan ?? ''),
@@ -3733,11 +3817,7 @@ export async function gradeVerseAnswer(
     };
   }
   if (rung.key === 'verse.book' && typeof answer.option === 'string') {
-    const exercise = buildVerseBook({
-      book: lastVerseOf(item.scriptureReference)?.book ?? '',
-      poolBooks: booksOf(await listUserVerseReferences(userId, item.scriptureReference)),
-      seed: seedForRung,
-    });
+    const exercise = await buildVerseBookFor(userId, item, seedForRung, tier);
     if (!exercise) return null;
     return {
       correct: gradeChoiceExercise(exercise, answer.option, [exercise.options[exercise.answerIndex]]),
@@ -3755,7 +3835,7 @@ export async function gradeVerseAnswer(
   if (isRebuild) {
     const html = await fetchVerseText(item.scriptureReference, translation);
     if (!html) return null;
-    const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
+    const spec = verseClozeSpec(tier);
     const cloze = buildVerseCloze(stripHtml(html), reviewSeed(item), spec.ratio, {
       maxBlanks: spec.maxBlanks,
     });
@@ -3775,7 +3855,7 @@ export async function gradeVerseAnswer(
   }
 
   if (isNext) {
-    const exercise = await buildVerseNextFor(item, translation);
+    const exercise = await buildVerseNextFor(item, translation, tier);
     if (!exercise) return null;
     return {
       correct: gradeVerseNext(exercise, answer.option!),
@@ -3789,22 +3869,13 @@ export async function gradeVerseAnswer(
   const seed = reviewSeed(item);
 
   if (isSequence) {
-    const exercise = buildVerseSequence(text, seed);
+    const exercise = buildVerseSequence(text, seed, verseSequenceMaxPhrases(tier));
     if (!exercise) return null;
     const marked = markVerseSequence(exercise, answer.order!);
     return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
   }
 
-  const pool = await listUserVerseReferences(userId, item.scriptureReference);
-  const { close, rest } = partitionByBook([item.scriptureReference], pool);
-  const exercise = buildVerseLocate(
-    item.scriptureReference,
-    text,
-    close.length ? close : pool,
-    seed,
-    null,
-    close.length ? rest : undefined,
-  );
+  const exercise = await buildVerseLocateFor(userId, item, text, seed, tier);
   if (!exercise) return null;
   return {
     correct: gradeVerseLocate(exercise, answer.option!),
@@ -3926,7 +3997,8 @@ async function buildNoteExercise(
   // is the outcome (`verdict ?? outcome` in the route).
   if (rung === 'note.takeaway') return null;
   const input = rung === 'note.passage' ? set.passage : set.connect;
-  const exercise = buildNoteChoice({ ...input, seed });
+  // Notes have no maintenance loop, so the tier is the streak's alone.
+  const exercise = buildNoteChoice({ ...input, seed, tier: askedTier(0, item) });
   return exercise ? { rung, exercise, acceptable: [...input.acceptable] } : null;
 }
 
@@ -4209,13 +4281,14 @@ export async function buildReviewReveal(
          */
         const material = await loadVerseMaterial(userId, item.scriptureReference, translation);
         const rung = verseRungFor(item.ladderStep, seed, material);
+        const tier = askedTier(rung.pass, item);
         if (VERSE_CONTEXT_KEYS.has(rung.key)) {
-          const built = await buildVerseContextFor(userId, item, translation, rung.key, material, seed);
+          const built = await buildVerseContextFor(userId, item, translation, rung.key, material, seed, tier);
           // Options only. The verse stays on screen: it is the question, not the answer.
           payload.choice = built ? { options: built.exercise.options, opening: false } : null;
         }
         if (rung.key === 'verse.recognize') {
-          const exercise = await buildVerseRecognizeFor(userId, item, text, translation);
+          const exercise = await buildVerseRecognizeFor(userId, item, text, translation, tier);
           // Openings, and the verse withheld: it is the answer on this rung now.
           payload.choice = exercise ? { options: exercise.options, opening: true } : null;
           payload.verseText = null;
@@ -4227,7 +4300,7 @@ export async function buildReviewReveal(
            * and `shown` is that much and no more. The rest is still withheld and still comes
            * back as truth once the answer is in.
            */
-          const built = buildVerseRecall(text, verseRecallMode(rung.pass, item.recallState as RecallState));
+          const built = buildVerseRecall(text, verseRecallMode(tier));
           /*
            * `words` is how many words are left to write, for the ticks the card fills as the
            * reader writes — a sense of how far there is to go, never which words. Withheld at the
@@ -4242,11 +4315,7 @@ export async function buildReviewReveal(
           payload.verseText = null;
         }
         if (rung.key === 'verse.initials') {
-          const exercise = buildVerseInitials(
-            text,
-            seed,
-            verseInitialsShare(rung.pass, item.recallState as RecallState),
-          );
+          const exercise = buildVerseInitials(text, seed, verseInitialsShare(tier));
           // `reduced` is the answer key and never leaves the server; the letters are the question.
           payload.initials = exercise
             ? {
@@ -4259,10 +4328,7 @@ export async function buildReviewReveal(
           if (payload.initials) payload.verseText = null;
         }
         if (rung.key === 'verse.keywords') {
-          payload.keywords = buildVerseKeywords(
-            text,
-            verseKeywordsCount(rung.pass, item.recallState as RecallState),
-          );
+          payload.keywords = buildVerseKeywords(text, verseKeywordsCount(tier));
           if (payload.keywords) payload.verseText = null;
         }
         if (rung.key === 'verse.before') {
@@ -4272,11 +4338,7 @@ export async function buildReviewReveal(
           if (exercise) payload.verseText = null;
         }
         if (rung.key === 'verse.book') {
-          const exercise = buildVerseBook({
-            book: lastVerseOf(item.scriptureReference)?.book ?? '',
-            poolBooks: booksOf(await listUserVerseReferences(userId, item.scriptureReference)),
-            seed,
-          });
+          const exercise = await buildVerseBookFor(userId, item, seed, tier);
           if (exercise) {
             const marked = readerSpanFragment(
               await loadReaderSpan(userId, item.scriptureReference),
@@ -4298,7 +4360,7 @@ export async function buildReviewReveal(
         }
         if (rung.key === 'verse.rebuild') {
           // A later pass hides more, and the seed carries the step, so it hides a different set.
-          const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
+          const spec = verseClozeSpec(tier);
           const cloze = buildVerseCloze(text, seed, spec.ratio, { maxBlanks: spec.maxBlanks });
           // The pieces either side of each gap, so the page can put an input where the gap is
           // rather than a picture of one. `display` is never sent: it is unfillable.
@@ -4336,14 +4398,14 @@ export async function buildReviewReveal(
           if (cloze.blanks.length > 0) payload.verseText = null;
         }
         if (rung.key === 'verse.sequence') {
-          const exercise = buildVerseSequence(text, seed);
+          const exercise = buildVerseSequence(text, seed, verseSequenceMaxPhrases(tier));
           // Phrases only. `order` is the answer, and stays here — as does the verse itself,
           // which is the same information in one line.
           payload.sequence = exercise ? { phrases: exercise.phrases } : null;
           if (exercise) payload.verseText = null;
         }
         if (rung.key === 'verse.next') {
-          const exercise = await buildVerseNextFor(item, translation);
+          const exercise = await buildVerseNextFor(item, translation, tier);
           // The verse asked about stays: it is the question, not the answer.
           payload.next = exercise ? { options: exercise.options } : null;
         }
@@ -4355,7 +4417,7 @@ export async function buildReviewReveal(
           if (exercise) payload.verseText = null;
         }
         if (rung.key === 'verse.marked') {
-          const exercise = await buildVerseMarkedFor(item, material, seed, translation);
+          const exercise = await buildVerseMarkedFor(item, material, seed, translation, tier);
           payload.choice = exercise ? { options: exercise.options, opening: false } : null;
           /*
            * The verse stays when every option is a run of it: the highlighting is the question,
@@ -4367,16 +4429,14 @@ export async function buildReviewReveal(
           if (exercise && !verseMarkedFitsVerse(text, exercise.options)) payload.verseText = null;
         }
         if (rung.key === 'verse.locate') {
-          const pool = await listUserVerseReferences(userId, item.scriptureReference);
-          const { close, rest } = partitionByBook([item.scriptureReference], pool);
           // The reader's own marked span, where one fits; the verse's middle otherwise.
-          const exercise = buildVerseLocate(
-            item.scriptureReference,
+          const exercise = await buildVerseLocateFor(
+            userId,
+            item,
             text,
-            close.length ? close : pool,
             seed,
+            tier,
             readerSpanFragment(await loadReaderSpan(userId, item.scriptureReference), text),
-            close.length ? rest : undefined,
           );
           payload.locate = exercise
             ? {
@@ -4402,13 +4462,14 @@ export async function buildReviewReveal(
     const seed = reviewSeed(item);
     const material = await loadChapterMaterial(userId, item.scriptureReference, translation);
     const rung = chapterRungFor(item.ladderStep, seed, material);
+    const tier = askedTier(rung.pass, item);
     if (rung.key === 'chapter.verse') {
-      const exercise = await buildChapterVerseFor(userId, material, seed);
+      const exercise = await buildChapterVerseFor(userId, material, seed, tier);
       payload.choice = exercise ? { options: exercise.options, opening: true } : null;
     }
     if (rung.key === 'chapter.finish') {
-      const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
-      const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
+      const spec = verseClozeSpec(tier);
+      const exercise = buildChapterFinishFor(material, seed, tier);
       /* The chapter's other verses give the bank its wrong words: on the page they are not, so
          a tile is a real choice rather than a word the reader can see beside the gap. */
       const bank =
@@ -4428,15 +4489,15 @@ export async function buildReviewReveal(
       payload.sequence = exercise ? { phrases: exercise.phrases } : null;
     }
     if (rung.key === 'chapter.person') {
-      const exercise = await buildChapterPersonFor(userId, material, seed);
+      const exercise = await buildChapterPersonFor(userId, material, seed, tier);
       payload.choice = exercise ? { options: exercise.options, opening: false } : null;
     }
     if (rung.key === 'chapter.place') {
-      const exercise = await buildChapterPlaceFor(userId, material, seed);
+      const exercise = await buildChapterPlaceFor(userId, material, seed, tier);
       payload.choice = exercise ? { options: exercise.options, opening: false } : null;
     }
     if (rung.key === 'chapter.marked') {
-      const exercise = buildChapterMarkedFor(material, seed);
+      const exercise = buildChapterMarkedFor(material, seed, tier);
       // Openings, so the reader recognises the words rather than a verse number.
       payload.choice = exercise ? { options: exercise.options, opening: true } : null;
     }

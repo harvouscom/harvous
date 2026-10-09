@@ -443,19 +443,46 @@ describe('the ladder wrap and the truth restore', () => {
     expect(text).not.toMatch(/ladderStep === VERSE_(LOCATE|SEQUENCE|NEXT|REBUILD)_STEP/);
   });
 
-  it('erodes the cloze by the pass, never by how many times it was answered', () => {
+  it('erodes the cloze by the asked tier, never by how many times it was answered', () => {
     /*
      * `reviewCount` rises on every answer, so ten near misses would hand someone a mostly-blank
-     * verse they have never once recalled. The spec is read from the rung's own pass — and from
-     * the item's recall state, which is the scheduler's verdict rather than a tally of attempts.
+     * verse they have never once recalled. The spec is read from the tier — the rung's pass and
+     * the reader's clean-recall streak (`askedTier`) — never from a tally of attempts.
      */
     const text = service();
-    expect(text).toMatch(/verseClozeSpec\(rung\.pass/);
+    expect(text).toMatch(/verseClozeSpec\(tier\)/);
+    expect(text).toMatch(/const tier = askedTier\(rung\.pass, item\)/);
     expect(text).not.toMatch(/verseClozeSpec\(item\.reviewCount/);
     expect(text).not.toMatch(/verseClozeRatio\(item\.reviewCount/);
   });
 
-  it('asks every staged rung at the tier the pass says, never at a tier the page claims', () => {
+  it('builds and marks every choice at one tier, read from the item as it was asked', () => {
+    /*
+     * A choice shown with three options and marked against four is a reader marked wrong for a
+     * question they were never asked. Every surface that builds a question resolves the tier the
+     * same way, and the locate and book rungs — built inline in two places before — go through
+     * one helper each.
+     */
+    const text = service();
+    const body = (name: string) => {
+      const from = text.indexOf(name);
+      const next = text.indexOf('\nexport async function', from + name.length);
+      return text.slice(from, next < 0 ? undefined : next);
+    };
+    for (const fn of [
+      'async function gradeVerseAnswer',
+      'async function buildReviewReveal',
+      'async function gradeChapterAnswer',
+      'async function chapterTruthFor',
+    ]) {
+      expect(body(fn)).toMatch(/const tier = askedTier\(rung\.pass, item\)/);
+    }
+    expect(text.match(/buildVerseLocate\(/g)).toHaveLength(1);
+    expect(text.match(/buildVerseBook\(\{/g)).toHaveLength(1);
+    expect(text).toMatch(/buildNoteChoice\(\{ \.\.\.input, seed, tier: askedTier\(0, item\) \}\)/);
+  });
+
+  it('asks every staged rung at the tier the item says, never at a tier the page claims', () => {
     /*
      * The tier decides which shape is graded, so reading it from the submission instead would
      * let a page pick its own marking — send free text on a tier-0 initials item and the
@@ -463,9 +490,9 @@ describe('the ladder wrap and the truth restore', () => {
      */
     const text = service();
     for (const call of [
-      /verseInitialsShare\(rung\.pass/,
-      /verseKeywordsCount\(rung\.pass/,
-      /verseRecallMode\(rung\.pass/,
+      /verseInitialsShare\(tier\)/,
+      /verseKeywordsCount\(tier\)/,
+      /verseRecallMode\(tier\)/,
     ]) {
       expect(text).toMatch(call);
     }

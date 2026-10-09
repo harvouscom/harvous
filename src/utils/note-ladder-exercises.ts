@@ -32,6 +32,7 @@
 
 import { buildChoiceExercise, gradeChoiceExercise, type ChoiceExercise } from '@/utils/choice-exercise';
 import { seededIndex } from '@/utils/verse-cloze';
+import type { ReviewTier } from '@/utils/review-difficulty';
 import type { ReviewPromptKey } from '@/utils/review-prompts';
 import { NOTE_LADDER, emphasisDraw } from '@/utils/review-prompts';
 
@@ -172,20 +173,25 @@ const MONTHS = new Set([
 /** Everything a note rung is built from: the right answers and the reader's own pool. */
 export interface NoteChoiceInput {
   /**
-   * Every right answer — every passage the note cites, every note it is linked to, every folder
-   * it is in. The whole set, because there is no such thing as *the* one. Picking a single member
-   * and marking the others wrong would grade an arbitrary row order rather than the reader's study.
+   * Every right answer — every passage the note cites, or every note it is linked to. The whole
+   * set, because there is no such thing as *the* one. Picking a single member and marking the
+   * others wrong would grade an arbitrary row order rather than the reader's study.
    */
   acceptable: readonly string[];
   poolLabels: readonly string[];
   fallbackLabels?: readonly string[];
   /**
    * Words already on the card — the note's own title. An option that appears in it, or that it
-   * appears in, is barred: a note titled "Grace in Romans 8" asked which folder it is in cannot
-   * offer "Grace" among four, and cannot be asked at all if "Grace" is the only right answer.
+   * appears in, is barred: a note titled "Grace in Romans 8" asked which passage it cites cannot
+   * offer "Romans 8" among four, and cannot be asked at all if "Romans 8" is the only right answer.
    */
   shown?: string | null;
   seed: string;
+  /**
+   * How hard to ask. `poolLabels` are the look-alikes (same book) and `fallbackLabels` the
+   * reader's other material — both theirs, so tier 0 draws the unlike ones first and offers three.
+   */
+  tier?: ReviewTier | null;
 }
 
 /** Nothing shorter is a meaningful match — "a" is inside every title. */
@@ -212,7 +218,7 @@ function withoutShown(input: NoteChoiceInput): NoteChoiceInput {
 }
 
 /**
- * Build "pick a passage you cited", "pick a note you linked" or "pick a folder it is in".
+ * Build "pick a passage you cited" or "pick a note you linked".
  *
  * A right answer the title already names is dropped from the answers, and a wrong one the title
  * names is dropped from the pool: either would put the answer on the card twice.
@@ -223,11 +229,12 @@ export function buildNoteChoice(input: NoteChoiceInput): ChoiceExercise | null {
   return buildChoiceExercise({
     answers: cleaned.acceptable,
     pool: cleaned.poolLabels,
-    fallbackPool: cleaned.fallbackLabels,
+    farPool: cleaned.fallbackLabels,
     // Every acceptable answer is barred as a distractor by the primitive itself — including the
     // ones the title removed from `acceptable`, which are still right and so still not wrong.
     exclude: input.acceptable,
     optionCount: OPTION_COUNT,
+    tier: input.tier,
     seed: input.seed,
   });
 }
