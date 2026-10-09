@@ -86,7 +86,7 @@ export default function ImportSummaryCard({
                 <Icon name={stat.icon} size={13} />
               </span>
               <span className="proto-import-summary__stat-label">{stat.label}</span>
-              <span className="proto-import-summary__stat-value">{stat.value}</span>
+              <span className="proto-import-summary__stat-value">{stat.value.toLocaleString()}</span>
             </li>
           ))}
         </ul>

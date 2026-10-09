@@ -18267,12 +18267,12 @@ html.harvous-prototype-route
   gap: 8px;
 }
 
-/* Ink running along a ruled line, not a blue pill.
-   The track is the same 4px rule the paper cards in the drop-zone illustration
-   are written with, and the fill is ink — so a file turning
-   into a note looks like a line being written, which is the one thing this app
-   is about. Squared-off 2px ends rather than a lozenge: a pen stroke has ends,
-   a capsule is a widget. */
+/* The accent gradient running along a ruled line.
+   The track stays the same neutral 4px rule the paper cards in the drop-zone
+   illustration are written with — only the work done is accent, the way a
+   selected control is (`--pds-bg-accent-button`, never an invented blue tint).
+   Squared-off 2px ends rather than a lozenge: a pen stroke has ends, a capsule
+   is a widget. */
 .proto-progress__track {
   position: relative;
   flex: 1;
@@ -18286,21 +18286,18 @@ html.harvous-prototype-route
   height: 100%;
   width: 0;
   border-radius: 2px;
-  background: color-mix(in oklab, var(--pds-text-primary) 78%, transparent);
+  background: var(--pds-bg-accent-button);
   transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Unknowable work (parsing) is a stroke travelling the rule, faded at both ends
-   like a nib passing rather than a block sliding under a window. */
+   like a nib passing rather than a block sliding under a window. The fade is a
+   mask so the stroke keeps the same accent gradient as a determinate fill. */
 .proto-progress__track--indeterminate .proto-progress__fill {
   width: 34%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in oklab, var(--pds-text-primary) 72%, transparent) 45%,
-    color-mix(in oklab, var(--pds-text-primary) 72%, transparent) 55%,
-    transparent 100%
-  );
+  background: var(--pds-bg-accent-button);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%, #000 55%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 45%, #000 55%, transparent 100%);
   animation: proto-progress-slide 1.35s ease-in-out infinite;
 }
 
@@ -18742,15 +18739,28 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .proto-import-notices {
   list-style: none;
   margin: 0;
-  padding: 10px 14px;
+  /* Lines up with the strip's own label, so the note reads as said by the drop
+     zone rather than as a second, alarmed card stacked under it. */
+  padding: 0 17px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  border-radius: var(--pds-radius-card, 14px);
-  background: var(--pds-warning-bg);
-  border: 1px solid var(--pds-warning-border);
+  gap: 4px;
   font-size: 12.5px;
+  line-height: 1.4;
   color: var(--pds-text-secondary);
+}
+
+/* Skipped files are information, not a failure: no tint, no border. */
+.proto-import-notices li {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.proto-import-notices__icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
 /* Row list ----------------------------------------------------------------- */
@@ -18979,9 +18989,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 .proto-import-summary__title {
   margin: 0;
-  font-size: 21px;
+  font-size: 26px;
   font-weight: 680;
-  letter-spacing: -0.02em;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
   color: var(--pds-text-primary);
 }
 
@@ -19005,31 +19016,32 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    a glance, rather than loose rows drifting on the summary's background. Page
    background against the card's section grey — the same nesting the rest of the
    app uses to put a list inside a panel. */
+/* A stacked tally on the same paper sheet the note preview uses — one row per
+   thing that came over, hairline rules between them. */
 .proto-import-summary__stats {
   list-style: none;
   width: 100%;
   max-width: var(--proto-import-summary-measure);
   margin: 12px 0 0;
-  padding: 3px 14px;
+  padding: 4px 16px;
   display: flex;
   flex-direction: column;
-  border-radius: var(--pds-radius-row, 10px);
-  background: var(--pds-bg-page);
-  border: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
+  border-radius: 12px;
+  background: var(--pds-paper-sheet);
+  box-shadow: var(--pds-paper-shadow-subtle);
 }
 
-/* The card centres its text; these rows are a ledger and must read left. */
 .proto-import-summary__stat {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 7px 2px;
+  gap: 10px;
+  padding: 9px 0;
   font-size: 13px;
   text-align: left;
 }
 
 .proto-import-summary__stat + .proto-import-summary__stat {
-  border-top: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
+  border-top: 1px solid var(--pds-paper-rule);
 }
 
 .proto-import-summary__stat-icon {
@@ -19045,7 +19057,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 .proto-import-summary__stat-value {
-  font-weight: 650;
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 14px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--pds-text-primary);
 }
@@ -19180,6 +19195,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
     width: 100%;
     animation: none;
     opacity: 0.45;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 
   /* The fan keeps its arrangement — that's the illustration — but stops sliding

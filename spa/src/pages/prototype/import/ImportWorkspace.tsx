@@ -9,6 +9,7 @@
  * `onExit` is what "Go to my notes" does; the host decides (settings closes itself).
  */
 import { useEffect, useMemo, useState } from 'react';
+import Icon from '@/components/react/Icon';
 import { showPrototypeFeedbackToast } from '@/utils/prototype-feedback-toast';
 import ImportDropZone from './ImportDropZone';
 import ImportFileRow from './ImportFileRow';
@@ -150,7 +151,10 @@ export default function ImportWorkspace({ onExit, onBusyChange }: ImportWorkspac
           {notices.length > 0 ? (
             <ul className="proto-import-notices">
               {notices.map((notice) => (
-                <li key={notice}>{notice}</li>
+                <li key={notice}>
+                  <Icon name="circle-info" size={12} className="proto-import-notices__icon" aria-hidden />
+                  <span>{notice}</span>
+                </li>
               ))}
             </ul>
           ) : null}
@@ -199,6 +203,8 @@ export default function ImportWorkspace({ onExit, onBusyChange }: ImportWorkspac
                     row={row}
                     items={itemsByRow.get(row.id) ?? []}
                     onToggleInclude={engine.toggleInclude}
+                    onToggleItemInclude={engine.toggleItemInclude}
+                    loadPreview={engine.loadItemPreview}
                     onRemove={engine.removeRow}
                     onRetry={engine.retryRow}
                   />

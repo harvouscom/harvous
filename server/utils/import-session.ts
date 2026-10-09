@@ -184,6 +184,19 @@ export async function getImportSessionItems(sessionId: string): Promise<ImportSe
     .orderBy(ImportSessionItems.ord);
 }
 
+/** One item, only if it belongs to this session — callers have already checked the session's owner. */
+export async function getImportSessionItem(
+  sessionId: string,
+  itemId: string,
+): Promise<ImportSessionItemRow | null> {
+  const rows = await db
+    .select()
+    .from(ImportSessionItems)
+    .where(and(eq(ImportSessionItems.sessionId, sessionId), eq(ImportSessionItems.id, itemId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function countImportSessionItems(sessionId: string): Promise<number> {
   const row = first(
     await db

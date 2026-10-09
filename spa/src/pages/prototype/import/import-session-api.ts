@@ -5,6 +5,7 @@
  * reason: fetch still can't report upload progress, and a row that shows a real
  * percentage while a 12MB Word file goes up is the whole point of the surface.
  */
+import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { api, apiUrl, getClerkBearerToken, APIError } from '../../../lib/api';
 
 export interface ImportItemSummary {
@@ -22,6 +23,28 @@ export interface ImportItemSummary {
   resultNoteId: string | null;
   enriched: boolean;
   error: string | null;
+}
+
+/** The parsed note an item will become — fetched when its row is expanded. */
+export interface ImportItemPreview {
+  itemId: string;
+  title: string;
+  /** The HTML the note will be created with; unsanitized, so render through safeRenderHtml. */
+  html: string;
+  truncated: boolean;
+  tags: string[];
+  primaryCollection: string | null;
+  secondaryCollections: string[];
+  highlights: Array<{
+    kind: string;
+    accent: StudyHighlightAccentKey;
+    anchorText: string | null;
+    annotation: string | null;
+    scriptureReference: string | null;
+  }>;
+  highlightCount: number;
+  createdDate: string | null;
+  duplicateHint: string | null;
 }
 
 export interface ImportSessionSummary {
@@ -90,6 +113,10 @@ export function getImportSession(sessionId: string): Promise<{
   items: ImportItemSummary[];
 }> {
   return api.get(`/api/user/import/session/${sessionId}`);
+}
+
+export function getImportItemPreview(sessionId: string, itemId: string): Promise<ImportItemPreview> {
+  return api.get<ImportItemPreview>(`/api/user/import/session/${sessionId}/items/${itemId}/preview`);
 }
 
 export function postImportManifest(
