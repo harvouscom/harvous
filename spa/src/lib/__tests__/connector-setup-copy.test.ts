@@ -7,7 +7,8 @@ describe('connectorSetupMessage', () => {
     expect(text).toContain('https://mcp.harvous.com/mcp (Streamable HTTP)');
     expect(text).toContain('https://mcp.harvous.com/.well-known/oauth-protected-resource/mcp');
     expect(text).toContain('PKCE (S256)');
-    expect(text).toContain('read-only');
+    expect(text).toContain('start a new note');
+    expect(text).not.toContain('read-only');
     expect(text).not.toMatch(/hvous_|Bearer/);
   });
 });
