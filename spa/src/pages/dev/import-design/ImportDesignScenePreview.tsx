@@ -5,6 +5,7 @@
  * what the surface does — edit ImportFileRow, ImportDropZone, ImportSummaryCard, or
  * the CSS and the preview reloads.
  */
+import Icon from '@/components/react/Icon';
 import ImportDropZone from '../../prototype/import/ImportDropZone';
 import ImportFileRow from '../../prototype/import/ImportFileRow';
 import ImportSummaryCard from '../../prototype/import/ImportSummaryCard';
@@ -15,9 +16,35 @@ import type {
   ImportRowState,
   RowPhase,
 } from '../../prototype/import/import-engine-state';
+import type { ImportItemPreview } from '../../prototype/import/import-session-api';
 import type { ImportDesignScene } from './sceneRegistry';
 
 const noop = () => {};
+
+/** What the preview endpoint would return, so opened rows render without a session. */
+function fixturePreview(itemId: string): Promise<ImportItemPreview> {
+  const romans = itemId.endsWith('_romans');
+  return Promise.resolve({
+    itemId,
+    title: romans ? 'Romans 8 study' : 'Week 3: Psalm 23',
+    html: romans
+      ? '<p>Paul moves from the struggle of chapter 7 into life in the Spirit.</p><p><strong>No condemnation</strong> isn’t a feeling to chase; it’s a verdict already given. Compare Galatians 5:16–25 on walking by the Spirit.</p><ul><li>v. 1–4: the verdict</li><li>v. 5–11: two mindsets</li><li>v. 28–39: nothing can separate us</li></ul>'
+      : '<p>David writes as the sheep, not the shepherd. Every verb belongs to the Lord: he makes, he leads, he restores.</p><p>The valley isn’t avoided. It’s walked through, with company.</p>',
+    truncated: false,
+    tags: romans ? ['grace', 'spirit'] : ['psalms', 'small group'],
+    primaryCollection: romans ? 'Romans' : 'Study log',
+    secondaryCollections: romans ? ['Doctrine'] : [],
+    highlights: romans
+      ? [
+          { kind: 'miniNote', accent: 'warmAmber', anchorText: 'no condemnation', annotation: 'Verdict, not feeling.', scriptureReference: null },
+          { kind: 'scriptureLink', accent: 'skyBlue', anchorText: 'Galatians 5:16–25', annotation: null, scriptureReference: 'Galatians 5:16-25' },
+        ]
+      : [],
+    highlightCount: romans ? 2 : 0,
+    createdDate: '2026-03-14T09:00:00Z',
+    duplicateHint: null,
+  });
+}
 
 let rowSeq = 0;
 function row(overrides: Partial<ImportRowState> & { name: string }): ImportRowState {
@@ -75,7 +102,17 @@ function ImportChrome({ children }: { children: React.ReactNode }) {
   );
 }
 
-function RowList({ rows, items }: { rows: ImportRowState[]; items: ImportItemState[] }) {
+function RowList({
+  rows,
+  items,
+  expandedRowIds = [],
+  openItemId = null,
+}: {
+  rows: ImportRowState[];
+  items: ImportItemState[];
+  expandedRowIds?: string[];
+  openItemId?: string | null;
+}) {
   return (
     <ul className="proto-import-list__rows">
       {rows.map((r) => (
@@ -84,8 +121,12 @@ function RowList({ rows, items }: { rows: ImportRowState[]; items: ImportItemSta
           row={r}
           items={items.filter((i) => i.rowId === r.id)}
           onToggleInclude={noop}
+          onToggleItemInclude={noop}
+          loadPreview={fixturePreview}
           onRemove={noop}
           onRetry={noop}
+          initiallyExpanded={expandedRowIds.includes(r.id)}
+          initiallyOpenItemId={openItemId}
         />
       ))}
     </ul>
@@ -156,8 +197,14 @@ export default function ImportDesignScenePreview({ scene }: { scene: ImportDesig
         <ImportChrome>
           <ImportDropZone variant="compact" onFiles={noop} onDataTransfer={noop} />
           <ul className="proto-import-notices">
-            <li>Skipped 4 files in a format we can&rsquo;t read yet.</li>
-            <li>Evernote export.zip: skipped 2 files we can&rsquo;t read.</li>
+            <li>
+              <Icon name="circle-info" size={12} className="proto-import-notices__icon" aria-hidden />
+              <span>Skipped 4 files in a format we can&rsquo;t read yet.</span>
+            </li>
+            <li>
+              <Icon name="circle-info" size={12} className="proto-import-notices__icon" aria-hidden />
+              <span>Evernote export.zip: skipped 2 files we can&rsquo;t read.</span>
+            </li>
           </ul>
           <ImportDropZone variant="compact" onFiles={noop} onDataTransfer={noop} previewActive />
         </ImportChrome>
@@ -249,6 +296,38 @@ export default function ImportDesignScenePreview({ scene }: { scene: ImportDesig
         itemIds: items.filter((i) => i.rowId === r.id).map((i) => i.itemId),
       }));
       return reviewScene(rows, items, 1);
+    }
+
+    case '06b-inspect': {
+      const single = row({ name: 'romans-8-study.md' });
+      const csv = row({ name: 'small-group-log.csv', size: 18_000 });
+      const titles = ['Week 1: Psalm 1', 'Week 2: Psalm 19', 'Week 3: Psalm 23', 'Week 4: Psalm 46', 'Potluck sign-up'];
+      const items = [
+        { ...item(single.id, { title: 'Romans 8 study', primaryCollection: 'Romans', highlightCount: 2 }), itemId: 'fixture_romans' },
+        ...titles.map((title, i) => ({
+          ...item(csv.id, {
+            title,
+            primaryCollection: 'Study log',
+            status: i === 4 ? ('excluded' as const) : ('parsed' as const),
+            duplicateHint: i === 0 ? 'content' : null,
+          }),
+          itemId: `fixture_csv_${i}`,
+        })),
+      ];
+      const rows = [single, csv].map((r) => ({
+        ...r,
+        itemIds: items.filter((i) => i.rowId === r.id).map((i) => i.itemId),
+      }));
+      return (
+        <ImportChrome>
+          <section className="proto-import-list">
+            <div className="proto-import-list__toolbar">
+              <span className="pds-caption">2 files · 5 notes ready</span>
+            </div>
+            <RowList rows={rows} items={items} expandedRowIds={rows.map((r) => r.id)} openItemId="fixture_csv_2" />
+          </section>
+        </ImportChrome>
+      );
     }
 
     case '07-importing': {

@@ -1,0 +1,310 @@
+/*
+  Import — looking inside a file before importing it.
+
+  Loaded with ImportFileRow (the Settings → Import chunk), not the global sheet:
+  nobody needs these rules until they've dropped a file.
+*/
+
+/* Looking inside a file. The filename is the disclosure — a separate "Preview"
+   button would be one more control on a row that already has three. */
+.proto-import-row {
+  flex-wrap: wrap;
+}
+
+.proto-import-row__disclosure {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-import-row__disclosure:hover {
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-import-row__chevron {
+  flex: none;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  transform: rotate(-90deg);
+  transition: transform 160ms ease;
+}
+
+.proto-import-row__chevron--open {
+  transform: rotate(0deg);
+}
+
+/* Full width under the row, so the note reads at the row's width rather than
+   squeezed between the type badge and the trailing controls. No rule above it:
+   the sheet's own edge is the separation. */
+.proto-import-row__inspect {
+  flex: 0 0 100%;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.proto-import-row__items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proto-import-row__item--excluded .proto-import-row__item-toggle,
+.proto-import-row__item--excluded .proto-import-row__item-meta {
+  opacity: 0.55;
+}
+
+.proto-import-row__item-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 0;
+}
+
+.proto-import-row__item-toggle {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-import-row__item-toggle:hover {
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-import-row__item-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--pds-text-primary);
+}
+
+.proto-import-row__item-meta {
+  flex: none;
+  font-size: 11px;
+  color: var(--pds-text-secondary);
+}
+
+/* A note inside a many-note file opens under its own line, aligned with its title. */
+.proto-import-row__item .proto-import-preview {
+  margin: 4px 0 10px 22px;
+}
+
+/* The note as a sheet of paper lying on the row — the same sheet and shadow the
+   editor writes on, so what you're reading looks like what you'll get. One surface,
+   not a grey box nested in a grey row. */
+.proto-import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 18px 14px;
+  border-radius: 10px;
+  background: var(--pds-paper-sheet);
+  box-shadow: var(--pds-paper-shadow-subtle);
+}
+
+.proto-import-preview--loading {
+  padding-block: 12px;
+}
+
+.proto-import-preview__title {
+  margin: 0;
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+}
+
+.proto-import-preview__status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+/* Capped so one long sermon can't push the rest of the list off screen. */
+.proto-import-preview__body {
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-family: var(--pds-font-notes);
+  font-variation-settings: var(--pds-font-notes-variation);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--pds-text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* Matches the editor's block rhythm (prototype-editor.css), so a note reads here the
+   way it will once it's in the library. The app's reset strips list markers. */
+.proto-import-preview__body p {
+  margin: 0 0 0.6em;
+}
+
+.proto-import-preview__body ul,
+.proto-import-preview__body ol {
+  margin: 0 0 0.6em;
+  padding-left: 1.4em;
+}
+
+.proto-import-preview__body ul {
+  list-style: disc;
+}
+
+.proto-import-preview__body ol {
+  list-style: decimal;
+}
+
+.proto-import-preview__body li {
+  margin-bottom: 0.2em;
+}
+
+.proto-import-preview__body li::marker {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-import-preview__body blockquote:not([data-scripture-quote-accent]) {
+  margin: 0 0 0.6em;
+  padding-left: 1em;
+  border-left: 2.5px solid var(--pds-accent);
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-preview__body > :first-child {
+  margin-top: 0;
+}
+
+.proto-import-preview__body > :last-child {
+  margin-bottom: 0;
+}
+
+/* Highlights and facts sit below a paper rule, the way a margin sits beside text:
+   present, but quieter than the note. */
+.proto-import-preview__highlights {
+  padding-top: 12px;
+  border-top: 1px solid var(--pds-paper-rule);
+}
+
+/* A <p>, not a heading: the prototype route forces every h1–h6 to primary ink with !important. */
+.proto-import-preview__section-label {
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-import-preview__highlights ul {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each highlight keeps the colour it was made in — the same swatch the margin uses. */
+.proto-import-preview__highlight {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.proto-import-preview__swatch {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--proto-import-highlight-accent, var(--pds-highlight-neutral));
+  transform: translateY(-1px);
+}
+
+.proto-import-preview__highlight-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.proto-import-preview__anchor {
+  color: var(--pds-text-primary);
+}
+
+.proto-import-preview__annotation {
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-preview__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--pds-paper-rule);
+  font-size: 11.5px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-import-preview__fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.proto-import-preview__fact svg {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-import-preview__fact--strong {
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-import-preview__retry {
+  appearance: none;
+  align-self: flex-start;
+  border: 0;
+  padding: 2px 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-import-row__chevron {
+    transition: none;
+  }
+}

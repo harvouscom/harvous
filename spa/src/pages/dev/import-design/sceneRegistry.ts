@@ -57,7 +57,7 @@ export const IMPORT_DESIGN_SCENES: ImportDesignScene[] = [
     id: '03-compact-strip',
     title: 'Add-more strip',
     group: 'Entry',
-    note: 'What the drop zone shrinks to once rows exist, with a warning notice under it.',
+    note: 'What the drop zone shrinks to once rows exist, with a skipped-files note under it — information, not an alarm.',
     editFiles: ['spa/src/pages/prototype/import/ImportDropZone.tsx', ...SURFACE_FILES],
   },
   {
@@ -80,6 +80,18 @@ export const IMPORT_DESIGN_SCENES: ImportDesignScene[] = [
     group: 'Review',
     note: 'Unsupported, unreadable, and excluded rows sitting alongside good ones.',
     editFiles: ['spa/src/pages/prototype/import/ImportFileRow.tsx', ...SURFACE_FILES],
+  },
+  {
+    id: '06b-inspect',
+    title: 'Looking inside a file',
+    group: 'Review',
+    note: 'Opened rows. A one-note file shows the note itself; a CSV lists its notes, each skippable, with one opened. The file checkbox goes half-checked when only some notes are coming in.',
+    editFiles: [
+      'spa/src/pages/prototype/import/ImportFileRow.tsx',
+      'spa/src/pages/prototype/import/ImportItemPreview.tsx',
+      'spa/src/styles/prototype-import-inspect.css',
+      ...SURFACE_FILES,
+    ],
   },
   {
     id: '07-importing',
@@ -141,7 +153,7 @@ export const IMPORT_DESIGN_SCENES: ImportDesignScene[] = [
     id: '15-progress-bar',
     title: 'Progress bar states',
     group: 'Parts',
-    note: 'The primitive on its own — ink along a ruled line, not a blue pill. Determinate, indeterminate, with label, with percent, and the two ends of the range where a bar usually goes wrong.',
+    note: 'The primitive on its own — the accent gradient along a neutral ruled line, squared ends, not a capsule. Determinate, indeterminate, with label, with percent, and the two ends of the range where a bar usually goes wrong.',
     editFiles: ['spa/src/pages/prototype/import/ProtoProgressBar.tsx', 'spa/src/styles/prototype-components.css'],
   },
   {

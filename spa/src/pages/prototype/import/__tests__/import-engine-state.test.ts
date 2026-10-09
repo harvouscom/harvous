@@ -165,6 +165,36 @@ describe('commit scheduling', () => {
     expect(selectCommitBatch(state)).toEqual([]);
   });
 
+  it('skips one note the user unchecked inside a many-note file', () => {
+    const state = reduce(
+      parsedState(3),
+      { type: 'toggle-item-include', itemId: 'item2', included: false },
+      { type: 'start-import' },
+    );
+    expect(state.rows[0].included).toBe(true);
+    expect(selectCommitBatch(state)).toEqual(['item1', 'item3']);
+  });
+
+  it('drops the whole file once every note in it is unchecked, and brings it back with any one', () => {
+    const allOut = reduce(
+      parsedState(2),
+      { type: 'toggle-item-include', itemId: 'item1', included: false },
+      { type: 'toggle-item-include', itemId: 'item2', included: false },
+    );
+    expect(allOut.rows[0].included).toBe(false);
+    expect(selectCommitBatch(importEngineReducer(allOut, { type: 'start-import' }))).toEqual([]);
+
+    const oneBack = importEngineReducer(allOut, { type: 'toggle-item-include', itemId: 'item2', included: true });
+    expect(oneBack.rows[0].included).toBe(true);
+    expect(selectCommitBatch(importEngineReducer(oneBack, { type: 'start-import' }))).toEqual(['item2']);
+  });
+
+  it('ignores a per-note toggle once the file is on its way in', () => {
+    const running = importEngineReducer(parsedState(2), { type: 'start-import' });
+    const after = importEngineReducer(running, { type: 'toggle-item-include', itemId: 'item1', included: false });
+    expect(after).toBe(running);
+  });
+
   it('holds the whole queue while a rate-limit window is open', () => {
     const now = 1_000_000;
     const state = reduce(parsedState(2), { type: 'start-import' }, { type: 'commit-start', itemIds: ['item1'] }, {

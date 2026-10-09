@@ -135,6 +135,7 @@ export type ImportEngineAction =
   | { type: 'row-retry'; rowId: string }
   | { type: 'row-remove'; rowId: string }
   | { type: 'toggle-include'; rowId: string; included: boolean }
+  | { type: 'toggle-item-include'; itemId: string; included: boolean }
   | { type: 'set-all-included'; included: boolean }
   | { type: 'start-import' }
   | { type: 'commit-start'; itemIds: string[] }
@@ -354,6 +355,21 @@ export function importEngineReducer(
           targetIds.has(row.id) ? { ...row, included: action.included } : row,
         ),
       };
+    }
+
+    /* One note inside a many-note file. The row stays included while any of its notes
+       is, so the commit selectors need no per-item rule of their own. */
+    case 'toggle-item-include': {
+      const item = state.items[action.itemId];
+      if (!item || (item.status !== 'parsed' && item.status !== 'excluded')) return state;
+      const row = state.rows.find((r) => r.id === item.rowId);
+      if (!row || row.phase !== 'parsed') return state;
+      const items = {
+        ...state.items,
+        [item.itemId]: { ...item, status: action.included ? 'parsed' : 'excluded' } as ImportItemState,
+      };
+      const included = row.itemIds.some((id) => items[id] && items[id].status !== 'excluded');
+      return { ...patchRow(state, row.id, { included }), items };
     }
 
     case 'start-import':

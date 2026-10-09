@@ -154,6 +154,7 @@ import {
   createImportSession,
   finalizeImportSession,
   getImportSession,
+  getImportSessionItem,
   getImportSessionItems,
   getOpenImportSession,
   importItemPayloadToRow,
@@ -163,6 +164,7 @@ import {
   storeImportManifest,
   undoImportSession,
 } from '../utils/import-session';
+import { buildImportItemPreview } from '../utils/import-preview';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { broadcastInvalidation } from '../utils/realtime';
 import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
@@ -2557,6 +2559,25 @@ app.get('/api/user/import/session/:id', requireAuth, rateLimit('read'), async (c
     );
   } catch (error: unknown) {
     const e = handleAPIError(error, { endpoint: '/api/user/import/session/:id', action: 'import_session_get' });
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+/* The parsed note an item will become, fetched when its row is expanded. Not cached:
+   the duplicate hint and the payload belong to one short-lived session. */
+app.get('/api/user/import/session/:id/items/:itemId/preview', requireAuth, rateLimit('read'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const session = await getImportSession(c.req.param('id') ?? '', auth.userId);
+    if (!session) return c.json({ error: 'Import session not found' }, 404);
+    const item = await getImportSessionItem(session.id, c.req.param('itemId') ?? '');
+    if (!item) return c.json({ error: 'Import item not found' }, 404);
+    return c.json(buildImportItemPreview(item), 200, { 'Cache-Control': 'private, max-age=0, no-store' });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, {
+      endpoint: '/api/user/import/session/:id/items/:itemId/preview',
+      action: 'import_session_item_preview',
+    });
     return c.json({ error: e.message }, 500);
   }
 });

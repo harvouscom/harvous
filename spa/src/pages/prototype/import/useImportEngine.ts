@@ -19,7 +19,9 @@ import {
   discardImportSession,
   enrichImportItems,
   finalizeImportSession,
+  getImportItemPreview,
   postImportManifest,
+  type ImportItemPreview,
   setImportItemsIncluded,
   uploadImportFile,
 } from './import-session-api';
@@ -316,6 +318,32 @@ export function useImportEngine() {
     [],
   );
 
+  const toggleItemInclude = useCallback((itemId: string, included: boolean) => {
+    dispatch({ type: 'toggle-item-include', itemId, included });
+    const sessionId = stateRef.current.sessionId;
+    if (sessionId) {
+      void setImportItemsIncluded(sessionId, [itemId], included).catch(() => {
+        /* the client copy is authoritative for what gets committed */
+      });
+    }
+  }, []);
+
+  /* Previews load on expand and are kept for the session, so collapsing and reopening a
+     row is instant. A failed fetch is dropped from the cache so Try again can refetch. */
+  const previewCacheRef = useRef(new Map<string, Promise<ImportItemPreview>>());
+  const loadItemPreview = useCallback((itemId: string): Promise<ImportItemPreview> => {
+    const cached = previewCacheRef.current.get(itemId);
+    if (cached) return cached;
+    const sessionId = stateRef.current.sessionId;
+    if (!sessionId) return Promise.reject(new Error('Import session not ready'));
+    const promise = getImportItemPreview(sessionId, itemId).catch((error: unknown) => {
+      previewCacheRef.current.delete(itemId);
+      throw error;
+    });
+    previewCacheRef.current.set(itemId, promise);
+    return promise;
+  }, []);
+
   const setAllIncluded = useCallback((included: boolean) => {
     dispatch({ type: 'set-all-included', included });
     const { sessionId, rows } = stateRef.current;
@@ -338,6 +366,7 @@ export function useImportEngine() {
     const result = await discardImportSession(sessionId);
     void refreshClientData(queryClient);
     sourcesRef.current.clear();
+    previewCacheRef.current.clear();
     try {
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
     } catch {
@@ -349,6 +378,7 @@ export function useImportEngine() {
 
   const reset = useCallback(() => {
     sourcesRef.current.clear();
+    previewCacheRef.current.clear();
     try {
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
     } catch {
@@ -376,6 +406,8 @@ export function useImportEngine() {
     pause,
     resume,
     toggleInclude,
+    toggleItemInclude,
+    loadItemPreview,
     setAllIncluded,
     removeRow,
     retryRow,
