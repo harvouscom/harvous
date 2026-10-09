@@ -599,27 +599,26 @@ function ParentRequestCard({ request, frozen }: { request: FamilyRoleRequest; fr
         onError: (e) => toast.error(errorMessage(e, 'Could not answer')),
       },
     );
+  /* One ordinary row and two small, equal answers — not a hero. While support has the family
+     paused the answers go: the notice at the top of the page already says why. */
   return (
     <SettingsGroup>
-      <div className="proto-lock-pin-settings__body">
-        <div className="proto-lock-pin-settings__hero" style={{ marginBottom: 12 }}>
-          <span className="proto-lock-pin-settings__glyph" aria-hidden>
-            <Icon name="person" size={22} />
-          </span>
-          <span className="proto-lock-pin-settings__hero-text">
-            <span className="proto-lock-pin-settings__status">{request.displayName} asked to become an adult member</span>
-            <span className="proto-lock-pin-settings__lead">
-              {frozen
-                ? 'Paused while Harvous support looks into something.'
-                : `If you approve, parents stop seeing their progress. They stay in the family and on the plan.${request.escalatedAt ? ' They’ve also asked Harvous to review it.' : ''}`}
-            </span>
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+      <SettingsRow
+        label={`${request.displayName} asked to become an adult member`}
+        sublabel={
+          frozen
+            ? 'You can answer once Harvous support is done.'
+            : `If you approve, parents stop seeing their progress.${request.escalatedAt ? ' They’ve also asked Harvous to review it.' : ''}`
+        }
+        trailing="none"
+      />
+      {!frozen ? (
+        <div style={{ display: 'flex', gap: 8, padding: '0 12px 12px' }}>
           <button
             type="button"
             className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
-            disabled={frozen || decide.isPending}
+            style={{ flex: '1 1 0', minWidth: 0, width: 'auto' }}
+            disabled={decide.isPending}
             onClick={() => answer('approve')}
           >
             Approve
@@ -627,13 +626,14 @@ function ParentRequestCard({ request, frozen }: { request: FamilyRoleRequest; fr
           <button
             type="button"
             className="proto-settings-btn proto-settings-btn--secondary"
-            disabled={frozen || decide.isPending}
+            style={{ flex: '1 1 0', minWidth: 0, width: 'auto' }}
+            disabled={decide.isPending}
             onClick={() => answer('decline')}
           >
             Not now
           </button>
         </div>
-      </div>
+      ) : null}
     </SettingsGroup>
   );
 }
