@@ -187,6 +187,15 @@ export const PLUS_FEATURE_KEYS: readonly FeatureKey[] = PLUS_FEATURES;
  * or 'trial', so coverage cannot chain. See docs/future/FAMILY_ACCOUNTS.md.
  */
 export const FAMILY_MAX_MEMBERS = 6; // including the owner
+
+/**
+ * Family Accounts is in preview: only `FAMILY_PREVIEW_USER_IDS` can start a family in
+ * production (server/utils/family-preview.ts), and nothing that sells Plus mentions it.
+ * Flip to false at launch — that one change opens starting a family to every Plus subscriber
+ * *and* adds the family line to the Plus list on /upgrade and Settings › Plan
+ * (shared-spaces-limits.ts), so the pitch can never run ahead of the product.
+ */
+export const FAMILY_IN_PREVIEW = true;
 export const FAMILY_COVERED_FEATURES = [
   'review',
   'challenges',
