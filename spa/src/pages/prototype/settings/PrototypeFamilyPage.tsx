@@ -118,7 +118,6 @@ function ProgressCard({ entry, member }: { entry: FamilyProgressEntry; member?: 
           />
         ) : null}
         <span className="proto-family-progress__name">{entry.displayName}</span>
-        {/* The plan card's badge, top right: a status, not a sentence. */}
         <span className="proto-family-progress__active" data-recent={recent ? 'true' : undefined}>
           <span className="proto-family-progress__dot" aria-hidden />
           {LAST_ACTIVE_SHORT[entry.lastActive]}

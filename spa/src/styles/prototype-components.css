@@ -25985,18 +25985,15 @@ button.proto-feed-sheet__stat:hover {
   white-space: nowrap;
 }
 
-/* Settings › Plan's `.proto-plan-card__badge`, on a white card rather than the sky. */
+/* Top right, plain: a status beside the name, no pill. */
 .proto-family-progress__active {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--pds-bg-input);
   font-family: var(--pds-font-body);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--pds-text-secondary);
   white-space: nowrap;
 }
