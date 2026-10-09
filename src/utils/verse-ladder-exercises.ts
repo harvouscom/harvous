@@ -34,6 +34,7 @@ import {
   type VerseRecallMode,
 } from '@/utils/review-difficulty';
 import type { RecallState } from '@/utils/review-item-kinds';
+import { canonicalBookOrder } from '@/utils/scripture-osis';
 import { buildChoiceExercise, gradeChoiceExercise, type ChoiceExercise } from '@/utils/choice-exercise';
 
 // ─── Sequence: put the phrases back in order ─────────────────────────────────
@@ -97,6 +98,28 @@ export function splitVersePhrases(text: string): string[] {
   return head;
 }
 
+/**
+ * Join neighbouring phrases until there are at most `max`, shortest pair first, so an easier
+ * ordering keeps whole clauses together rather than leaving one long tail.
+ */
+export function capPhrases(phrases: readonly string[], max: number): string[] {
+  const out = [...phrases];
+  const words = (phrase: string) => phrase.split(' ').filter(Boolean).length;
+  while (out.length > max && out.length > 1) {
+    let at = 0;
+    let best = Number.POSITIVE_INFINITY;
+    for (let i = 0; i + 1 < out.length; i++) {
+      const size = words(out[i]) + words(out[i + 1]);
+      if (size < best) {
+        best = size;
+        at = i;
+      }
+    }
+    out.splice(at, 2, `${out[at]} ${out[at + 1]}`);
+  }
+  return out;
+}
+
 /** Seeded Fisher-Yates, so the same item and rung shuffle the same way everywhere. */
 function shuffledIndices(count: number, seed: string): number[] {
   const random = mulberry32(hashSeed(seed));
@@ -113,8 +136,13 @@ function shuffledIndices(count: number, seed: string): number[] {
  *
  * `phrases` is what the reader sees. `order` is the answer key and never leaves the server.
  */
-export function buildVerseSequence(text: string, seed: string): VerseSequenceExercise | null {
-  const phrases = splitVersePhrases(text);
+export function buildVerseSequence(
+  text: string,
+  seed: string,
+  /** At most this many pieces — fewer early on (`verseSequenceMaxPhrases`). Defaults to six. */
+  maxPhrases: number = MAX_PHRASES,
+): VerseSequenceExercise | null {
+  const phrases = capPhrases(splitVersePhrases(text), Math.max(MIN_PHRASES, Math.min(MAX_PHRASES, maxPhrases)));
   if (phrases.length < MIN_PHRASES) return null;
 
   // shuffled[i] = which original phrase sits at display position i.
@@ -299,6 +327,7 @@ export function buildVerseMarked(input: {
   /** The span they marked, already floored by `readerSpanFragment`. */
   span: string;
   seed: string;
+  tier?: ReviewTier | null;
 }): ChoiceExercise | null {
   const span = input.span.replace(/\s+/g, ' ').trim();
   const spanWords = span.split(' ').filter(Boolean);
@@ -342,6 +371,9 @@ export function buildVerseMarked(input: {
     pool: own,
     fallbackPool: nearby,
     optionCount: MARKED_OPTION_COUNT,
+    // Count only: the verse's own windows stay first at every tier, because they are what lets
+    // the card draw the verse and have the reader choose on it (`verseMarkedFitsVerse`).
+    tier: input.tier === 0 ? 0 : undefined,
     seed: `${input.seed}:marked`,
   });
 }
@@ -400,6 +432,11 @@ export function buildVerseLocate(
   readerPhrase: string | null = null,
   /** Same-book passages first; the canned list is always last. */
   fallbackPool: readonly string[] = FALLBACK_REFERENCES,
+  /**
+   * How hard to ask. With a tier, `poolReferences` is the same-book look-alikes and `farReferences`
+   * the reader's other books — tier 0 offers three options from the far ones first.
+   */
+  options: { tier?: ReviewTier | null; farReferences?: readonly string[] } = {},
 ): VerseLocateExercise | null {
   const stem = verseLocateStem(text, readerPhrase);
   if (!stem) return null;
@@ -410,8 +447,10 @@ export function buildVerseLocate(
   const choice = buildChoiceExercise({
     answers: [answer],
     pool: poolReferences,
+    farPool: options.farReferences,
     fallbackPool: [...fallbackPool, ...FALLBACK_REFERENCES.filter((r) => !fallbackPool.includes(r))],
     optionCount: LOCATE_OPTION_COUNT,
+    tier: options.tier,
     seed,
   });
   if (!choice) return null;
@@ -452,6 +491,8 @@ export function buildVerseNext(input: {
   answerText: string;
   neighbourTexts: readonly string[];
   seed: string;
+  /** Count only — every neighbour is equally near. */
+  tier?: ReviewTier | null;
 }): VerseNextExercise | null {
   const answer = verseCue(input.answerText, VERSE_NEXT_CUE_WORDS);
   if (!answer) return null;
@@ -464,6 +505,7 @@ export function buildVerseNext(input: {
     answers: [answer],
     pool,
     optionCount: NEXT_OPTION_COUNT,
+    tier: input.tier === 0 ? 0 : undefined,
     seed: input.seed,
   });
   if (!choice) return null;
@@ -483,17 +525,23 @@ export function buildVerseNext(input: {
  */
 export function buildVerseRecognize(input: {
   answerText: string;
+  /** The reader's other verses — with a tier, the ones from the same book. */
   poolTexts: readonly string[];
+  /** The reader's verses from other books: unlike openings, drawn first at tier 0. */
+  farTexts?: readonly string[];
   seed: string;
+  tier?: ReviewTier | null;
 }): VerseNextExercise | null {
   const answer = verseCue(input.answerText, VERSE_NEXT_CUE_WORDS);
   if (!answer) return null;
 
-  const pool = input.poolTexts.map((text) => verseCue(text, VERSE_NEXT_CUE_WORDS)).filter(Boolean);
+  const cues = (texts: readonly string[]) => texts.map((text) => verseCue(text, VERSE_NEXT_CUE_WORDS)).filter(Boolean);
   const choice = buildChoiceExercise({
     answers: [answer],
-    pool,
+    pool: cues(input.poolTexts),
+    farPool: cues(input.farTexts ?? []),
     optionCount: NEXT_OPTION_COUNT,
+    tier: input.tier,
     seed: input.seed,
   });
   if (!choice) return null;
@@ -934,16 +982,62 @@ export function buildVerseBook(input: {
   book: string;
   poolBooks: readonly string[];
   seed: string;
+  /**
+   * How hard to ask. With a tier, the reader's books near this one in the canon (the Gospels
+   * beside John, the Prophets beside Isaiah) are the look-alikes, and the rest are drawn first at
+   * tier 0. The canned books split the same way, after the reader's own.
+   */
+  tier?: ReviewTier | null;
 }): ChoiceExercise | null {
   const book = input.book.trim();
   if (!book) return null;
+  if (input.tier == null) {
+    return buildChoiceExercise({
+      answers: [book],
+      pool: input.poolBooks,
+      fallbackPool: WELL_KNOWN_BOOKS,
+      optionCount: LOCATE_OPTION_COUNT,
+      seed: input.seed,
+    });
+  }
+  const own = partitionBooksByCanonDistance(book, input.poolBooks);
+  const canned = partitionBooksByCanonDistance(book, WELL_KNOWN_BOOKS);
+  const cannedOrder = input.tier === 0 ? [...canned.far, ...canned.near] : [...canned.near, ...canned.far];
   return buildChoiceExercise({
     answers: [book],
-    pool: input.poolBooks,
-    fallbackPool: WELL_KNOWN_BOOKS,
+    pool: own.near,
+    farPool: own.far,
+    fallbackPool: cannedOrder,
     optionCount: LOCATE_OPTION_COUNT,
+    tier: input.tier,
     seed: input.seed,
   });
+}
+
+function canonIndexOfBook(book: string): number {
+  const order = canonicalBookOrder(book.trim());
+  return Number.isFinite(order) ? order : -1;
+}
+
+/** Books this many places or fewer apart in the canon read as neighbours. */
+const CANON_NEAR_BOOKS = 5;
+
+/**
+ * Split books into those within `CANON_NEAR_BOOKS` of `book` in canonical order, and the rest.
+ * A book the canon map does not know is far — it cannot be shown to be a look-alike.
+ */
+export function partitionBooksByCanonDistance(
+  book: string,
+  books: readonly string[],
+): { near: string[]; far: string[] } {
+  const at = canonIndexOfBook(book);
+  const near: string[] = [];
+  const far: string[] = [];
+  for (const candidate of books) {
+    const index = canonIndexOfBook(candidate);
+    (at >= 0 && index >= 0 && Math.abs(index - at) <= CANON_NEAR_BOOKS ? near : far).push(candidate);
+  }
+  return { near, far };
 }
 
 /**

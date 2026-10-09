@@ -276,3 +276,47 @@ describe('chapter.marked', () => {
     ).toBeNull();
   });
 });
+
+describe('chapter choices by tier', () => {
+  const sameBook = ['And the Word became flesh and dwelt among us', 'Let not your hearts be troubled, believe in God'];
+  const otherBooks = ['In the beginning God created the heavens and the earth', 'The LORD is my shepherd, I shall not want'];
+  const seeds = ['a', 'b', 'c', 'd', 'e', 'f'];
+  /** An option is a cue — the opening words — so match it on its first three. */
+  const from = (texts: readonly string[]) => (option: string) =>
+    texts.some((text) => text.startsWith(option.split(' ').slice(0, 3).join(' ')));
+
+  it('opens with three options from other books, and moves to four from the same book', () => {
+    for (const seed of seeds) {
+      const easy = buildChapterVerse({
+        verses: chapter,
+        engagedNumbers: [4],
+        distractorTexts: sameBook,
+        farTexts: otherBooks,
+        tier: 0,
+        seed,
+      })!;
+      expect(easy.options).toHaveLength(3);
+      const easyWrong = easy.options.filter((_, i) => i !== easy.answerIndex);
+      expect(easyWrong.every(from(otherBooks))).toBe(true);
+
+      const hard = buildChapterVerse({
+        verses: chapter,
+        engagedNumbers: [4],
+        distractorTexts: sameBook,
+        farTexts: otherBooks,
+        tier: 2,
+        seed,
+      })!;
+      expect(hard.options).toHaveLength(4);
+      const hardWrong = hard.options.filter((_, i) => i !== hard.answerIndex);
+      // Both same-book openings are taken before anything from another book.
+      expect(hardWrong.filter(from(sameBook))).toHaveLength(2);
+    }
+  });
+
+  it('asks the same verse at every tier — only the options move', () => {
+    const at = (tier: 0 | 2) =>
+      buildChapterVerse({ verses: chapter, engagedNumbers: [4, 17, 30], distractorTexts: sameBook, farTexts: otherBooks, tier, seed: 'x' })!.verse.number;
+    expect(at(0)).toBe(at(2));
+  });
+});

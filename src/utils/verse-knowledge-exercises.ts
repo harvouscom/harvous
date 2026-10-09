@@ -25,6 +25,7 @@
  */
 
 import { buildChoiceExercise, type ChoiceExercise } from '@/utils/choice-exercise';
+import type { ReviewTier } from '@/utils/review-difficulty';
 
 /** Below this an OpenBible topic edge is incidental. Mirrors `MIN_THEME_CORROBORATION_RELEVANCE`. */
 export const VERSE_THEME_MIN_RELEVANCE = 50;
@@ -52,6 +53,8 @@ export function buildVerseTheme(input: {
   /** The wider index, used only when the reader's own runs short. */
   fallbackPool?: readonly string[];
   seed: string;
+  /** How hard to ask — three options at tier 0. See `buildChoiceExercise`. */
+  tier?: ReviewTier | null;
 }): ChoiceExercise | null {
   if (!input.answers.length) return null;
   return buildChoiceExercise({
@@ -60,6 +63,7 @@ export function buildVerseTheme(input: {
     fallbackPool: input.fallbackPool,
     exclude: input.onVerse,
     optionCount: OPTION_COUNT,
+    tier: input.tier,
     seed: input.seed,
   });
 }
@@ -76,6 +80,8 @@ export function buildVersePerson(input: {
   pool: readonly string[];
   fallbackPool?: readonly string[];
   seed: string;
+  /** How hard to ask — three options at tier 0. See `buildChoiceExercise`. */
+  tier?: ReviewTier | null;
 }): ChoiceExercise | null {
   if (!input.answers.length) return null;
   return buildChoiceExercise({
@@ -84,6 +90,7 @@ export function buildVersePerson(input: {
     fallbackPool: input.fallbackPool,
     exclude: input.onVerse,
     optionCount: OPTION_COUNT,
+    tier: input.tier,
     seed: input.seed,
   });
 }
@@ -105,6 +112,8 @@ export function buildVersePlace(input: {
   pool: readonly string[];
   fallbackPool?: readonly string[];
   seed: string;
+  /** How hard to ask — three options at tier 0. See `buildChoiceExercise`. */
+  tier?: ReviewTier | null;
 }): ChoiceExercise | null {
   if (!input.answers.length) return null;
   return buildChoiceExercise({
@@ -113,6 +122,7 @@ export function buildVersePlace(input: {
     fallbackPool: input.fallbackPool,
     exclude: input.onVerse,
     optionCount: OPTION_COUNT,
+    tier: input.tier,
     seed: input.seed,
   });
 }
@@ -137,18 +147,23 @@ export function buildVerseCrossref(input: {
   answers: readonly string[];
   /** The verse asked about, never an option. */
   verse: string;
-  /** The reader's passages, closest first. */
+  /** The reader's passages from the verse's book — the look-alikes. */
   pool: readonly string[];
+  /** The reader's passages from other books. */
   fallbackPool?: readonly string[];
   seed: string;
+  /** How hard to ask — three options at tier 0. See `buildChoiceExercise`. */
+  tier?: ReviewTier | null;
 }): ChoiceExercise | null {
   if (!input.answers.length) return null;
   return buildChoiceExercise({
     answers: input.answers,
     pool: input.pool,
-    fallbackPool: [...(input.fallbackPool ?? []), ...CROSSREF_FALLBACK_REFERENCES],
+    farPool: input.fallbackPool,
+    fallbackPool: CROSSREF_FALLBACK_REFERENCES,
     exclude: [...input.answers, input.verse],
     optionCount: OPTION_COUNT,
+    tier: input.tier,
     seed: input.seed,
   });
 }

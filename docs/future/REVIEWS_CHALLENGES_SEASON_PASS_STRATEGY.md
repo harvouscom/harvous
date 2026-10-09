@@ -16,9 +16,9 @@
 > | Review items (note / verse / chapter; the older highlight / connection / Thread rows are never asked) | `ReviewItems`, `server/utils/review-service.ts` |
 > | Authored prompts, verse and chapter ladders of rung families, note questions | `src/utils/review-prompts.ts`, `src/utils/*-ladder-exercises.ts` |
 > | Every rung marked by the server; a sitting is built, exercise and all, before it is sent | `server/utils/review-sitting.ts`, `src/utils/review-reveal-exercise.ts` |
-> | Note questions ask about context: which passage, which linked note, which folder (Sept 2026) | `src/utils/note-ladder-exercises.ts` |
+> | Note questions ask about context: which passage, which linked note (Sept 2026); a self-rated Takeaway card replaced the folder question (Oct 2026) | `src/utils/note-ladder-exercises.ts` |
 > | Transparent scheduling (1 / 4 / 14, ×1.8 from the third recall, 180 cap), learning steps, silent easing | `src/utils/review-scheduling.ts` |
-> | The dock card, deck-style exercises, no self-rated path left | `PrototypeReviewDock.tsx`, `review-exercises/` |
+> | The dock card, deck-style exercises; Takeaway is the one self-rated note step | `PrototypeReviewDock.tsx`, `review-exercises/` |
 > | Review section, a day's budget of eight, progress counted as done, never as owed | `PrototypeReviewSection.tsx` on Activity |
 > | Personal Study Bible layer (`UserNodeState` below) | `UserNodeStates`, `server/utils/study-bible-layer.ts`, `src/utils/study-bible-nodes.ts` |
 > | The engine that fills the queue from it, ≤5 a rolling day, ≤32 outstanding | `server/utils/review-opportunities.ts`, `src/utils/review-opportunity-scoring.ts` |
@@ -294,6 +294,24 @@ and nothing answered today is offered back. Before this the queue refilled from 
 answered, so the fold's count could not move. Progress is shown as "3 of 8 today" and as a bar
 on the card: a count of what is *done*, bounded by one sitting, which is the opposite of the
 escalating "27 due" this section exists to prevent.
+
+**As built (October 2026): difficulty follows the streak.** Every rung asks at a tier, 0 to 2
+(`reviewTierFor`, `src/utils/review-difficulty.ts`). The tier used to rise only with the ladder's
+pass, so every question stayed at tier 0 through the first eight-plus clean recalls. Now it is
+the higher of the pass and the clean-recall streak: 2 in a row gives tier 1, and 4 gives tier 2.
+Any miss, `almost` included, takes the next question a tier below the ladder's. That covers the
+typed rungs (word bank to typed gaps, finish to lead-in to reference, more keywords) and now the
+choices too:
+
+- Choices offer 3 options at tier 0 and 4 above it.
+- The wrong answers are drawn from the reader's *unlike* material at tier 0 (other books, far
+  from it in the canon) and from look-alikes at tier 2 (the same book, nearby books).
+- The ordering rung cuts a verse into 3, then 4, then up to 6 pieces.
+
+The reader's own material always comes before a canned list. The tier is read from the item as it
+was asked, and the reveal and the grader share one builder per rung, so a question is never
+marked against a different set of options than it showed. As with easing, none of this is ever
+offered as a choice.
 
 ### Review progression
 

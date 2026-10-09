@@ -288,3 +288,28 @@ describe('buildNoteTakeaway', () => {
     expect(resolveNoteRung(0, material, 'seed')).toBe('note.takeaway');
   });
 });
+
+describe('note choices by tier', () => {
+  const input = {
+    acceptable: ['John 15:5'],
+    poolLabels: ['John 1:1', 'John 3:16', 'John 14:6'],
+    fallbackLabels: ['Genesis 1:1', 'Psalm 23:1', 'Romans 8:28'],
+  };
+  const wrong = (ex: { options: string[]; answerIndex: number }) => ex.options.filter((_, i) => i !== ex.answerIndex);
+
+  it('asks a new note with three options from other books', () => {
+    for (const seed of ['a', 'b', 'c', 'd']) {
+      const ex = buildNoteChoice({ ...input, seed, tier: 0 })!;
+      expect(ex.options).toHaveLength(3);
+      for (const option of wrong(ex)) expect(input.fallbackLabels).toContain(option);
+    }
+  });
+
+  it('asks a held note with four, same book first', () => {
+    for (const seed of ['a', 'b', 'c', 'd']) {
+      const ex = buildNoteChoice({ ...input, seed, tier: 2 })!;
+      expect(ex.options).toHaveLength(4);
+      for (const option of wrong(ex)) expect(input.poolLabels).toContain(option);
+    }
+  });
+});

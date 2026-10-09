@@ -17,7 +17,6 @@
  * "the" removed tests typing, not memory — and blanking them makes the verse unreadable as a
  * cue, which defeats the rung.
  */
-import type { RecallState } from './review-item-kinds';
 import { verseClozeSpec } from './review-difficulty';
 
 /** Words too common to be a fair thing to recall. Shared by every text-keyed rung. */
@@ -116,11 +115,11 @@ const MAX_BLANK_SHARE = 0.6;
  * once. The share opens at 0.2 rather than the 0.3 it used to, and is capped in count as well
  * as in share — see `VerseClozeSpec`.
  *
- * Driven by the pass, never by `reviewCount`: the count rises on every answer, so ten near
- * misses would hand someone a mostly-blank verse they have never once recalled.
+ * Driven by the tier (`reviewTierFor`), never by `reviewCount`: the count rises on every answer,
+ * so ten near misses would hand someone a mostly-blank verse they have never once recalled.
  */
-export function verseClozeRatio(pass: number, recallState?: RecallState | null): number {
-  return Math.min(MAX_BLANK_SHARE, verseClozeSpec(pass, recallState).ratio);
+export function verseClozeRatio(tier: number): number {
+  return Math.min(MAX_BLANK_SHARE, verseClozeSpec(tier).ratio);
 }
 
 /**

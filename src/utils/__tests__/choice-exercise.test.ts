@@ -125,3 +125,68 @@ describe('gradeChoiceExercise', () => {
     expect(gradeChoiceExercise(ex, '', ['John 15:5'])).toBe(false);
   });
 });
+
+describe('buildChoiceExercise by tier', () => {
+  const near = ['John 1:1', 'John 3:16', 'John 14:6'];
+  const far = ['Genesis 1:1', 'Psalm 23:1', 'Romans 8:28'];
+  const canned = ['Isaiah 40:31', 'Hebrews 11:1'];
+  const seeds = Array.from({ length: 40 }, (_, i) => `seed-${i}`);
+  const build = (tier: 0 | 1 | 2, seed: string, extra: Partial<Parameters<typeof buildChoiceExercise>[0]> = {}) =>
+    buildChoiceExercise({ answers: ['John 15:5'], pool: near, farPool: far, fallbackPool: canned, tier, seed, ...extra })!;
+  const wrong = (ex: { options: string[]; answerIndex: number }) => ex.options.filter((_, i) => i !== ex.answerIndex);
+
+  it('asks with three options and unlike wrong answers at tier 0', () => {
+    for (const seed of seeds) {
+      const ex = build(0, seed);
+      expect(ex.options).toHaveLength(3);
+      expect(ex.options[ex.answerIndex]).toBe('John 15:5');
+      for (const option of wrong(ex)) expect(far).toContain(option);
+    }
+  });
+
+  it('asks with four options and look-alikes first at tier 2', () => {
+    for (const seed of seeds) {
+      const ex = build(2, seed);
+      expect(ex.options).toHaveLength(4);
+      for (const option of wrong(ex)) expect(near).toContain(option);
+    }
+  });
+
+  it('mixes the reader’s near and far material at tier 1, before anything canned', () => {
+    const seen = new Set<string>();
+    for (const seed of seeds) {
+      const ex = build(1, seed);
+      expect(ex.options).toHaveLength(4);
+      for (const option of wrong(ex)) {
+        expect([...near, ...far]).toContain(option);
+        seen.add(option);
+      }
+    }
+    expect([...seen].some((o) => near.includes(o))).toBe(true);
+    expect([...seen].some((o) => far.includes(o))).toBe(true);
+  });
+
+  it('falls through to the look-alikes at tier 0 when the far side is thin', () => {
+    const ex = build(0, 'thin', { farPool: ['Genesis 1:1'] });
+    expect(ex.options).toHaveLength(3);
+    expect(wrong(ex)).toContain('Genesis 1:1');
+    expect(near).toContain(wrong(ex).find((o) => o !== 'Genesis 1:1'));
+  });
+
+  it('reaches for the canned list only after the reader’s own material, at every tier', () => {
+    for (const tier of [0, 1, 2] as const) {
+      const ex = build(tier, 'own', { pool: ['John 1:1'], farPool: ['Genesis 1:1'] });
+      expect(wrong(ex)).toEqual(expect.arrayContaining(['John 1:1', 'Genesis 1:1']));
+    }
+  });
+
+  it('builds at tier 0 with only two wrong answers on file', () => {
+    expect(buildChoiceExercise({ answers: ['A'], pool: ['B', 'C'], seed: 's' })).toBeNull();
+    expect(buildChoiceExercise({ answers: ['A'], pool: ['B', 'C'], tier: 0, seed: 's' })?.options).toHaveLength(3);
+  });
+
+  it('asks the way it always did without a tier', () => {
+    const ex = buildChoiceExercise({ answers: ['John 15:5'], pool: near, fallbackPool: far, seed: 'same' });
+    expect(buildChoiceExercise({ answers: ['John 15:5'], pool: near, farPool: far, seed: 'same' })).toEqual(ex);
+  });
+});
