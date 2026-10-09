@@ -15779,9 +15779,10 @@ html.harvous-prototype-route
   overscroll-behavior: contain;
 }
 
+/* No top margin: the list scrolls right up to the divider. A margin here left a blank strip
+   above the line, so rows were cut off in mid-air instead of at the rule. */
 .proto-space-switcher__actions {
   flex: 0 0 auto;
-  margin-top: 4px;
   padding-top: 4px;
   border-top: 0.5px solid var(--pds-border);
 }
