@@ -82,14 +82,6 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-const LAST_ACTIVE_LABEL: Record<FamilyProgressEntry['lastActive'], string> = {
-  day: 'In the last day',
-  week: 'This week',
-  month: 'This month',
-  earlier: 'Over a month ago',
-  never: 'Not yet',
-};
-
 function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -99,20 +91,63 @@ function inviteTitle(invite: FamilyInvite): string {
   return invite.label ? `${role} · ${invite.label}` : `${role} invite`;
 }
 
-/** The four signals, as rows. Shared by a parent's card and the child's own. */
-function ProgressRows({ entry }: { entry: FamilyProgressEntry }) {
+const LAST_ACTIVE_SHORT: Record<FamilyProgressEntry['lastActive'], string> = {
+  day: 'Active today',
+  week: 'Active this week',
+  month: 'Active this month',
+  earlier: 'Not active lately',
+  never: 'Not started yet',
+};
+
+/**
+ * The four signals as one card, the same for a parent and for the child it describes: who,
+ * a quiet "active" line, the two counts large, and the books as chips. Deliberately no
+ * streak, trend or comparison between children — encouragement, not a scoreboard.
+ */
+function ProgressCard({ entry, member }: { entry: FamilyProgressEntry; member?: FamilyMember }) {
+  const recent = entry.lastActive === 'day' || entry.lastActive === 'week';
   return (
-    <SettingsGroup>
-      <SettingsRow label="Last active" value={LAST_ACTIVE_LABEL[entry.lastActive]} trailing="none" />
-      <SettingsRow label="Chapters read" value={String(entry.chaptersRead)} trailing="none" />
-      <SettingsRow
-        label="Books"
-        sublabel={entry.booksRead.length > 0 ? entry.booksRead.join(', ') : undefined}
-        value={entry.booksRead.length === 0 ? 'None yet' : undefined}
-        trailing="none"
-      />
-      <SettingsRow label="Notes written" value={String(entry.notesWritten)} trailing="none" />
-    </SettingsGroup>
+    <div className="proto-family-progress">
+      <div className="proto-family-progress__head">
+        {member ? (
+          <SharedSpaceMemberAvatar
+            userId={member.userId}
+            displayName={member.displayName}
+            userColor={member.userColor}
+            profileImageUrl={member.profileImageUrl}
+          />
+        ) : null}
+        <span className="proto-family-progress__name">{entry.displayName}</span>
+        <span className="proto-family-progress__active" data-recent={recent ? 'true' : undefined}>
+          <span className="proto-family-progress__dot" aria-hidden />
+          {LAST_ACTIVE_SHORT[entry.lastActive]}
+        </span>
+      </div>
+      <div className="proto-family-progress__stats">
+        <div className="proto-family-progress__stat">
+          <Icon name="book-open" size={14} aria-hidden />
+          <span className="proto-family-progress__num">{entry.chaptersRead}</span>
+          <span className="proto-family-progress__label">{entry.chaptersRead === 1 ? 'chapter read' : 'chapters read'}</span>
+        </div>
+        <div className="proto-family-progress__stat">
+          <Icon name="pen" size={14} aria-hidden />
+          <span className="proto-family-progress__num">{entry.notesWritten}</span>
+          <span className="proto-family-progress__label">{entry.notesWritten === 1 ? 'note written' : 'notes written'}</span>
+        </div>
+      </div>
+      <div className="proto-family-progress__books">
+        {entry.booksRead.length > 0 ? (
+          entry.booksRead.map((book) => (
+            <span key={book} className="proto-family-progress__book">
+              <Icon name="scroll" size={10} aria-hidden />
+              {book}
+            </span>
+          ))
+        ) : (
+          <span className="proto-family-progress__none">No books read in the last 30 days</span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -535,6 +570,7 @@ function ChildRequestCard({ request, frozen }: { request: FamilyRoleRequest | nu
       {!live || (live.status === 'declined' && !coolingDown && !reviewing) ? (
         <SettingsRow
           label="Ask to become an adult member"
+          leadingIcon="person"
           sublabel={frozen ? 'Paused while Harvous support looks into something.' : 'A parent approves it. Then they stop seeing your progress.'}
           disabled={frozen}
           trailing="none"
@@ -543,6 +579,7 @@ function ChildRequestCard({ request, frozen }: { request: FamilyRoleRequest | nu
       ) : reviewing ? (
         <SettingsRow
           label="Harvous support is reviewing your request"
+          leadingIcon="user-shield"
           sublabel={`You asked on ${shortDate(live.createdAt)}. They’ll reply by email.`}
           trailing="none"
         />
@@ -550,6 +587,7 @@ function ChildRequestCard({ request, frozen }: { request: FamilyRoleRequest | nu
         <>
           <SettingsRow
             label="Waiting for a parent to answer"
+            leadingIcon="clock"
             sublabel={
               canEscalate
                 ? `You asked on ${shortDate(live.createdAt)} and no one has answered.`
@@ -558,10 +596,11 @@ function ChildRequestCard({ request, frozen }: { request: FamilyRoleRequest | nu
             trailing="none"
           />
           {canEscalate ? (
-            <SettingsRow label="Ask Harvous to review" onClick={() => setConfirming('escalate')} />
+            <SettingsRow label="Ask Harvous to review" leadingIcon="user-shield" onClick={() => setConfirming('escalate')} />
           ) : null}
           <SettingsRow
             label="Take back my request"
+            leadingIcon="arrow-rotate-left"
             trailing="none"
             disabled={withdraw.isPending}
             onClick={() => withdraw.mutate(live.id, { onError: fail })}
@@ -571,12 +610,14 @@ function ChildRequestCard({ request, frozen }: { request: FamilyRoleRequest | nu
         <>
           <SettingsRow
             label="A parent said not now"
+            leadingIcon="clock-rotate-left"
             sublabel={live.askAgainAt ? `You can ask again on ${shortDate(live.askAgainAt)}.` : undefined}
             trailing="none"
           />
           {canEscalate ? (
             <SettingsRow
               label="Ask Harvous to review"
+              leadingIcon="user-shield"
               sublabel="Harvous support can look at it with you."
               onClick={() => setConfirming('escalate')}
             />
@@ -605,6 +646,7 @@ function ParentRequestCard({ request, frozen }: { request: FamilyRoleRequest; fr
     <SettingsGroup>
       <SettingsRow
         label={`${request.displayName} asked to become an adult member`}
+        leadingIcon={frozen ? 'user-shield' : 'person'}
         sublabel={
           frozen
             ? 'You can answer once Harvous support is done.'
@@ -753,10 +795,7 @@ export function FamilyView({ data }: { data: InFamily }) {
           <SectionLabel>How your children are doing · last 30 days</SectionLabel>
           {children.map((entry) => (
             <div key={entry.userId}>
-              <p className="pds-list-title" style={{ margin: '0 0 6px', color: 'var(--pds-text-primary)' }}>
-                {entry.displayName}
-              </p>
-              <ProgressRows entry={entry} />
+              <ProgressCard entry={entry} member={family.members.find((m) => m.userId === entry.userId)} />
             </div>
           ))}
           <Footnote>Counts only. You never see their notes, highlights, searches, or Review.</Footnote>
@@ -767,7 +806,7 @@ export function FamilyView({ data }: { data: InFamily }) {
         <>
           <SectionLabel>What your parents can see · last 30 days</SectionLabel>
           {myEntry ? (
-            <ProgressRows entry={myEntry} />
+            <ProgressCard entry={myEntry} member={family.members.find((m) => m.isMe)} />
           ) : (
             <SettingsGroup>
               <SettingsRow label={progress.isLoading ? 'Loading…' : 'Nothing to show yet'} trailing="none" />

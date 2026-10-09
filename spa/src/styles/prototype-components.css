@@ -25951,3 +25951,125 @@ button.proto-feed-sheet__stat:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ─── Settings › Family: a child's progress ───────────────────────────────────
+   One card per child, identical for the parent and for the child it describes. Two counts
+   large, books as chips, and a quiet "active" line — the dot takes the accent only when
+   recent and stays neutral otherwise: no red, nothing that reads as falling behind. */
+.proto-family-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-menu);
+}
+
+.proto-family-progress__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.proto-family-progress__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-family-progress__active {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+  white-space: nowrap;
+}
+
+.proto-family-progress__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pds-text-tertiary, var(--pds-text-secondary));
+  opacity: 0.6;
+}
+
+.proto-family-progress__active[data-recent='true'] .proto-family-progress__dot {
+  background: var(--pds-accent, #2f7cf6);
+  opacity: 1;
+}
+
+.proto-family-progress__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.proto-family-progress__stat {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--pds-bg-input);
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-family-progress__num {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--pds-text-primary);
+}
+
+.proto-family-progress__label {
+  grid-column: 1 / -1;
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-family-progress__books {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.proto-family-progress__book {
+  flex-shrink: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--pds-bg-chip, var(--pds-bg-input));
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+.proto-family-progress__book svg {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.proto-family-progress__none {
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
