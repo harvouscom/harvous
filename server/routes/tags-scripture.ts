@@ -11,6 +11,7 @@
  *   POST   /api/scripture/fetch-verse
  *   GET    /api/scripture/chapter
  *   GET    /api/scripture/chapter-notes
+ *   POST   /api/scripture/identify-passage
  */
 
 import { Hono } from 'hono';
@@ -30,6 +31,7 @@ import {
 } from '@/utils/scripture-detector';
 import { fetchVerseText } from '../utils/fetch-verse-text';
 import { parseVerseSearchParams, searchBibleVerses } from '../utils/scripture-verse-search';
+import { identifyPassage, parsePassageIdentifyParams } from '../utils/scripture-passage-identify';
 import { nowISO } from '../db/dates';
 import { updateCanonicalNoteInTransaction } from '../utils/note-version-service';
 import { broadcastCanonicalNoteInvalidation } from '../utils/broadcast-shared-space-note';
@@ -410,6 +412,22 @@ app.get('/api/scripture/search', rateLimit('read'), async (c) => {
     return c.json(result);
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/scripture/search', action: 'search_verses' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/scripture/identify-passage ────────────────────────────────────
+// A photographed Bible page → the passage and translation it is, so a scan can quote the
+// corpus text instead of whatever the camera misread. Public for the same reason as search (a
+// guest scans too) and rate-limited the same way. POST because the page is the payload.
+app.post('/api/scripture/identify-passage', rateLimit('read'), async (c) => {
+  try {
+    const body = await c.req.json().catch(() => null);
+    const params = parsePassageIdentifyParams(body);
+    if (!params.ok) return c.json({ error: params.error, code: params.code }, 400);
+    return c.json(await identifyPassage(params));
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/scripture/identify-passage', action: 'identify_passage' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

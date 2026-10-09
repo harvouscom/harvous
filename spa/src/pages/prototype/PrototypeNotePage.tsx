@@ -146,6 +146,8 @@ import {
   type ContentActionResponse,
 } from '../../hooks/queries/useChurchContent';
 import type { ChannelPending } from './PrototypeNoteDestinationSheet';
+import BlankNoteScanOffer from './scan/BlankNoteScanOffer';
+import { SCAN_FILL_NOTE_EVENT } from './scan/scan-text-events';
 
 const DRAFT_NOTE_ID = 'note_draft';
 /** Stable identity so the epoch-mismatch fallback doesn't re-render on every pass. */
@@ -789,6 +791,34 @@ export default function PrototypeNotePage() {
       }
     }, 0);
   }, []);
+
+  /*
+   * A scan started from this blank note fills it — the template path, without a template's
+   * provenance: remount the editor on the new HTML, then save so it is not stuck behind the
+   * edit guard. Answered (preventDefault) only while the note is still a blank draft, so a
+   * scan finished after the reader has moved on starts its own note instead.
+   */
+  const scanFillAllowedRef = useRef(false);
+  const handleApplyScan = useCallback((contentHtml: string) => {
+    setTemplatePrefill({ title: '', content: contentHtml, noteType: 'default' });
+    setTemplateApplyEpoch((n) => n + 1);
+    setLiveNoteSnapshot({ title: '', content: contentHtml });
+    window.setTimeout(() => {
+      const save = (window as Window & { noteSaveCallback?: (t: string, c: string) => unknown }).noteSaveCallback;
+      if (typeof save === 'function') void Promise.resolve(save('', contentHtml));
+    }, 0);
+  }, []);
+  useEffect(() => {
+    const onFill = (event: Event) => {
+      if (!scanFillAllowedRef.current) return;
+      const html = (event as CustomEvent<{ contentHtml?: string }>).detail?.contentHtml;
+      if (!html) return;
+      event.preventDefault();
+      handleApplyScan(html);
+    };
+    window.addEventListener(SCAN_FILL_NOTE_EVENT, onFill);
+    return () => window.removeEventListener(SCAN_FILL_NOTE_EVENT, onFill);
+  }, [handleApplyScan]);
 
   useEffect(() => {
     if (!isDraft && composeTargetSpaceIdOverride) {
@@ -2832,6 +2862,9 @@ export default function PrototypeNotePage() {
     liveNoteSnapshot.title || prototypeDisplayTitle,
     liveNoteSnapshot.content || editorNote.content,
   );
+  // "or scan a page" belongs to a new note nobody has written in yet — see BlankNoteScanOffer.
+  const showBlankNoteScanOffer = isDraft && isEditable && noteIsEffectivelyEmpty && templateApplyEpoch === 0;
+  scanFillAllowedRef.current = showBlankNoteScanOffer;
   const showTemplatesInInspector = !isForeignSharedNote && !readOnlyInSharedSpace && isEditable;
   const canAttachSpaceTemplate =
     !!templateSpaceAccess.access &&
@@ -3290,6 +3323,7 @@ export default function PrototypeNotePage() {
                 prototypeDraftPersistRemountTick={draftPersistRemountTick}
                 noteCreatedAtIso={editorNote.createdAt ?? null}
               />
+              {showBlankNoteScanOffer ? <BlankNoteScanOffer /> : null}
               </div>
             </div>
           </SubtleContentMount>

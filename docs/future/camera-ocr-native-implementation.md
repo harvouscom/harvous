@@ -5,6 +5,19 @@
 **Not Available:** PWA/Web Browser  
 **Last Updated:** January 2026
 
+> **October 2026 — the web now scans printed text.** "Scan a page" (a blank new note's "or scan a page",
+> and Import's empty state) takes one photo through the system camera, reads it on the device
+> with Tesseract.js, and fills the note (or, from Import, opens one) with every Scripture reference already a pill in the
+> translation printed beside it. A photographed Bible page is recognized against `BibleVerses`
+> (`POST /api/scripture/identify-passage`) and quoted from our text, not the scan. Handwriting
+> is still native-only, for the reasons below. Code: `src/utils/ocr/`,
+> `spa/src/pages/prototype/scan/`, `server/utils/scripture-passage-identify.ts`; engine files
+> are self-hosted by `ocrAssets` in `vite.config.ts`. The native app shipped its own scanner in
+> `native/Harvous/Editor/IOSTextCaptureScanner.swift` (Vision, not the Capacitor plan below).
+>
+> Not done on the web, deliberately: a live viewfinder (no `TextDetector` in Safari, and WASM
+> OCR is too slow per frame) and handwriting.
+
 ---
 
 ## Overview

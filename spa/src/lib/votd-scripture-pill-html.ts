@@ -9,13 +9,21 @@ function escapeHtmlText(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/** Pending scripture pill HTML for new notes (resolved by processScriptureReferences on save/create). */
-export function buildVotdScripturePillHtml(reference: string, translation: string): string {
+/**
+ * One pending scripture pill, inline — for seed HTML that puts a pill inside running text.
+ * `processScriptureReferences` resolves `data-note-id="pending"` on create/save.
+ */
+export function buildScripturePillSpanHtml(reference: string, translation: string): string {
   const ref = reference.trim();
   const t = (translation.trim() || 'NET');
   const label = getTranslationAbbreviationDisplay(t);
+  return `<span data-scripture-reference="${escapeHtmlAttr(ref)}" data-note-id="pending" data-scripture-translation="${escapeHtmlAttr(t)}" data-scripture-translation-label="${escapeHtmlAttr(label)}" class="scripture-pill scripture-pill-clickable">${escapeHtmlText(ref)}</span>`;
+}
+
+/** Pending scripture pill HTML for new notes (resolved by processScriptureReferences on save/create). */
+export function buildVotdScripturePillHtml(reference: string, translation: string): string {
   // NBSP after pill so a visible gap remains before typed text (normal space can collapse at block end)
-  return `<p><span data-scripture-reference="${escapeHtmlAttr(ref)}" data-note-id="pending" data-scripture-translation="${escapeHtmlAttr(t)}" data-scripture-translation-label="${escapeHtmlAttr(label)}" class="scripture-pill scripture-pill-clickable">${ref}</span>\u00A0</p>`;
+  return `<p>${buildScripturePillSpanHtml(reference, translation)}\u00A0</p>`;
 }
 
 /**

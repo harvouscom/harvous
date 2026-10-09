@@ -14,6 +14,7 @@ import ImportDropZone from './ImportDropZone';
 import ImportFileRow from './ImportFileRow';
 import ImportSummaryCard from './ImportSummaryCard';
 import ProtoProgressBar from './ProtoProgressBar';
+import ScanTextTrigger from '../scan/ScanTextTrigger';
 import { useImportEngine } from './useImportEngine';
 import { useNavigation } from '../../../hooks/queries/useNavigation';
 import { useAuth } from '@clerk/clerk-react';
@@ -145,7 +146,18 @@ export default function ImportWorkspace({ onExit, onBusyChange }: ImportWorkspac
             variant={state.rows.length === 0 ? 'full' : 'compact'}
             onFiles={engine.addFromFileList}
             onDataTransfer={engine.addFromDataTransfer}
-          />
+          >
+            {/* Notes that only exist on paper — a handout, a page of a study Bible. The scan
+                opens over the app, so Settings steps aside once a photo is chosen. */}
+            {state.rows.length === 0 ? (
+              <p className="proto-import-drop__scan">
+                On paper?{' '}
+                <ScanTextTrigger className="proto-import-drop__scan-link" label="Scan a page" onPicked={onExit}>
+                  Scan a page
+                </ScanTextTrigger>
+              </p>
+            ) : null}
+          </ImportDropZone>
 
           {notices.length > 0 ? (
             <ul className="proto-import-notices">

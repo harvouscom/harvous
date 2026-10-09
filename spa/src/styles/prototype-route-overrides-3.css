@@ -48,7 +48,7 @@ html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .prot
 
 html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon .proto-admin-sidebar__badge,
 html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon .proto-admin-sidebar__badge {
-  color: #fff !important;
+  color: var(--pds-on-accent) !important;
 }
 
 /* A chip's unread count sits on the accent, so it reads in the on-accent colour. The blanket
@@ -64,6 +64,7 @@ html.harvous-prototype-route button[class*='proto-'].proto-feed-compose,
 html.harvous-prototype-route button[class*='proto-'].proto-feed-compose * {
   color: var(--pds-text-secondary) !important;
 }
+
 
 /* On-accent controls — must beat blanket `[class*='proto-'] button` rule above */
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary),

@@ -1,0 +1,197 @@
+/*
+ * Scan a page — the ways in that sit on screen before any scan: a blank note's
+ * "or scan a page" (BlankNoteScanOffer.tsx) and the shell's "waiting for its photo" card
+ * (PrototypeScanTextHost.tsx). Imported by those components so it travels in their chunks
+ * rather than the global stylesheet; the sheet itself is scan-sheet.css.
+ */
+
+/* A blank note's "or scan a page", under "Start writing…" (BlankNoteScanOffer.tsx). Set
+   like the placeholder it sits under — tertiary ink, no fill — so it reads as part of the
+   empty page rather than a control on top of it, and leaves with the emptiness. */
+.proto-blank-note-scan {
+  position: absolute;
+  /* Left comes from the measured first line; the right edge keeps the hint off the paper's
+     edge on a phone. */
+  right: 24px;
+  z-index: 2;
+}
+
+.proto-blank-note-scan__btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px 6px 8px;
+  margin-left: -8px;
+  border: 0;
+  border-radius: var(--pds-radius-row);
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--pds-duration-press) var(--pds-ease-standard);
+  animation: proto-blank-note-scan-in 320ms var(--pds-ease-standard) 180ms both;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-blank-note-scan__btn:hover {
+    background: var(--pds-bg-control-hover);
+  }
+}
+
+.proto-blank-note-scan__btn:active {
+  background: var(--pds-bg-row-selected);
+}
+
+.proto-blank-note-scan__btn:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 0;
+}
+
+@keyframes proto-blank-note-scan-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Second line, under the offer: the Camera-app route, said once on iPhone and iPad. Quieter
+   than the offer itself — it is a note about it, not a second thing to press first. */
+.proto-blank-note-scan__hint {
+  appearance: none;
+  display: block;
+  max-width: 320px;
+  margin: 2px 0 0;
+  padding: 2px 0 2px 21px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-blank-note-scan__waiting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Waiting on a photo is the one thing this note needs, so the offer speaks at full ink. */
+.proto-blank-note-scan__btn--waiting {
+  background: var(--pds-bg-chip);
+}
+
+.proto-blank-note-scan__dismiss {
+  appearance: none;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--pds-radius-row);
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.proto-blank-note-scan__dismiss:focus-visible,
+.proto-blank-note-scan__hint:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 0;
+}
+
+/* The shell's copy of the waiting offer, for when no blank note is on screen to show it:
+   a small card above the bottom chrome, like a toast that waits to be answered. */
+.proto-scan-resume {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--pds-shell-frame-inset, 14px) + env(safe-area-inset-bottom, 0px) + 72px);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(420px, calc(100vw - 2 * var(--pds-shell-frame-inset, 14px) - 8px));
+  padding: 10px 10px 10px 12px;
+  border-radius: var(--pds-radius-card, 16px);
+  background: var(--pds-bg-popover-solid);
+  border: 0.5px solid var(--pds-border-control-strong);
+  box-shadow: var(--pds-shadow-popover);
+  transform: translateX(-50%);
+  animation: proto-scan-resume-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes proto-scan-resume-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.proto-scan-resume__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-secondary);
+}
+
+.proto-scan-resume__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--pds-text-primary);
+}
+
+.proto-scan-resume__add {
+  flex: none;
+  appearance: none;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pds-bg-accent-button);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.proto-scan-resume__dismiss {
+  flex: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.proto-scan-resume__add:focus-visible,
+.proto-scan-resume__dismiss:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-blank-note-scan__btn,
+  .proto-scan-resume {
+    animation: none;
+  }
+}
+
+/* Button ink against the route's blanket `button[class*='proto-']` rule. */
+html.harvous-prototype-route button[class*='proto-'].proto-blank-note-scan__btn,
+html.harvous-prototype-route button[class*='proto-'].proto-blank-note-scan__btn *,
+html.harvous-prototype-route button[class*='proto-'].proto-blank-note-scan__hint,
+html.harvous-prototype-route button[class*='proto-'].proto-blank-note-scan__dismiss {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary)) !important;
+}
+
+html.harvous-prototype-route button[class*='proto-'].proto-blank-note-scan__btn--waiting,
+html.harvous-prototype-route button[class*='proto-'].proto-blank-note-scan__btn--waiting * {
+  color: var(--pds-text-primary) !important;
+}

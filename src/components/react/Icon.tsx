@@ -117,6 +117,7 @@ import eyeSvg from '@fortawesome/fontawesome-free/svgs/solid/eye.svg?raw';
 import eyeSlashSvg from '@fortawesome/fontawesome-free/svgs/solid/eye-slash.svg?raw';
 import pasteSvg from '@fortawesome/fontawesome-free/svgs/solid/paste.svg?raw';
 import fileImageSvg from '@fortawesome/fontawesome-free/svgs/solid/file-image.svg?raw';
+import cameraSvg from '@fortawesome/fontawesome-free/svgs/solid/camera.svg?raw';
 import upRightAndDownLeftFromCenterSvg from '@fortawesome/fontawesome-free/svgs/solid/up-right-and-down-left-from-center.svg?raw';
 import downLeftAndUpRightToCenterSvg from '@fortawesome/fontawesome-free/svgs/solid/down-left-and-up-right-to-center.svg?raw';
 import timelineSvg from '@fortawesome/fontawesome-free/svgs/solid/timeline.svg?raw';
@@ -228,6 +229,8 @@ const icons = {
   /* Added on main by the Resource Library; kept as its package import. */
   paperclip: withCurrentColor(paperclipSvg),
   'file-image': svgRootCurrentColor(fileImageSvg),
+  /* "Scan a page" — a camera, like the native app's camera orb. */
+  camera: svgRootCurrentColor(cameraSvg),
   newspaper: svgRootCurrentColor(newspaperSvg),
   'arrow-up-right-from-square': svgRootCurrentColor(arrowUpRightFromSquareSvg),
   'up-right-and-down-left-from-center': svgRootCurrentColor(upRightAndDownLeftFromCenterSvg),
