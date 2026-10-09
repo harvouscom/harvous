@@ -36,11 +36,31 @@ import {
   FOUNDING_CAP,
 } from '@/lib/billing-plans';
 import { getPolarClient, isPolarConfigured } from './polar-client';
+import { reconcileFamilyCoverageForUser } from './family-entitlements';
+import { isPgUndefinedRelation } from './pg-undefined-relation';
 
-export type EntitlementSource = 'billing' | 'admin_grant' | 'church_seat' | 'trial';
+export type EntitlementSource = 'billing' | 'admin_grant' | 'church_seat' | 'trial' | 'family';
 export type EntitlementStatus = 'active' | 'canceled' | 'expired';
 
 const ACTIVE = 'active' as const;
+
+/**
+ * After any change to someone's own rows, bring the family they own (or belong to) in line:
+ * an owner's Plus starting or ending is what turns household coverage on or off. Covers the
+ * Polar webhook, provider sync, admin grants and the dev toggle from one place, so no caller
+ * can forget it. Never throws — a failed reconcile must not fail the billing write, and
+ * GET /api/family and the next sync both self-heal.
+ */
+async function reconcileFamilyAfterWrite(userId: string, source: EntitlementSource): Promise<void> {
+  if (source === 'family') return;
+  try {
+    await reconcileFamilyCoverageForUser(userId);
+  } catch (error) {
+    // A database the family DDL hasn't reached yet has no families to cover.
+    if (isPgUndefinedRelation(error, 'Families') || isPgUndefinedRelation(error, 'FamilyMembers')) return;
+    console.error('[entitlements] family coverage reconcile failed:', error);
+  }
+}
 
 async function listActiveFeatureKeys(userId: string): Promise<FeatureKey[]> {
   try {
@@ -140,6 +160,7 @@ export async function setEntitlementsForProduct(
       });
     }
   }
+  await reconcileFamilyAfterWrite(userId, source);
 }
 
 /** Admin / test helper — grant or revoke a single feature under a source. */
@@ -173,6 +194,7 @@ export async function setFeatureEntitlement(
         ...(enabled ? { expiresAt: null } : {}),
       })
       .where(eq(Entitlements.id, existing.id));
+    await reconcileFamilyAfterWrite(userId, source);
     return;
   }
 
@@ -190,6 +212,7 @@ export async function setFeatureEntitlement(
     expiresAt: null,
     updatedAt: now,
   });
+  await reconcileFamilyAfterWrite(userId, source);
 }
 
 // ─── Founding cap ───────────────────────────────────────────────────────────
@@ -354,12 +377,14 @@ async function cancelBillingEntitlements(userId: string): Promise<boolean> {
       ),
     )
     .returning({ id: Entitlements.id });
+  if (updated.length > 0) await reconcileFamilyAfterWrite(userId, 'billing');
   return updated.length > 0;
 }
 
 /** Per-user watermark for opportunistic (`throttle: true`) reconciles. */
 const RECONCILE_THROTTLE_MS = 5 * 60 * 1000;
 const lastReconcileAt = new Map<string, number>();
+const lastFamilyReconcileAt = new Map<string, number>();
 
 /**
  * Reconcile billing entitlements from Polar.
@@ -381,6 +406,15 @@ export async function syncEntitlementsFromProvider(
   userId: string,
   options?: { throttle?: boolean },
 ): Promise<{ entitlements: FeatureKey[]; updated: boolean; hasSharedSpaces: boolean }> {
+  // DB-only, and independent of Polar being reachable or configured: a missed webhook or a
+  // failed in-transaction reconcile can't leave a household uncovered for long. Opportunistic
+  // reads share the provider watermark's interval so the sidebar's status poll stays cheap.
+  const lastFamily = lastFamilyReconcileAt.get(userId) ?? 0;
+  if (!options?.throttle || Date.now() - lastFamily >= RECONCILE_THROTTLE_MS) {
+    lastFamilyReconcileAt.set(userId, Date.now());
+    await reconcileFamilyAfterWrite(userId, 'billing');
+  }
+
   const before = await listActiveFeatureKeys(userId);
 
   if (!isPolarConfigured()) {

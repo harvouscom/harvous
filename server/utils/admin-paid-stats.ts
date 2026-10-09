@@ -37,9 +37,11 @@ export function paidRatePct(paid: number, total: number): number {
 
 /**
  * Accounts whose access came from something other than a payment — admin grants, church
- * seats, trials. Clamped at 0: the two counts come from separate aggregates over a table that
- * can change between them, and a negative "granted" on the dashboard is worse than a stale one.
+ * seats, trials. Family-covered accounts (`family`: covered and not paying themselves) are
+ * their own bucket, so a household riding one subscription never reads as comps. Clamped at
+ * 0: the counts come from separate aggregates over a table that can change between them, and
+ * a negative "granted" on the dashboard is worse than a stale one.
  */
-export function grantedAccounts(paid: number, billing: number): number {
-  return Math.max(0, paid - billing);
+export function grantedAccounts(paid: number, billing: number, family = 0): number {
+  return Math.max(0, paid - billing - family);
 }

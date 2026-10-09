@@ -131,7 +131,9 @@ when the owner is not currently paying. Links expire after 7 days and work once.
 email invites; Harvous has no transactional email sender.
 
 **Join.** The invite page shows the family name, who invited them, the role, and the plain list
-of what that role shares. Signed-out visitors sign up first and return to the page. Redeem is
+of what that role shares. Signed-out visitors sign up first and return to the page, where they
+still press the button that names the role; unlike the church join page, nothing is replayed
+automatically. Redeem is
 refused if the person is already in a family, if the invite is used, revoked or expired, or if
 the family is full. The client must send back the role it showed (`acknowledgedRole`).
 
@@ -139,7 +141,9 @@ the family is full. The client must send back the role it showed (`acknowledgedR
 disappears from parents' view. Parents see the member's new role in the list.
 
 **Leave / remove.** The member's Family Space membership is removed with
-`removeMemberPreservingResponses`, so what they wrote there stays. Their coverage ends.
+`removeMemberPreservingResponses`, the same as leaving any shared space: notes they added to
+the space leave with them (they stay in their own library), and replies they wrote stay. Their
+coverage ends.
 
 **Dissolve.** Owner only. Family rows are deleted and coverage ends; the space remains as an
 ordinary shared space with everyone still in it. The owner can delete it through the normal,
@@ -193,7 +197,7 @@ unaffected and stays the fence for hosting.
 
 | Signal | Source |
 |---|---|
-| Last active: today / this week / this month / earlier / never | latest of `ReadingEvents`, `NoteVisitEvents`, and notes they wrote |
+| Last active: in the last day / this week / this month / over a month ago / not yet | latest of `ReadingEvents`, `NoteVisitEvents`, and notes they wrote. Rolling windows, not calendar days: the server doesn't know the child's time zone |
 | Chapters read (count) | distinct chapters in `ReadingEvents` with `dwellBucket` read or study (glances never count) |
 | Books read (names) | distinct books from the same rows, in canonical order |
 | Notes written (count) | `Notes` they created, `addedBy = 'user'` (imports, templates and system notes excluded; locked notes counted, never singled out) |

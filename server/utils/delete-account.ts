@@ -22,6 +22,10 @@
  */
 import {
   db,
+  first,
+  Families,
+  FamilyMembers,
+  FamilyInvites,
   eq,
   and,
   or,
@@ -78,6 +82,8 @@ import {
   WeeklyStreaks,
   ClerkUserMapping,
 } from '../db';
+import { dissolveFamily } from './family-lifecycle';
+import { reconcileFamilyCoverage } from './family-entitlements';
 import { deleteNotesCascadeForUser } from './delete-note-cascade';
 import { deleteSearchEventsForUser } from './record-search-event';
 import { getPolarClient, isPolarConfigured } from './polar-client';
@@ -115,6 +121,22 @@ function databaseSteps(userId: string): Step[] {
       },
     ],
     ['threads', () => db.delete(Threads).where(eq(Threads.userId, userId))],
+    /* Before owned spaces: an owner's family is dissolved (coverage ends for everyone it
+       covered) while its rows can still be found; a member just leaves. Invite links this
+       account made go too — nobody is left to vouch for them. */
+    [
+      'family',
+      async () => {
+        const owned = first(await db.select().from(Families).where(eq(Families.ownerUserId, userId)).limit(1));
+        if (owned) await db.transaction((tx) => dissolveFamily(tx, owned, new Date()));
+        const membership = first(
+          await db.select({ familyId: FamilyMembers.familyId }).from(FamilyMembers).where(eq(FamilyMembers.userId, userId)).limit(1),
+        );
+        await db.delete(FamilyInvites).where(eq(FamilyInvites.createdBy, userId));
+        await db.delete(FamilyMembers).where(eq(FamilyMembers.userId, userId));
+        if (membership?.familyId) await reconcileFamilyCoverage(membership.familyId);
+      },
+    ],
     [
       'owned spaces',
       async () => {

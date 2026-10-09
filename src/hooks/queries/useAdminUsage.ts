@@ -43,6 +43,7 @@ export type UsageOverview = {
     paidAccounts: number;
     /** Of those, source='billing'. Kept separate so a comp never reads as revenue. */
     billingAccounts: number;
+    familyAccounts?: number;
     grantedAccounts: number;
     freeAccounts: number;
     activationRate: number;
