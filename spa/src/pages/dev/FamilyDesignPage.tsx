@@ -180,7 +180,9 @@ export default function FamilyDesignPage() {
 }
 
 const DEV_CSS = `
-.dev-family { min-height: 100vh; padding: 40px 24px 64px; background: var(--pds-bg-page); color: var(--pds-text-primary); box-sizing: border-box; }
+/* The app shell pins html, body and #root at the window height with overflow hidden, so the
+   page scrolls itself. */
+.dev-family { height: 100vh; height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 40px 24px 64px; background: var(--pds-bg-page); color: var(--pds-text-primary); box-sizing: border-box; }
 .dev-family__header { max-width: 1500px; margin: 0 auto 24px; display: flex; flex-direction: column; gap: 8px; }
 .dev-family__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
 .dev-family__toggle { display: inline-flex; align-items: center; gap: 6px; }
