@@ -272,8 +272,7 @@
   margin: 0;
   max-width: 380px;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   font-size: 0.9375rem;
   line-height: 1.55;
   color: var(--site-ink-soft);
@@ -301,8 +300,7 @@
   flex: 1;
   min-width: 0;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   font-size: 0.875rem;
   line-height: 1.35;
   color: var(--pds-text-secondary);
@@ -313,8 +311,7 @@
   margin: 0;
   text-align: left;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -394,7 +391,7 @@
 
 .upgrade-checkout__error {
   margin: 0;
-  font-family: "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--pds-font-body);
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-error, #c0392b);
@@ -409,8 +406,7 @@
 .upgrade-checkout__renewal {
   margin: 0.375rem 0 0;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--site-ink-faint);
@@ -421,8 +417,7 @@
 .upgrade-checkout__guarantee {
   margin: 0;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--site-ink-faint);
@@ -466,8 +461,7 @@
   border-radius: 999px;
   padding: 10px 12px;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif !important;
+    var(--pds-font-body) !important;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--site-ink-faint) !important;
@@ -499,8 +493,7 @@
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif !important;
+    var(--pds-font-body) !important;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -536,8 +529,7 @@
   color: var(--pds-text-primary) !important;
   -webkit-text-fill-color: var(--pds-text-primary);
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif !important;
+    var(--pds-font-body) !important;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
@@ -552,8 +544,7 @@
 .upgrade-secondary-btn,
 .upgrade-secondary-btn * {
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif !important;
+    var(--pds-font-body) !important;
   color: var(--pds-text-primary) !important;
   -webkit-text-fill-color: var(--pds-text-primary);
 }
