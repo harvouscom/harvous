@@ -18,7 +18,7 @@
  * group order around Actions, and the hoist's place at the head of the result rows.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { SpaceNoteRow } from '../../../../hooks/queries/useSpace';
 import type { CommandContext } from '../../../../lib/prototype-commands';
 import { SIDEBAR_NO_MATCH_COPY } from '../../sidebar-no-match-copy';
@@ -292,6 +292,34 @@ describe('In the Bible', () => {
     // A reference gets its passage row, not a word search.
     const reference = renderResults({ query: 'John 3:16', tab: 'all' });
     expect(sourceTabs(reference.container)).toEqual([]);
+  });
+
+  it('searches another translation from the group’s tag, starting on your default', () => {
+    /* The picker is the house `ProtoSelectMenu`, which needs what jsdom lacks: it scrolls its
+       current row into view, observes its box, and closes when its trigger looks off screen —
+       which a 0×0 jsdom box always does. See ProtoSelectMenu.test.tsx. */
+    Element.prototype.scrollIntoView = vi.fn();
+    if (!('ResizeObserver' in globalThis)) {
+      (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+        observe() {}
+        disconnect() {}
+      };
+    }
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 20, bottom: 50, left: 20, right: 140, width: 120, height: 30, x: 20, y: 20,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    state.verseHits = [verse('Psalms', 23, 1, `The Lord is my ${S}shepherd${E}`)];
+    renderResults({ query: 'shepherd', tab: 'all' });
+
+    const trigger = screen.getByRole('button', { name: 'Search in translation' });
+    expect(trigger.textContent).toBe('ESV');
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'KJV' }));
+
+    expect(state.verseQueries.at(-1)).toEqual(['shepherd', 'KJV']);
+    rect.mockRestore();
   });
 
   it('does not paint "no matches" above verses that did match', () => {

@@ -33,7 +33,7 @@ import { recordSearchEvent } from '../proto-search-events';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon, { type IconName } from '@/components/react/Icon';
-import { getTranslationAbbreviationDisplay } from '@/data/translations';
+import { TRANSLATION_ORDER, getTranslationAbbreviationDisplay } from '@/data/translations';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { useSearch } from '@/hooks/useSearch';
 import { parseScriptureReference } from '@/utils/scripture-detector';
@@ -41,6 +41,7 @@ import { bookSlug } from '@/utils/bible-book-chapters';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import ProtoKbdChord from '../ProtoKbdChord';
+import ProtoSelectMenu from '../ProtoSelectMenu';
 import PrototypeSidebarSearchResultItem from '../PrototypeSidebarSearchResultItem';
 import { PrototypeListNoMatchEmptyState } from '../PrototypeListEmptyState';
 import { SIDEBAR_NO_MATCH_COPY } from '../sidebar-no-match-copy';
@@ -100,6 +101,16 @@ import {
  * literal would rebuild the whole result set on every keystroke.
  */
 const NONE: never[] = [];
+
+/**
+ * The reader's whole set, labelled the way its own translation chip labels them — NASB is
+ * "NASB 1995" there, and the same translation should not have two names a tap apart.
+ */
+const TRANSLATION_OPTIONS = TRANSLATION_ORDER.map((id) => ({
+  value: id,
+  label: getTranslationAbbreviationDisplay(id),
+  triggerLabel: getTranslationAbbreviationDisplay(id),
+}));
 
 /**
  * Nothing is "here" as opposed to "elsewhere" in the panel: there is one list, and the tab
@@ -182,8 +193,8 @@ function ResultGroup({
   alwaysLabelled = false,
 }: {
   heading: string;
-  /** A small tag after the label — the verse group's translation. */
-  meta?: string;
+  /** A small tag after the label — the verse group's translation, which is also its picker. */
+  meta?: ReactNode;
   children: ReactNode;
   /** Keep the heading on screen even as the only group — for a heading that says more than
       "these are the results" (the verse group's translation). */
@@ -195,7 +206,11 @@ function ResultGroup({
     >
       <h3 className="proto-library-results__heading">
         <span className="proto-library-results__heading-text">{heading}</span>
-        {meta ? <span className="proto-library-results__heading-meta">{meta}</span> : null}
+        {typeof meta === 'string' ? (
+          <span className="proto-library-results__heading-meta">{meta}</span>
+        ) : (
+          meta ?? null
+        )}
       </h3>
       {children}
     </div>
@@ -380,7 +395,10 @@ export default function PrototypeLibrarySearchResults({
    * say this".
    */
   const { data: profile } = useProfile();
-  const translation = profile?.defaultTranslation || 'NET';
+  /* Your default until you pick another from the group's tag. Held for this search only: the
+     panel unmounts these results when the field empties, so the next one starts on yours. */
+  const [pickedTranslation, setPickedTranslation] = useState<string | null>(null);
+  const translation = pickedTranslation ?? (profile?.defaultTranslation || 'NET');
   const versesApply = libraryTabMatches(tab, 'scriptureReference');
   const verseSearch = useScriptureVerseSearch(versesApply ? trimmed : '', translation);
   const verseHits = useMemo(
@@ -915,7 +933,16 @@ export default function PrototypeLibrarySearchResults({
              all of them, and repeated down the right edge it read as a column of data. */
           <ResultGroup
             heading="In the Bible"
-            meta={getTranslationAbbreviationDisplay(translation)}
+            meta={
+              <ProtoSelectMenu
+                value={translation}
+                options={TRANSLATION_OPTIONS}
+                onChange={setPickedTranslation}
+                label="Search in translation"
+                className="proto-library-results__heading-meta"
+                menuWidth={168}
+              />
+            }
             alwaysLabelled
           >
             {verseHits.length > 0 ? (

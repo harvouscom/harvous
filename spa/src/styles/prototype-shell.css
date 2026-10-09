@@ -2481,6 +2481,32 @@ html.harvous-prototype-route button .proto-note-row__preview mark.proto-verse-hi
 }
 
 /*
+ * The same tag as the verse group's translation picker: `ProtoSelectMenu`'s trigger, shrunk to
+ * the tag's size with a caret, rather than a full-width form field in the middle of a heading.
+ */
+.proto-select-menu__trigger.proto-library-results__heading-meta {
+  width: auto;
+  min-height: 0;
+  gap: 3px;
+  padding: 1px 5px 1px 6px;
+  /* Restated: the trigger's own rule is as specific as the tag's and decides by load order. */
+  border: 0.5px solid var(--pds-border-on-paper);
+  border-radius: 999px;
+  background: none;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  color: var(--pds-text-muted);
+  text-align: center;
+}
+
+.proto-select-menu__trigger.proto-library-results__heading-meta:hover:not(:disabled) {
+  border-color: var(--pds-border-control-strong);
+  color: var(--pds-text-secondary);
+}
+
+/*
  * A labelled group that opens the list: the first-group rule strips its top padding (it
  * expects a heading about to be hidden), which left this one pressed against the search
  * field and a larger gap below it than above — a label floating away from what it names.
