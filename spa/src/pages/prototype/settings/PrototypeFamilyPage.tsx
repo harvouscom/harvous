@@ -42,6 +42,7 @@ import ProtoConfirmDialog from '../ProtoConfirmDialog';
 import SharedSpaceMemberAvatar from '../SharedSpaceMemberAvatar';
 import { ErrorText, Field } from './account/accountShared';
 import {
+  SettingsConfirmRow,
   SettingsCopyRow,
   SettingsGroup,
   SettingsIntro,
@@ -454,7 +455,6 @@ function FamilyView({ data }: { data: InFamily }) {
   const remove = useRemoveFamilyMember();
   const dissolve = useDissolveFamily();
   const [view, setView] = useState<View>({ kind: 'main' });
-  const leaveAnchorRef = useRef<HTMLDivElement | null>(null);
   const adultAnchorRef = useRef<HTMLDivElement | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [confirmAdult, setConfirmAdult] = useState(false);
@@ -584,21 +584,37 @@ function FamilyView({ data }: { data: InFamily }) {
         </>
       ) : null}
 
-      <div ref={leaveAnchorRef}>
-        <SettingsGroup>
-          <SettingsRow
-            label={me.isOwner ? 'Dissolve the family' : 'Leave the family'}
-            sublabel={
+      {/* My Notes' danger strip: a hairline and one quiet word, red only when you reach for
+          it, with the confirm replacing it in place. Ending a family isn't something to browse
+          past in a card of its own. */}
+      <section className="proto-settings-danger">
+        {confirmLeave ? (
+          <SettingsConfirmRow
+            prompt={
               me.isOwner
-                ? 'The Family Space stays, with everyone in it. The family plan stops covering them.'
-                : 'Your notes in the Family Space leave with you. Your own study stays yours.'
+                ? 'End the family? Everyone keeps the Family Space as a shared space, but your Plus stops covering them.'
+                : 'Leave the family? Your notes in the Family Space leave with you, and the family plan stops covering you.'
             }
-            destructive
-            trailing="none"
-            onClick={() => setConfirmLeave(true)}
+            confirmLabel={me.isOwner ? 'End family' : 'Leave'}
+            busy={dissolve.isPending || remove.isPending}
+            onConfirm={() => {
+              const done = {
+                onSettled: () => setConfirmLeave(false),
+                onError: (e: unknown) => toast.error(errorMessage(e, 'Could not do that')),
+              };
+              if (me.isOwner) dissolve.mutate(undefined, done);
+              else remove.mutate(me.userId, done);
+            }}
+            onCancel={() => setConfirmLeave(false)}
           />
-        </SettingsGroup>
-      </div>
+        ) : (
+          <div className="proto-settings-danger__actions">
+            <button type="button" className="proto-settings-danger__btn" onClick={() => setConfirmLeave(true)}>
+              {me.isOwner ? 'End the family' : 'Leave the family'}
+            </button>
+          </div>
+        )}
+      </section>
 
       {confirmAdult ? (
         <ProtoConfirmDialog
@@ -621,26 +637,6 @@ function FamilyView({ data }: { data: InFamily }) {
         />
       ) : null}
 
-      {confirmLeave ? (
-        <ProtoConfirmDialog
-          anchorEl={leaveAnchorRef.current}
-          preferAbove
-          title={me.isOwner ? 'Dissolve the family?' : 'Leave the family?'}
-          description={
-            me.isOwner
-              ? 'Everyone keeps the Family Space as an ordinary shared space, but your Plus stops covering them.'
-              : 'You’ll leave the Family Space and the family plan.'
-          }
-          confirmLabel={me.isOwner ? 'Dissolve' : 'Leave'}
-          busy={dissolve.isPending || remove.isPending}
-          onConfirm={() => {
-            const done = { onSettled: () => setConfirmLeave(false), onError: (e: unknown) => toast.error(errorMessage(e, 'Could not do that')) };
-            if (me.isOwner) dissolve.mutate(undefined, done);
-            else remove.mutate(me.userId, done);
-          }}
-          onCancel={() => setConfirmLeave(false)}
-        />
-      ) : null}
     </SettingsShell>
   );
 }

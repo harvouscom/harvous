@@ -133,7 +133,7 @@ export function canRemoveFamilyMember(input: {
   const { actor, ownerUserId, targetUserId, targetRole } = input;
   if (actor.role === null) return refuse('NOT_IN_FAMILY', 'You are not in this family.');
   if (targetUserId === ownerUserId) {
-    return refuse('FAMILY_OWNER_CANNOT_LEAVE', 'The owner can’t leave. Dissolve the family instead.');
+    return refuse('FAMILY_OWNER_CANNOT_LEAVE', 'The owner can’t leave. End the family instead.');
   }
   if (actor.userId === targetUserId) return OK;
   if (targetRole === 'parent') {

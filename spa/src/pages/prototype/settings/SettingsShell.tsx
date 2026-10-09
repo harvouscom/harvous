@@ -382,3 +382,47 @@ export function SettingsToggleRow({
     </div>
   );
 }
+
+/**
+ * An inline confirm that replaces the control that raised it — the danger strip's, so the
+ * prompt stays attached to the button you pressed (Settings › My Notes, Settings › Family).
+ */
+export function SettingsConfirmRow({
+  prompt,
+  busy,
+  confirmLabel = 'Confirm',
+  onConfirm,
+  onCancel,
+}: {
+  prompt: string;
+  busy: boolean;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="proto-settings-confirm-row">
+      <span className="pds-caption" style={{ color: 'var(--pds-text-primary)' }}>
+        {prompt}
+      </span>
+      <div className="proto-settings-confirm-row__actions">
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={busy}
+          className="proto-settings-btn proto-settings-btn--destructive"
+        >
+          {busy ? 'Working…' : confirmLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          className="proto-settings-btn proto-settings-btn--secondary"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
