@@ -50,7 +50,8 @@ import type { SidebarListMode } from '../../layouts/proto-shell-context';
 export type HomeGreetingTrend = {
   kind: 'arc' | 'subject' | 'passage' | 'crossref' | 'referenceWord';
   parts: RecallTrendGreetingParts;
-  onOpen: () => boolean | void;
+  /** Called with the tapped label's index — a crossref clause names two passages. */
+  onOpen: (labelIndex: number) => boolean | void;
   /**
    * Whether `onOpen` would actually go somewhere. False renders the same words as a plain
    * label rather than a chip: several of these handlers bail silently — an arc whose notes
@@ -137,7 +138,8 @@ export default function PrototypeHomeGreeting({
     <>
       {trend.parts.prefix}
       {trend.parts.labels.map((label, i) => {
-        const isPassage = trend.kind === 'passage';
+        /* A crossref's two labels each open their passage, so they dress as passages. */
+        const isPassage = trend.kind === 'passage' || trend.kind === 'crossref';
         /*
          * The Thread class and Thread glyph belong to a Thread that already exists (the lead
          * chip). "lately returning to X" is a theme, so it wears the return glyph and the
@@ -163,7 +165,7 @@ export default function PrototypeHomeGreeting({
                 type="button"
                 className={chipClass}
                 aria-label={`Open ${label}`}
-                onClick={trend.onOpen}
+                onClick={() => trend.onOpen(i)}
               >
                 <ChipIcon name={iconName} size={iconSize} />
                 <span>{label}</span>

@@ -898,16 +898,20 @@ export function useHomeSurfaceData({
    * of its own — until the reader existed to be a real destination for "just a passage,
    * no note". Now it opens that.
    */
+  const openReaderAt = useCallback(
+    (displayRef: string) => {
+      const readerRoute = readerRouteForReference(displayRef, getEffectiveDefaultTranslation());
+      if (!readerRoute) return;
+      if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+      navigate(landAgain(readerRoute));
+    },
+    [isMobileSidebar, closeDrawer, navigate],
+  );
+
   const openPassageConnection = useCallback(() => {
     if (!passageConnection) return;
-    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    const readerRoute = readerRouteForReference(
-      passageConnection.displayRef,
-      getEffectiveDefaultTranslation(),
-    );
-    if (!readerRoute) return;
-    navigate(landAgain(readerRoute));
-  }, [passageConnection, isMobileSidebar, closeDrawer, navigate]);
+    openReaderAt(passageConnection.displayRef);
+  }, [passageConnection, openReaderAt]);
 
   // Memory layer Workstream C: a study arc — a theme that keeps returning across your notes over
   // weeks or months ("living commentary on your life"). Joins each note's fingerprint themes/tone
@@ -1617,17 +1621,28 @@ export function useHomeSurfaceData({
      * a card is withheld outright — but a chip inside a sentence cannot be withheld without
      * taking the sentence with it.
      */
+    /*
+     * The theme chips search; they never propose. The proposal to gather these notes into a
+     * Thread is the Suggestions shelf's card, a few inches below — a greeting chip that opened
+     * the same review sheet made the sentence a second, unlabelled suggestion. The chip wears
+     * the magnifying glass (`recall-kind-icons.ts`), so it opens what the glass promises.
+     */
     if (trend.kind === 'arc' && activeArc) {
       const theme = studyArc?.theme ?? sectionArc?.sectionLabel ?? '';
       const parts = recallTrendGreetingParts({ kind: 'arc', theme });
       if (!parts) return undefined;
-      /* Falls back to a Library search on the theme, so it opens whenever it has a name. */
-      return { kind: 'arc', parts, onOpen: openStudyArc, openable: theme.trim().length > 0 };
+      return {
+        kind: 'arc',
+        parts,
+        onOpen: () => searchLibraryFor(theme),
+        openable: theme.trim().length > 0,
+      };
     }
     if (trend.kind === 'subject' && subjectConnection) {
-      const parts = recallTrendGreetingParts({ kind: 'subject', subject: subjectConnection.subject });
+      const { subject } = subjectConnection;
+      const parts = recallTrendGreetingParts({ kind: 'subject', subject });
       if (!parts) return undefined;
-      return { kind: 'subject', parts, onOpen: openSubjectConnection, openable: true };
+      return { kind: 'subject', parts, onOpen: () => searchLibraryFor(subject), openable: true };
     }
     if (trend.kind === 'passage' && passageConnection) {
       const parts = recallTrendGreetingParts({ kind: 'passage', passageRef: passageConnection.displayRef });
@@ -1637,14 +1652,23 @@ export function useHomeSurfaceData({
         null;
       return { kind: 'passage', parts, onOpen: openPassageConnection, openable };
     }
+    /*
+     * "lately Romans 8 and John 3 keep surfacing together" names two passages, so each chip
+     * opens its own in the reader. Joining them into a Thread is the shelf's cross-reference
+     * card, for the same reason the theme chips above search instead of proposing.
+     */
     if (trend.kind === 'crossref' && crossRefConnection) {
-      const parts = recallTrendGreetingParts({
-        kind: 'crossref',
-        fromRef: crossRefConnection.from.displayRef,
-        toRef: crossRefConnection.to.displayRef,
-      });
+      const refs = [crossRefConnection.from.displayRef, crossRefConnection.to.displayRef];
+      const parts = recallTrendGreetingParts({ kind: 'crossref', fromRef: refs[0], toRef: refs[1] });
       if (!parts) return undefined;
-      return { kind: 'crossref', parts, onOpen: openCrossRefConnection, openable: true };
+      const translation = getEffectiveDefaultTranslation();
+      const openable = refs.every((ref) => readerRouteForReference(ref, translation) !== null);
+      return {
+        kind: 'crossref',
+        parts,
+        onOpen: (labelIndex) => openReaderAt(refs[labelIndex] ?? refs[0]!),
+        openable,
+      };
     }
     if (trend.kind === 'referenceWord' && referenceWordConnection) {
       const parts = recallTrendGreetingParts({
@@ -1669,10 +1693,9 @@ export function useHomeSurfaceData({
     crossRefConnection,
     highlightsWithRecency,
     referenceWordConnection,
-    openStudyArc,
-    openSubjectConnection,
+    searchLibraryFor,
+    openReaderAt,
     openPassageConnection,
-    openCrossRefConnection,
     openReferenceWordConnection,
   ]);
 
