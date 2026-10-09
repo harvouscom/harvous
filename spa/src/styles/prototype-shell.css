@@ -2412,9 +2412,10 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 }
 
 /*
- * "In the Bible" rows (LibraryVerseResults). The matched words are set in the title's weight
- * and colour rather than on a tint: the note rows around them carry no highlight colour, and
- * a coloured band would be the only one in the panel. Selectors carry `button` because the
+ * "In the Bible" rows (LibraryVerseResults). The matched words wear the app's highlight — the
+ * amber underline a highlight draws in the reader and the note body — rather than bold, so a
+ * match reads as "this is where it says it" in the mark the reader already knows. An underline
+ * rather than a tint, as the highlight itself is. Selectors carry `button` because the
  * route override paints every preview descendant with !important — see
  * prototype-route-overrides-2.css.
  */
@@ -2443,46 +2444,27 @@ html.harvous-prototype-route .proto-sidebar-search-results button .proto-note-ro
 html.harvous-prototype-route button .proto-note-row__preview mark.proto-verse-hit__match,
 .proto-verse-hit__match {
   background: none;
-  color: var(--pds-text-primary) !important;
-  font-weight: 600;
+  color: inherit;
+  font-weight: inherit;
+  /* The highlight's own geometry — prototype-editor.css, `.ProseMirror mark`. */
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--pds-highlight-warm-amber);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 /*
- * "Show more verses" — a quiet link under the list, starting on the titles' edge (the row's
- * 10px inset, the 13px lead glyph and the 10px column gap). Not a row: in row type and with
- * the arrow in the glyph column it read as a sixth verse.
+ * "My Harvous · 12 | Bible · 25+" — which answer the results show, once a query searches verse
+ * text too (`library-search-source.ts`). On the rows' inset so its edges line up with theirs.
  */
-.proto-verse-hit__more {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 2px 0 6px;
-  padding: 4px 6px 4px 33px;
-  border: 0;
-  border-radius: var(--pds-radius-button);
-  background: none;
-  cursor: pointer;
-  font-family: var(--pds-font-body);
-  font-size: 12.5px;
-  font-weight: 500;
+.proto-library-results__source {
+  padding: 2px 8px 0;
 }
 
-html.harvous-prototype-route .proto-sidebar-search-results button.proto-verse-hit__more,
-html.harvous-prototype-route .proto-sidebar-search-results button.proto-verse-hit__more * {
-  color: var(--pds-text-secondary) !important;
-}
-
-@media (hover: hover) {
-  html.harvous-prototype-route .proto-sidebar-search-results button.proto-verse-hit__more:hover,
-  html.harvous-prototype-route .proto-sidebar-search-results button.proto-verse-hit__more:hover * {
-    color: var(--pds-text-primary) !important;
-  }
-}
-
-.proto-verse-hit__more:focus-visible {
-  outline: 2px solid var(--pds-accent-focus-ring);
-  outline-offset: -2px;
+.proto-library-results__source .proto-library-kinds {
+  margin-bottom: 4px;
 }
 
 /* The translation, said once, as a tag rather than "· NLT" run on to the label. */
@@ -2503,17 +2485,21 @@ html.harvous-prototype-route .proto-sidebar-search-results button.proto-verse-hi
  * expects a heading about to be hidden), which left this one pressed against the search
  * field and a larger gap below it than above — a label floating away from what it names.
  */
-.proto-library-results__group.proto-library-results__group--labelled:first-child .proto-library-results__heading {
+.proto-library-results__group.proto-library-results__group--labelled:first-child .proto-library-results__heading,
+.proto-library-results__source + .proto-library-results__group.proto-library-results__group--labelled .proto-library-results__heading {
   padding-top: 14px;
   padding-bottom: 0;
 }
 
-/* The first group opens the list, so it has nothing to be broken away from. */
-.proto-library-results__group:first-child .proto-library-results__heading {
+/* The first group opens the list, so it has nothing to be broken away from. Nor does the one
+   right under the My Harvous / Bible switch — the switch already divides it from above. */
+.proto-library-results__group:first-child .proto-library-results__heading,
+.proto-library-results__source + .proto-library-results__group .proto-library-results__heading {
   padding-top: 2px;
 }
 
-.proto-library-results__group:first-child .proto-library-results__heading::after {
+.proto-library-results__group:first-child .proto-library-results__heading::after,
+.proto-library-results__source + .proto-library-results__group .proto-library-results__heading::after {
   display: none;
 }
 
@@ -2530,7 +2516,10 @@ html.harvous-prototype-route .proto-sidebar-search-results button.proto-verse-hi
  * heading is redundant on screen because the eye takes in the whole panel at once; read
  * linearly it is still the thing that says the list has started.
  */
-.proto-library-results__group:only-child:not(.proto-library-results__group--labelled) .proto-library-results__heading {
+.proto-library-results__group:only-child:not(.proto-library-results__group--labelled) .proto-library-results__heading,
+.proto-library-results__source:first-child
+  + .proto-library-results__group:last-child:not(.proto-library-results__group--labelled)
+  .proto-library-results__heading {
   position: absolute;
   width: 1px;
   height: 1px;

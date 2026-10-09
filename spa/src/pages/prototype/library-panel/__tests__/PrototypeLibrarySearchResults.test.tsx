@@ -116,7 +116,8 @@ vi.mock('../../../../hooks/queries/useProfile', () => ({
   useProfile: () => ({ data: { defaultTranslation: 'ESV' } }),
 }));
 
-vi.mock('../../../../hooks/queries/useScriptureVerseSearch', () => ({
+vi.mock('../../../../hooks/queries/useScriptureVerseSearch', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   useScriptureVerseSearch: (query: string, translation: string) => {
     state.verseQueries.push([query, translation]);
     return {
@@ -240,13 +241,57 @@ describe('In the Bible', () => {
     expect(closeLibraryPanel).toHaveBeenCalledWith({ preserveHistory: true });
   });
 
-  it('shows a few under Everything and hands the rest to the Scripture tab', () => {
+  /** The My Harvous / Bible switch's segments, as labelled. */
+  function sourceTabs(container: HTMLElement): string[] {
+    return [...container.querySelectorAll('.proto-library-results__source [role="tab"]')].map(
+      (el) => el.textContent ?? '',
+    );
+  }
+
+  it('opens on your own study when it really matches, with the Bible a tap away', () => {
+    state.notes = [note('n1', 'The good shepherd')];
     state.verseHits = Array.from({ length: 8 }, (_, i) => verse('Psalms', 23, i + 1, `${S}shepherd${E}`));
+    state.verseHasMore = true;
     const { container } = renderResults({ query: 'shepherd', tab: 'all' });
 
-    expect(container.querySelectorAll('.proto-verse-hit__text')).toHaveLength(5);
-    screen.getByText('Show more verses').click();
-    expect(setLibraryPanelView).toHaveBeenCalledWith({ tab: 'scripture', drill: null });
+    expect(sourceTabs(container)).toEqual(['My Harvous · 1', 'Bible · 8+']);
+    expect(screen.getByText('The good shepherd')).toBeTruthy();
+    expect(container.querySelectorAll('.proto-verse-hit__text')).toHaveLength(0);
+
+    screen.getByRole('tab', { name: /Bible/ }).click();
+    return Promise.resolve().then(() => {
+      expect(container.querySelectorAll('.proto-verse-hit__text')).toHaveLength(8);
+      expect(screen.queryByText('The good shepherd')).toBeNull();
+    });
+  });
+
+  it('opens on the Bible when nothing of yours really matches', () => {
+    // The phone bug: rows that only resembled the word pushed every verse below the keyboard.
+    state.notes = [note('n1', 'Sheep herding')];
+    state.verseHits = [verse('Psalms', 23, 1, `The Lord is my ${S}shepherd${E}`)];
+    const { container } = renderResults({ query: 'shepherd', tab: 'all' });
+
+    expect(sourceTabs(container)).toEqual(['My Harvous · 1', 'Bible · 1']);
+    expect(screen.getByRole('tab', { name: /Bible/ }).getAttribute('aria-selected')).toBe('true');
+    expect(container.querySelectorAll('.proto-verse-hit__text')).toHaveLength(1);
+  });
+
+  it('puts real hits above rows that only resemble the query', () => {
+    state.notes = [note('n1', 'Sheep herding'), note('n2', 'Shepherds at night')];
+    renderResults({ query: 'shepherd', tab: 'notes' });
+    const titles = [...document.querySelectorAll('.proto-note-row__title-text')].map((el) => el.textContent);
+    expect(titles).toContain('Sheep herding');
+    expect(titles.indexOf('Shepherds at night')).toBeLessThan(titles.indexOf('Sheep herding'));
+  });
+
+  it('has no switch where a verse cannot answer', () => {
+    state.verseHits = [verse('John', 3, 16, 'For God so loved')];
+    const notesTab = renderResults({ query: 'loved', tab: 'notes' });
+    expect(sourceTabs(notesTab.container)).toEqual([]);
+    notesTab.unmount();
+    // A reference gets its passage row, not a word search.
+    const reference = renderResults({ query: 'John 3:16', tab: 'all' });
+    expect(sourceTabs(reference.container)).toEqual([]);
   });
 
   it('does not paint "no matches" above verses that did match', () => {

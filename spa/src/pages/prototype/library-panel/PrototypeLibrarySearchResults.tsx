@@ -30,7 +30,7 @@
  * rather than re-derive it.
  */
 import { recordSearchEvent } from '../proto-search-events';
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
@@ -77,14 +77,20 @@ import { useLibraryCommandContext } from './use-library-command-context';
 import { matchPrototypeCommands } from './library-command-matches';
 import { LIBRARY_TAB_LABELS } from './library-panel-view';
 import LibraryVerseResults from './LibraryVerseResults';
+import PrototypeLibrarySegmented from './PrototypeLibrarySegmented';
+import {
+  defaultLibrarySearchSource,
+  isStrongLibraryMatch,
+  librarySourceLabel,
+  strongMatchesFirst,
+  type LibrarySearchSource,
+} from './library-search-source';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import {
+  shouldSearchVerseText,
   useScriptureVerseSearch,
   type VerseSearchHit,
 } from '../../../hooks/queries/useScriptureVerseSearch';
-
-/** Verses shown under Everything before the rest move to the Scripture tab. */
-const VERSES_ON_ALL_TAB = 5;
 
 /**
  * One shared empty array for every not-yet-loaded corpus.
@@ -381,8 +387,6 @@ export default function PrototypeLibrarySearchResults({
     () => (versesApply ? verseSearch.data?.results ?? NONE : NONE),
     [versesApply, verseSearch.data?.results],
   );
-  const shownVerseHits = tab === 'all' ? verseHits.slice(0, VERSES_ON_ALL_TAB) : verseHits;
-  const moreVersesHidden = tab === 'all' && (verseHits.length > VERSES_ON_ALL_TAB || Boolean(verseSearch.data?.hasMore));
 
   const searchData: UniversalSearchData = useMemo(
     () => ({
@@ -459,9 +463,22 @@ export default function PrototypeLibrarySearchResults({
     [navigationItems, trimmed],
   );
 
+  /*
+   * Every note the server's full-text search returned — it matched the word in the body, so
+   * the row is a real hit even when its preview does not show the word. Home's too, for the
+   * My Home group.
+   */
+  const ftsNoteIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const hit of ftsSearch.data?.results ?? []) if (hit.type === 'note') ids.add(hit.id);
+    for (const hit of homeFtsSearch.data?.results ?? []) if (hit.type === 'note') ids.add(hit.id);
+    return ids;
+  }, [ftsSearch.data?.results, homeFtsSearch.data?.results]);
+
+  /* Loose resemblances below real hits — see `isStrongLibraryMatch`. */
   const tabResults = useMemo(
-    () => [...elsewhereResults, ...resourceResults],
-    [elsewhereResults, resourceResults],
+    () => strongMatchesFirst([...elsewhereResults, ...resourceResults], trimmed, ftsNoteIds),
+    [elsewhereResults, resourceResults, trimmed, ftsNoteIds],
   );
 
   /**
@@ -519,8 +536,8 @@ export default function PrototypeLibrarySearchResults({
             title: entry.item.title,
             subtitle: resourceSubtitle(entry.item),
           }));
-    return [...rest, ...restResources];
-  }, [trimmed, tab, searchData, visibleResults, resources]);
+    return strongMatchesFirst([...rest, ...restResources], trimmed, ftsNoteIds);
+  }, [trimmed, tab, searchData, visibleResults, resources, ftsNoteIds]);
 
   /*
    * The My Home group: Home's passages and highlights first, the way My Home answers the same
@@ -552,8 +569,9 @@ export default function PrototypeLibrarySearchResults({
     const homeNotes = homeFtsQuery
       ? buildHomeNoteResults(homeFtsSearch.data?.results, data.homeSpaceId, shown)
       : [];
-    return [...homeStudy, ...homeNotes];
+    return strongMatchesFirst([...homeStudy, ...homeNotes], trimmed, ftsNoteIds);
   }, [
+    ftsNoteIds,
     trimmed,
     homeScopeId,
     builderTypeFilter,
@@ -635,6 +653,51 @@ export default function PrototypeLibrarySearchResults({
   const settledCount =
     visibleResults.length + elsewhereRest.length + homeResults.length + verseHits.length;
   const verseLoading = verseSearch.isLoading || verseSearch.isPlaceholderData;
+
+  /*
+   * My Harvous or the Bible — see `library-search-source.ts`. Only where a verse can answer:
+   * a tab whose kinds include Scripture, and a query that searches verse text at all (a
+   * reference does not; it gets the passage row).
+   */
+  const sourceSwitchApplies = versesApply && shouldSearchVerseText(trimmed);
+  const mineResults = useMemo(
+    () => [...visibleResults, ...elsewhereRest, ...homeResults],
+    [visibleResults, elsewhereRest, homeResults],
+  );
+  const mineCount = mineResults.length;
+  const strongMineCount = useMemo(
+    () => mineResults.filter((r) => isStrongLibraryMatch(r, trimmed, ftsNoteIds)).length,
+    [mineResults, trimmed, ftsNoteIds],
+  );
+  /* Your pick, once you make one; it holds while you refine the query. The panel unmounts
+     this tree when the field empties, so a fresh search starts unpicked. */
+  const [pickedSource, setPickedSource] = useState<LibrarySearchSource | null>(null);
+  /*
+   * The default is decided on settled answers only. While either side is still loading, the
+   * last settled default holds — otherwise the switch would open on the Bible for the
+   * instant before your notes arrive, then jump back.
+   */
+  const settledDefault = useRef<LibrarySearchSource>('mine');
+  if (!ftsLoading && !verseLoading) {
+    settledDefault.current = defaultLibrarySearchSource({
+      strongMineCount,
+      verseCount: verseHits.length,
+    });
+  }
+  const source: LibrarySearchSource = sourceSwitchApplies
+    ? pickedSource ?? settledDefault.current
+    : 'mine';
+  const sourceOptions = [
+    { id: 'mine' as const, label: librarySourceLabel('My Harvous', ftsLoading ? null : mineCount) },
+    {
+      id: 'bible' as const,
+      label: librarySourceLabel(
+        'Bible',
+        verseLoading ? null : verseHits.length,
+        Boolean(verseSearch.data?.hasMore),
+      ),
+    },
+  ];
   useEffect(() => {
     if (!trimmed || ftsLoading || verseLoading) return;
     onResultsSettled?.({ query: trimmed, count: settledCount });
@@ -809,12 +872,20 @@ export default function PrototypeLibrarySearchResults({
           </ResultGroup>
         ) : null}
 
-        {/* Named by the kind you are searching inside, so the heading says what the list
-            is rather than repeating "Results" above two different lists.
+        {sourceSwitchApplies ? (
+          <div className="proto-library-results__source">
+            <PrototypeLibrarySegmented
+              options={sourceOptions}
+              value={source}
+              onChange={setPickedSource}
+              label="Search in"
+            />
+          </div>
+        ) : null}
 
-            Left out only when it would be nothing but "no matches" above verses that did
-            match — on the Scripture tab that empty state read as the search having failed. */}
-        {visibleResults.length > 0 || ftsLoading || shownVerseHits.length === 0 ? (
+        {/* Named by the kind you are searching inside, so the heading says what the list
+            is rather than repeating "Results" above two different lists. */}
+        {source === 'mine' ? (
         <ResultGroup heading={tab === 'all' ? 'Results' : LIBRARY_TAB_LABELS[tab]}>
           {visibleResults.length > 0 ? (
             <ul className="proto-note-list">
@@ -839,7 +910,7 @@ export default function PrototypeLibrarySearchResults({
         </ResultGroup>
         ) : null}
 
-        {shownVerseHits.length > 0 ? (
+        {source === 'bible' ? (
           /* The translation is said once, here, rather than on every row: it is the same for
              all of them, and repeated down the right edge it read as a column of data. */
           <ResultGroup
@@ -847,16 +918,17 @@ export default function PrototypeLibrarySearchResults({
             meta={getTranslationAbbreviationDisplay(translation)}
             alwaysLabelled
           >
-            <LibraryVerseResults
-              hits={shownVerseHits}
-              onOpen={openVerse}
-              moreLabel={moreVersesHidden ? 'Show more verses' : undefined}
-              onMore={() => setLibraryPanelView({ tab: 'scripture', drill: null })}
-            />
+            {verseHits.length > 0 ? (
+              <LibraryVerseResults hits={verseHits} onOpen={openVerse} />
+            ) : verseLoading ? (
+              <p className="proto-caption proto-sidebar-search-section__empty">Searching the Bible…</p>
+            ) : (
+              <PrototypeListNoMatchEmptyState title="No verses found" />
+            )}
           </ResultGroup>
         ) : null}
 
-        {elsewhereRest.length > 0 ? (
+        {source === 'mine' && elsewhereRest.length > 0 ? (
           <ResultGroup heading="Everywhere else">
             <ul className="proto-note-list">
               {elsewhereRest.map((result) => (
@@ -876,7 +948,7 @@ export default function PrototypeLibrarySearchResults({
 
         {/* Last, because it answers a different question — not "what else is in this space"
             but "what did I write at home" — and the open space's own answer comes first. */}
-        {homeResults.length > 0 ? (
+        {source === 'mine' && homeResults.length > 0 ? (
           <ResultGroup heading="My Home">
             <ul className="proto-note-list">
               {homeResults.map((result) => (
