@@ -3,7 +3,7 @@
  * Keep in sync with server/utils/tier-limits.ts.
  */
 
-import { UNLIMITED, isUnlimited } from './billing-plans';
+import { FAMILY_IN_PREVIEW, FAMILY_MAX_MEMBERS, UNLIMITED, isUnlimited } from './billing-plans';
 
 export { UNLIMITED, isUnlimited };
 
@@ -33,6 +33,15 @@ export const MEMBERS_PER_SPACE_CAP = 12;
  * needs a backfill on the day it comes back — and this list is only what is
  * claimed, which must never be more than what is switched on.
  */
+/**
+ * The family line, claimed only once Family Accounts has launched — the same rule as
+ * Challenges above: this list must never claim more than what is switched on. Counted as
+ * "more people" because the owner is the one paying.
+ */
+export const FAMILY_PLUS_BULLET = `Covers up to ${FAMILY_MAX_MEMBERS - 1} more people in your family`;
+
+const FAMILY_BULLETS: readonly string[] = FAMILY_IN_PREVIEW ? [] : [FAMILY_PLUS_BULLET];
+
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Everything in free',
   'Unlimited history',
@@ -42,6 +51,8 @@ export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   // Beside the people line, and naming who: last in the list, after the AI-apps line,
   // "Joining is always free" read as a claim about nothing in particular.
   'People you invite join free, no Plus needed',
+  // Beside the other "people" lines; after the owned-spaces index, so that rewrite still lands.
+  ...FAMILY_BULLETS,
   'Turn a thread into a shared study plan',
   // After OWNED_SPACES_BULLET_INDEX on purpose, so the live-usage rewrite still lands on spaces.
   'Use your study in AI apps like Claude and ChatGPT',
