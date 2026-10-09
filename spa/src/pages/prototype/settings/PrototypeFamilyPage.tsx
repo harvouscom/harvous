@@ -254,10 +254,12 @@ function NewInviteScreen({ onDone }: { onDone: () => void }) {
             role="radio"
             aria-checked={role === option}
             className="proto-note-row proto-settings-row"
-            style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', boxSizing: 'border-box', margin: 0, padding: 12, textAlign: 'left' }}
             onClick={() => setRole(option)}
           >
-            <span className="proto-settings-list-row__main">
+            {/* The app reset sets `flex-shrink: 0` on everything, so the text must opt back in
+                or it pushes the tick past the card's edge. */}
+            <span className="proto-settings-list-row__main" style={{ flex: '1 1 auto', minWidth: 0 }}>
               <span className="pds-list-title" style={{ color: 'var(--pds-text-primary)' }}>
                 {FAMILY_ROLE_LABEL[option]}
               </span>
@@ -265,7 +267,11 @@ function NewInviteScreen({ onDone }: { onDone: () => void }) {
                 {FAMILY_ROLE_FOR_INVITER[option]}
               </span>
             </span>
-            <span className="proto-settings-list-row__trailing proto-settings-list-row__trailing--orb" aria-hidden>
+            <span
+              className="proto-settings-list-row__trailing proto-settings-list-row__trailing--orb"
+              style={{ flex: '0 0 20px', display: 'flex', justifyContent: 'flex-end' }}
+              aria-hidden
+            >
               {role === option ? (
                 <span className="proto-accent-check-orb proto-accent-check-orb--selected">
                   <Icon name="check" size={11} />
