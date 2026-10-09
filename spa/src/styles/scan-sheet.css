@@ -20,25 +20,12 @@
   max-height: min(780px, 88vh);
 }
 
-/* On a phone the sheet floats like the app frame behind it: the same inset from the
-   screen edges, the same corner radius and shadow, clear of the home indicator — not a
-   slab bolted to the bottom of the screen. Beats the shared `[data-side='bottom']` pin,
-   which is `!important`. */
+/* The floating shell itself (inset, radius, shadow) is shared by every bottom sheet — see
+   `.drawer-content-bottom` in prototype-components.css. The header and body carry their own
+   side padding; doubling it here pinched the strip, which is meant to run to the sheet's
+   edge. */
 [data-side='bottom'].drawer-content-bottom.proto-scan-sheet {
-  left: var(--pds-shell-frame-inset) !important;
-  right: var(--pds-shell-frame-inset) !important;
-  bottom: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-bottom, 0px)) !important;
-  max-height: calc(
-    100dvh - 2 * var(--pds-shell-frame-inset) - env(safe-area-inset-top, 0px) -
-      env(safe-area-inset-bottom, 0px) - 24px
-  );
-  /* The header and body carry their own side padding; doubling it here pinched the strip,
-     which is meant to run to the sheet's edge. */
   padding: 6px 0 4px;
-  overflow: hidden;
-  border-radius: var(--pds-shell-frame-radius);
-  background: var(--pds-bg-popover-solid);
-  box-shadow: var(--pds-shadow-shell), 0 22px 48px -18px rgba(20, 18, 12, 0.35);
 }
 
 .proto-scan-popover .proto-scan-sheet.proto-connect-note-sheet--popover {
