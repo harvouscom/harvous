@@ -117,22 +117,28 @@ function ProgressCard({ entry, member }: { entry: FamilyProgressEntry; member?: 
             profileImageUrl={member.profileImageUrl}
           />
         ) : null}
-        <span className="proto-family-progress__name">{entry.displayName}</span>
-        <span className="proto-family-progress__active" data-recent={recent ? 'true' : undefined}>
-          <span className="proto-family-progress__dot" aria-hidden />
-          {LAST_ACTIVE_SHORT[entry.lastActive]}
+        <span className="proto-family-progress__who">
+          <span className="proto-family-progress__name">{entry.displayName}</span>
+          <span className="proto-family-progress__active" data-recent={recent ? 'true' : undefined}>
+            <span className="proto-family-progress__dot" aria-hidden />
+            {LAST_ACTIVE_SHORT[entry.lastActive]}
+          </span>
         </span>
       </div>
       <div className="proto-family-progress__stats">
         <div className="proto-family-progress__stat">
-          <Icon name="book-open" size={14} aria-hidden />
           <span className="proto-family-progress__num">{entry.chaptersRead}</span>
-          <span className="proto-family-progress__label">{entry.chaptersRead === 1 ? 'chapter read' : 'chapters read'}</span>
+          <span className="proto-family-progress__label">
+            <Icon name="book-open" size={11} aria-hidden />
+            {entry.chaptersRead === 1 ? 'chapter read' : 'chapters read'}
+          </span>
         </div>
         <div className="proto-family-progress__stat">
-          <Icon name="pen" size={14} aria-hidden />
           <span className="proto-family-progress__num">{entry.notesWritten}</span>
-          <span className="proto-family-progress__label">{entry.notesWritten === 1 ? 'note written' : 'notes written'}</span>
+          <span className="proto-family-progress__label">
+            <Icon name="pen" size={11} aria-hidden />
+            {entry.notesWritten === 1 ? 'note written' : 'notes written'}
+          </span>
         </div>
       </div>
       <div className="proto-family-progress__books">

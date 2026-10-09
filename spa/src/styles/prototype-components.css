@@ -25973,8 +25973,15 @@ button.proto-feed-sheet__stat:hover {
   min-width: 0;
 }
 
-.proto-family-progress__name {
+.proto-family-progress__who {
   flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.proto-family-progress__name {
   min-width: 0;
   font-family: var(--pds-font-body);
   font-size: 15px;
@@ -25986,7 +25993,6 @@ button.proto-feed-sheet__stat:hover {
 }
 
 .proto-family-progress__active {
-  flex: 0 1 auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -26016,11 +26022,9 @@ button.proto-feed-sheet__stat:hover {
 }
 
 .proto-family-progress__stat {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto;
-  column-gap: 8px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   padding: 10px 12px;
   border-radius: 10px;
   background: var(--pds-bg-input);
@@ -26038,7 +26042,9 @@ button.proto-feed-sheet__stat:hover {
 }
 
 .proto-family-progress__label {
-  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-family: var(--pds-font-body);
   font-size: 12px;
   color: var(--pds-text-secondary);
@@ -26062,6 +26068,10 @@ button.proto-feed-sheet__stat:hover {
   font-size: 12px;
   font-weight: 500;
   color: var(--pds-text-primary);
+}
+
+.proto-family-progress__label svg {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
 .proto-family-progress__book svg {
