@@ -252,6 +252,16 @@
       ],
       "port": 4334,
       "autoPort": false
+    },
+    {
+      "name": "family-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous/.claude/worktrees/family-feature-docs-c49ea7 && API_PORT=3040 DB_POOL_MAX=6 VITE_API_PROXY_TARGET=http://localhost:3040 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js 90 && npm run dev:spa -- --port 4390 --strictPort'"
+      ],
+      "port": 4390,
+      "autoPort": false
     }
   ]
 }

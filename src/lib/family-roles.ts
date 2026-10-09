@@ -56,6 +56,13 @@ export const FAMILY_ROLE_DISCLOSURE: Record<FamilyRole, { summary: string; share
   },
 };
 
+/** The same roles, described to the parent choosing one for an invite. */
+export const FAMILY_ROLE_FOR_INVITER: Record<FamilyRole, string> = {
+  child: 'Parents see how their study is going, never what they write. They can become an adult member any time.',
+  adult: 'They share the Family Space and your plan. Their study stays private.',
+  parent: 'They can invite people and see the children’s progress.',
+};
+
 export type FamilyRuleRefusal = { ok: false; code: string; error: string };
 export type FamilyRuleResult = { ok: true } | FamilyRuleRefusal;
 

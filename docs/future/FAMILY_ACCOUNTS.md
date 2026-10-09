@@ -1,6 +1,6 @@
 # Family Accounts
 
-**Status:** Building (v1, web only)  
+**Status:** v1 built behind a preview gate (web only). Phases 0–3 done; phase 4 waits on launch.  
 **Last updated:** 2026-10-09  
 **Supersedes:** the April 2026 draft of this file, which assumed Clerk Billing, full parent read
 access to children's notes, an XP leaderboard and InboxItems delivery. None of those fit the
@@ -287,3 +287,13 @@ lists). The Family Space works there already, because it is a shared space.
 | 2 | `family` entitlement source and reconciler; hooks in the entitlement writers; sync self-heal; `coverage` on subscription status; Plan page copy; admin counts. |
 | 3 | Progress endpoint, parent cards, the child's mirror card, contract tests. |
 | 4 | Family label in sidebar and roster; release notes; lift the preview gate at launch. |
+
+**Oct 9 2026:** phases 0–3 built on `claude/family-feature-docs-c49ea7`. The family tables are
+applied to production (additive, empty). An end-to-end walk of 45 checks ran the real routes
+against the database with synthetic user ids: consent, coverage, lapse and renew, the cap,
+progress privacy, the space guards, leaving and dissolving. It cleaned up after itself. Not yet
+walked: a real second account joining through the invite page, and a Polar sandbox
+subscribe/cancel/revoke against a family.
+
+**Not done, on purpose:** `listActiveFeatureKeys` still ignores `expiresAt` (family rows never
+set it). Fixing it needs a production census first to confirm no row relies on the gap.

@@ -16,7 +16,7 @@ import { toast } from '@/utils/toast';
 import { enterSpaceUrl } from '@/utils/enter-space-link';
 import {
   FAMILY_INVITE_LABEL_MAX,
-  FAMILY_ROLE_DISCLOSURE,
+  FAMILY_ROLE_FOR_INVITER,
   FAMILY_ROLE_LABEL,
   canChangeFamilyRole,
   canRemoveFamilyMember,
@@ -204,21 +204,32 @@ function NewInviteScreen({ onDone }: { onDone: () => void }) {
       <SectionLabel>They join as</SectionLabel>
       <SettingsGroup>
         {(['child', 'adult', 'parent'] as const).map((option) => (
-          <SettingsRow
+          /* The translation picker's shape: the whole row chooses, the tick sits trailing. */
+          <button
             key={option}
-            label={FAMILY_ROLE_LABEL[option]}
-            sublabel={FAMILY_ROLE_DISCLOSURE[option].summary}
-            leadingNode={
-              <span
-                className={`public-join-church__check${role === option ? ' public-join-church__check--on' : ''}`}
-                aria-hidden
-              >
-                {role === option ? <Icon name="check" size={11} /> : null}
-              </span>
-            }
-            trailing="none"
+            type="button"
+            role="radio"
+            aria-checked={role === option}
+            className="proto-note-row proto-settings-row"
+            style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left' }}
             onClick={() => setRole(option)}
-          />
+          >
+            <span className="proto-settings-list-row__main">
+              <span className="pds-list-title" style={{ color: 'var(--pds-text-primary)' }}>
+                {FAMILY_ROLE_LABEL[option]}
+              </span>
+              <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
+                {FAMILY_ROLE_FOR_INVITER[option]}
+              </span>
+            </span>
+            <span className="proto-settings-list-row__trailing proto-settings-list-row__trailing--orb" aria-hidden>
+              {role === option ? (
+                <span className="proto-accent-check-orb proto-accent-check-orb--selected">
+                  <Icon name="check" size={11} />
+                </span>
+              ) : null}
+            </span>
+          </button>
         ))}
       </SettingsGroup>
       <Field
@@ -510,8 +521,14 @@ function FamilyView({ data }: { data: InFamily }) {
       {me.role === 'child' ? (
         <>
           <SectionLabel>What your parents can see · last 30 days</SectionLabel>
-          {myEntry ? <ProgressRows entry={myEntry} /> : null}
-          <Footnote>{FAMILY_ROLE_DISCLOSURE.child.never}</Footnote>
+          {myEntry ? (
+            <ProgressRows entry={myEntry} />
+          ) : (
+            <SettingsGroup>
+              <SettingsRow label={progress.isLoading ? 'Loading…' : 'Nothing to show yet'} trailing="none" />
+            </SettingsGroup>
+          )}
+          <Footnote>They can never see your notes, highlights, searches, or Review.</Footnote>
           <div ref={adultAnchorRef}>
             <SettingsGroup>
               <SettingsRow
