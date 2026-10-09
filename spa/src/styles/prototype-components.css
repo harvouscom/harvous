@@ -25896,6 +25896,31 @@ button.proto-feed-sheet__stat:hover {
   margin-top: 28px;
 }
 
+/* Whatever acts on the plan sits at the card's foot, so two cards side by side line their
+   buttons up however long each list runs. */
+.proto-plan-card__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 28px;
+}
+
+.proto-plan-card__foot > .proto-plan-card__cta {
+  margin-top: 0;
+}
+
+/* Free, beside Plus on /upgrade: the plain card, an ink tile instead of the accent one —
+   the same pair harvous.com/pricing shows. */
+.proto-plan-card--free::before {
+  content: none;
+}
+
+.proto-plan-card--free .proto-plan-card__icon {
+  background: var(--pds-text-primary);
+  color: var(--pds-bg-page);
+}
+
 /* Activity card for a locked note: says so, in the same quiet voice as the list's "Locked". */
 .proto-feed-said__locked {
   display: inline-flex;

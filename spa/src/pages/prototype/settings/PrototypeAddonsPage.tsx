@@ -4,11 +4,10 @@ import Icon from '@/components/react/Icon';
 import SafeSubscriptionDetailsButton from '@/components/react/SafeSubscriptionDetailsButton';
 import { getSharedSpacesAddonFeatureBullets } from '@/lib/shared-spaces-limits';
 import {
-  formatPlanPrice,
-  getPlans,
   planFor,
   PLUS_COMING_SOON_FEATURE_BULLETS,
   PLUS_FOUNDING_BADGE,
+  PLUS_PLAN_TAGLINE,
 } from '@/lib/billing-plans';
 import { toast } from '@/utils/toast';
 import {
@@ -25,6 +24,9 @@ import { useSubscriptionStatus } from '../../../hooks/queries/useSubscriptionSta
 import { api } from '../../../lib/api';
 import ProtoConfirmDialog from '../ProtoConfirmDialog';
 import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
+import PlanCard, { planCardPrice } from './PlanCard';
+
+export { planCardPrice };
 
 const monthPlan = planFor('plus', 'month');
 const yearPlan = planFor('plus', 'year');
@@ -32,43 +34,6 @@ const yearPlan = planFor('plus', 'year');
 const PLAN_NAME = yearPlan?.name ?? monthPlan?.name ?? 'Harvous Plus';
 
 
-/** Same line as harvous.com/pricing, so the app and the site describe Plus the same way. */
-const PLUS_TAGLINE = 'For study you return to, alone or together';
-const PLAN_CARD_SKY = '/images/auth-hero/ai_bg_plus.webp';
-
-/**
- * The price block of the plan card. Shaped like the pricing card on harvous.com: the price
- * large, then one quiet line. Subscribers see what they pay and when it renews; a plan given
- * by Harvous has no price to show, so it says so instead of inventing one.
- */
-export function planCardPrice(options: {
-  hasPlus: boolean;
-  billing: Parameters<typeof formatBillingPriceLine>[0] & Parameters<typeof formatBillingStatusLine>[0] | null;
-  canManageBilling: boolean;
-}): { primary: string; secondary: string | null; note: string | null } {
-  if (!options.hasPlus) {
-    // From the plan definitions, not `planFor`: that only answers once a billing product is
-    // configured, and the price is a fact about the plan, not about the environment.
-    const listed = getPlans().filter((p) => p.key === 'plus' && p.listed);
-    const monthDef = listed.find((p) => p.interval === 'month');
-    const yearDef = listed.find((p) => p.interval === 'year');
-    const month = monthDef ? `${formatPlanPrice(monthDef)}/mo` : null;
-    const year = yearDef ? `${formatPlanPrice(yearDef)}/yr` : null;
-    return { primary: month ?? year ?? '', secondary: month && year ? year : null, note: null };
-  }
-  if (options.billing) {
-    return {
-      primary: formatBillingPriceLine(options.billing),
-      secondary: null,
-      note: formatBillingStatusLine(options.billing),
-    };
-  }
-  return {
-    primary: 'Included',
-    secondary: null,
-    note: options.canManageBilling ? 'Active on your account' : 'Managed by Harvous',
-  };
-}
 
 /** Badge helper retained for tests / join-state copy. */
 export function resolveSharedSpacesAddonBadge(options: {
@@ -158,39 +123,14 @@ export default function PrototypeAddonsPage() {
   return (
     <SettingsShell wide fillHeight>
       <div className="proto-settings-plan">
-        <section className="proto-plan-card" aria-label={PLAN_NAME}>
-          {/* The same watercolour sky as /upgrade and the Plus card on harvous.com/pricing. */}
-          <img className="proto-plan-card__sky" src={PLAN_CARD_SKY} alt="" decoding="async" />
-          <header className="proto-plan-card__head">
-            <p className="proto-plan-card__name">
-              <span className="proto-plan-card__icon proto-ink-on-accent" aria-hidden="true">
-                <Icon name="plus" size={13} />
-              </span>
-              {PLAN_NAME}
-            </p>
-            {hasSharedSpaces ? (
-              <span className="proto-plan-card__badge">{isFounding ? PLUS_FOUNDING_BADGE : 'Active'}</span>
-            ) : null}
-          </header>
-
-          <p className="proto-plan-card__price">
-            {price.primary}
-            {price.secondary ? <span> or {price.secondary}</span> : null}
-          </p>
-          {price.note ? <p className="proto-plan-card__note">{price.note}</p> : null}
-          <p className="proto-plan-card__tagline">{PLUS_TAGLINE}</p>
-
-          <ul className="proto-plan-card__list" role="list">
-            {featureBullets.map((bullet) => (
-              <li key={bullet}>
-                <span className="proto-plan-card__check" aria-hidden="true">
-                  <Icon name="check" size={12} />
-                </span>
-                <span>{bullet}</span>
-              </li>
-            ))}
-          </ul>
-
+        <PlanCard
+          name={PLAN_NAME}
+          icon="plus"
+          badge={hasSharedSpaces ? (isFounding ? PLUS_FOUNDING_BADGE : 'Active') : null}
+          price={price}
+          tagline={PLUS_PLAN_TAGLINE}
+          bullets={featureBullets}
+        >
           {/* Empty since 3.0 — see the constant. A heading with no list under it reads as a
               rendering bug, not as restraint. */}
           {PLUS_COMING_SOON_FEATURE_BULLETS.length > 0 ? (
@@ -209,7 +149,7 @@ export default function PrototypeAddonsPage() {
               Get {PLAN_NAME}
             </button>
           ) : null}
-        </section>
+        </PlanCard>
 
         {hasSharedSpaces && canManageBilling ? (
           <div className="proto-settings-plan__manage">

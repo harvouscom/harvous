@@ -22,7 +22,7 @@ describe('plan card price', () => {
 
   it('never invents a price for a plan Harvous gave', () => {
     expect(planCardPrice({ hasPlus: true, billing: null, canManageBilling: false })).toEqual({
-      primary: 'Included',
+      primary: 'You have Plus',
       secondary: null,
       note: 'Managed by Harvous',
     });

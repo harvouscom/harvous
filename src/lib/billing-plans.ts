@@ -452,5 +452,27 @@ export function isFeatureKey(value: string): value is FeatureKey {
  */
 export const PLUS_COMING_SOON_FEATURE_BULLETS: readonly string[] = [];
 
+/**
+ * The two pricing cards' copy, word for word as harvous.com/pricing has it, so the site,
+ * /upgrade and Settings › Plan describe the plans the same way. The site keeps its own copy
+ * (a separate repo); change both together.
+ */
+export const FREE_PLAN_NAME = 'Free';
+export const FREE_PLAN_TAGLINE = 'For personal Bible study';
+export const PLUS_PLAN_TAGLINE = 'For study you return to, alone or together';
+export const FREE_PLAN_FEATURE_BULLETS: readonly string[] = [
+  'Unlimited notes',
+  `${FREE_HISTORY_WINDOW_DAYS} days of history`,
+  'Scripture pills, highlights, and threads',
+  'Scan a page into a note',
+  'Built-in Bible reader',
+  'Built-in dictionary and daily passage',
+  'Built-in cross-references and themes',
+  'Offline sync across devices',
+  'Shareable notes via link',
+  'Built-in Suggestions (resurfaces the past)',
+  'Reminders — an optional nudge with the verse',
+];
+
 /** Short label for the founding offer — permanent recognition, first-year price. */
 export const PLUS_FOUNDING_BADGE = 'Founding';

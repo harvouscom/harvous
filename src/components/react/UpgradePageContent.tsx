@@ -1,19 +1,24 @@
 // @ts-ignore - React hooks are available, this is a linter cache issue
 import React, { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import Icon from './Icon';
 import {
   getSharedSpacesAddonFeatureBullets,
   OWNED_SHARED_SPACES_ADDON_LIMIT,
 } from '@/lib/shared-spaces-limits';
 import {
   formatPlanPrice,
+  FREE_PLAN_FEATURE_BULLETS,
+  FREE_PLAN_NAME,
+  FREE_PLAN_TAGLINE,
   planFor,
-  PLUS_COMING_SOON_FEATURE_BULLETS,
+  PLUS_FOUNDING_BADGE,
+  PLUS_PLAN_TAGLINE,
 } from '@/lib/billing-plans';
 import UpgradeCheckoutButton from './UpgradeCheckoutButton';
 import { prototypeHref } from '@/lib/prototype-path';
 import { writePendingAuthRedirect } from '@/lib/pending-auth-redirect';
+import PlanCard, { planCardPrice } from '../../../spa/src/pages/prototype/settings/PlanCard';
+import { useSubscriptionStatus } from '../../../spa/src/hooks/queries/useSubscriptionStatus';
 
 interface SubscriptionStatusSnapshot {
   hasSharedSpaces: boolean;
@@ -21,16 +26,14 @@ interface SubscriptionStatusSnapshot {
   sharedSpacesOwnedLimit: number;
 }
 
-type PaperPhase = 'stacked' | 'fanned';
-
 interface UpgradePageContentProps {
   initialHasSharedSpaces: boolean;
   initialSharedSpacesOwnedCount?: number | null;
   initialSharedSpacesOwnedLimit?: number | null;
   publishableKey?: string | null;
   /**
-   * When false, paper stays stacked and letter copy stays hidden (same footprint).
-   * When true, leaves fan out (harvous.com / founder-letter style) and content fades in.
+   * False while the subscription status is still loading: the cards hold their place but
+   * stay hidden, so a subscriber never sees the buy-it layout flash first.
    */
   ready?: boolean;
   /** Dev design gallery — bypasses Clerk for static previews. */
@@ -43,10 +46,14 @@ const PLAN_NAME = yearPlan?.name ?? monthPlan?.name ?? 'Harvous Plus';
 const PRICE_MONTHLY_LABEL = monthPlan ? `${formatPlanPrice(monthPlan)} per month` : '';
 const PRICE_ANNUAL_LABEL = yearPlan ? `${formatPlanPrice(yearPlan)} per year` : '';
 
-const ACTIVE_TAGLINE = `${PLAN_NAME} is active on your account. Here's a reminder of what it includes:`;
-// Leads with returning to your own study, not with hosting: since 3.0 the thing
-// being bought works for one person on the day they pay, and doesn't wait on a group.
-const PURCHASE_TAGLINE = 'For study you come back to, and a group you can bring along.';
+/* The headline and subhead are harvous.com/pricing's, so arriving here from the site feels
+   like the same page, now with your account behind it. */
+const PURCHASE_TITLE = ['Free to study.', 'Plus to keep going.'] as const;
+const PURCHASE_SUBHEAD =
+  'Free for personal study. Plus is for study you keep coming back to, or share with a group.';
+/* A subscriber's page is just their card, and the card says it: no headline above it
+   repeating "you have Plus" in bigger type. */
+const ACTIVE_TAGLINE = 'All of this is on your account.';
 
 type FoundingAvailability = {
   total: number;
@@ -55,15 +62,11 @@ type FoundingAvailability = {
   available: boolean;
 };
 
-function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 /**
- * Single-purpose Shared Spaces upgrade card — paper-stack letter layout
- * matching shared-note / sign-in pages. Plan summary also lives in
- * Settings > Plan.
+ * /upgrade — laid out like harvous.com/pricing: the site's headline, then Free and Plus side
+ * by side as pricing cards, with checkout at the foot of the Plus card. The Plus card is the
+ * one Settings › Plan shows (`PlanCard`), so buying and managing describe the plan in the
+ * same shape. A subscriber sees only their Plus card, priced from their billing.
  */
 export default function UpgradePageContent({
   initialHasSharedSpaces,
@@ -84,14 +87,19 @@ export default function UpgradePageContent({
       ? (designPreview.ownedLimit ?? OWNED_SHARED_SPACES_ADDON_LIMIT)
       : initialSharedSpacesOwnedLimit,
   );
-  const [paperPhase, setPaperPhase] = useState<PaperPhase>('stacked');
   const [founding, setFounding] = useState<FoundingAvailability | null>(null);
   const showActiveCopy = hasSharedSpaces;
-  const revealed = ready && paperPhase === 'fanned';
-  const purchaseTagline =
+  const purchaseSubhead =
     !showActiveCopy && founding?.available && founding.remaining > 0
-      ? `${PURCHASE_TAGLINE} Only ${founding.remaining} founding spots left.`
-      : PURCHASE_TAGLINE;
+      ? `${PURCHASE_SUBHEAD} Only ${founding.remaining} founding spots left.`
+      : PURCHASE_SUBHEAD;
+  /* What a subscriber pays and when it renews — the same line Settings › Plan shows. */
+  const { data: subscription } = useSubscriptionStatus();
+  const price = planCardPrice({
+    hasPlus: showActiveCopy,
+    billing: designPreview ? null : subscription?.billing ?? null,
+    canManageBilling: Boolean(subscription?.canManageBilling),
+  });
 
   const featureBullets = useMemo(
     () =>
@@ -114,28 +122,6 @@ export default function UpgradePageContent({
     initialSharedSpacesOwnedCount,
     initialSharedSpacesOwnedLimit,
   ]);
-
-  useEffect(() => {
-    if (!ready) {
-      setPaperPhase('stacked');
-      return;
-    }
-
-    if (prefersReducedMotion()) {
-      setPaperPhase('fanned');
-      return;
-    }
-
-    setPaperPhase('stacked');
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => setPaperPhase('fanned'));
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      if (raf2) cancelAnimationFrame(raf2);
-    };
-  }, [ready]);
 
   const applySubscriptionStatus = (data: Partial<SubscriptionStatusSnapshot>) => {
     if (typeof data.hasSharedSpaces === 'boolean') {
@@ -219,107 +205,89 @@ export default function UpgradePageContent({
     writePendingAuthRedirect(upgradeReturnDestination);
   };
 
-  return (
+  const plusAction = hasSharedSpaces ? (
+    <a href={prototypeHref('settings/addons')} className="upgrade-secondary-btn">
+      Manage your plan
+    </a>
+  ) : isSignedIn ? (
+    <UpgradeCheckoutButton
+      className="upgrade-checkout"
+      publishableKey={publishableKey}
+      ctaLabel={`Get ${PLAN_NAME}`}
+      priceMonthlyLabel={PRICE_MONTHLY_LABEL}
+      priceAnnualLabel={PRICE_ANNUAL_LABEL}
+    />
+  ) : (
     <>
-      <div
-        className={[
-          'public-paper-stack',
-          'public-paper-stack--upgrade',
-          paperPhase === 'fanned' ? 'public-paper-stack--fanned' : 'public-paper-stack--stacked',
-        ].join(' ')}
-      >
-        <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
-        <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
-        <article className="public-addon-letter" aria-busy={!revealed}>
-          <div
-            className={[
-              'public-addon-letter__reveal',
-              revealed ? 'public-addon-letter__reveal--in' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-          >
-            <div className="public-addon-letter__header">
-              <span className="public-addon-letter__icon public-addon-letter__icon--plus" aria-hidden>
-                <Icon name="plus" size={22} />
-              </span>
-              <h1 className="public-addon-letter__title">{PLAN_NAME}</h1>
-              <p className="public-addon-letter__tagline">
-                {showActiveCopy ? ACTIVE_TAGLINE : purchaseTagline}
-              </p>
-            </div>
-
-            <ul className="public-addon-letter__features" role="list">
-              {featureBullets.map((feature) => (
-                <li key={feature}>
-                  <span className="public-addon-letter__check" aria-hidden="true">
-                    <Icon name="check" size={10} />
-                  </span>
-                  <span className="public-addon-letter__feature-text">{feature}</span>
-                </li>
-              ))}
-            </ul>
-
-            {/* Nothing is promised when nothing is coming. Review shipped in 3.0 and moved
-                into the list above, and Challenges is gated but deliberately unadvertised, so
-                neither is pending; a heading over an empty list would be the page advertising
-                a blank. */}
-            {PLUS_COMING_SOON_FEATURE_BULLETS.length > 0 ? (
-              <>
-                <p className="public-addon-letter__coming-label">Coming soon</p>
-                <ul className="public-addon-letter__features public-addon-letter__features--coming" role="list">
-                  {PLUS_COMING_SOON_FEATURE_BULLETS.map((feature) => (
-                    <li key={feature}>
-                      <span className="public-addon-letter__check" aria-hidden="true">
-                        <Icon name="check" size={10} />
-                      </span>
-                      <span className="public-addon-letter__feature-text">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : null}
-
-            <div className="public-addon-letter__cta">
-              {hasSharedSpaces ? (
-                <>
-                  <a href="/" className="upgrade-secondary-btn">
-                    Back to My Harvous
-                  </a>
-                  <a href={prototypeHref('settings/addons')} className="upgrade-secondary-btn">
-                    Manage Subscription
-                  </a>
-                </>
-              ) : isSignedIn ? (
-                <UpgradeCheckoutButton
-                  className="upgrade-checkout"
-                  publishableKey={publishableKey}
-                  ctaLabel={`Get ${PLAN_NAME}`}
-                  priceMonthlyLabel={PRICE_MONTHLY_LABEL}
-                  priceAnnualLabel={PRICE_ANNUAL_LABEL}
-                />
-              ) : (
-                <>
-                  <a
-                    href={signUpHref}
-                    className="upgrade-primary-btn"
-                    onClick={rememberUpgradeReturn}
-                  >
-                    Sign up to continue
-                  </a>
-                  <a
-                    href={signInHref}
-                    className="upgrade-secondary-btn"
-                    onClick={rememberUpgradeReturn}
-                  >
-                    Sign in
-                  </a>
-                </>
-              )}
-            </div>
-          </div>
-        </article>
-      </div>
+      <a href={signUpHref} className="upgrade-primary-btn" onClick={rememberUpgradeReturn}>
+        Sign up to continue
+      </a>
+      <a href={signInHref} className="upgrade-secondary-btn" onClick={rememberUpgradeReturn}>
+        Sign in
+      </a>
     </>
+  );
+
+  return (
+    <div
+      className={['upgrade-pricing', ready ? 'upgrade-pricing--ready' : ''].filter(Boolean).join(' ')}
+      aria-busy={!ready}
+    >
+      {!showActiveCopy ? (
+        <header className="upgrade-pricing__head">
+          <p className="upgrade-pricing__eyebrow">{PLAN_NAME}</p>
+          <h1 className="upgrade-pricing__title">
+            {PURCHASE_TITLE[0]}
+            <br />
+            {PURCHASE_TITLE[1]}
+          </h1>
+          <p className="upgrade-pricing__subhead">{purchaseSubhead}</p>
+        </header>
+      ) : (
+        <h1 className="upgrade-pricing__visually-hidden">{PLAN_NAME}</h1>
+      )}
+
+      <div
+        className={['upgrade-pricing__cards', showActiveCopy ? 'upgrade-pricing__cards--single' : '']
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {/* Free sits beside Plus only while there is a choice to make; a subscriber is not
+            choosing, so their page is their plan. */}
+        {!showActiveCopy ? (
+          <PlanCard
+            tone="free"
+            name={FREE_PLAN_NAME}
+            icon="book-open"
+            badge={isSignedIn ? 'Your plan' : null}
+            price={{ primary: '$0' }}
+            tagline={FREE_PLAN_TAGLINE}
+            bullets={FREE_PLAN_FEATURE_BULLETS}
+          >
+            {!isSignedIn ? (
+              <a href={signUpHref} className="upgrade-secondary-btn" onClick={rememberUpgradeReturn}>
+                Sign up free
+              </a>
+            ) : null}
+          </PlanCard>
+        ) : null}
+        <PlanCard
+          name={PLAN_NAME}
+          icon="plus"
+          badge={showActiveCopy ? (subscription?.isFounding ? PLUS_FOUNDING_BADGE : 'Active') : null}
+          price={
+            showActiveCopy
+              ? /* What you have, then the one fact about it — renewal date, or who manages
+                   it. The amount is in Settings › Plan, which is where you change it. */
+                { primary: `You have ${PLAN_NAME.replace(/^Harvous /, '')}`, note: price.note }
+              : price
+          }
+          tagline={showActiveCopy ? ACTIVE_TAGLINE : PLUS_PLAN_TAGLINE}
+          bullets={featureBullets}
+        >
+          {plusAction}
+        </PlanCard>
+      </div>
+    </div>
   );
 }

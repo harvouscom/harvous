@@ -3,19 +3,14 @@ import { useAuth } from '@clerk/clerk-react';
 import { toast as sonnerToast } from 'sonner';
 import UpgradePageContent from '../../../src/components/react/UpgradePageContent';
 import { PublicTopBar } from './public/public-shared';
-import { loadAuthHeroImage } from '../utils/random-hero-image';
 import { api } from '../lib/api';
 import { trackUpgradeViewed } from '@/utils/analytics';
 import { recordAudiencefulMilestoneOnce } from '@/utils/audienceful-milestones-client';
 
-// Fixed hero (not randomized) — blue-field atmosphere made for Harvous Plus,
-// sibling to the auth-hero pool (various blues, airy center for the letter).
-const UPGRADE_HERO_IMAGE = '/images/auth-hero/ai_bg_plus.webp';
-
 /**
- * Standalone /upgrade page — Harvous Plus (Shared Spaces hosting), built on
- * the `.public-page` shell (shared note / join-space / sign-in aesthetic),
- * with the same auth hero image bleeding behind the top of the card.
+ * Standalone /upgrade page — Harvous Plus, on the `.public-page` shell and laid out like
+ * harvous.com/pricing (see `UpgradePageContent`). The watercolour sky that used to bleed
+ * behind a letter now lives in the Plus card itself, as it does on the site.
  */
 export default function UpgradePage() {
   const { isSignedIn } = useAuth();
@@ -23,7 +18,6 @@ export default function UpgradePage() {
   const [sharedSpacesOwnedCount, setSharedSpacesOwnedCount] = useState<number | null>(null);
   const [sharedSpacesOwnedLimit, setSharedSpacesOwnedLimit] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isHeroReady, setIsHeroReady] = useState(false);
 
   const refreshSharedSpacesStatus = useCallback(async (options?: { silent?: boolean }) => {
     if (!isSignedIn) {
@@ -101,16 +95,6 @@ export default function UpgradePage() {
     return () => window.removeEventListener('subscriptionUpgraded', handleUpgrade);
   }, [refreshSharedSpacesStatus]);
 
-  useEffect(() => {
-    let cancelled = false;
-    loadAuthHeroImage(UPGRADE_HERO_IMAGE)
-      .then(() => !cancelled && setIsHeroReady(true))
-      .catch(() => !cancelled && setIsHeroReady(true));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
     <>
       <title>Harvous Plus | Harvous</title>
@@ -118,13 +102,7 @@ export default function UpgradePage() {
         <PublicTopBar isSignedIn={!!isSignedIn} signedInCtaLabel="Back to my Harvous" />
 
         <div className="public-body">
-          <div className="public-content public-content--upgrade">
-            <div className="upgrade-hero-section" aria-hidden>
-              <div
-                className={`upgrade-hero-bg${isHeroReady ? ' upgrade-hero-bg--ready' : ''}`}
-                style={isHeroReady ? { backgroundImage: `url(${UPGRADE_HERO_IMAGE})` } : undefined}
-              />
-            </div>
+          <div className="public-content public-content--upgrade public-content--pricing">
             <UpgradePageContent
               ready={!isLoading}
               initialHasSharedSpaces={hasSharedSpaces}
