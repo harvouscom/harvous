@@ -2451,6 +2451,9 @@ html.harvous-prototype-route button .proto-note-row__preview mark.proto-verse-hi
   text-decoration-thickness: 2px;
   text-underline-offset: 2px;
   text-decoration-color: var(--pds-highlight-warm-amber);
+  /* One unbroken mark under the word. Skipping ink cut it at every descender — "pome granates"
+     — which at this size read as two highlights rather than one. */
+  text-decoration-skip-ink: none;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
