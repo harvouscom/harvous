@@ -1,10 +1,10 @@
 /**
- * How a family's name reads in a sentence — "Join the Castelli Family".
+ * How a family's name reads in a sentence — "Join the Castelli family".
  *
  * People name a family every way there is: "Castelli", "Castelli Family", "The Castelli
  * Family", "The Castelli's", "The Castellis", "Our crew". This adds only what is missing, and
- * never doubles what they wrote: an article if there isn't one, "Family" only after a bare
- * surname. Their own casing and punctuation are kept.
+ * never doubles what they wrote: an article if there isn't one, "family" (always lowercase)
+ * only after a bare surname. Their own casing and punctuation are kept.
  */
 
 /** Words that already say "family", so nothing is appended after them. */
@@ -68,13 +68,13 @@ export function familyNamePhrase(raw: string): string {
   if (list.length === 1 && isGroupForm(list[0])) return `the ${name}`;
 
   // A bare surname (one or two words, e.g. "Castelli", "Van Buren"): the full phrase.
-  if (list.length <= 2) return `the ${name} ${name === name.toLowerCase() ? 'family' : 'Family'}`;
+  if (list.length <= 2) return `the ${name} family`;
 
   // Anything longer is its own name ("Derek and Sam and Kit"); leave it alone.
   return name;
 }
 
-/** The invite button: "Join the Castelli Family". */
+/** The invite button: "Join the Castelli family". */
 export function joinFamilyLabel(raw: string): string {
   return `Join ${familyNamePhrase(raw)}`;
 }

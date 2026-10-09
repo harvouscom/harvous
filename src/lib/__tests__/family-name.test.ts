@@ -3,11 +3,11 @@ import { familyNamePhrase, joinFamilyLabel } from '../family-name';
 
 describe('familyNamePhrase', () => {
   it.each([
-    // A bare surname gets the article and "Family"
-    ['Castelli', 'the Castelli Family'],
+    // A bare surname gets the article and a lowercase "family"
+    ['Castelli', 'the Castelli family'],
     ['castelli', 'the castelli family'],
-    ['Van Buren', 'the Van Buren Family'],
-    ['  Castelli  ', 'the Castelli Family'],
+    ['Van Buren', 'the Van Buren family'],
+    ['  Castelli  ', 'the Castelli family'],
     // Already says family: only the article is added, casing kept
     ['Castelli Family', 'the Castelli Family'],
     ['Castelli family', 'the Castelli family'],
@@ -35,7 +35,7 @@ describe('familyNamePhrase', () => {
 
 describe('joinFamilyLabel', () => {
   it('reads as one sentence', () => {
-    expect(joinFamilyLabel('Castelli')).toBe('Join the Castelli Family');
+    expect(joinFamilyLabel('Castelli')).toBe('Join the Castelli family');
     expect(joinFamilyLabel('The Castelli Family')).toBe('Join the Castelli Family');
     expect(joinFamilyLabel("The Castelli's")).toBe("Join the Castelli's");
   });
