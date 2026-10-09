@@ -129,37 +129,79 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
     }
   }
 
+  /*
+   * Lock PIN's shape: the action first, in its own card under a glyph and a status line, then
+   * what a family means as short rows with a glyph each, rather than a paragraph above a field.
+   * The hero classes are Lock PIN's, borrowed as-is so the two pages stay one design.
+   */
   return (
     <SettingsShell>
-      <SettingsIntro>
-        A Family Space everyone shares, and your Plus covering up to {others} more people. Parents see
-        how a child&rsquo;s study is going, never what they write.
-      </SettingsIntro>
-      {data.start.hasPlus ? (
-        <>
-          <Field label="Family name" value={name} placeholder="The Johnson family" onChange={setName} />
-          <ErrorText>{error}</ErrorText>
-          <button
-            type="button"
-            className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
-            disabled={create.isPending || name.trim().length === 0}
-            onClick={() => void start()}
-          >
-            {create.isPending ? 'Starting…' : 'Start a family'}
-          </button>
-        </>
-      ) : (
-        <>
-          <Footnote>Starting a family needs Harvous Plus. Everyone you invite is covered by it.</Footnote>
-          <button
-            type="button"
-            className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
-            onClick={() => navigate({ to: '/upgrade' })}
-          >
-            Get Harvous Plus
-          </button>
-        </>
-      )}
+      <SettingsGroup>
+        <div className="proto-lock-pin-settings__body">
+          <div className="proto-lock-pin-settings__hero">
+            <span className="proto-lock-pin-settings__glyph" aria-hidden>
+              <Icon name="user-group" size={22} />
+            </span>
+            <span className="proto-lock-pin-settings__hero-text">
+              <span className="proto-lock-pin-settings__status">Start a family</span>
+              <span className="proto-lock-pin-settings__lead">
+                {data.start.hasPlus
+                  ? `Name it, then invite up to ${others} people.`
+                  : 'Starting a family needs Harvous Plus.'}
+              </span>
+            </span>
+          </div>
+          {data.start.hasPlus ? (
+            <>
+              <Field label="Family name" value={name} placeholder="The Johnson family" onChange={setName} />
+              <ErrorText>{error}</ErrorText>
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
+                disabled={create.isPending || name.trim().length === 0}
+                onClick={() => void start()}
+              >
+                {create.isPending ? 'Starting…' : 'Start a family'}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
+              onClick={() => navigate({ to: '/upgrade' })}
+            >
+              Get Harvous Plus
+            </button>
+          )}
+        </div>
+      </SettingsGroup>
+
+      <SettingsGroup>
+        <SettingsRow
+          leadingIcon="folder"
+          label="A Family Space everyone shares"
+          sublabel="Everyone in the family can read and write there."
+          trailing="none"
+        />
+        <SettingsRow
+          leadingIcon="plus"
+          label={`Your Plus covers ${others} more people`}
+          sublabel="Review, full history and the Connector. Hosting spaces stays yours."
+          trailing="none"
+        />
+        <SettingsRow
+          leadingIcon="chart-simple"
+          label="Parents see progress, never notes"
+          sublabel="Chapters read, books, notes written. Your child sees the same."
+          trailing="none"
+        />
+        <SettingsRow
+          leadingIcon="person"
+          label="For ages 13 and up"
+          sublabel="A child can become an adult member any time."
+          trailing="none"
+        />
+      </SettingsGroup>
     </SettingsShell>
   );
 }
