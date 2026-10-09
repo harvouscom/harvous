@@ -39,10 +39,12 @@ export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Review exercises',
   'Unlimited shared spaces',
   `Up to ${MEMBERS_PER_SPACE_CAP} people per space`,
+  // Beside the people line, and naming who: last in the list, after the AI-apps line,
+  // "Joining is always free" read as a claim about nothing in particular.
+  'People you invite join free, no Plus needed',
   'Turn a thread into a shared study plan',
   // After OWNED_SPACES_BULLET_INDEX on purpose, so the live-usage rewrite still lands on spaces.
   'Use your study in AI apps like Claude and ChatGPT',
-  'Joining is always free',
 ] as const;
 
 /**
