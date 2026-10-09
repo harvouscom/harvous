@@ -25973,15 +25973,8 @@ button.proto-feed-sheet__stat:hover {
   min-width: 0;
 }
 
-.proto-family-progress__who {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
 .proto-family-progress__name {
+  flex: 1 1 auto;
   min-width: 0;
   font-family: var(--pds-font-body);
   font-size: 15px;
@@ -25992,19 +25985,25 @@ button.proto-feed-sheet__stat:hover {
   white-space: nowrap;
 }
 
+/* Settings › Plan's `.proto-plan-card__badge`, on a white card rather than the sky. */
 .proto-family-progress__active {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--pds-bg-input);
   font-family: var(--pds-font-body);
   font-size: 12px;
+  font-weight: 600;
   color: var(--pds-text-secondary);
   white-space: nowrap;
 }
 
 .proto-family-progress__dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--pds-text-tertiary, var(--pds-text-secondary));
   opacity: 0.6;

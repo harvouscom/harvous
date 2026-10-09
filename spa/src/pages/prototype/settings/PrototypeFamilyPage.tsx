@@ -117,12 +117,11 @@ function ProgressCard({ entry, member }: { entry: FamilyProgressEntry; member?: 
             profileImageUrl={member.profileImageUrl}
           />
         ) : null}
-        <span className="proto-family-progress__who">
-          <span className="proto-family-progress__name">{entry.displayName}</span>
-          <span className="proto-family-progress__active" data-recent={recent ? 'true' : undefined}>
-            <span className="proto-family-progress__dot" aria-hidden />
-            {LAST_ACTIVE_SHORT[entry.lastActive]}
-          </span>
+        <span className="proto-family-progress__name">{entry.displayName}</span>
+        {/* The plan card's badge, top right: a status, not a sentence. */}
+        <span className="proto-family-progress__active" data-recent={recent ? 'true' : undefined}>
+          <span className="proto-family-progress__dot" aria-hidden />
+          {LAST_ACTIVE_SHORT[entry.lastActive]}
         </span>
       </div>
       <div className="proto-family-progress__stats">
