@@ -113,6 +113,8 @@
     "church-core:schema:apply": "tsx server/scripts/add-church-core-schema.ts --apply",
     "church-join:schema": "tsx server/scripts/add-church-join-links-schema.ts",
     "church-join:schema:apply": "tsx server/scripts/add-church-join-links-schema.ts --apply",
+    "family:schema": "tsx server/scripts/add-family-schema.ts",
+    "family:schema:apply": "tsx server/scripts/add-family-schema.ts --apply",
     "church-review:schema": "tsx server/scripts/add-church-review-schema.ts",
     "church-review:schema:apply": "tsx server/scripts/add-church-review-schema.ts --apply",
     "church-ministries:schema": "tsx server/scripts/add-church-ministries-schema.ts",

@@ -1,292 +1,332 @@
 # Family Accounts
 
-**Status:** Future feature — not yet implemented  
-**Last updated:** 2026-04-08
+**Status:** v1 built behind a preview gate (web only). Phases 0–3 done; phase 4 waits on launch.  
+**Last updated:** 2026-10-09  
+**Supersedes:** the April 2026 draft of this file, which assumed Clerk Billing, full parent read
+access to children's notes, an XP leaderboard and InboxItems delivery. None of those fit the
+product as it stands; see [Cut](#cut-and-why).
 
 ---
 
-## Overview & Motivation
+## Decision log
 
-Harvous is currently built around single-person adult accounts. As churches adopt Harvous for congregation-wide content distribution, a natural adjacent need emerges: families who want to use Harvous together.
+| Date | Decision |
+|---|---|
+| 2026-10-09 | Parents see **progress, not content**: a few counts, a coarse last-active bucket and the names of books read. A child's notes stay theirs. No new cross-user note read path. |
+| 2026-10-09 | **The owner's Plus covers the household.** New entitlement source `family`; no new Polar product. Cap is **6 people including the owner**. |
+| 2026-10-09 | Covered features are the **study features** (`review`, `challenges`, `connector`, `full_history`). Hosting shared spaces (`shared_spaces`) stays with whoever pays. |
+| 2026-10-09 | **13 and older only.** "Child" is a role a person consents to at join, not an age check. No COPPA flow. |
+| 2026-10-09 | ~~A child can switch themselves to adult member.~~ Superseded the same day: |
+| 2026-10-09 | A child **asks** to become an adult member and a parent approves. With no answer in 14 days, or after a "not now", they can ask **Harvous support to review** it. No age data is collected. **Leaving the family is always open**, so a child never needs a parent's permission to stop being seen. |
+| 2026-10-09 | **Support overrides** in Admin › Families, each needing a reason and logged: change any role, decide requests, remove a member, revoke invites, stop family sharing, pause changes, transfer ownership. |
+| 2026-10-09 | No leaderboard, XP, streaks or milestone notifications. No parental controls. |
 
-The Family Accounts feature adds a lightweight family layer that lets parents see and engage with their children's Harvous activity, share a dedicated Family Space for content, and manage everyone under a single billing plan. It is designed to complement (not replace) the church layer — a family connected to a Harvous-enabled church inherits that church's content automatically.
+---
 
-**Why this matters:**
-- Families are a natural adoption unit — one parent discovering Harvous is a likely entry point for the whole household
-- Parents investing in their children's spiritual formation want visibility and shared context
-- Families already using a church that's on Harvous benefit from a unified experience
-- Family plans create a natural paid upgrade path beyond individual accounts
+## What it is
+
+A household layer over things Harvous already has:
+
+1. **A Family Space**: an ordinary shared space everyone in the family belongs to.
+2. **Plus coverage**: one person's Plus extends the study features to up to five others.
+3. **A progress view**: parents see how their children's study is going, in numbers, and each
+   child sees exactly the same numbers about themselves.
+
+It complements the church layer rather than replacing it. Church connection stays per person.
+
+## Principles
+
+- **Progress, not content.** A parent can learn that their teenager read eleven chapters of
+  John this month. They cannot learn what the teenager wrote about it. Notes are where people
+  write prayers and doubts, and a note app that reports to a parent is one nobody writes in
+  honestly.
+- **Consent at join.** The role is part of the invite, the invite page spells out what that
+  role shows to whom, and the server refuses a redeem that did not acknowledge it.
+- **The child sees what the parent sees.** The child's settings page renders the same payload
+  the parent gets, so nothing about the arrangement rests on trust.
+- **A role, not an age.** 13+ only. Becoming an adult member is always available to the child.
+- **No spiritual competition.** No family scores, rankings, streaks or XP, consistent with
+  [REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md](./REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md).
+- **No injection into personal accounts.** Shared material lives in the Family Space; it
+  reaches someone's own library only if they copy it in.
+- **Never evict.** If the owner's Plus lapses, the family and its space keep working; only
+  coverage and new invites stop.
 
 ---
 
 ## Roles
 
-| Role | Description |
-|---|---|
-| **Parent / Guardian** | Creates or administers the family account. Has full visibility into child accounts. Manages billing and membership. Can add content to the Family Space. |
-| **Child** | A member designated by a parent. Has their own independent Harvous account. Parents see all their content. Receives church content inherited from the parent's church affiliation. |
-| **Adult Member** | A family member who has transitioned out of the child role (or was invited as an adult). Retains family membership voluntarily. Parents no longer have visibility into their content. |
+| | Owner (a parent) | Parent | Child | Adult member |
+|---|---|---|---|---|
+| Covered by the owner's Plus | pays | yes | yes | yes |
+| Sees children's progress | yes | yes | own only | no |
+| Their own progress is visible to parents | no | no | yes | no |
+| Family Space role | `owner` | `leader` | `member` | `member` |
+| Invite people | yes | yes | no | no |
+| Rename the family | yes | yes | no | no |
+| Remove a child or adult | yes | yes | no | no |
+| Remove a parent | yes | no | no | no |
+| Make someone a parent | yes | no | no | no |
+| Move a child to adult | yes | yes | asks | — |
+| Leave | no (stop family sharing instead) | yes | yes | yes |
+| Stop family sharing | yes | no | no | no |
 
-A family must have at least one Parent/Guardian. There is no hard limit on the number of Parents — two guardians per household is the common case, but blended families may have more.
+Nobody can be moved *into* the child role after joining. That role adds visibility, so it is
+only ever entered by accepting an invite that says so (or by a Harvous support correction).
 
----
-
-## Family Creation & Invite Flow
-
-### Creating a family
-
-1. A Harvous user (must be on a Family plan) opens Settings → Family → "Create a Family."
-2. They name the family (e.g., "The Johnson Family") and become the first Parent/Guardian.
-3. They receive a shareable invite link and/or can send email invitations to family members.
-
-### Inviting members
-
-- Parents can invite any email address.
-- When sending an invite, the parent designates the invitee as **Child** or **Parent/Guardian**.
-- The role can be changed later by any Parent/Guardian.
-- If the invitee already has a Harvous account, they receive an in-app notification and inbox item. If not, the invite email prompts them to create an account.
-- A child invited who doesn't yet have an account gets a simplified onboarding flow appropriate for a younger user joining an existing family.
-
-### Accepting an invite
-
-- Invitee clicks the link, signs in (or creates an account), and confirms they want to join the family.
-- For users already in another family as primary, they're informed they'll be joining as a secondary family member (see Multi-Family below).
+Every family member can write in the Family Space (a shared space lets any member author).
+Parents, as leaders, can also arrange its threads and folders.
 
 ---
 
-## Visibility & Privacy Model
+## Data model
 
-### What parents can see
+Three new tables. Nothing is added to `Spaces` or `UserMetadata`: Drizzle selects every declared
+column, so a new column on a hot table breaks every read of it until the DDL runs.
 
-Parents have **full visibility** into child accounts:
-- All notes and threads created by the child
-- The child's scripture activity and highlights
-- XP, streaks, and engagement stats
-- The child's spaces and shared space memberships
+```
+Families       id 'fam_…' · ownerUserId · spaceId · createdAt · updatedAt
+               UNIQUE(spaceId) · UNIQUE(ownerUserId)
 
-This visibility is read-only — parents cannot edit a child's personal notes or threads.
+FamilyMembers  id 'fmem_…' · familyId · userId · role 'parent' | 'child' | 'adult'
+               invitedBy · inviteId · joinedAt · roleChangedAt · roleChangedBy
+               createdAt · updatedAt
+               UNIQUE(userId)        one family per person in v1
+               INDEX(familyId)
 
-### What children can see from parents
+FamilyInvites  id 'finv_…' · familyId · token · role · label (≤ 40, e.g. "for Tyler")
+               createdBy · expiresAt (now + 7 days, required)
+               redeemedBy · redeemedAt · revokedAt · createdAt
+               UNIQUE(token) · INDEX(familyId)
+```
 
-Children can see their parents' content only through the normal sharing mechanisms (shared spaces, public share links). There is no automatic reverse visibility.
+- **The family's name is the space's title.** There is no `Families.name` to drift from it.
+- **The Family Space is a plain personal shared space** (`type = 'shared'`, `orgId` null),
+  linked from `Families.spaceId`. A new `Spaces.type` value would have to be taught to
+  `canAuthorInSpace`, `requireSpaceAccess`, the navigation serializers and native, for no
+  behavior the shared type doesn't already have.
+- **Why not a family role on `SpaceMemberships`?** Space roles decide who may write. Family roles
+  decide billing and visibility. "One family per person" is a unique index on
+  `FamilyMembers.userId` and cannot be expressed on `SpaceMemberships`. And coverage should not
+  hang off a row in a space that can be soft-deleted.
+- **Why a separate invite table?** `SpaceInvites` links are multi-use and carry a space role.
+  A family invite carries a role the invitee consents to, so it is single-use, and redeeming
+  one does more (family row, space row, coverage). A family token reaching the generic space
+  redeem would skip every family check.
+- **Family-space roles** are written in the same transaction as the family change: owner →
+  `owner`, other parents → `leader` with `grantSource = 'family'`, children and adults → `member`.
 
-### Adult members
+Schema is applied with `npm run family:schema:apply` (additive DDL, idempotent), never
+`db:push`. Apply it to production before the routes deploy.
 
-Once a family member transitions to the Adult Member role (or opts out entirely), parent visibility is revoked. The adult member's content becomes fully private from that point forward. Historical data the parent saw before the transition is no longer surfaced.
+---
 
-### No content injection into personal accounts
+## Lifecycles
 
-Parents cannot push notes, threads, or inbox items directly into a child's personal account. Shared content lives in the **Family Space** (see below), which children can browse and read but that does not appear in their personal library unless they explicitly add it.
+**Create.** Settings › Family › Start a family. Requires the caller's own Plus (`billing` or
+`admin_grant`) and that they are in no family. One transaction creates the space, the owner's
+space membership, the `Families` row and the owner's `FamilyMembers` row as `parent`.
 
-### Parent notifications
+**Invite.** A parent picks a role (parent, child or adult), optionally labels the invite, and
+gets a link: `/family/join/<token>`. Refused when members plus live invites would exceed 6, or
+when the owner is not currently paying. Links expire after 7 days and work once. There are no
+email invites; Harvous has no transactional email sender.
 
-Parents receive **milestone-only** notifications for child accounts — not every note or activity. Notifiable milestones include:
-- Weekly/monthly streaks hit
-- XP level-ups
-- Family challenges completed
-- A child joining or leaving the family
+**Join.** The invite page shows the family name, who invited them, the role, and the plain list
+of what that role shares. Signed-out visitors sign up first and return to the page, where they
+still press the button that names the role; unlike the church join page, nothing is replayed
+automatically. Redeem is
+refused if the person is already in a family, if the invite is used, revoked or expired, or if
+the family is full. The client must send back the role it showed (`acknowledgedRole`).
 
-No notification is sent for routine note creation, thread creation, or daily activity. Parents who want a full picture can check in via the family dashboard.
+**Role change.** See the matrix. Parents see the member's new role in the list; a change made
+by support says "changed by Harvous support".
 
-### Parental controls
+**Asking to become an adult member.** The child taps *Ask to become an adult member*; parents
+see a card at the top of Settings › Family with **Approve** and **Not now**. Approving takes
+effect immediately and the child's card leaves parents' view. "Not now" starts a 30-day wait
+before they can ask again. Two ways out of a stuck request, both ending at Harvous support:
+14 days with no answer, or right after a "not now", the child can *Ask Harvous to review*,
+which files a support ticket linked to the family (once per request). Support decides on the
+evidence in the ticket; no birthdate is collected.
 
-When a child account is in the family, parents can enforce the following restrictions:
+**Leaving is always open.** A child can leave the family at any time, without approval, and
+parents stop seeing their progress at once. It costs them the family's coverage, so it is not
+a back door to adult-with-coverage, and it is never paused, even by support.
 
-| Control | Behavior |
+**Leave / remove.** The member's Family Space membership is removed with
+`removeMemberPreservingResponses`, the same as leaving any shared space: notes they added to
+the space leave with them (they stay in their own library), and replies they wrote stay. Their
+coverage ends.
+
+**Stop family sharing** (dissolve, in code). Owner only. Family rows are deleted and coverage ends; the space remains as an
+ordinary shared space with everyone still in it. The owner can delete it through the normal,
+recoverable space delete.
+
+**Account deletion.** Deleting the owner's account dissolves the family first. Deleting a
+member's account removes their family row.
+
+**Owner's Plus lapses.** Nothing is evicted. Coverage switches off, new invites are refused with
+upgrade copy for the owner, and everything resumes when Plus does.
+
+**Pausing.** Support can pause a family while a case is open: invites, role changes, renames,
+requests and their answers, and stopping family sharing are refused. Leaving is not.
+
+**Guarding the Family Space.** While a space is a family's, the generic space routes refuse to
+mint invites for it, remove members from it, or delete it, and point to Settings › Family.
+
+---
+
+## Support (Admin › Families)
+
+Find a family by email, user id or family id; an escalated request's ticket links straight to
+`/admin/families/<id>`. The case view shows members (with email and id), roles, coverage, open
+invites, requests and the full history. Overrides, each with a required reason that lands in
+the history: change any role (including back into child), approve or decline a request
+(including overturning a parent's "not now"), remove a member, turn off invites, stop family
+sharing, pause and resume, and transfer ownership (coverage then comes from the new owner's
+Plus). No admin route reads notes.
+
+History lives in `FamilyEvents` (who, what, to whom, why), outlives a dissolved family as a case
+file, and is deleted with the accounts it names. Requests live in `FamilyRoleRequests` (one
+pending per person).
+
+---
+
+## Billing
+
+- New entitlement source **`family`**, stored per covered member and feature with
+  `providerRef = familyId`. Stored rather than computed so `listActiveFeatureKeys` stays one
+  query, and so coverage shows up in census and admin counts.
+- **Who sponsors:** only the owner, and only from their own `billing` or `admin_grant` rows.
+  Coverage never chains from `family`, `church_seat` or `trial` rows.
+- **What flows:** `review`, `challenges`, `connector`, `full_history` (constants in
+  `src/lib/billing-plans.ts`: `FAMILY_COVERED_FEATURES`, `FAMILY_MAX_MEMBERS = 6`).
+  `challenges` is withheld today and is issued anyway, matching how Plus issues it.
+- **When rows change:** inside each family transaction (join, leave, remove, dissolve); after
+  every write to the owner's own entitlements (`setEntitlementsForProduct`,
+  `setFeatureEntitlement`, `cancelBillingEntitlements`), which covers the Polar webhook,
+  provider sync, admin grants and the dev toggle from one place; and on
+  `syncEntitlementsFromProvider` and `GET /api/family` as a self-heal. Reconciliation is
+  idempotent and never revokes on an error.
+- **Cancel at period end** needs nothing special: Polar keeps the subscription active until it
+  is revoked, and family rows follow the owner's billing rows.
+- **A member with their own Plus keeps it.** Both rows coexist (the unique key includes the
+  source). There is no automatic pause; their Family page notes they can cancel their own.
+- **Plan page.** A covered member with no subscription of their own sees "Plus, covered by
+  {first name}'s family" rather than "Managed by Harvous". `/api/subscription/status` carries a
+  `coverage` object for this.
+- **Admin counts** report `family` separately from `billing` and grants.
+
+This is a deliberate exception to "seats are the product line" in
+`server/utils/tier-limits.ts`: six study seats for one subscription. The 12-person space cap is
+unaffected and stays the fence for hosting.
+
+---
+
+## What parents see
+
+`GET /api/family/progress`, rolling 30 days, one entry per child:
+
+| Signal | Source |
 |---|---|
-| **Block encrypted notes** | Child accounts cannot create lock-PIN encrypted notes — all content must remain visible to parents. |
-| **Block private spaces** | Child accounts cannot create or join personal spaces outside the Family Space without a parent first approving the membership. |
-| **Space join approval** | When a child is invited to any shared space, the invite is held pending parent approval before the child can access it. |
+| Last active: in the last day / this week / this month / over a month ago / not yet | latest of `ReadingEvents`, `NoteVisitEvents`, and notes they wrote. Rolling windows, not calendar days: the server doesn't know the child's time zone |
+| Chapters read (count) | distinct chapters in `ReadingEvents` with `dwellBucket` read or study (glances never count) |
+| Books read (names) | distinct books from the same rows, in canonical order |
+| Notes written (count) | `Notes` they created, `addedBy = 'user'` (imports, templates and system notes excluded; locked notes counted, never singled out) |
 
-These controls are configured per-child in family settings and default to **all enabled** for new child members.
+**Never shown:** note titles or bodies, highlights, thread or plan titles, which chapters,
+searches, Recall, Review (items, schedule, answers or activity — Review is never shared, per
+[CHURCH_V2_ROADMAP.md](../CHURCH_V2_ROADMAP.md) and [STUDY_PLANS.md](./STUDY_PLANS.md)), spaces
+they belong to, or exact times.
 
-### Child account UI
+Parents see children only, never other parents or adult members. A child gets their own entry
+and nothing else; an adult gets nothing. Contract tests scan the query file and fail if it
+reaches for note text, Review, search or recall tables.
 
-Accounts in the **child role automatically receive a simplified UI** — a cleaner interface with fewer advanced features surfaced (e.g., billing settings, advanced sharing options, encryption). This is not optional; it is tied to the child role designation. When a child transitions to Adult Member, the full UI is restored.
+What the child sees, on Settings › Family and on the invite page before joining:
+
+> What your parents can see: when you were last active, how many chapters you read, which books
+> they were in, and how many notes you wrote, over the last 30 days. They can never see your
+> notes, highlights, searches, or Review.
 
 ---
 
 ## Family Space
 
-Every family account gets a single shared **Family Space** — a standard Harvous Space that all family members can read, and that Parents/Guardians can add content to.
-
-**Behavior:**
-- Automatically created when the family is created; named after the family by default (e.g., "Johnson Family").
-- All family members are automatically added as members when they join the family.
-- Parents/Guardians can create threads and notes inside the Family Space.
-- Children can read all content in the Family Space.
-- Children can add their own notes or threads to the Family Space if the parent has enabled that permission (off by default — toggle in family settings).
-- Members leaving the family lose access to the Family Space.
-
-**Relationship to existing Spaces:**
-- The Family Space is a first-class Harvous Space under the hood, using the existing `Spaces` + `Members` tables.
-- It is tagged as a family-owned space (`family_id` foreign key, `spaceType: 'family'`) so the UI can surface it distinctly.
-- The owner (`userId`) is the primary Parent/Guardian who created the family.
+An ordinary shared space: everyone can read and write, notes copied in are independent copies,
+locked notes never appear in it. It is created and named with the family and shows up in the
+sidebar like any shared space. A "Family" label and "Parent" in place of "Leader" in its roster
+are later polish.
 
 ---
 
-## Church Membership Inheritance
+## Surfaces
 
-When a Parent/Guardian links to a church in their Harvous profile, **all child accounts in the family automatically inherit that church affiliation.**
+**Web (v1):**
+- Settings › Family (`PrototypeFamilyPage`): start a family, members and roles, invite sheet,
+  pending invites, children's progress cards, the child's "what your parents can see" card,
+  become an adult, leave, dissolve.
+- Invite page `/family/join/<token>` (`PublicJoinFamilyPage`).
+- Plan page coverage line.
+- Behind `FAMILY_PREVIEW_USER_IDS` until launch, like the Connector preview.
 
-**What this means:**
-- Church-pushed content (inbox items, threads, notes) targeted to a church's congregation is delivered to child accounts as well.
-- The child's profile shows the church affiliation (read-only; cannot be independently changed while they are a child member).
-- If the family's primary parent removes or changes their church affiliation, child accounts update accordingly.
-- Adult Members are not affected — their church affiliation is their own to manage.
-
-**Multi-parent households:**
-- If both parents have church affiliations and they differ, children inherit the affiliation of the **primary Parent/Guardian** (the account that created the family or is designated primary).
-- This edge case should be surfaced clearly in family settings with a prompt to resolve it.
-
-**Church targeting of families:**
-Church admins can target **families as a unit** — content sent to families is delivered to the **Family Space** rather than to individual member inboxes. This keeps church-to-family content contained and browsable together rather than scattered across personal accounts. The `targetAudience` value for this would be `'family_spaces'`, and the inbox assignment job would fan out to all Family Space IDs whose owning family includes a member belonging to that church.
+**Native:** no Family settings row in v1 (an intentional difference noted in both settings
+lists). The Family Space works there already, because it is a shared space.
 
 ---
 
-## Billing Model
+## Cut, and why
 
-Family plans are tiered flat-rate subscriptions managed by the Parent/Guardian who owns the family.
+| From the April draft | Why it was cut |
+|---|---|
+| Full parent visibility of children's notes and threads | Notes are where people write honestly. Progress is enough for a parent to encourage, and nothing more is needed to make the feature useful. |
+| Parental controls (block locked notes, block private spaces, approve space joins) | Blocking locked notes is pointless when parents can't read notes. Gating a 13-year-old's space joins contradicts "a role, not an age". |
+| Automatic simplified UI for children | Tied to the full-visibility model; a teen gets the same app. |
+| Family Small / Large plans, Clerk plan env vars | Billing is Polar now, and the owner's Plus covers the household. |
+| "Plan stacking not allowed" | Rows from different sources coexist harmlessly; forcing a cancellation helped nobody. |
+| Family XP leaderboard, streak notifications | Spiritual competition, ruled out across the product. XP is no longer shown anywhere. |
+| Milestone notifications to parents | Same reason; and Harvous has no in-app notification store to carry them. |
+| Email invites, inbox items for invites | No transactional email; `InboxItems` is a retired Webflow pipeline. |
 
-| Plan | Members | Price (suggested) |
-|---|---|---|
-| **Family Small** | Up to 4 members | TBD |
-| **Family Large** | Up to 8 members | TBD |
+## Deferred
 
-- All members under the family are covered by the family plan — no individual subscriptions needed.
-- If a family member already has an individual unlimited plan, they can link to the family and their individual plan is paused/cancelled (with a grace period and clear UX warning).
-- If the family owner cancels or downgrades, all members revert to free-tier individual accounts. Children are notified via inbox.
-- Member count includes all roles: Parents, Children, and Adult Members.
-- Billing is managed through Clerk Billing (same as existing individual plans). A new `CLERK_FAMILY_SMALL_PLAN_ID` and `CLERK_FAMILY_LARGE_PLAN_ID` env var would be added.
-- **Plan stacking is not allowed.** Individual paid plans are only available to users who are not part of a family account. If an adult member wants an individual plan, they must leave the family first. This keeps billing clean and avoids ambiguous feature entitlements.
+- **Multiple families / split households**, and a "primary family" for coverage.
+- **Church inheritance** (children inheriting a parent's church) and church targeting of family
+  spaces. Church connection and channel follows stay per person.
+- **Ownership transfer**, and letting any paying parent sponsor.
+- **Family reading plans** with per-member progress inside the Family Space.
+- **Web push** on membership events (join, leave, role change) and to parents when a child asks.
+- **A weekly digest** for parents.
+- **Native** settings and invite screens.
+- **Under-13 accounts.** Needs verifiable parental consent, minimal data collection and a
+  parent's right to delete; see
+  [CHMS_INTEGRATION_RESEARCH.md §7](./CHMS_INTEGRATION_RESEARCH.md#7-privacy-security-and-compliance).
 
----
+## Open questions
 
-## Adulthood Transition Flow
-
-Child accounts do not automatically transition — the "child" designation is a role, not age-gated. Transition happens in one of two ways:
-
-### Child-initiated opt-out
-1. The child (from their own account settings) can request to leave the family or change their role to Adult Member.
-2. They see a clear explanation: "Leaving the child role means your parents will no longer be able to see your content."
-3. On confirmation, their role becomes Adult Member (or they leave the family entirely).
-4. Parents receive an in-app notification that the family member has transitioned.
-
-### Parent-initiated upgrade
-1. A Parent/Guardian can change a member's role from Child → Adult Member in family settings.
-2. This immediately revokes parent visibility into that member's personal content.
-
-### Staying as an Adult Member
-Adult Members remain on the family billing plan and retain access to the Family Space. They can also leave the family at any time, at which point they revert to a standalone individual account.
+- Does `/upgrade` and harvous.com/pricing mention family coverage at launch?
+- Is 30 days the right window for the progress view, or should parents be able to see a longer
+  arc without it turning into a streak?
 
 ---
 
-## Multi-Family / Split Household
+## Phases
 
-A user (especially a child) can belong to more than one family account simultaneously.
+| Phase | Contents |
+|---|---|
+| 0 | This spec; correct the parent-visibility lines in CHMS research. |
+| 1 | Tables and DDL; `/api/family` routes (create, read, rename, dissolve, invites, redeem, roles, leave); Family Space guards; account-deletion hooks; Settings › Family; invite page; preview gate. |
+| 2 | `family` entitlement source and reconciler; hooks in the entitlement writers; sync self-heal; `coverage` on subscription status; Plan page copy; admin counts. |
+| 3 | Progress endpoint, parent cards, the child's mirror card, contract tests. |
+| 4 | Family label in sidebar and roster; release notes; lift the preview gate at launch. |
 
-**Primary family designation:**
-- One family is marked as **primary**. Church membership inheritance flows from the primary family's parent.
-- Billing coverage also comes from the primary family's plan.
-- The user can change their primary family in settings.
+**Oct 9 2026:** phases 0–3 built on `claude/family-feature-docs-c49ea7`. The family tables are
+applied to production (additive, empty). An end-to-end walk of 45 checks ran the real routes
+against the database with synthetic user ids: consent, coverage, lapse and renew, the cap,
+progress privacy, the space guards, leaving and dissolving. It cleaned up after itself. Not yet
+walked: a real second account joining through the invite page, and a Polar sandbox
+subscribe/cancel/revoke against a family.
 
-**Visibility:**
-- Parents in any family the child belongs to have the same full visibility — membership in a second family does not restrict the first family's parents.
-- If two families both include the same child, both sets of parents can see the child's content independently.
-
-**Leaving a family:**
-- A child can leave a non-primary family at any time without affecting their primary family membership.
-- Leaving the primary family prompts the user to either designate a new primary or become fully independent.
-
----
-
-## Family Challenges
-
-Parents/Guardians can create **Family Challenges** — structured scripture reading or study tasks assigned to all (or specific) family members.
-
-**Behavior:**
-- A challenge has a title, description, optional scripture reference, and a due date.
-- All family members see the challenge in the Family Space and in their personal inbox as a special challenge card.
-- Each member tracks their own completion; parents can see completion status per member.
-- Challenges are created by Parents/Guardians only — children and adult members can complete but not create.
-- Completed challenges award XP to the completing member and contribute to the family leaderboard.
-
-**Implementation note:** Challenges would likely reuse or extend the existing `challenge` content type already present in `InboxItems.contentType`. A `familyId` field on challenges would scope them to a family.
-
----
-
-## Family XP & Leaderboard
-
-Every family gets a **family leaderboard** — a view inside the Family Space showing each member's XP earned within a given season or timeframe.
-
-**Behavior:**
-- Displays each family member's name, avatar, current XP (seasonal), and streak status.
-- Ordered by XP descending — friendly competition, not high-pressure.
-- Parents see all members; children see all members (including parents).
-- No family aggregate score — the leaderboard is per-member, not a combined total.
-- Family challenge completions show separately from personal XP on the leaderboard card.
-
-**Implementation note:** Leans on existing `UserSeasonalXP` and `WeeklyStreaks` tables. The leaderboard is a read-only query scoped to `FamilyMembers.familyId` — no new XP infrastructure needed.
-
----
-
-## Data Model Sketch
-
-The following tables and fields would need to be added or modified. This is a design sketch, not a final schema.
-
-### New table: `Families`
-
-```
-id           text (PK)
-name         text
-createdBy    text (userId — primary guardian)
-createdAt    timestamp
-planType     text ('family_small' | 'family_large')
-isActive     boolean
-```
-
-### New table: `FamilyMembers`
-
-```
-id           text (PK)
-familyId     text (FK → Families)
-userId       text (FK → UserMetadata)
-role         text ('parent' | 'child' | 'adult_member')
-isPrimary    boolean  -- is this the user's primary family?
-joinedAt     timestamp
-invitedBy    text (userId)
-inviteToken  text (unique, nullable)
-inviteStatus text ('pending' | 'accepted' | 'declined')
-```
-
-### Modified: `Spaces`
-
-Add:
-```
-spaceType    text (default 'personal', add 'family' | 'church')
-familyId     text (nullable, FK → Families)
-```
-
-### Modified: `UserMetadata`
-
-Add:
-```
-primaryFamilyId   text (nullable, FK → Families)
-```
-
-### Modified: `InboxItems` / `UserInboxItems`
-
-The `targetAudience` field on `InboxItems` would be extended to support `'family_children'` as a church-level targeting option.
-
-Church-to-family inheritance would be handled in the inbox assignment job: when a church pushes content to `'all_members'`, the assignment job also fans out to child accounts whose primary family parent belongs to that church.
-
----
-
-## Future Considerations
-
-These items are intentionally deferred — not part of the initial family accounts build but worth designing for later.
-
-- **Granular child privacy toggle**: A future iteration might let parents grant specific children more privacy (e.g., a teenager's journal notes). For v1, visibility is all-or-nothing — parents see everything until the child transitions to Adult Member.
-- **Onboarding for child accounts**: A simplified signup flow for children (invited by a parent) that skips church affiliation, billing, and adult-first setup steps. The auto-simplified UI helps, but a purpose-built onboarding path would be better.
-- **Church admin targeting by family role**: Once the church layer matures, church admins should be able to target "parents" or "children in family accounts" directly — not just families as a whole. `FamilyMembers.role` already enables this query.
-- **Family notification digest**: Rather than individual milestone pings, parents might prefer a weekly digest summarizing all family activity — notes written, XP earned, challenges completed.
+**Not done, on purpose:** `listActiveFeatureKeys` still ignores `expiresAt` (family rows never
+set it). Fixing it needs a production census first to confirm no row relies on the gap.

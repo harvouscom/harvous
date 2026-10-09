@@ -386,6 +386,8 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
         hasSharedSpaces: subscriptionInfo.hasSharedSpaces,
         connectorPreview: subscriptionInfo.connectorPreview,
         isFounding: subscriptionInfo.isFounding,
+        familyAvailable: subscriptionInfo.familyAvailable,
+        coverage: subscriptionInfo.coverage,
         entitlements: subscriptionInfo.entitlements,
         planKey: subscriptionInfo.planKey,
         canManageBilling: subscriptionInfo.canManageBilling,

@@ -532,7 +532,7 @@ Harvous must treat users under 13 as a regulated class when youth groups are in 
 | No behavioral advertising | Already non-applicable; document as invariant |
 | Data deletion | Parent can request child account deletion; removes from roster sync |
 
-**Leader visibility for minors:** Leaders see completion %, attendance, and **content created within the group space context**. They do **not** see the child's personal notes outside that space unless the child shares. This is stricter than [FAMILY_ACCOUNTS.md](./FAMILY_ACCOUNTS.md) default (full parent visibility) — youth ChMS integration should document the narrowed leader view explicitly.
+**Leader visibility for minors:** Leaders see completion %, attendance, and **content created within the group space context**. They do **not** see the child's personal notes outside that space unless the child shares. This matches the parent view in [FAMILY_ACCOUNTS.md](./FAMILY_ACCOUNTS.md), which since Oct 2026 shows parents progress counts only, never note content. Youth ChMS integration should still document the leader view explicitly, since leaders are not parents.
 
 ### FERPA-adjacent pastoral norms
 
@@ -821,7 +821,7 @@ Ties to [achievements-and-badges-system.md](./achievements-and-badges-system.md)
 
 ### Parent linked profiles
 
-Differs from full [FAMILY_ACCOUNTS.md](./FAMILY_ACCOUNTS.md) billing family:
+Differs from the [FAMILY_ACCOUNTS.md](./FAMILY_ACCOUNTS.md) household (which already shows parents progress only, as of Oct 2026) in how the link is made and who pays:
 
 - **Linked profile** = parent sees child progress cards triggered by ChMS household or parent consent flow
 - Progress/completion only unless child explicitly shares a note

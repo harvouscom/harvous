@@ -109,6 +109,8 @@ import {
 } from '../utils/tier-limits';
 import { syncEntitlementsFromProvider } from '../utils/entitlements';
 import { assertCanCreateSpaceInvite } from '../utils/space-invite-gate';
+import { insertPersonalSharedSpace } from '../utils/shared-space-create';
+import { familyForSpace } from '../utils/family-lifecycle';
 import {
   assertCanCreateChurchSharedSpace,
   assertCanCreateMinistryChannel,
@@ -349,8 +351,6 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
     const coverVariant = Number.isFinite(coverVariantRaw)
       ? Math.min(5, Math.max(1, Math.round(coverVariantRaw)))
       : 1;
-    const cover = spaceCoverFromThreadColor(color, coverVariant);
-    const { coverBgLight, coverBgDark } = serializeSpaceCoverForDb(cover);
 
     const titleValidation = validateTitle(title, true);
     if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
@@ -373,43 +373,26 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
       }, 403);
     }
 
-    const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
     const now = nowISO();
 
-    const newSpace = await db.transaction(async (tx) => {
-      const space = first(await tx.insert(Spaces).values({
-        id: generateSpaceId(),
-        title: capitalizedTitle,
-        description: body.description?.trim() || null,
+    const newSpace = await db.transaction((tx) =>
+      insertPersonalSharedSpace(tx, {
+        ownerUserId: auth.userId,
+        title,
         color,
-        backgroundGradient: getThreadGradientCSS(color),
-        coverBgLight,
-        coverBgDark,
-        userId: auth.userId,
-        type: 'shared',
-        isPublic: false,
-        isActive: true,
-        order: 0,
-        createdAt: now,
-        ...(rhythm.kind === 'set'
-          ? { meetingDay: rhythm.meetingDay, meetingTime: rhythm.meetingTime }
-          : {}),
-        ...(place.kind === 'set'
-          ? { meetingKind: place.meetingKind, meetingUrl: place.meetingUrl }
-          : {}),
-      }).returning())!;
-
-      await tx.insert(SpaceMemberships).values({
-        id: `smem_${crypto.randomUUID()}`,
-        spaceId: space.id,
-        userId: auth.userId,
-        role: 'owner',
-        joinedAt: now,
-        createdAt: now,
-      });
-
-      return space;
-    });
+        coverVariant,
+        description: body.description,
+        now,
+        extra: {
+          ...(rhythm.kind === 'set'
+            ? { meetingDay: rhythm.meetingDay, meetingTime: rhythm.meetingTime }
+            : {}),
+          ...(place.kind === 'set'
+            ? { meetingKind: place.meetingKind, meetingUrl: place.meetingUrl }
+            : {}),
+        },
+      }),
+    );
 
     awardCreationBonusXP(auth.userId, 'space').catch(() => {});
     queueAudiencefulProductFlagsForUser(auth.userId, { has_created_space: true });
@@ -659,6 +642,9 @@ route.delete('/api/spaces/delete', requireAuth, rateLimit('write'), async (c) =>
     if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
     if (space.deletedAt) {
       return c.json({ error: 'Space is already deleted', code: 'ALREADY_DELETED' }, 409);
+    }
+    if (await familyForSpace(spaceId)) {
+      return c.json({ error: 'This is your Family Space. Stop family sharing first in Settings › Family.', code: 'FAMILY_SPACE' }, 409);
     }
 
     if (space.type !== 'personal') {
@@ -3108,6 +3094,10 @@ route.post('/api/spaces/:spaceId/invites', requireAuth, rateLimit('write'), asyn
     if (access.space.type !== 'shared') {
       return c.json({ error: 'Only shared spaces can have invite links', code: 'NOT_SHARED_SPACE' }, 400);
     }
+    // A Family Space is joined through a family invite, which carries a role and coverage.
+    if (await familyForSpace(spaceId)) {
+      return c.json({ error: 'Invite people to your family from Settings › Family.', code: 'FAMILY_SPACE_USE_FAMILY_INVITES' }, 409);
+    }
 
     // The paid gate: the owner's add-on, or the church's sponsorship for a
     // church Shared Space (orgId set).
@@ -3237,6 +3227,11 @@ route.get('/api/spaces/invite-preview/:token', rateLimit('read'), async (c) => {
 
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invite.spaceId)).limit(1));
     if (!space || space.deletedAt || space.type === 'personal') return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
+    // A space link minted before the space became a family's must not skip the family's
+    // role consent and cap.
+    if (await familyForSpace(space.id)) {
+      return c.json({ error: 'Ask the family for a family invite.', code: 'FAMILY_SPACE_USE_FAMILY_INVITES' }, 409);
+    }
 
     // Owner info (first name + last initial only; never full last name).
     // Church-org: org-sponsored spaces (orgId set) will display Churches.name
@@ -3338,6 +3333,11 @@ route.post('/api/spaces/invites/:token/redeem', requireAuth, rateLimit('write'),
 
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invite.spaceId)).limit(1));
     if (!space || space.deletedAt || space.type === 'personal') return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
+    // A space link minted before the space became a family's must not skip the family's
+    // role consent and cap.
+    if (await familyForSpace(space.id)) {
+      return c.json({ error: 'Ask the family for a family invite.', code: 'FAMILY_SPACE_USE_FAMILY_INVITES' }, 409);
+    }
 
     // Church-org: keys off the human Spaces.userId; org-sponsored spaces keep a
     // staff creator there, so this check stays valid — but revisit if ownership
@@ -3611,6 +3611,11 @@ route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('wri
 
     // Owner can't leave
     if (targetUserId === space.userId) return c.json({ error: 'Space owner cannot be removed. Transfer or delete the space instead.' }, 400);
+
+    // Leaving the Family Space means leaving the family (coverage, progress), so it happens there.
+    if (await familyForSpace(spaceId)) {
+      return c.json({ error: 'Manage who is in your family from Settings › Family.', code: 'FAMILY_SPACE_USE_FAMILY_SETTINGS' }, 409);
+    }
 
     // Members can only remove themselves
     if (!isOwner && !isSelf) return c.json({ error: 'Only the space owner can remove other members' }, 403);

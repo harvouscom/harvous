@@ -33,6 +33,15 @@ export interface SubscriptionStatusResponse {
    * Founding and standard Plus share planKey 'plus'.
    */
   isFounding?: boolean;
+  /** Settings › Family is open to this account (in a family, or allowed to start one). */
+  familyAvailable?: boolean;
+  /** Present when another family member's Plus covers this account. */
+  coverage?: {
+    kind: 'family';
+    familyName: string;
+    sponsorFirstName: string | null;
+    active: boolean;
+  } | null;
   entitlements: FeatureKey[];
   planKey: PlanKey | null;
   /** Polar-managed subscription — in-app manage available. False for admin grants. */

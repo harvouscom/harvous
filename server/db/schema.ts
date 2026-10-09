@@ -747,6 +747,142 @@ export const SpaceInvites = pgTable('SpaceInvites', {
   index('SpaceInvites_spaceIdIndex').on(table.spaceId),
 ]);
 
+// ─── Families (a household over a shared space) ────────────────────────────────
+/**
+ * A family is three things laid over what already exists: a shared space everyone
+ * belongs to (`spaceId`), the owner's Plus covering the others (Entitlements rows
+ * with source 'family'), and a progress-only parent view. See
+ * docs/future/FAMILY_ACCOUNTS.md.
+ *
+ * **No name column.** The family's name is the space's title, so the two can't drift.
+ *
+ * **New tables, not columns.** A `Spaces.familyId` or a `'family'` space type would
+ * put a column on every full-row Spaces read (each 500s until the DDL lands) and teach
+ * a new type to every access helper, for no behavior the shared type lacks.
+ *
+ * Row ids: `fam_${uuid}`, `fmem_${uuid}`, `finv_${uuid}`.
+ */
+export const Families = pgTable('Families', {
+  id: text('id').primaryKey(),
+  /** The parent who created it and whose Plus covers everyone. */
+  ownerUserId: text('ownerUserId').notNull(),
+  /** The Family Space — an ordinary personal shared space (type 'shared', orgId null). */
+  spaceId: text('spaceId').notNull(),
+  /**
+   * Set by Harvous support while a case is open: invites, role changes and request decisions
+   * are refused. Leaving is never blocked — a child can always stop being seen.
+   */
+  frozenAt: ts('frozenAt'),
+  frozenReason: text('frozenReason'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('Families_spaceId_unique').on(table.spaceId),
+  uniqueIndex('Families_ownerUserId_unique').on(table.ownerUserId),
+]);
+
+/**
+ * Who is in a family and as what. Family roles decide billing and visibility; the
+ * Family Space's SpaceMemberships rows decide who may write, and are kept in step
+ * (owner → owner, parent → leader, child/adult → member) in the same transaction.
+ *
+ * `UNIQUE(userId)` is the v1 rule of one family per person; dropping it later is additive.
+ */
+export const FamilyMembers = pgTable('FamilyMembers', {
+  id: text('id').primaryKey(),
+  familyId: text('familyId').notNull(),
+  userId: text('userId').notNull(),
+  /** 'parent' | 'child' | 'adult'. Nobody is moved *into* 'child' after joining. */
+  role: text('role').notNull(),
+  invitedBy: text('invitedBy'),
+  inviteId: text('inviteId'),
+  joinedAt: ts('joinedAt').notNull(),
+  roleChangedAt: ts('roleChangedAt'),
+  roleChangedBy: text('roleChangedBy'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('FamilyMembers_userId_unique').on(table.userId),
+  index('FamilyMembers_familyIdIndex').on(table.familyId),
+]);
+
+/**
+ * Single-use invite links. Separate from SpaceInvites on purpose: those are multi-use
+ * and carry a space role, while a family invite carries a role the invitee consents to
+ * (the redeem must echo it back), and redeeming one does more than join a space. A
+ * family token reaching the generic space redeem would skip every family check.
+ */
+export const FamilyInvites = pgTable('FamilyInvites', {
+  id: text('id').primaryKey(),
+  familyId: text('familyId').notNull(),
+  /** `generateShareToken()` — 12 base62 characters. */
+  token: text('token').notNull(),
+  /** 'parent' | 'child' | 'adult' — the role the invitee is asked to accept. */
+  role: text('role').notNull(),
+  /** Optional note for the inviter's own list, e.g. "for Tyler". ≤ 40 chars. */
+  label: text('label'),
+  createdBy: text('createdBy').notNull(),
+  expiresAt: ts('expiresAt').notNull(),
+  redeemedBy: text('redeemedBy'),
+  redeemedAt: ts('redeemedAt'),
+  revokedAt: ts('revokedAt'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('FamilyInvites_token_unique').on(table.token),
+  index('FamilyInvites_familyIdIndex').on(table.familyId),
+]);
+
+/**
+ * A child asking to become an adult member. A child can't make the switch alone: a parent
+ * approves, or — after 14 days with no answer, or after a "not now" — the child can ask
+ * Harvous support to review it (`supportTicketId`). Leaving the family needs no request.
+ * One pending request per person (partial unique index).
+ */
+export const FamilyRoleRequests = pgTable('FamilyRoleRequests', {
+  id: text('id').primaryKey(),
+  familyId: text('familyId').notNull(),
+  /** The child asking. */
+  userId: text('userId').notNull(),
+  /** 'adult' — the only request a child can make in v1. */
+  toRole: text('toRole').notNull(),
+  /** 'pending' | 'approved' | 'declined' | 'withdrawn' */
+  status: text('status').notNull(),
+  escalatedAt: ts('escalatedAt'),
+  supportTicketId: text('supportTicketId'),
+  decidedBy: text('decidedBy'),
+  /** 'parent' | 'support' */
+  decidedVia: text('decidedVia'),
+  decidedAt: ts('decidedAt'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('FamilyRoleRequests_pending_unique').on(table.userId).where(sql`${table.status} = 'pending'`),
+  index('FamilyRoleRequests_familyIdIndex').on(table.familyId),
+]);
+
+/**
+ * What happened in a family, and who did it — the record support reads before overriding
+ * anything, and the source of "Changed by Harvous support". Outlives the family on purpose
+ * (a dissolved family's history is still a case file); deleted with the account that acted.
+ */
+export const FamilyEvents = pgTable('FamilyEvents', {
+  id: text('id').primaryKey(),
+  familyId: text('familyId').notNull(),
+  /** Who acted: a member, a Harvous admin, or null for the system. */
+  actorUserId: text('actorUserId'),
+  /** 'member' | 'support' | 'system' */
+  actorKind: text('actorKind').notNull(),
+  /** e.g. 'created', 'joined', 'role_changed', 'request_created', 'request_decided', 'frozen'. */
+  kind: text('kind').notNull(),
+  targetUserId: text('targetUserId'),
+  /** Small JSON detail, e.g. {"from":"child","to":"adult"}. Never note content. */
+  detail: text('detail'),
+  /** Required for support actions. */
+  reason: text('reason'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('FamilyEvents_familyId_createdAtIndex').on(table.familyId, table.createdAt),
+]);
+
 // ─── Churches (church org registry — Clerk Organization ↔ Harvous record) ──────
 
 /**
@@ -1566,8 +1702,8 @@ export const Entitlements = pgTable(
     userId: text('userId').notNull(),
     featureKey: text('featureKey').notNull(),
     status: text('status').notNull().default('active'), // active | canceled | expired
-    source: text('source').notNull().default('billing'), // billing | admin_grant | church_seat | trial
-    /** Provider subscription id (Polar subscription id) when source=billing. */
+    source: text('source').notNull().default('billing'), // billing | admin_grant | church_seat | trial | family
+    /** Provider subscription id (Polar subscription id) when source=billing; the familyId when source=family. */
     providerRef: text('providerRef'),
     /** Polar product id that granted this row. */
     productId: text('productId'),

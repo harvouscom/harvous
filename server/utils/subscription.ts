@@ -18,6 +18,8 @@ import {
   type PlanKey,
 } from '@/lib/billing-plans';
 import { previewUserIds } from '../connector/config';
+import { familyStatusFor } from './family-lifecycle';
+import { canStartFamilyInPreview } from './family-preview';
 import { getPolarBillingSummaries, type BillingSubscriptionSummary } from './polar-billing';
 
 export type { BillingSubscriptionSummary };
@@ -177,6 +179,7 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     billingProductIds,
     canManageBilling,
     foundingClaimedAt,
+    familyStatus,
   ] = await Promise.all([
     hasUnlimitedNotes(auth),
     hasSharedSpacesAddOn(auth),
@@ -188,6 +191,7 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     softRead('activeBillingProductIds', () => activeBillingProductIds(userId), [] as string[]),
     softRead('hasBillingManagedEntitlement', () => hasBillingManagedEntitlement(userId), false),
     softRead('foundingClaimedAt', () => getFoundingClaimedAt(userId), null as Date | null),
+    softRead('familyStatus', () => familyStatusFor(userId), { inFamily: false, coverage: null } as Awaited<ReturnType<typeof familyStatusFor>>),
   ]);
 
   const planKey = resolvePlanKeyFromProducts(billingProductIds);
@@ -216,6 +220,13 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
      * still a founder.
      */
     isFounding: Boolean(foundingClaimedAt),
+    /**
+     * Settings › Family shows for anyone already in a family, and — while Family Accounts is
+     * in preview — for accounts allowed to start one (see family-preview.ts).
+     */
+    familyAvailable: familyStatus.inFamily || canStartFamilyInPreview(userId),
+    /** Whose Plus covers this account, when it's a family member's. Null otherwise. */
+    coverage: familyStatus.coverage,
     entitlements: entitlements as FeatureKey[],
     planKey,
     /** Polar checkout exists — in-app manage + payment portal. False for admin_grant / trial. */

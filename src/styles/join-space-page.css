@@ -290,3 +290,77 @@ button.proto-menu-item .space-icon-tile--on-dark path {
     font-size: 1.75rem;
   }
 }
+
+/* ─── Family invite (`/family/join/:token`) ──────────────────────────────────
+   The space invite's letter, plus one block the space invite doesn't need: the role this
+   invite is for and what it shares, stated before the button that agrees to it. */
+.public-join-family__role {
+  width: 100%;
+  max-width: 400px;
+  margin-top: 0.25rem;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--pds-bg-input);
+  border: 0.5px solid var(--pds-border);
+  text-align: left;
+}
+
+.public-join-family__role-kicker {
+  margin: 0 0 4px;
+  font-family: var(--pds-font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.public-join-family__role-summary {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--pds-text-primary);
+}
+
+.public-join-family__shares {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.public-join-family__shares li,
+.public-join-family__role-never {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: var(--pds-font-body);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--pds-text-secondary);
+}
+
+.public-join-family__shares li > :first-child,
+.public-join-family__role-never > :first-child {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+.public-join-family__role-never {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--pds-border);
+}
+
+.public-join-family__error {
+  margin: 0 0 10px;
+  font-family: var(--pds-font-body);
+  font-size: 0.875rem;
+  color: var(--pds-destructive);
+  text-align: center;
+}

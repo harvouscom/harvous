@@ -85,6 +85,8 @@ const NON_PROTOTYPE_PREFIXES = [
   // A church's join link, `/churches/join/{token}`. Trailing slash on purpose, for
   // the reason `/discover/` gives: there is no `/churches` page to claim.
   '/churches/join/',
+  // A family invite, `/family/join/{token}` — same reasoning; there is no `/family` page.
+  '/family/join/',
   '/api/',
   // The public listing page, `/discover/{slug}` — the install action only; the
   // in-app catalog is an expanded-sidebar tool with no route of its own. Without
@@ -119,6 +121,7 @@ export function isPublicAppPath(pathname: string): boolean {
       logical.startsWith('/invitations/') ||
       logical.startsWith('/discover/') ||
       logical.startsWith('/churches/join/') ||
+      logical.startsWith('/family/join/') ||
       logical === '/upgrade' ||
       logical.startsWith('/upgrade/') ||
       logical === '/addon' ||
@@ -171,6 +174,8 @@ export const RESERVED_PROTOTYPE_SEGMENTS = new Set([
   // The public church join page — `/churches/join/{token}`. The bare segment has
   // no page, but it still must not resolve as a note id.
   'churches',
+  // The public family invite page — `/family/join/{token}`.
+  'family',
 ]);
 
 export function isReservedPrototypeSegment(segment: string): boolean {
@@ -288,6 +293,10 @@ export function prototypeAdminDiscoverRouteTo(): '/prototype/admin/discover' {
 
 export function prototypeAdminChurchesRouteTo(): '/prototype/admin/churches' {
   return (isDedicatedPrototypeHost() ? '/admin/churches' : '/prototype/admin/churches') as '/prototype/admin/churches';
+}
+
+export function prototypeAdminFamiliesRouteTo(): '/prototype/admin/families' {
+  return (isDedicatedPrototypeHost() ? '/admin/families' : '/prototype/admin/families') as '/prototype/admin/families';
 }
 
 export function matchPrototypeNoteId(pathname: string): string | null {

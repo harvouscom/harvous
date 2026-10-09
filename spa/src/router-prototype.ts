@@ -255,6 +255,12 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChurchPage')),
   });
 
+  const prototypeSettingsFamilyRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'family',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeFamilyPage')),
+  });
+
   const prototypeSettingsLockPinRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'lock-pin',
@@ -359,6 +365,19 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: lazyRouteComponent(() => import('./pages/AdminChurchesPage')),
   });
 
+  const prototypeAdminFamiliesRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/families',
+    component: lazyRouteComponent(() => import('./pages/AdminFamiliesPage')),
+  });
+
+  /* An escalated request's support ticket links here. */
+  const prototypeAdminFamilyRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/families/$familyId',
+    component: lazyRouteComponent(() => import('./pages/AdminFamiliesPage')),
+  });
+
   const prototypeDevRouteErrorPreviewRoute = import.meta.env.DEV
     ? createRoute({
         getParentRoute: () => simplifiedPrototypeRoute,
@@ -383,6 +402,8 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     prototypeAdminDiscoverRoute,
     prototypeAdminVotdRoute,
     prototypeAdminChurchesRoute,
+    prototypeAdminFamiliesRoute,
+    prototypeAdminFamilyRoute,
     ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
     prototypeReadTodayRoute,
     prototypeReadRoute,
@@ -400,6 +421,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
       prototypeSettingsReviewExercisesRoute,
       prototypeSettingsSoundsRoute,
       prototypeSettingsChurchRoute,
+      prototypeSettingsFamilyRoute,
       prototypeSettingsLockPinRoute,
       prototypeSettingsSharingRoute,
       prototypeSettingsAddonsRoute,

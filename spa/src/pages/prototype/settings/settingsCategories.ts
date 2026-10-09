@@ -46,6 +46,16 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: 'church',
     footnote: 'Home church, other churches, and matching details.',
   },
+  // Web-only in v1: native has no Family screens yet, so HarvousSettingsRoute.swift
+  // deliberately has no matching row (the Family Space itself works there — it is a shared
+  // space). Listed only for accounts the server says may see it; see `familyAvailable`.
+  {
+    key: 'family',
+    title: 'Family',
+    route: prototypeHref('settings/family'),
+    icon: 'user-group',
+    footnote: 'A Family Space, your Plus for the household, and how the kids are doing.',
+  },
   {
     key: 'appearance',
     title: 'Appearance',
@@ -151,12 +161,17 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
 ];
 
 /**
- * The categories this account sees. Static except for one row: while `connector` is
+ * The categories this account sees. Static except for two rows: while `connector` is
  * withheld, Connector appears only for preview accounts (`connectorPreview`, from
  * the subscription status); after launch it is listed for everyone, as the rest are.
+ * Family appears for anyone already in a family, and — while Family Accounts is in
+ * preview — for accounts allowed to start one (`familyAvailable`).
  */
 export function useSettingsCategories(): SettingsCategory[] {
   const { data } = useSubscriptionStatus();
   const showConnector = !isFeatureWithheld('connector') || Boolean(data?.connectorPreview);
-  return showConnector ? SETTINGS_CATEGORIES : SETTINGS_CATEGORIES.filter((cat) => cat.key !== 'connector');
+  const showFamily = Boolean(data?.familyAvailable);
+  return SETTINGS_CATEGORIES.filter(
+    (cat) => (cat.key !== 'connector' || showConnector) && (cat.key !== 'family' || showFamily),
+  );
 }

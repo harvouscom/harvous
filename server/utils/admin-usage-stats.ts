@@ -69,7 +69,9 @@ export type UsageOverview = {
     paidAccounts: number;
     /** Of those, the ones that came from a payment. Split out so a comp never reads as revenue. */
     billingAccounts: number;
-    /** paidAccounts − billingAccounts: admin grants, church seats, trials. */
+    /** Covered by a family member's Plus and not paying themselves. */
+    familyAccounts: number;
+    /** paidAccounts − billingAccounts − familyAccounts: admin grants, church seats, trials. */
     grantedAccounts: number;
     freeAccounts: number;
     /** All-time: users with notes ÷ total accounts. */
@@ -158,22 +160,36 @@ export type UsageDiscovery = {
  *
  * Counts distinct users, never lists them — the admin payload carries totals only.
  */
-async function fetchPaidAccountCounts(): Promise<{ paid: number; billing: number }> {
+async function fetchPaidAccountCounts(): Promise<{ paid: number; billing: number; family: number }> {
   const keys = nonWithheldFeatureKeys();
-  if (keys.length === 0) return { paid: 0, billing: 0 };
+  if (keys.length === 0) return { paid: 0, billing: 0, family: 0 };
   try {
-    const rows = await db.execute<{ paid: number; billing: number }>(sql`
+    // Per user first, so someone covered by a family who also pays counts once, as paying.
+    const rows = await db.execute<{ paid: number; billing: number; family: number }>(sql`
+      WITH per_user AS (
+        SELECT
+          "userId",
+          bool_or("source" = 'billing') AS pays,
+          bool_or("source" = 'family') AS covered
+        FROM "Entitlements"
+        WHERE "status" = 'active'
+          AND "featureKey" IN (${sql.join(keys.map((k) => sql`${k}`), sql`, `)})
+        GROUP BY "userId"
+      )
       SELECT
-        COUNT(DISTINCT "userId") AS paid,
-        COUNT(DISTINCT "userId") FILTER (WHERE "source" = 'billing') AS billing
-      FROM "Entitlements"
-      WHERE "status" = 'active'
-        AND "featureKey" IN (${sql.join(keys.map((k) => sql`${k}`), sql`, `)})
+        COUNT(*) AS paid,
+        COUNT(*) FILTER (WHERE pays) AS billing,
+        COUNT(*) FILTER (WHERE covered AND NOT pays) AS family
+      FROM per_user
     `);
     const row = rows[0];
-    return { paid: Number(row?.paid ?? 0), billing: Number(row?.billing ?? 0) };
+    return {
+      paid: Number(row?.paid ?? 0),
+      billing: Number(row?.billing ?? 0),
+      family: Number(row?.family ?? 0),
+    };
   } catch (error) {
-    if (isEntitlementsTableMissing(error)) return { paid: 0, billing: 0 };
+    if (isEntitlementsTableMissing(error)) return { paid: 0, billing: 0, family: 0 };
     throw error;
   }
 }
@@ -955,7 +971,8 @@ export async function getUsageOverview(daysParam: number): Promise<UsageOverview
       withContent: usersWithContent,
       paidAccounts: paidCounts.paid,
       billingAccounts: paidCounts.billing,
-      grantedAccounts: grantedAccounts(paidCounts.paid, paidCounts.billing),
+      familyAccounts: paidCounts.family,
+      grantedAccounts: grantedAccounts(paidCounts.paid, paidCounts.billing, paidCounts.family),
       freeAccounts: Math.max(0, totalAccounts - paidCounts.paid),
       activationRate,
       signups,

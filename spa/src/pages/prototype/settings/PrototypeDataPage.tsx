@@ -10,7 +10,7 @@ import {
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import ProtoChipBar from '../components/ProtoChipBar';
 import ImportWorkspace from '../import/ImportWorkspace';
-import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
+import { SettingsGroup, SettingsRow, SettingsShell, SettingsConfirmRow } from './SettingsShell';
 import { setSettingsCloseBlocked } from './settings-close-guard';
 import { clearAllRecentSearches } from '@/utils/recent-search-storage';
 import { clearAllRecentOpens } from '../library-panel/proto-recent-opens';
@@ -192,7 +192,7 @@ export default function PrototypeDataPage() {
             replaces them in place, which is also what keeps the prompt attached to
             the button that raised it. */}
         {confirming ? (
-          <ConfirmRow
+          <SettingsConfirmRow
             prompt={
               confirming === 'search-history'
                 ? 'Forget your recent searches and what you last opened? Your notes stay.'
@@ -259,40 +259,3 @@ export default function PrototypeDataPage() {
   );
 }
 
-function ConfirmRow({
-  prompt,
-  busy,
-  onConfirm,
-  onCancel,
-}: {
-  prompt: string;
-  busy: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="proto-settings-confirm-row">
-      <span className="pds-caption" style={{ color: 'var(--pds-text-primary)' }}>
-        {prompt}
-      </span>
-      <div className="proto-settings-confirm-row__actions">
-        <button
-          type="button"
-          onClick={onConfirm}
-          disabled={busy}
-          className="proto-settings-btn proto-settings-btn--destructive"
-        >
-          {busy ? 'Working…' : 'Confirm'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={busy}
-          className="proto-settings-btn proto-settings-btn--secondary"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}

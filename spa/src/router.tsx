@@ -125,6 +125,13 @@ const churchJoinRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/public/PublicJoinChurchPage')),
 });
 
+// A family invite from Settings › Family. Lazy, like the church join page.
+const familyJoinRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/family/join/$token',
+  component: lazyRouteComponent(() => import('./pages/public/PublicJoinFamilyPage')),
+});
+
 const invitationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/invitations/$token',
@@ -191,6 +198,14 @@ const importDesignGalleryRoute = import.meta.env.DEV
         scene: typeof search.scene === 'string' ? search.scene : undefined,
       }),
       component: lazyRouteComponent(() => import('./pages/dev/ImportDesignGalleryPage')),
+    })
+  : null;
+
+const familyDesignRoute = import.meta.env.DEV
+  ? createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/__dev/family-design',
+      component: lazyRouteComponent(() => import('./pages/dev/FamilyDesignPage')),
     })
   : null;
 
@@ -314,6 +329,7 @@ function buildRouteTree() {
     sharedThreadRoute,
     discoverListingRoute,
     churchJoinRoute,
+    familyJoinRoute,
     invitationRoute,
     statusRoute,
     ...(designSystemGalleryRoute ? [designSystemGalleryRoute] : []),
@@ -321,6 +337,7 @@ function buildRouteTree() {
     ...(churchDesignGalleryRoute ? [churchDesignGalleryRoute] : []),
     ...(importDesignGalleryRoute ? [importDesignGalleryRoute] : []),
     ...(connectorDesignRoute ? [connectorDesignRoute] : []),
+    ...(familyDesignRoute ? [familyDesignRoute] : []),
     buildPrototypeRouteBranch(rootRoute),
     notFoundRoute,
   ]);

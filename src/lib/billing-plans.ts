@@ -170,6 +170,31 @@ const PLUS_FEATURES = [
  */
 const CHURCH_FEATURES = [] as const satisfies readonly FeatureKey[];
 
+/** Every key Plus grants. Read-only view for checks that must stay inside Plus. */
+export const PLUS_FEATURE_KEYS: readonly FeatureKey[] = PLUS_FEATURES;
+
+/**
+ * Family coverage: the owner's Plus extends to the rest of the household.
+ *
+ * A deliberate exception to "seats are the product line" (server/utils/tier-limits.ts) —
+ * six study seats for one subscription. What flows is the **study** features. Hosting
+ * (`shared_spaces`) stays with whoever pays: members can join any space for free already,
+ * and the Family Space itself is hosted by the owner. `challenges` is issued while withheld
+ * for the same reason Plus issues it.
+ *
+ * Coverage is written as `Entitlements` rows with source 'family' and is sponsored only
+ * from the owner's own `billing` or `admin_grant` rows — never from 'family', 'church_seat'
+ * or 'trial', so coverage cannot chain. See docs/future/FAMILY_ACCOUNTS.md.
+ */
+export const FAMILY_MAX_MEMBERS = 6; // including the owner
+export const FAMILY_COVERED_FEATURES = [
+  'review',
+  'challenges',
+  'connector',
+  'full_history',
+] as const satisfies readonly FeatureKey[];
+export const FAMILY_SPONSOR_SOURCES = ['billing', 'admin_grant'] as const;
+
 /**
  * Unlimited spaces, 12 people each.
  *

@@ -19,14 +19,20 @@ vi.mock('../../db', async () => {
   const ops = await vi.importActual<Record<string, unknown>>('drizzle-orm');
   const selectChain = () => {
     const chain: Record<string, unknown> = {};
-    chain.from = () => chain;
+    let from = '';
+    chain.from = (table: Table) => {
+      from = getTableName(table);
+      return chain;
+    };
     chain.where = () => chain;
-    chain.limit = async () => [{ email: 'reader@example.com' }];
+    // The family step looks its rows up first; nobody here owns or belongs to a family.
+    chain.limit = async () => (from.startsWith('Famil') ? [] : [{ email: 'reader@example.com' }]);
     chain.then = (resolve: (rows: unknown[]) => unknown) => resolve([]);
     return chain;
   };
   return {
     ...schema,
+    first: <T>(rows: T[]) => rows[0],
     eq: ops.eq,
     and: ops.and,
     or: ops.or,

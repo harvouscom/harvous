@@ -18,6 +18,8 @@
     '/discover/',
     // `/churches/join/{token}` only — see the note in src/lib/prototype-path.ts.
     '/churches/join/',
+    // `/family/join/{token}` only — see the note in src/lib/prototype-path.ts.
+    '/family/join/',
     '/api/',
   ];
   var RESERVED_SEGMENTS = {
@@ -34,6 +36,7 @@
     learn: 1,
     org: 1,
     churches: 1,
+    family: 1,
   };
 
   function isStatusHost(hostname) {
@@ -86,6 +89,7 @@
         logical.indexOf('/shared/') === 0 ||
         logical.indexOf('/discover/') === 0 ||
         logical.indexOf('/churches/join/') === 0 ||
+        logical.indexOf('/family/join/') === 0 ||
         logical.indexOf('/invitations/') === 0 ||
         logical === '/upgrade' ||
         logical.indexOf('/upgrade/') === 0 ||

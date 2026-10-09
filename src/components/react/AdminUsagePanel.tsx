@@ -325,6 +325,7 @@ export default function AdminUsagePanel() {
                 ariaLabel="Paid access split"
                 segments={[
                   { label: 'Paying', value: users.billingAccounts },
+                  { label: 'Family', value: users.familyAccounts ?? 0 },
                   { label: 'Granted', value: users.grantedAccounts },
                   { label: 'Free', value: users.freeAccounts },
                 ]}
