@@ -189,5 +189,5 @@ const DEV_CSS = `
 .dev-family__grid { max-width: 1500px; margin: 0 auto; display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); align-items: start; }
 .dev-col-label { color: var(--pds-text-tertiary); margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; }
 .dev-family__note { color: var(--pds-text-secondary); margin: 0 0 10px; min-height: 2.6em; }
-.dev-family__pane { background: var(--pds-bg-surface, var(--pds-paper-sheet)); border: 0.5px solid var(--pds-border); border-radius: 16px; overflow: hidden; }
+.dev-family__pane { background: var(--pds-paper-sheet); border: 0.5px solid var(--pds-border); border-radius: 16px; overflow: hidden; }
 `;
