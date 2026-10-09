@@ -26,6 +26,10 @@ import { APIError } from '../../../lib/api';
 import {
   useChangeFamilyRole,
   useCreateFamily,
+  useDecideAdultRequest,
+  useEscalateAdultRequest,
+  useRequestAdult,
+  useWithdrawAdultRequest,
   useCreateFamilyInvite,
   useDissolveFamily,
   useFamily,
@@ -36,6 +40,7 @@ import {
   type FamilyInvite,
   type FamilyMember,
   type FamilyProgressEntry,
+  type FamilyRoleRequest,
   type FamilyResponse,
 } from '../../../hooks/queries/useFamily';
 import ProtoConfirmDialog from '../ProtoConfirmDialog';
@@ -452,18 +457,198 @@ function RenameScreen({ current, onDone }: { current: string; onDone: () => void
   );
 }
 
+// ─── Becoming an adult member ───────────────────────────────────────────────
+
+/**
+ * A child can't make themselves an adult member: they ask, and a parent answers. If no one
+ * answers in 14 days, or a parent says "not now", they can ask Harvous to review it. Leaving
+ * the family is always theirs, at the foot of the page, so asking is never the only way out.
+ */
+function ChildRequestCard({ request, frozen }: { request: FamilyRoleRequest | null; frozen: boolean }) {
+  const ask = useRequestAdult();
+  const withdraw = useWithdrawAdultRequest();
+  const escalate = useEscalateAdultRequest();
+  const [confirming, setConfirming] = useState<'ask' | 'escalate' | null>(null);
+  const [message, setMessage] = useState('');
+  const now = Date.now();
+  const live = request && (request.status === 'pending' || request.status === 'declined') ? request : null;
+  const reviewing = Boolean(live?.escalatedAt);
+  const canEscalate = Boolean(
+    live && !live.escalatedAt && live.escalationOpensAt && new Date(live.escalationOpensAt).getTime() <= now,
+  );
+  const coolingDown = live?.status === 'declined' && live.askAgainAt && new Date(live.askAgainAt).getTime() > now;
+  const fail = (e: unknown) => toast.error(errorMessage(e, 'Could not do that'));
+
+  if (confirming === 'ask') {
+    return (
+      <section className="proto-settings-danger" style={{ marginTop: 0, borderTop: 0, paddingTop: 0 }}>
+        <SettingsConfirmRow
+          prompt="Ask your parents? If one of them approves, they’ll stop seeing your progress."
+          confirmLabel="Ask"
+          busy={ask.isPending}
+          onConfirm={() => ask.mutate(undefined, { onError: fail, onSettled: () => setConfirming(null) })}
+          onCancel={() => setConfirming(null)}
+        />
+      </section>
+    );
+  }
+
+  if (confirming === 'escalate' && live) {
+    return (
+      <SettingsGroup>
+        <div className="proto-lock-pin-settings__body">
+          <Field
+            label="Anything Harvous should know? (optional)"
+            value={message}
+            placeholder="For example: I turned 18 and live on my own now."
+            onChange={(v) => setMessage(v.slice(0, 1000))}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
+              disabled={escalate.isPending}
+              onClick={() =>
+                escalate.mutate(
+                  { requestId: live.id, message: message.trim() || undefined },
+                  {
+                    onSuccess: () => toast.success('Sent to Harvous support. They’ll reply by email.'),
+                    onError: fail,
+                    onSettled: () => setConfirming(null),
+                  },
+                )
+              }
+            >
+              {escalate.isPending ? 'Sending…' : 'Ask Harvous to review'}
+            </button>
+            <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setConfirming(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </SettingsGroup>
+    );
+  }
+
+  return (
+    <SettingsGroup>
+      {!live || (live.status === 'declined' && !coolingDown && !reviewing) ? (
+        <SettingsRow
+          label="Ask to become an adult member"
+          sublabel={frozen ? 'Paused while Harvous support looks into something.' : 'A parent approves it. Then they stop seeing your progress.'}
+          disabled={frozen}
+          trailing="none"
+          onClick={() => setConfirming('ask')}
+        />
+      ) : reviewing ? (
+        <SettingsRow
+          label="Harvous support is reviewing your request"
+          sublabel={`You asked on ${shortDate(live.createdAt)}. They’ll reply by email.`}
+          trailing="none"
+        />
+      ) : live.status === 'pending' ? (
+        <>
+          <SettingsRow
+            label="Waiting for a parent to answer"
+            sublabel={
+              canEscalate
+                ? `You asked on ${shortDate(live.createdAt)} and no one has answered.`
+                : `You asked on ${shortDate(live.createdAt)}.${live.escalationOpensAt ? ` If no one answers, you can ask Harvous to review it after ${shortDate(live.escalationOpensAt)}.` : ''}`
+            }
+            trailing="none"
+          />
+          {canEscalate ? (
+            <SettingsRow label="Ask Harvous to review" onClick={() => setConfirming('escalate')} />
+          ) : null}
+          <SettingsRow
+            label="Take back my request"
+            trailing="none"
+            disabled={withdraw.isPending}
+            onClick={() => withdraw.mutate(live.id, { onError: fail })}
+          />
+        </>
+      ) : (
+        <>
+          <SettingsRow
+            label="A parent said not now"
+            sublabel={live.askAgainAt ? `You can ask again on ${shortDate(live.askAgainAt)}.` : undefined}
+            trailing="none"
+          />
+          {canEscalate ? (
+            <SettingsRow
+              label="Ask Harvous to review"
+              sublabel="Harvous support can look at it with you."
+              onClick={() => setConfirming('escalate')}
+            />
+          ) : null}
+        </>
+      )}
+    </SettingsGroup>
+  );
+}
+
+/** A parent's view of a request: who asked, what approving does, and the two answers. */
+function ParentRequestCard({ request, frozen }: { request: FamilyRoleRequest; frozen: boolean }) {
+  const decide = useDecideAdultRequest();
+  const answer = (decision: 'approve' | 'decline') =>
+    decide.mutate(
+      { requestId: request.id, decision },
+      {
+        onSuccess: () =>
+          toast.success(decision === 'approve' ? `${request.displayName} is now an adult member` : 'They can ask again in 30 days'),
+        onError: (e) => toast.error(errorMessage(e, 'Could not answer')),
+      },
+    );
+  return (
+    <SettingsGroup>
+      <div className="proto-lock-pin-settings__body">
+        <div className="proto-lock-pin-settings__hero" style={{ marginBottom: 12 }}>
+          <span className="proto-lock-pin-settings__glyph" aria-hidden>
+            <Icon name="person" size={22} />
+          </span>
+          <span className="proto-lock-pin-settings__hero-text">
+            <span className="proto-lock-pin-settings__status">{request.displayName} asked to become an adult member</span>
+            <span className="proto-lock-pin-settings__lead">
+              {frozen
+                ? 'Paused while Harvous support looks into something.'
+                : `If you approve, parents stop seeing their progress. They stay in the family and on the plan.${request.escalatedAt ? ' They’ve also asked Harvous to review it.' : ''}`}
+            </span>
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
+            disabled={frozen || decide.isPending}
+            onClick={() => answer('approve')}
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary"
+            disabled={frozen || decide.isPending}
+            onClick={() => answer('decline')}
+          >
+            Not now
+          </button>
+        </div>
+      </div>
+    </SettingsGroup>
+  );
+}
+
 function FamilyView({ data }: { data: InFamily }) {
   const navigate = useNavigate();
   const { family, me, maxMembers } = data;
   const isParent = me.role === 'parent';
   const progress = useFamilyProgress(me.role !== 'adult');
-  const changeRole = useChangeFamilyRole();
   const remove = useRemoveFamilyMember();
   const dissolve = useDissolveFamily();
   const [view, setView] = useState<View>({ kind: 'main' });
-  const adultAnchorRef = useRef<HTMLDivElement | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
-  const [confirmAdult, setConfirmAdult] = useState(false);
+  const frozen = Boolean(family.frozen);
+  const requests = family.requests ?? [];
 
   const back = () => setView({ kind: 'main' });
   if (view.kind === 'invite-new') return <NewInviteScreen onDone={back} />;
@@ -490,6 +675,17 @@ function FamilyView({ data }: { data: InFamily }) {
             : `${family.ownerFirstName ?? 'The owner'}’s Plus isn’t covering the family right now. You’re still in it.`}
         </SettingsIntro>
       ) : null}
+      {frozen ? (
+        <SettingsIntro>
+          Harvous support has paused changes to this family while they look into something. You can still leave.
+        </SettingsIntro>
+      ) : null}
+
+      {isParent
+        ? requests
+            .filter((r) => r.status === 'pending')
+            .map((r) => <ParentRequestCard key={r.id} request={r} frozen={frozen} />)
+        : null}
 
       <SettingsGroup>
         <SettingsRow
@@ -514,7 +710,7 @@ function FamilyView({ data }: { data: InFamily }) {
           <SettingsRow
             key={member.userId}
             label={member.isMe ? `${member.displayName} (you)` : member.displayName}
-            sublabel={`${FAMILY_ROLE_LABEL[member.role]}${member.isOwner ? ' · pays for Plus' : member.covered ? ' · covered' : ''}`}
+            sublabel={`${FAMILY_ROLE_LABEL[member.role]}${member.isOwner ? ' · pays for Plus' : member.covered ? ' · covered' : ''}${member.changedBySupport ? ' · changed by Harvous support' : ''}`}
             leadingNode={
               <SharedSpaceMemberAvatar
                 userId={member.userId}
@@ -523,8 +719,8 @@ function FamilyView({ data }: { data: InFamily }) {
                 profileImageUrl={member.profileImageUrl}
               />
             }
-            trailing={isParent && !member.isMe ? 'chevron' : 'none'}
-            onClick={isParent && !member.isMe ? () => setView({ kind: 'member', userId: member.userId }) : undefined}
+            trailing={isParent && !member.isMe && !frozen ? 'chevron' : 'none'}
+            onClick={isParent && !member.isMe && !frozen ? () => setView({ kind: 'member', userId: member.userId }) : undefined}
           />
         ))}
         {isParent
@@ -542,7 +738,7 @@ function FamilyView({ data }: { data: InFamily }) {
           <SettingsRow
             label="Invite someone"
             leadingIcon="plus"
-            disabled={!family.sponsoring}
+            disabled={!family.sponsoring || frozen}
             onClick={() => setView({ kind: 'invite-new' })}
           />
         ) : null}
@@ -577,16 +773,7 @@ function FamilyView({ data }: { data: InFamily }) {
             </SettingsGroup>
           )}
           <Footnote>They can never see your notes, highlights, searches, or Review.</Footnote>
-          <div ref={adultAnchorRef}>
-            <SettingsGroup>
-              <SettingsRow
-                label="Become an adult member"
-                sublabel="Your parents stop seeing your progress. You stay in the family."
-                trailing="none"
-                onClick={() => setConfirmAdult(true)}
-              />
-            </SettingsGroup>
-          </div>
+          <ChildRequestCard request={requests[0] ?? null} frozen={frozen} />
         </>
       ) : null}
 
@@ -599,7 +786,9 @@ function FamilyView({ data }: { data: InFamily }) {
             prompt={
               me.isOwner
                 ? 'Stop family sharing? Your Plus stops covering everyone, and parents stop seeing progress. The Family Space stays, with everyone in it.'
-                : 'Leave the family? Your notes in the Family Space leave with you, and the family plan stops covering you.'
+                : me.role === 'child'
+                  ? 'Leave the family? Your parents stop seeing your progress right away. Your notes in the Family Space leave with you, and the family plan stops covering you.'
+                  : 'Leave the family? Your notes in the Family Space leave with you, and the family plan stops covering you.'
             }
             confirmLabel={me.isOwner ? 'Stop sharing' : 'Leave'}
             busy={dissolve.isPending || remove.isPending}
@@ -615,33 +804,18 @@ function FamilyView({ data }: { data: InFamily }) {
           />
         ) : (
           <div className="proto-settings-danger__actions">
-            <button type="button" className="proto-settings-danger__btn" onClick={() => setConfirmLeave(true)}>
+            <button
+              type="button"
+              className="proto-settings-danger__btn"
+              disabled={me.isOwner && frozen}
+              onClick={() => setConfirmLeave(true)}
+            >
               {me.isOwner ? 'Stop family sharing' : 'Leave the family'}
             </button>
           </div>
         )}
       </section>
 
-      {confirmAdult ? (
-        <ProtoConfirmDialog
-          anchorEl={adultAnchorRef.current}
-          preferAbove
-          title="Become an adult member?"
-          description="Your parents will stop seeing your progress. Only a new invite could make you a child again."
-          confirmLabel="Change"
-          busy={changeRole.isPending}
-          onConfirm={() =>
-            changeRole.mutate(
-              { userId: me.userId, role: 'adult' },
-              {
-                onError: (e) => toast.error(errorMessage(e, 'Could not make that change')),
-                onSettled: () => setConfirmAdult(false),
-              },
-            )
-          }
-          onCancel={() => setConfirmAdult(false)}
-        />
-      ) : null}
 
     </SettingsShell>
   );

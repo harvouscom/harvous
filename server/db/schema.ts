@@ -768,6 +768,12 @@ export const Families = pgTable('Families', {
   ownerUserId: text('ownerUserId').notNull(),
   /** The Family Space — an ordinary personal shared space (type 'shared', orgId null). */
   spaceId: text('spaceId').notNull(),
+  /**
+   * Set by Harvous support while a case is open: invites, role changes and request decisions
+   * are refused. Leaving is never blocked — a child can always stop being seen.
+   */
+  frozenAt: ts('frozenAt'),
+  frozenReason: text('frozenReason'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [
@@ -824,6 +830,57 @@ export const FamilyInvites = pgTable('FamilyInvites', {
 }, (table) => [
   uniqueIndex('FamilyInvites_token_unique').on(table.token),
   index('FamilyInvites_familyIdIndex').on(table.familyId),
+]);
+
+/**
+ * A child asking to become an adult member. A child can't make the switch alone: a parent
+ * approves, or — after 14 days with no answer, or after a "not now" — the child can ask
+ * Harvous support to review it (`supportTicketId`). Leaving the family needs no request.
+ * One pending request per person (partial unique index).
+ */
+export const FamilyRoleRequests = pgTable('FamilyRoleRequests', {
+  id: text('id').primaryKey(),
+  familyId: text('familyId').notNull(),
+  /** The child asking. */
+  userId: text('userId').notNull(),
+  /** 'adult' — the only request a child can make in v1. */
+  toRole: text('toRole').notNull(),
+  /** 'pending' | 'approved' | 'declined' | 'withdrawn' */
+  status: text('status').notNull(),
+  escalatedAt: ts('escalatedAt'),
+  supportTicketId: text('supportTicketId'),
+  decidedBy: text('decidedBy'),
+  /** 'parent' | 'support' */
+  decidedVia: text('decidedVia'),
+  decidedAt: ts('decidedAt'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('FamilyRoleRequests_pending_unique').on(table.userId).where(sql`${table.status} = 'pending'`),
+  index('FamilyRoleRequests_familyIdIndex').on(table.familyId),
+]);
+
+/**
+ * What happened in a family, and who did it — the record support reads before overriding
+ * anything, and the source of "Changed by Harvous support". Outlives the family on purpose
+ * (a dissolved family's history is still a case file); deleted with the account that acted.
+ */
+export const FamilyEvents = pgTable('FamilyEvents', {
+  id: text('id').primaryKey(),
+  familyId: text('familyId').notNull(),
+  /** Who acted: a member, a Harvous admin, or null for the system. */
+  actorUserId: text('actorUserId'),
+  /** 'member' | 'support' | 'system' */
+  actorKind: text('actorKind').notNull(),
+  /** e.g. 'created', 'joined', 'role_changed', 'request_created', 'request_decided', 'frozen'. */
+  kind: text('kind').notNull(),
+  targetUserId: text('targetUserId'),
+  /** Small JSON detail, e.g. {"from":"child","to":"adult"}. Never note content. */
+  detail: text('detail'),
+  /** Required for support actions. */
+  reason: text('reason'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('FamilyEvents_familyId_createdAtIndex').on(table.familyId, table.createdAt),
 ]);
 
 // ─── Churches (church org registry — Clerk Organization ↔ Harvous record) ──────

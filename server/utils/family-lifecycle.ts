@@ -10,6 +10,8 @@ import {
   Families,
   FamilyInvites,
   FamilyMembers,
+  FamilyEvents,
+  FamilyRoleRequests,
   SpaceMemberships,
   Spaces,
   UserMetadata,
@@ -20,6 +22,7 @@ import {
 import { isPgUndefinedRelation } from './pg-undefined-relation';
 import { isUniqueViolation } from './db-unique-violation';
 import { cancelFamilyCoverage } from './family-entitlements';
+import { spaceRoleForFamilyRole, type FamilyRole } from '@/lib/family-roles';
 
 type Executor = Pick<typeof db, 'select' | 'insert' | 'update' | 'delete'>;
 type FamilyRow = typeof Families.$inferSelect;
@@ -134,4 +137,162 @@ export async function familyStatusFor(
       active: Boolean(row),
     },
   };
+}
+
+export type FamilyEventKind =
+  | 'created'
+  | 'renamed'
+  | 'invite_created'
+  | 'invite_revoked'
+  | 'joined'
+  | 'role_changed'
+  | 'removed'
+  | 'left'
+  | 'dissolved'
+  | 'request_created'
+  | 'request_withdrawn'
+  | 'request_decided'
+  | 'request_escalated'
+  | 'frozen'
+  | 'unfrozen'
+  | 'ownership_transferred';
+
+/**
+ * Append to a family's history. Support reads this before overriding anything, and members
+ * see "Changed by Harvous support" from it. Detail is small structured facts, never content.
+ */
+export async function recordFamilyEvent(
+  exec: Executor,
+  input: {
+    familyId: string;
+    actorUserId: string | null;
+    actorKind: 'member' | 'support' | 'system';
+    kind: FamilyEventKind;
+    targetUserId?: string | null;
+    detail?: Record<string, unknown> | null;
+    reason?: string | null;
+    now?: Date;
+  },
+): Promise<void> {
+  await exec.insert(FamilyEvents).values({
+    id: `fev_${crypto.randomUUID()}`,
+    familyId: input.familyId,
+    actorUserId: input.actorUserId,
+    actorKind: input.actorKind,
+    kind: input.kind,
+    targetUserId: input.targetUserId ?? null,
+    detail: input.detail ? JSON.stringify(input.detail) : null,
+    reason: input.reason ?? null,
+    createdAt: input.now ?? new Date(),
+  });
+}
+
+/** The refusal every member-initiated change gets while support has the family paused. */
+export const FAMILY_FROZEN_REFUSAL = {
+  error: 'Harvous support has paused changes to this family while they look into something.',
+  code: 'FAMILY_FROZEN',
+} as const;
+
+/** Keep the Family Space membership in step with a family role. */
+export async function upsertSpaceRole(
+  tx: Executor,
+  input: { spaceId: string; userId: string; role: FamilyRole; isOwner: boolean; invitedBy?: string | null; now: Date },
+): Promise<void> {
+  const spaceRole = spaceRoleForFamilyRole(input.role, input.isOwner);
+  const existing = first(
+    await tx
+      .select({ id: SpaceMemberships.id, role: SpaceMemberships.role })
+      .from(SpaceMemberships)
+      .where(and(eq(SpaceMemberships.spaceId, input.spaceId), eq(SpaceMemberships.userId, input.userId)))
+      .limit(1),
+  );
+  if (existing) {
+    if (existing.role === 'owner') return;
+    await tx
+      .update(SpaceMemberships)
+      .set({ role: spaceRole, grantSource: spaceRole === 'leader' ? 'family' : null, updatedAt: input.now })
+      .where(eq(SpaceMemberships.id, existing.id));
+    return;
+  }
+  await tx.insert(SpaceMemberships).values({
+    id: `smem_${crypto.randomUUID()}`,
+    spaceId: input.spaceId,
+    userId: input.userId,
+    role: spaceRole,
+    invitedBy: input.invitedBy ?? null,
+    grantSource: spaceRole === 'leader' ? 'family' : null,
+    joinedAt: input.now,
+    createdAt: input.now,
+  });
+}
+
+
+/**
+ * Close any pending request this person has — when they become an adult (approved), leave or
+ * are removed (withdrawn), or a parent or support says no (declined).
+ */
+export async function closePendingRequests(
+  exec: Executor,
+  userId: string,
+  status: 'approved' | 'declined' | 'withdrawn',
+  decidedBy: string | null,
+  decidedVia: 'parent' | 'support' | 'self',
+  now: Date,
+): Promise<number> {
+  const rows = await exec
+    .update(FamilyRoleRequests)
+    .set({ status, decidedBy, decidedVia, decidedAt: now })
+    .where(and(eq(FamilyRoleRequests.userId, userId), eq(FamilyRoleRequests.status, 'pending')))
+    .returning({ id: FamilyRoleRequests.id });
+  return rows.length;
+}
+
+/**
+ * The one way a role changes, for members and support alike: the family row, the Family
+ * Space role, a pending request settled, and the history. `roleChangedBy` carries
+ * `support:<adminId>` for support so members can be told who did it.
+ */
+export async function applyRoleChange(
+  exec: Executor,
+  input: {
+    family: FamilyRow;
+    member: typeof FamilyMembers.$inferSelect;
+    to: FamilyRole;
+    actorUserId: string;
+    actorKind: 'member' | 'support';
+    reason?: string | null;
+    now: Date;
+  },
+): Promise<void> {
+  const { family, member, to, actorUserId, actorKind, now } = input;
+  const from = member.role;
+  await exec
+    .update(FamilyMembers)
+    .set({
+      role: to,
+      roleChangedAt: now,
+      roleChangedBy: actorKind === 'support' ? `support:${actorUserId}` : actorUserId,
+      updatedAt: now,
+    })
+    .where(eq(FamilyMembers.id, member.id));
+  await upsertSpaceRole(exec, {
+    spaceId: family.spaceId,
+    userId: member.userId,
+    role: to,
+    isOwner: member.userId === family.ownerUserId,
+    now,
+  });
+  if (from === 'child' && to === 'adult') {
+    await closePendingRequests(exec, member.userId, 'approved', actorUserId, actorKind === 'support' ? 'support' : 'parent', now);
+  }
+  await recordFamilyEvent(exec, {
+    familyId: family.id,
+    actorUserId,
+    actorKind,
+    kind: 'role_changed',
+    targetUserId: member.userId,
+    detail: { from, to },
+    reason: input.reason ?? null,
+    now,
+  });
 }

@@ -63,6 +63,38 @@ export const ADDITIVE_FAMILY_DDL = [
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "FamilyInvites_token_unique" ON "FamilyInvites" ("token")`,
   `CREATE INDEX IF NOT EXISTS "FamilyInvites_familyIdIndex" ON "FamilyInvites" ("familyId")`,
+  // Oct 9 2026, second stage: support can pause a family; children ask to become adults.
+  `ALTER TABLE "Families" ADD COLUMN IF NOT EXISTS "frozenAt" timestamptz`,
+  `ALTER TABLE "Families" ADD COLUMN IF NOT EXISTS "frozenReason" text`,
+  `CREATE TABLE IF NOT EXISTS "FamilyRoleRequests" (
+    "id" text PRIMARY KEY,
+    "familyId" text NOT NULL,
+    "userId" text NOT NULL,
+    "toRole" text NOT NULL,
+    "status" text NOT NULL,
+    "escalatedAt" timestamptz,
+    "supportTicketId" text,
+    "decidedBy" text,
+    "decidedVia" text,
+    "decidedAt" timestamptz,
+    "createdAt" timestamptz NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "FamilyRoleRequests_pending_unique" ON "FamilyRoleRequests" ("userId") WHERE "status" = 'pending'`,
+  `CREATE INDEX IF NOT EXISTS "FamilyRoleRequests_familyIdIndex" ON "FamilyRoleRequests" ("familyId")`,
+  `CREATE TABLE IF NOT EXISTS "FamilyEvents" (
+    "id" text PRIMARY KEY,
+    "familyId" text NOT NULL,
+    "actorUserId" text,
+    "actorKind" text NOT NULL,
+    "kind" text NOT NULL,
+    "targetUserId" text,
+    "detail" text,
+    "reason" text,
+    "createdAt" timestamptz NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "FamilyEvents_familyId_createdAtIndex" ON "FamilyEvents" ("familyId", "createdAt")`,
+  `ALTER TABLE "FamilyRoleRequests" ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE "FamilyEvents" ENABLE ROW LEVEL SECURITY`,
   // Matches scripts/run-enable-rls.ts, so a fresh apply leaves no window where
   // a table exists unprotected.
   `ALTER TABLE "Families" ENABLE ROW LEVEL SECURITY`,

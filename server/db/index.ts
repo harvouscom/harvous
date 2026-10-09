@@ -27,6 +27,8 @@ export {
   Families,
   FamilyMembers,
   FamilyInvites,
+  FamilyRoleRequests,
+  FamilyEvents,
   Churches,
   ChurchMemberships,
   ChurchServices,

@@ -27,6 +27,9 @@ const WRITES = [
   ["app.patch('/api/family/members/:userId'", 'canChangeFamilyRole('],
   ["app.delete('/api/family/members/:userId'", 'canRemoveFamilyMember('],
   ["app.post('/api/family/invites/:token/redeem'", 'evaluateFamilyInviteRedemption('],
+  ["app.post('/api/family/role-requests'", 'canRequestAdult('],
+  ["app.post('/api/family/role-requests/:requestId/decide'", 'canDecideRequest('],
+  ["app.post('/api/family/role-requests/:requestId/escalate'", 'canEscalateRequest('],
 ] as const;
 
 describe('family routes — writes', () => {
@@ -113,5 +116,46 @@ describe('account deletion', () => {
     expect(family).toBeGreaterThan(-1);
     expect(family).toBeLessThan(spaces);
     expect(text).toContain('dissolveFamily(tx, owned');
+  });
+});
+
+describe('freeze', () => {
+  const text = () => source('server/routes/family.ts');
+  it.each([
+    "app.patch('/api/family'",
+    "app.post('/api/family/invites'",
+    "app.patch('/api/family/members/:userId'",
+  ])('%s refuses while support has the family paused', (marker) => {
+    expect(handlerBody(text(), marker)).toContain('FAMILY_FROZEN_REFUSAL');
+  });
+
+  it('never blocks someone leaving', () => {
+    const body = handlerBody(text(), "app.delete('/api/family/members/:userId'");
+    expect(body).toContain('mine.family.frozenAt && targetUserId !== auth.userId');
+  });
+});
+
+describe('admin families', () => {
+  const admin = () => source('server/routes/admin-families.ts');
+  const handlers = () => [...admin().matchAll(/app\.(get|post)\('([^']+)'/g)].map((m) => `app.${m[1]}('${m[2]}'`);
+
+  it('every route is admin-gated first', () => {
+    for (const marker of handlers()) {
+      const body = handlerBody(admin(), marker);
+      expect(body.indexOf('requireHarvousAdmin(c)'), marker).toBeGreaterThan(-1);
+      expect(body.indexOf('requireHarvousAdmin(c)')).toBeLessThan(body.indexOf('try {'));
+    }
+  });
+
+  it('every write needs a reason and is recorded as support', () => {
+    for (const marker of handlers().filter((m) => m.startsWith('app.post'))) {
+      const body = handlerBody(admin(), marker);
+      expect(body, marker).toContain('if (!reason) return c.json(NEED_REASON, 400);');
+      expect(body, marker).toMatch(/actorKind: 'support'/);
+    }
+  });
+
+  it('never reaches for note content', () => {
+    expect(admin()).not.toMatch(/\bNotes\b|SpaceNotes|ReviewItems|ReadingEvents/);
   });
 });

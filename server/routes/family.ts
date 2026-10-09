@@ -27,11 +27,13 @@ import {
   Families,
   FamilyInvites,
   FamilyMembers,
+  FamilyRoleRequests,
   SpaceMemberships,
   Spaces,
   UserMetadata,
   and,
   count,
+  desc,
   eq,
   gt,
   inArray,
@@ -56,8 +58,18 @@ import {
   sponsorFeatureKeys,
 } from '../utils/family-entitlements';
 import { canStartFamilyInPreview } from '../utils/family-preview';
+import { createSupportTicket } from '../utils/support-ticket';
+import { isUniqueViolation } from '../utils/db-unique-violation';
 import { familyProgressFor } from '../utils/family-progress';
-import { dissolveFamily, isFamilyMembershipRace } from '../utils/family-lifecycle';
+import {
+  FAMILY_FROZEN_REFUSAL,
+  applyRoleChange,
+  closePendingRequests,
+  dissolveFamily,
+  isFamilyMembershipRace,
+  recordFamilyEvent,
+  upsertSpaceRole,
+} from '../utils/family-lifecycle';
 import { FAMILY_MAX_MEMBERS } from '@/lib/billing-plans';
 import {
   FAMILY_INVITE_LABEL_MAX,
@@ -70,7 +82,11 @@ import {
   evaluateFamilyInviteRedemption,
   familyInviteDeadReason,
   isFamilyRole,
-  spaceRoleForFamilyRole,
+  canDecideRequest,
+  canEscalateRequest,
+  canRequestAdult,
+  askAgainAt,
+  escalationOpensAt,
   type FamilyRole,
 } from '@/lib/family-roles';
 
@@ -126,39 +142,6 @@ async function seatsTaken(familyId: string, exec: Executor, now: Date): Promise<
   return Number(members) + Number(invites);
 }
 
-/** Keep the Family Space membership in step with a family role. */
-async function upsertSpaceRole(
-  tx: Executor,
-  input: { spaceId: string; userId: string; role: FamilyRole; isOwner: boolean; invitedBy?: string | null; now: Date },
-): Promise<void> {
-  const spaceRole = spaceRoleForFamilyRole(input.role, input.isOwner);
-  const existing = first(
-    await tx
-      .select({ id: SpaceMemberships.id, role: SpaceMemberships.role })
-      .from(SpaceMemberships)
-      .where(and(eq(SpaceMemberships.spaceId, input.spaceId), eq(SpaceMemberships.userId, input.userId)))
-      .limit(1),
-  );
-  if (existing) {
-    if (existing.role === 'owner') return;
-    await tx
-      .update(SpaceMemberships)
-      .set({ role: spaceRole, grantSource: spaceRole === 'leader' ? 'family' : null, updatedAt: input.now })
-      .where(eq(SpaceMemberships.id, existing.id));
-    return;
-  }
-  await tx.insert(SpaceMemberships).values({
-    id: `smem_${crypto.randomUUID()}`,
-    spaceId: input.spaceId,
-    userId: input.userId,
-    role: spaceRole,
-    invitedBy: input.invitedBy ?? null,
-    grantSource: spaceRole === 'leader' ? 'family' : null,
-    joinedAt: input.now,
-    createdAt: input.now,
-  });
-}
-
 function broadcastSpace(userIds: Iterable<string>, spaceId: string) {
   for (const userId of new Set(userIds)) broadcastInvalidation(userId, { type: 'space:updated', id: spaceId });
 }
@@ -201,6 +184,7 @@ app.get('/api/family', requireAuth, async (c) => {
         userId: FamilyMembers.userId,
         role: FamilyMembers.role,
         joinedAt: FamilyMembers.joinedAt,
+        roleChangedBy: FamilyMembers.roleChangedBy,
         firstName: UserMetadata.firstName,
         lastName: UserMetadata.lastName,
         profileImageUrl: UserMetadata.profileImageUrl,
@@ -233,6 +217,23 @@ app.get('/api/family', requireAuth, async (c) => {
     const origin = getPublicAppOrigin(c);
     const owner = memberRows.find((m) => m.userId === family.ownerUserId);
 
+    /* Parents see every pending request; a child sees their own latest, whatever its state,
+       with the dates the page needs to say what they can do next. */
+    const requestRows = isParent
+      ? await db
+          .select()
+          .from(FamilyRoleRequests)
+          .where(and(eq(FamilyRoleRequests.familyId, family.id), eq(FamilyRoleRequests.status, 'pending')))
+      : me.role === 'child'
+        ? await db
+            .select()
+            .from(FamilyRoleRequests)
+            .where(and(eq(FamilyRoleRequests.familyId, family.id), eq(FamilyRoleRequests.userId, auth.userId)))
+            .orderBy(desc(FamilyRoleRequests.createdAt))
+            .limit(1)
+        : [];
+    const nameOf = new Map(memberRows.map((m) => [m.userId, safeMemberDisplayName({ firstName: m.firstName, lastName: m.lastName })]));
+
     return c.json({
       family: {
         id: family.id,
@@ -253,8 +254,24 @@ app.get('/api/family', requireAuth, async (c) => {
             userColor: m.userColor ?? 'blue',
             covered: m.userId === family.ownerUserId ? sponsorKeys.length > 0 : covered.has(m.userId),
             joinedAt: m.joinedAt,
+            /** The last role change came from Harvous support — said on the row, never hidden. */
+            changedBySupport: Boolean(m.roleChangedBy?.startsWith('support:')),
           }))
           .sort((a, b) => Number(b.isOwner) - Number(a.isOwner) || new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()),
+        frozen: Boolean(family.frozenAt),
+        requests: requestRows.map((r) => ({
+          id: r.id,
+          userId: r.userId,
+          displayName: nameOf.get(r.userId) ?? 'Member',
+          toRole: r.toRole,
+          status: r.status,
+          createdAt: r.createdAt,
+          decidedAt: r.decidedAt,
+          decidedVia: r.decidedVia,
+          escalatedAt: r.escalatedAt,
+          askAgainAt: askAgainAt(r),
+          escalationOpensAt: escalationOpensAt(r),
+        })),
         invites: invites.map((invite) => ({
           id: invite.id,
           role: invite.role,
@@ -332,6 +349,7 @@ app.post('/api/family', requireAuth, rateLimit('write'), async (c) => {
           createdAt: now,
           updatedAt: now,
         });
+        await recordFamilyEvent(tx, { familyId: family.id, actorUserId: auth.userId, actorKind: 'member', kind: 'created', now });
         return { family, spaceId: space.id };
       });
     } catch (error) {
@@ -359,6 +377,7 @@ app.patch('/api/family', requireAuth, rateLimit('write'), async (c) => {
     if (!mine) return c.json({ error: 'You’re not in a family.', code: 'NOT_IN_FAMILY' }, 404);
     const allowed = canRenameFamily(actorOf(mine.me, auth.userId));
     if (!allowed.ok) return refusal(c, allowed);
+    if (mine.family.frozenAt) return c.json(FAMILY_FROZEN_REFUSAL, 423);
 
     const body = (await c.req.json().catch(() => ({}))) as { name?: unknown };
     const name = typeof body.name === 'string' ? body.name.trim() : '';
@@ -369,6 +388,7 @@ app.patch('/api/family', requireAuth, rateLimit('write'), async (c) => {
     const title = name.charAt(0).toUpperCase() + name.slice(1);
     await db.update(Spaces).set({ title, updatedAt: now }).where(eq(Spaces.id, mine.family.spaceId));
     await db.update(Families).set({ updatedAt: now }).where(eq(Families.id, mine.family.id));
+    await recordFamilyEvent(db, { familyId: mine.family.id, actorUserId: auth.userId, actorKind: 'member', kind: 'renamed', detail: { name: title }, now });
 
     const members = await db
       .select({ userId: FamilyMembers.userId })
@@ -392,8 +412,12 @@ app.delete('/api/family', requireAuth, rateLimit('write'), async (c) => {
     if (mine.family.ownerUserId !== auth.userId) {
       return c.json({ error: 'Only the person who started the family can stop family sharing.', code: 'FAMILY_OWNER_ONLY' }, 403);
     }
+    if (mine.family.frozenAt) return c.json(FAMILY_FROZEN_REFUSAL, 423);
     const now = nowISO();
-    const memberIds = await db.transaction((tx) => dissolveFamily(tx, mine.family, now));
+    const memberIds = await db.transaction(async (tx) => {
+      await recordFamilyEvent(tx, { familyId: mine.family.id, actorUserId: auth.userId, actorKind: 'member', kind: 'dissolved', now });
+      return dissolveFamily(tx, mine.family, now);
+    });
     broadcastSpace(memberIds, mine.family.spaceId);
     return c.json({ success: true, spaceId: mine.family.spaceId });
   } catch (error) {
@@ -411,6 +435,7 @@ app.post('/api/family/invites', requireAuth, rateLimit('write'), async (c) => {
     if (!mine) return c.json({ error: 'You’re not in a family.', code: 'NOT_IN_FAMILY' }, 404);
     const allowed = canInviteToFamily(actorOf(mine.me, auth.userId));
     if (!allowed.ok) return refusal(c, allowed);
+    if (mine.family.frozenAt) return c.json(FAMILY_FROZEN_REFUSAL, 423);
 
     const body = (await c.req.json().catch(() => ({}))) as { role?: unknown; label?: unknown };
     if (!isFamilyRole(body.role)) {
@@ -460,6 +485,7 @@ app.post('/api/family/invites', requireAuth, rateLimit('write'), async (c) => {
         })
         .returning(),
     )!;
+    await recordFamilyEvent(db, { familyId: mine.family.id, actorUserId: auth.userId, actorKind: 'member', kind: 'invite_created', detail: { role: invite.role }, now });
 
     return c.json({
       success: true,
@@ -502,6 +528,7 @@ app.delete('/api/family/invites/:inviteId', requireAuth, rateLimit('write'), asy
       )
       .returning({ id: FamilyInvites.id });
     if (updated.length === 0) return c.json({ error: 'Invite not found', code: 'NOT_FOUND' }, 404);
+    await recordFamilyEvent(db, { familyId: mine.family.id, actorUserId: auth.userId, actorKind: 'member', kind: 'invite_revoked' });
     return c.json({ success: true });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/family/invites/[inviteId]', action: 'revoke_family_invite' });
@@ -634,6 +661,7 @@ app.post('/api/family/invites/:token/redeem', requireAuth, rateLimit('write'), a
           now,
         });
         await reconcileFamilyCoverage(family.id, tx);
+        await recordFamilyEvent(tx, { familyId: family.id, actorUserId: auth.userId, actorKind: 'member', kind: 'joined', targetUserId: auth.userId, detail: { role }, now });
         const members = await tx
           .select({ userId: FamilyMembers.userId })
           .from(FamilyMembers)
@@ -692,14 +720,18 @@ app.patch('/api/family/members/:userId', requireAuth, rateLimit('write'), async 
       to,
     });
     if (!allowed.ok) return refusal(c, allowed);
+    if (mine.family.frozenAt) return c.json(FAMILY_FROZEN_REFUSAL, 423);
 
     const now = nowISO();
     await db.transaction(async (tx) => {
-      await tx
-        .update(FamilyMembers)
-        .set({ role: to, roleChangedAt: now, roleChangedBy: auth.userId, updatedAt: now })
-        .where(eq(FamilyMembers.id, target.id));
-      await upsertSpaceRole(tx, { spaceId: mine.family.spaceId, userId: targetUserId, role: to, isOwner: false, now });
+      await applyRoleChange(tx, {
+        family: mine.family,
+        member: target,
+        to,
+        actorUserId: auth.userId,
+        actorKind: 'member',
+        now,
+      });
     });
 
     broadcastSpace([auth.userId, targetUserId], mine.family.spaceId);
@@ -735,6 +767,8 @@ app.delete('/api/family/members/:userId', requireAuth, rateLimit('write'), async
       targetRole: target.role,
     });
     if (!allowed.ok) return refusal(c, allowed);
+    // Leaving is never paused — a child can always stop being seen. Removing someone else is.
+    if (mine.family.frozenAt && targetUserId !== auth.userId) return c.json(FAMILY_FROZEN_REFUSAL, 423);
 
     const targetMeta = first(
       await db
@@ -763,14 +797,220 @@ app.delete('/api/family/members/:userId', requireAuth, rateLimit('write'), async
           displayNameSnapshot: snapshot,
         });
       }
+      await closePendingRequests(tx, targetUserId, 'withdrawn', auth.userId, targetUserId === auth.userId ? 'self' : 'parent', now);
       await reconcileFamilyCoverage(mine.family.id, tx);
       await reconcileFamilyCoverageForUser(targetUserId, tx);
+      await recordFamilyEvent(tx, {
+        familyId: mine.family.id,
+        actorUserId: auth.userId,
+        actorKind: 'member',
+        kind: targetUserId === auth.userId ? 'left' : 'removed',
+        targetUserId,
+        detail: { role: target.role },
+        now,
+      });
     });
 
     broadcastSpace([auth.userId, targetUserId], mine.family.spaceId);
     return c.json({ success: true, left: targetUserId === auth.userId });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/family/members/[userId]', action: 'remove_family_member' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── Asking to become an adult member ───────────────────────────────────────
+
+/** A child asks. Parents see it in Settings › Family; nothing changes until someone decides. */
+app.post('/api/family/role-requests', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const mine = await loadMyFamily(auth.userId);
+    if (!mine) return c.json({ error: 'You’re not in a family.', code: 'NOT_IN_FAMILY' }, 404);
+    const latest = first(
+      await db
+        .select()
+        .from(FamilyRoleRequests)
+        .where(eq(FamilyRoleRequests.userId, auth.userId))
+        .orderBy(desc(FamilyRoleRequests.createdAt))
+        .limit(1),
+    );
+    const now = nowISO();
+    const allowed = canRequestAdult({
+      role: isFamilyRole(mine.me.role) ? mine.me.role : null,
+      latest: latest && latest.familyId === mine.family.id ? latest : null,
+      frozen: Boolean(mine.family.frozenAt),
+      now,
+    });
+    if (!allowed.ok) return refusal(c, allowed, 409);
+
+    let request: typeof FamilyRoleRequests.$inferSelect;
+    try {
+      request = await db.transaction(async (tx) => {
+        const row = first(
+          await tx
+            .insert(FamilyRoleRequests)
+            .values({
+              id: `freq_${crypto.randomUUID()}`,
+              familyId: mine.family.id,
+              userId: auth.userId,
+              toRole: 'adult',
+              status: 'pending',
+              createdAt: now,
+            })
+            .returning(),
+        )!;
+        await recordFamilyEvent(tx, { familyId: mine.family.id, actorUserId: auth.userId, actorKind: 'member', kind: 'request_created', targetUserId: auth.userId, now });
+        return row;
+      });
+    } catch (error) {
+      if (isUniqueViolation(error, 'FamilyRoleRequests_pending_unique')) {
+        return c.json({ error: 'You’ve already asked.', code: 'REQUEST_PENDING' }, 409);
+      }
+      throw error;
+    }
+    return c.json({ success: true, requestId: request.id });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/family/role-requests', action: 'family_request_adult' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/** The child takes it back. */
+app.delete('/api/family/role-requests/:requestId', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const requestId = requireParam(c, 'requestId');
+    const now = nowISO();
+    const rows = await db
+      .update(FamilyRoleRequests)
+      .set({ status: 'withdrawn', decidedBy: auth.userId, decidedVia: 'self', decidedAt: now })
+      .where(
+        and(
+          eq(FamilyRoleRequests.id, requestId),
+          eq(FamilyRoleRequests.userId, auth.userId),
+          eq(FamilyRoleRequests.status, 'pending'),
+        ),
+      )
+      .returning({ familyId: FamilyRoleRequests.familyId });
+    if (rows.length === 0) return c.json({ error: 'Request not found', code: 'NOT_FOUND' }, 404);
+    await recordFamilyEvent(db, { familyId: rows[0].familyId, actorUserId: auth.userId, actorKind: 'member', kind: 'request_withdrawn', targetUserId: auth.userId, now });
+    return c.json({ success: true });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/family/role-requests/[requestId]', action: 'family_request_withdraw' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/** A parent answers. Approve makes them an adult member at once; "not now" starts the 30-day wait. */
+app.post('/api/family/role-requests/:requestId/decide', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const requestId = requireParam(c, 'requestId');
+    const body = (await c.req.json().catch(() => ({}))) as { decision?: unknown };
+    if (body.decision !== 'approve' && body.decision !== 'decline') {
+      return c.json({ error: 'Approve or decline.', code: 'BAD_DECISION' }, 400);
+    }
+    const mine = await loadMyFamily(auth.userId);
+    if (!mine) return c.json({ error: 'You’re not in a family.', code: 'NOT_IN_FAMILY' }, 404);
+    const allowed = canDecideRequest(actorOf(mine.me, auth.userId), Boolean(mine.family.frozenAt));
+    if (!allowed.ok) return refusal(c, allowed, allowed.code === 'FAMILY_FROZEN' ? 409 : 403);
+
+    const request = first(
+      await db
+        .select()
+        .from(FamilyRoleRequests)
+        .where(and(eq(FamilyRoleRequests.id, requestId), eq(FamilyRoleRequests.familyId, mine.family.id)))
+        .limit(1),
+    );
+    if (!request || request.status !== 'pending') {
+      return c.json({ error: 'This request has already been answered.', code: 'NOT_PENDING' }, 409);
+    }
+    const member = first(
+      await db
+        .select()
+        .from(FamilyMembers)
+        .where(and(eq(FamilyMembers.userId, request.userId), eq(FamilyMembers.familyId, mine.family.id)))
+        .limit(1),
+    );
+    const now = nowISO();
+    await db.transaction(async (tx) => {
+      if (body.decision === 'approve' && member && member.role === 'child') {
+        await applyRoleChange(tx, { family: mine.family, member, to: 'adult', actorUserId: auth.userId, actorKind: 'member', now });
+      } else {
+        await closePendingRequests(tx, request.userId, body.decision === 'approve' ? 'approved' : 'declined', auth.userId, 'parent', now);
+      }
+      await recordFamilyEvent(tx, {
+        familyId: mine.family.id,
+        actorUserId: auth.userId,
+        actorKind: 'member',
+        kind: 'request_decided',
+        targetUserId: request.userId,
+        detail: { decision: body.decision },
+        now,
+      });
+    });
+    broadcastSpace([auth.userId, request.userId], mine.family.spaceId);
+    return c.json({ success: true, decision: body.decision });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/family/role-requests/[requestId]/decide', action: 'family_request_decide' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/**
+ * The child asks Harvous to review: after 14 days with no answer, or once a parent has said
+ * "not now". Files a support ticket linked to the family, so support opens the case with the
+ * history in front of them. Once per request.
+ */
+app.post('/api/family/role-requests/:requestId/escalate', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const requestId = requireParam(c, 'requestId');
+    const body = (await c.req.json().catch(() => ({}))) as { message?: unknown };
+    const note = typeof body.message === 'string' ? body.message.trim().slice(0, 1000) : '';
+    const request = first(
+      await db
+        .select()
+        .from(FamilyRoleRequests)
+        .where(and(eq(FamilyRoleRequests.id, requestId), eq(FamilyRoleRequests.userId, auth.userId)))
+        .limit(1),
+    );
+    if (!request) return c.json({ error: 'Request not found', code: 'NOT_FOUND' }, 404);
+    const now = nowISO();
+    const allowed = canEscalateRequest(request, now);
+    if (!allowed.ok) return refusal(c, allowed, 409);
+
+    const ticket = await createSupportTicket(auth.userId, {
+      topic: 'Question',
+      message: [
+        `Family review: asking to become an adult member.`,
+        `Family ${request.familyId} · request ${request.id} · asked ${new Date(request.createdAt).toDateString()}` +
+          (request.status === 'declined' ? ' · a parent said not now' : ' · no answer yet'),
+        note ? `\nFrom them: ${note}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      pageUrl: `/admin/families/${request.familyId}`,
+    });
+    if (!ticket) return c.json({ error: 'Support is temporarily unavailable', code: 'SUPPORT_UNAVAILABLE' }, 503);
+
+    await db
+      .update(FamilyRoleRequests)
+      .set({ escalatedAt: now, supportTicketId: ticket.id })
+      .where(eq(FamilyRoleRequests.id, request.id));
+    await recordFamilyEvent(db, {
+      familyId: request.familyId,
+      actorUserId: auth.userId,
+      actorKind: 'member',
+      kind: 'request_escalated',
+      targetUserId: auth.userId,
+      detail: { ticket: ticket.ticketNumber },
+      now,
+    });
+    return c.json({ success: true, ticketNumber: ticket.ticketNumber });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/family/role-requests/[requestId]/escalate', action: 'family_request_escalate' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

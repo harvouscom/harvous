@@ -26,6 +26,8 @@ import {
   Families,
   FamilyMembers,
   FamilyInvites,
+  FamilyRoleRequests,
+  FamilyEvents,
   eq,
   and,
   or,
@@ -133,6 +135,8 @@ function databaseSteps(userId: string): Step[] {
           await db.select({ familyId: FamilyMembers.familyId }).from(FamilyMembers).where(eq(FamilyMembers.userId, userId)).limit(1),
         );
         await db.delete(FamilyInvites).where(eq(FamilyInvites.createdBy, userId));
+        await db.delete(FamilyRoleRequests).where(eq(FamilyRoleRequests.userId, userId));
+        await db.delete(FamilyEvents).where(or(eq(FamilyEvents.actorUserId, userId), eq(FamilyEvents.targetUserId, userId)));
         await db.delete(FamilyMembers).where(eq(FamilyMembers.userId, userId));
         if (membership?.familyId) await reconcileFamilyCoverage(membership.familyId);
       },

@@ -295,6 +295,10 @@ export function prototypeAdminChurchesRouteTo(): '/prototype/admin/churches' {
   return (isDedicatedPrototypeHost() ? '/admin/churches' : '/prototype/admin/churches') as '/prototype/admin/churches';
 }
 
+export function prototypeAdminFamiliesRouteTo(): '/prototype/admin/families' {
+  return (isDedicatedPrototypeHost() ? '/admin/families' : '/prototype/admin/families') as '/prototype/admin/families';
+}
+
 export function matchPrototypeNoteId(pathname: string): string | null {
   const logical = prototypeLogicalPath(pathname);
   // Prefer flat `/{id}`; still recognize legacy `/n/{id}` while redirects exist.

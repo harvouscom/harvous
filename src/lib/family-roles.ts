@@ -47,7 +47,7 @@ export const FAMILY_ROLE_DISCLOSURE: Record<FamilyRole, { summary: string; share
       'How many chapters you read, and which books they were in',
       'How many notes you wrote',
     ],
-    never: 'They can never see your notes, highlights, searches, or Review. You can become an adult member any time.',
+    never: 'They can never see your notes, highlights, searches, or Review. You can ask to become an adult member, and you can leave the family any time.',
   },
   adult: {
     summary: 'You share the Family Space and the family plan. Your study stays private.',
@@ -58,7 +58,7 @@ export const FAMILY_ROLE_DISCLOSURE: Record<FamilyRole, { summary: string; share
 
 /** The same roles, described to the parent choosing one for an invite. */
 export const FAMILY_ROLE_FOR_INVITER: Record<FamilyRole, string> = {
-  child: 'Parents see how their study is going, never what they write. They can become an adult member any time.',
+  child: 'Parents see how their study is going, never what they write. They can ask to become an adult member.',
   adult: 'They share the Family Space and your plan. Their study stays private.',
   parent: 'They can invite people and see the children’s progress.',
 };
@@ -88,8 +88,9 @@ export function canRenameFamily(actor: FamilyActor): FamilyRuleResult {
 /**
  * Who may move whom between roles.
  *
- * - child → adult: any parent, or the child themself (they could leave anyway; blocking it
- *   would only push them out of the family and its coverage).
+ * - child → adult: any parent. The child cannot make the switch alone — they *ask*
+ *   (`canRequestAdult`), and a parent or Harvous support decides. Leaving the family is
+ *   always theirs, so asking is never the only way to stop being seen.
  * - anything → parent, parent → adult: the owner only. Being a parent grants sight of the
  *   children's progress, so it is the owner's to hand out.
  * - anything → child: never. The child role adds visibility, so it is only entered by
@@ -113,8 +114,11 @@ export function canChangeFamilyRole(input: {
   const isOwner = actor.userId === ownerUserId;
   const isSelf = actor.userId === targetUserId;
   if (from === 'child' && to === 'adult') {
-    if (actor.role === 'parent' || isSelf) return OK;
-    return refuse('FAMILY_PARENTS_ONLY', 'Only a parent, or the child, can make this change.');
+    if (actor.role === 'parent') return OK;
+    if (isSelf) {
+      return refuse('NEEDS_PARENT_APPROVAL', 'Ask a parent to approve this, or ask Harvous to review it.');
+    }
+    return refuse('FAMILY_PARENTS_ONLY', 'Only a parent can make this change.');
   }
   // → parent, parent → adult
   return isOwner ? OK : refuse('FAMILY_OWNER_ONLY', 'Only the family’s owner can change who is a parent.');
@@ -142,6 +146,81 @@ export function canRemoveFamilyMember(input: {
       : refuse('FAMILY_OWNER_ONLY', 'Only the family’s owner can remove a parent.');
   }
   return actor.role === 'parent' ? OK : refuse('FAMILY_PARENTS_ONLY', 'Only parents can remove people.');
+}
+
+// ─── Asking to become an adult member ───────────────────────────────────────
+
+/** After a parent says "not now", a child can ask again after this long. */
+export const FAMILY_REQUEST_COOLDOWN_DAYS = 30;
+/** With no answer this long, the child can ask Harvous to review it. */
+export const FAMILY_ESCALATE_AFTER_DAYS = 14;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export type FamilyRoleRequestStatus = 'pending' | 'approved' | 'declined' | 'withdrawn';
+
+export interface FamilyRoleRequestLike {
+  status: FamilyRoleRequestStatus | string;
+  createdAt: Date | string;
+  decidedAt: Date | string | null;
+  escalatedAt: Date | string | null;
+}
+
+/**
+ * May this person ask to become an adult member now? `latest` is their most recent request,
+ * whatever its status.
+ */
+export function canRequestAdult(input: {
+  role: FamilyRole | null;
+  latest: FamilyRoleRequestLike | null;
+  frozen: boolean;
+  now: Date;
+}): FamilyRuleResult {
+  const { role, latest, frozen, now } = input;
+  if (role !== 'child') return refuse('NOT_A_CHILD', 'Only a child member can ask for this.');
+  if (frozen) return refuse('FAMILY_FROZEN', 'Harvous support has paused changes to this family.');
+  if (latest?.status === 'pending') return refuse('REQUEST_PENDING', 'You’ve already asked. A parent can answer it now.');
+  if (latest?.status === 'declined' && latest.decidedAt) {
+    const again = askAgainAt(latest);
+    if (again && again.getTime() > now.getTime()) {
+      return refuse('REQUEST_COOLDOWN', `You can ask again on ${again.toDateString()}.`);
+    }
+  }
+  return OK;
+}
+
+/** When a declined request may be asked again. */
+export function askAgainAt(request: FamilyRoleRequestLike): Date | null {
+  if (request.status !== 'declined' || !request.decidedAt) return null;
+  return new Date(new Date(request.decidedAt).getTime() + FAMILY_REQUEST_COOLDOWN_DAYS * DAY_MS);
+}
+
+/**
+ * When a child may ask Harvous to review: a pending request with no answer for 14 days, or —
+ * straight away — a request a parent declined. Once, per request.
+ */
+export function escalationOpensAt(request: FamilyRoleRequestLike): Date | null {
+  if (request.escalatedAt) return null;
+  if (request.status === 'pending') return new Date(new Date(request.createdAt).getTime() + FAMILY_ESCALATE_AFTER_DAYS * DAY_MS);
+  if (request.status === 'declined' && request.decidedAt) return new Date(request.decidedAt);
+  return null;
+}
+
+export function canEscalateRequest(request: FamilyRoleRequestLike, now: Date): FamilyRuleResult {
+  if (request.escalatedAt) return refuse('ALREADY_ESCALATED', 'Harvous support is already reviewing this.');
+  const opens = escalationOpensAt(request);
+  if (!opens) return refuse('NOT_ESCALATABLE', 'There’s nothing to review.');
+  if (opens.getTime() > now.getTime()) {
+    return refuse('TOO_SOON', `Give your parents until ${opens.toDateString()} to answer.`);
+  }
+  return OK;
+}
+
+/** Deciding is a parent's — and never while support has the family paused. */
+export function canDecideRequest(actor: FamilyActor, frozen: boolean): FamilyRuleResult {
+  if (actor.role !== 'parent') return refuse('FAMILY_PARENTS_ONLY', 'Only a parent can answer this.');
+  if (frozen) return refuse('FAMILY_FROZEN', 'Harvous support has paused changes to this family.');
+  return OK;
 }
 
 export interface FamilyInviteLike {

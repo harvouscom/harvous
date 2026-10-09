@@ -20,6 +20,24 @@ export type FamilyMember = {
   /** For the owner: whether their own Plus is active. For everyone else: whether it covers them. */
   covered: boolean;
   joinedAt: string;
+  /** Their last role change was made by Harvous support. */
+  changedBySupport?: boolean;
+};
+
+export type FamilyRoleRequest = {
+  id: string;
+  userId: string;
+  displayName: string;
+  toRole: 'adult';
+  status: 'pending' | 'approved' | 'declined' | 'withdrawn';
+  createdAt: string;
+  decidedAt: string | null;
+  decidedVia: 'parent' | 'support' | 'self' | null;
+  escalatedAt: string | null;
+  /** When a declined request may be asked again. */
+  askAgainAt: string | null;
+  /** When "Ask Harvous to review" opens; null once escalated or settled. */
+  escalationOpensAt: string | null;
 };
 
 export type FamilyInvite = {
@@ -51,6 +69,10 @@ export type FamilyResponse =
         members: FamilyMember[];
         /** Parents only; empty for everyone else. */
         invites: FamilyInvite[];
+        /** Harvous support has paused changes while a case is open. Leaving still works. */
+        frozen?: boolean;
+        /** Parents: every pending request. A child: their own latest, whatever its state. */
+        requests?: FamilyRoleRequest[];
       };
       me: { userId: string; role: FamilyRole; isOwner: boolean; hasOwnPlus: boolean };
       maxMembers: number;
@@ -197,6 +219,44 @@ export function useRedeemFamilyInvite(token: string) {
         `/api/family/invites/${encodeURIComponent(token)}/redeem`,
         { acknowledgedRole },
       ),
+    onSuccess: invalidate,
+  });
+}
+
+// ─── Asking to become an adult member ────────────────────────────────────────
+
+export function useRequestAdult() {
+  const invalidate = useInvalidateFamily();
+  return useMutation({
+    mutationFn: () => api.post<{ requestId: string }>('/api/family/role-requests', {}),
+    onSuccess: invalidate,
+  });
+}
+
+export function useWithdrawAdultRequest() {
+  const invalidate = useInvalidateFamily();
+  return useMutation({
+    mutationFn: (requestId: string) => api.delete(`/api/family/role-requests/${encodeURIComponent(requestId)}`),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDecideAdultRequest() {
+  const invalidate = useInvalidateFamily();
+  return useMutation({
+    mutationFn: (input: { requestId: string; decision: 'approve' | 'decline' }) =>
+      api.post(`/api/family/role-requests/${encodeURIComponent(input.requestId)}/decide`, { decision: input.decision }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useEscalateAdultRequest() {
+  const invalidate = useInvalidateFamily();
+  return useMutation({
+    mutationFn: (input: { requestId: string; message?: string }) =>
+      api.post<{ ticketNumber: number }>(`/api/family/role-requests/${encodeURIComponent(input.requestId)}/escalate`, {
+        message: input.message,
+      }),
     onSuccess: invalidate,
   });
 }
