@@ -19,7 +19,7 @@ export function connectorSetupMessage(mcpUrl: string): string {
     'Please add a custom connector for Harvous, my Bible study notes app.',
     `Its MCP server is ${mcpUrl} (Streamable HTTP).`,
     `It uses OAuth: discover it at ${discovery}, register as a public client with PKCE (S256), and I’ll sign in with my Harvous account.`,
-    'It’s read-only.',
+    'It reads my study and can start a new note when I ask; it can’t change or delete anything I’ve written.',
     'Once connected, list its tools and try find_by_passage for Romans 8.',
   ].join(' ');
 }

@@ -57,30 +57,15 @@ function VerseHitRow({ hit, onOpen }: { hit: VerseSearchHit; onOpen: (hit: Verse
 export default function LibraryVerseResults({
   hits,
   onOpen,
-  moreLabel,
-  onMore,
 }: {
   hits: readonly VerseSearchHit[];
   onOpen: (hit: VerseSearchHit) => void;
-  /** A last row that widens the list — "Show more verses" on the All tab. */
-  moreLabel?: string;
-  onMore?: () => void;
 }) {
   return (
     <ul className="proto-note-list">
       {hits.map((hit) => (
         <VerseHitRow key={`${hit.translation}:${hit.reference}`} hit={hit} onOpen={onOpen} />
       ))}
-      {moreLabel && onMore ? (
-        <li className="proto-note-row-item proto-verse-hit__more-item">
-          {/* A way to see more, not a sixth result: no glyph in the lead column, set smaller
-              and quieter than the rows, starting on the titles' edge. */}
-          <button type="button" className="proto-verse-hit__more" onClick={onMore}>
-            <span>{moreLabel}</span>
-            <Icon name="arrow-right" size={10} />
-          </button>
-        </li>
-      ) : null}
     </ul>
   );
 }
