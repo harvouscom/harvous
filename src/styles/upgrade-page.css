@@ -272,8 +272,7 @@
   margin: 0;
   max-width: 380px;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   font-size: 0.9375rem;
   line-height: 1.55;
   color: var(--site-ink-soft);
@@ -301,8 +300,7 @@
   flex: 1;
   min-width: 0;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   font-size: 0.875rem;
   line-height: 1.35;
   color: var(--pds-text-secondary);
@@ -313,8 +311,7 @@
   margin: 0;
   text-align: left;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -394,7 +391,7 @@
 
 .upgrade-checkout__error {
   margin: 0;
-  font-family: "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--pds-font-body);
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-error, #c0392b);
@@ -409,8 +406,7 @@
 .upgrade-checkout__renewal {
   margin: 0.375rem 0 0;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--site-ink-faint);
@@ -421,8 +417,7 @@
 .upgrade-checkout__guarantee {
   margin: 0;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--site-ink-faint);
@@ -466,8 +461,7 @@
   border-radius: 999px;
   padding: 10px 12px;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif !important;
+    var(--pds-font-body) !important;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--site-ink-faint) !important;
@@ -499,8 +493,7 @@
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif !important;
+    var(--pds-font-body) !important;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -536,8 +529,7 @@
   color: var(--pds-text-primary) !important;
   -webkit-text-fill-color: var(--pds-text-primary);
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif !important;
+    var(--pds-font-body) !important;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
@@ -552,8 +544,7 @@
 .upgrade-secondary-btn,
 .upgrade-secondary-btn * {
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif !important;
+    var(--pds-font-body) !important;
   color: var(--pds-text-primary) !important;
   -webkit-text-fill-color: var(--pds-text-primary);
 }
@@ -570,4 +561,106 @@
 .upgrade-secondary-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ==========================================================================
+   /upgrade as a pricing page (`UpgradePageContent`) — harvous.com/pricing's layout:
+   centred headline, then Free and Plus as cards side by side. The cards are
+   `PlanCard` (prototype-components.css `.proto-plan-card`), shared with Settings › Plan.
+   ========================================================================== */
+
+/* Two cards need more than the 680px reading column the letter pages use. */
+.public-content.public-content--pricing {
+  max-width: 920px;
+}
+
+.upgrade-pricing {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(28px, 5vw, 44px);
+  width: 100%;
+  padding: clamp(12px, 4vw, 40px) 0 8px;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.upgrade-pricing--ready {
+  opacity: 1;
+}
+
+.upgrade-pricing__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.upgrade-pricing__eyebrow {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--site-ink-soft);
+}
+
+.upgrade-pricing__title {
+  margin: 0;
+  font-family: var(--pds-font-display) !important;
+  font-variation-settings: var(--pds-font-display-variation);
+  /* Beats global.css's `h1 { font-weight: 700 !important }`. */
+  font-weight: 600 !important;
+  font-size: clamp(2.25rem, 1.4rem + 4vw, 4rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  color: var(--site-ink);
+  text-wrap: balance;
+}
+
+.upgrade-pricing__subhead {
+  max-width: 440px;
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--site-ink-soft);
+  text-wrap: pretty;
+}
+
+.upgrade-pricing__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.upgrade-pricing__cards--single {
+  grid-template-columns: minmax(0, 460px);
+  justify-content: center;
+}
+
+.upgrade-pricing__cards .proto-plan-card {
+  margin: 0;
+}
+
+/* The checkout's own stack (toggle, renewal note, button, guarantee) fills the card foot. */
+.upgrade-pricing .upgrade-checkout {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upgrade-pricing {
+    transition: none;
+  }
+}
+
+/* The page still needs an h1 when a subscriber's page is only their card. */
+.upgrade-pricing__visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }

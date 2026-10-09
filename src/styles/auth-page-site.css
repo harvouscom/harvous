@@ -379,8 +379,7 @@
   border-radius: 999px;
   padding: 12px 20px;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    var(--pds-font-body);
   /* 16px keeps iOS Safari from auto-zooming the page when the email / 2FA code
      field is focused (it zooms any focused input below 16px). */
   font-size: 16px;
@@ -417,8 +416,7 @@
   border-radius: 999px;
   padding: 0 22px;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    sans-serif;
+    var(--pds-font-body);
   font-weight: 600;
   font-size: 15px;
   height: 46px;
@@ -457,7 +455,7 @@
   border: 0;
   cursor: pointer;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+    var(--pds-font-body);
   font-size: 13px;
   color: var(--site-accent);
   padding: 0;
@@ -515,8 +513,7 @@
 
 .auth-page.auth-page--site .auth-page__footer-switch {
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    sans-serif;
+    var(--pds-font-body);
   font-size: 0.9375rem;
   color: var(--site-ink-soft);
   text-align: center;
@@ -537,8 +534,7 @@
 }
 .auth-page.auth-page--site .auth-page__secured-by {
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    sans-serif;
+    var(--pds-font-body);
   font-size: 11px;
   color: var(--site-ink-faint);
   text-align: center;

@@ -4976,8 +4976,31 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   z-index: 9800 !important;
 }
 
+/* Every bottom sheet floats like the app frame behind it: the same inset from the screen
+   edges, the same corner radius and shadow, clear of the home indicator — not a slab bolted
+   to the bottom of the screen. Set once on the shared shell (`DrawerContent`) so no sheet
+   decides it for itself; the scan sheet was the first and only one until this moved here.
+   Beats the `[data-side='bottom']` pin in global.css, which is `!important`. Because the
+   sheet now stops above the home indicator, sheets no longer pad for it themselves. */
+html.harvous-prototype-route [data-side='bottom'][data-vaul-drawer].drawer-content-bottom {
+  left: var(--pds-shell-frame-inset) !important;
+  right: var(--pds-shell-frame-inset) !important;
+  bottom: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-bottom, 0px)) !important;
+  /* The insets set the width. A sheet's own `width: 100%` (several have one, from when they
+     ran edge to edge) would push it past the right inset. */
+  width: auto;
+  max-height: calc(
+    100dvh - 2 * var(--pds-shell-frame-inset) - env(safe-area-inset-top, 0px) -
+      env(safe-area-inset-bottom, 0px) - 24px
+  );
+  overflow: hidden;
+  border-radius: var(--pds-shell-frame-radius);
+  background: var(--pds-bg-popover-solid);
+  box-shadow: var(--pds-shadow-shell), 0 22px 48px -18px rgba(20, 18, 12, 0.35);
+}
+
 .proto-connect-note-sheet.proto-connect-note-sheet {
-  padding: 20px 20px calc(22px + env(safe-area-inset-bottom, 0));
+  padding: 20px 20px 22px;
   max-height: min(640px, 85vh);
   display: flex;
   flex-direction: column;
@@ -7142,7 +7165,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   border-radius: 0;
   box-shadow: none;
   background: transparent;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* ─── Sidebar floating stack (migration pill + daily passage) ─────────────── */
@@ -10111,7 +10133,6 @@ button.proto-appearance-hero__card {
 
 /* Drawer (mobile) */
 .proto-study-thread-drawer {
-  padding-bottom: env(safe-area-inset-bottom, 0);
   max-height: 85vh;
   display: flex;
   flex-direction: column;
@@ -14322,7 +14343,9 @@ p.proto-teaching-plan__divider {
   flex-direction: column;
 }
 
-.proto-shared-space-about--sheet {
+/* Doubled to outrank `.proto-connect-note-sheet.proto-connect-note-sheet`, whose 20px padding
+   otherwise boxed the cover in instead of letting it run to the sheet's edges. */
+.proto-shared-space-about--sheet.proto-shared-space-about--sheet {
   width: 100%;
   max-height: 92vh;
   border-radius: 16px 16px 0 0;
@@ -25871,6 +25894,31 @@ button.proto-feed-sheet__stat:hover {
 .proto-plan-card__cta {
   width: 100%;
   margin-top: 28px;
+}
+
+/* Whatever acts on the plan sits at the card's foot, so two cards side by side line their
+   buttons up however long each list runs. */
+.proto-plan-card__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 28px;
+}
+
+.proto-plan-card__foot > .proto-plan-card__cta {
+  margin-top: 0;
+}
+
+/* Free, beside Plus on /upgrade: the plain card, an ink tile instead of the accent one —
+   the same pair harvous.com/pricing shows. */
+.proto-plan-card--free::before {
+  content: none;
+}
+
+.proto-plan-card--free .proto-plan-card__icon {
+  background: var(--pds-text-primary);
+  color: var(--pds-bg-page);
 }
 
 /* Activity card for a locked note: says so, in the same quiet voice as the list's "Locked". */

@@ -59,10 +59,17 @@
 
 /* ─── Root ─────────────────────────────────────────────────────────────── */
 
+/* Public pages (shared, join, upgrade, status…) are outside the 2.0 shell, so nothing remaps
+   `--font-sans` here and global.css's `!important` button / heading rules read it as Reddit
+   Sans. Remap it on the root, as `.proto-shell` does, so the whole page is Google Sans Flex. */
+.public-page,
+.auth-page.auth-page--site {
+  --font-sans: var(--pds-font-body);
+  --font-mono: var(--pds-font-mono);
+  font-family: var(--pds-font-body);
+}
+
 .public-page {
-  font-family:
-    "Google Sans Flex", "Reddit Sans", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
   background: var(--site-paper);
   min-height: 100svh;
   color: var(--site-ink);
@@ -184,7 +191,7 @@
   background: var(--pds-bg-sidebar-input, #ffffff);
   box-shadow: var(--pds-glass-rim, none);
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+    var(--pds-font-body);
   font-size: 13px;
   font-weight: 500;
   line-height: 1;
@@ -244,7 +251,7 @@
    eyebrow above the founder letter. Tracked-out, faint, sans-serif. */
 .public-creator {
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+    var(--pds-font-body);
   font-size: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
@@ -464,7 +471,7 @@
   border: none;
   border-radius: 999px;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+    var(--pds-font-body);
   font-size: 0.9375rem;
   font-weight: 600;
   letter-spacing: -0.005em;
@@ -683,7 +690,7 @@
    the card without competing with it. */
 .public-footer {
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+    var(--pds-font-body);
   font-size: 0.8125rem;
   color: var(--site-ink-faint);
   text-align: center;
@@ -754,8 +761,12 @@
 .public-error {
   display: flex;
   flex-direction: column;
+  /* The card and the footer travel together, a little above centre, rather than the card
+     floating mid-page with the footer pinned to the bottom edge. */
+  justify-content: center;
   flex: 1;
   min-height: 0;
+  padding-bottom: 8vh;
 }
 
 /* The error stack carries short content rather than a tall note, so let the
@@ -765,8 +776,13 @@
 .public-paper-stack.public-paper-stack--error {
   flex: 0 0 auto;
   min-height: 0;
-  margin-top: auto;
-  margin-bottom: auto;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.public-error > .public-footer {
+  margin-top: 20px;
 }
 
 /* Front sheet — same paper recipe as `.public-note-card` (white sheet, radial
@@ -782,10 +798,11 @@
   justify-content: center;
   text-align: center;
   gap: 18px;
-  /* Keep a sheet-like proportion even with short content, so the card reads as
-     a page of paper rather than a thin banner. */
-  min-height: 380px;
-  padding: clamp(40px, 6vh, 64px) 28px;
+  /* Sized to what it says: a title and a sentence don't need a 380px sheet, and the
+     empty paper read as a page that failed to load. Letter width, not the column's. */
+  min-height: 0;
+  gap: 12px;
+  padding: 40px 28px 36px;
   background-color: #ffffff;
   background-image:
     radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
@@ -821,8 +838,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 72px;
-  height: 72px;
+  width: 56px;
+  height: 56px;
   border-radius: 999px;
   background: var(--site-warm);
   border: 0.5px solid var(--site-rule);
@@ -834,8 +851,8 @@
 }
 /* SVG inside the chip is sized to feel like a glyph, not a hero image. */
 .public-error__icon svg {
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
 }
 /* Emoji-glyph variants (invitation expired/accepted) sit in the same chip. */
 .public-error__glyph {
@@ -846,22 +863,25 @@
 .public-error__title {
   font-family:
     "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, sans-serif;
-  font-size: clamp(1.5rem, 1.2rem + 1vw, 1.875rem);
-  font-weight: 600;
+  font-size: clamp(1.375rem, 1.15rem + 0.8vw, 1.625rem);
+  /* Beats global.css's `h1 { font-weight: 700 !important }`, as `.public-addon-letter__title` does. */
+  font-weight: 600 !important;
   letter-spacing: -0.02em;
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--site-ink);
   margin: 0;
+  text-wrap: balance;
 }
 
 .public-error__message {
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+    var(--pds-font-body);
   font-size: 0.9375rem;
   color: var(--site-ink-soft);
   margin: 0;
-  max-width: 420px;
+  max-width: 340px;
   line-height: 1.55;
+  text-wrap: pretty;
 }
 
 /* CTA — text link in the same accent style as the footer's "Try free →"
@@ -872,7 +892,7 @@
   align-items: center;
   gap: 4px;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+    var(--pds-font-body);
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--site-accent);
@@ -1049,8 +1069,7 @@
 /* Body copy inside the note — site brand sans for public-facing reading text. */
 .public-note-card .card-full-editable__content-html {
   font-family:
-    "Google Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif !important;
+    var(--pds-font-body) !important;
   font-size: 1.0625rem !important;
   line-height: 1.65 !important;
   color: var(--site-ink) !important;
@@ -1075,8 +1094,7 @@
 .public-note-card .flex-1.overflow-auto h2,
 .public-note-card .flex-1.overflow-auto h3 {
   font-family:
-    "Google Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif !important;
+    var(--pds-font-body) !important;
 }
 
 /* Shared note card — float CTA over CardFullEditable body (footer prop). */
@@ -1248,7 +1266,7 @@
 /* Toast (note add feedback) — keep same structure, restyle to site palette. */
 .public-toast {
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+    var(--pds-font-body);
   font-size: 0.875rem;
   font-weight: 500;
   padding: 9px 14px;
@@ -1333,7 +1351,7 @@
   margin: 0;
   padding: 6px 0 2px;
   font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
+    var(--pds-font-body);
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--site-ink-faint);

@@ -278,11 +278,23 @@ export default function PrototypeLibrarySearchResults({
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(data.spaceId ?? undefined);
   const scriptureQuery = usePrototypeSpaceScriptureIndex(data.spaceId ?? undefined);
   const libraryQuery = useLibrary();
+  /*
+   * My Home's own Scripture and highlights, for the "My Home" group while a shared space is
+   * open. Without them that group was note text only: "John 3:16" found the notes that cite
+   * it, but as rows previewing each note's first pill ("Proverbs 8:36"), never the
+   * "John 3:16 · 3 notes" passage row My Home itself answers with. Already warm — the panel
+   * preloads Home's corpora (`useWarmLibraryHome`) — so this adds no fetches.
+   */
+  const homeScopeId = data.isScopedSharedSpace && data.homeSpaceId ? data.homeSpaceId : undefined;
+  const homeScriptureQuery = usePrototypeSpaceScriptureIndex(homeScopeId);
+  const homeHighlightsQuery = usePrototypeSpaceStudyThreadHighlights(homeScopeId);
 
   const clusters = clustersQuery.data ?? NONE;
   const sharedThreads = groupThreadsQuery.data ?? NONE;
   const highlights = highlightsQuery.data ?? NONE;
   const scriptureBooks = scriptureQuery.data ?? NONE;
+  const homeScriptureBooks = homeScopeId ? homeScriptureQuery.data ?? NONE : NONE;
+  const homeHighlights = homeScopeId ? homeHighlightsQuery.data ?? NONE : NONE;
   /*
    * Resources are personal even while a shared space is open — `useLibrary` fetches the
    * viewer's own shelf regardless of scope. Searching them from inside a shared space
@@ -296,6 +308,12 @@ export default function PrototypeLibrarySearchResults({
     for (const row of highlights) map.set(row.id, row);
     return map;
   }, [highlights]);
+
+  const homeHighlightsById = useMemo(() => {
+    const map = new Map<string, PrototypeHighlightStudyThreadRow>();
+    for (const row of homeHighlights) map.set(row.id, row);
+    return map;
+  }, [homeHighlights]);
 
   const resourcesById = useMemo(() => {
     const map = new Map<string, LibraryItem>();
@@ -504,12 +522,85 @@ export default function PrototypeLibrarySearchResults({
     return [...rest, ...restResources];
   }, [trimmed, tab, searchData, visibleResults, resources]);
 
-  /* Everything already painted above, so a Home note that is also in this space shows once. */
+  /*
+   * The My Home group: Home's passages and highlights first, the way My Home answers the same
+   * query, then its notes. Passage and highlight rows are not deduped against the room — a
+   * room row for John 3:16 counts the room's notes, Home's counts yours, and they are
+   * different answers. Notes still skip anything painted above, so a note in both shows once.
+   */
   const homeResults = useMemo(() => {
-    if (!trimmed || !homeFtsQuery) return [];
-    const shown = new Set([...visibleResults, ...elsewhereRest].map((r) => r.id));
-    return buildHomeNoteResults(homeFtsSearch.data?.results, data.homeSpaceId, shown);
-  }, [trimmed, homeFtsQuery, visibleResults, elsewhereRest, homeFtsSearch.data?.results, data.homeSpaceId]);
+    if (!trimmed || !homeScopeId) return [];
+    const homeStudy =
+      builderTypeFilter
+        ? buildElsewhereResults(
+            trimmed,
+            {
+              notes: NONE,
+              folders: NONE,
+              highlights: homeHighlights,
+              scriptureBooks: homeScriptureBooks,
+              threadClusters: NONE,
+              threadDrillNodes: NONE,
+              ftsNotes: undefined,
+            },
+            EXCLUDE_NOTHING,
+            builderTypeFilter,
+            resolveClusterTitle,
+          ).filter((r) => r.kind !== 'note')
+        : [];
+    const shown = new Set([...visibleResults, ...elsewhereRest, ...homeStudy].map((r) => r.id));
+    const homeNotes = homeFtsQuery
+      ? buildHomeNoteResults(homeFtsSearch.data?.results, data.homeSpaceId, shown)
+      : [];
+    return [...homeStudy, ...homeNotes];
+  }, [
+    trimmed,
+    homeScopeId,
+    builderTypeFilter,
+    homeHighlights,
+    homeScriptureBooks,
+    homeFtsQuery,
+    visibleResults,
+    elsewhereRest,
+    homeFtsSearch.data?.results,
+    data.homeSpaceId,
+  ]);
+
+  /*
+   * A Home row opens in My Home. Passages drill the panel, and the drill reads whichever
+   * space the panel is scoped to — so the scope moves to My Home first, or the drill would
+   * list the room's notes for a passage counted from yours. A highlight opens the Home note
+   * it was made in; one saved while reading has no note and opens the reader, which is the
+   * same wherever you search from.
+   */
+  const activateHome = (result: SidebarSearchResult) => {
+    switch (result.kind) {
+      case 'note':
+        if (!result.noteId) return;
+        data.openHomeNote(
+          homeNotesById.get(result.noteId) ??
+            ({ id: result.noteId, title: result.title } as SpaceNoteRow),
+        );
+        return;
+      case 'highlight': {
+        const row = result.highlightId ? homeHighlightsById.get(result.highlightId) : undefined;
+        if (!row) return;
+        if (row.parentNoteId) {
+          data.openHomeNote({ id: row.parentNoteId, title: '' } as SpaceNoteRow);
+        } else {
+          data.openHighlight(row);
+        }
+        return;
+      }
+      case 'scriptureBook':
+      case 'scripturePassage':
+        data.setListScope('my-home');
+        activate(result);
+        return;
+      default:
+        activate(result);
+    }
+  };
 
   /* Home notes are not in the open space's loaded list, so their rows read the search hit
      for the timestamp and preview a loaded note would have supplied. */
@@ -792,16 +883,10 @@ export default function PrototypeLibrarySearchResults({
                 <PrototypeSidebarSearchResultItem
                   key={result.id}
                   result={result}
-                  active={result.noteId === data.activeNoteFullId}
-                  onActivate={() => {
-                    if (!result.noteId) return;
-                    data.openHomeNote(
-                      homeNotesById.get(result.noteId) ??
-                        ({ id: result.noteId, title: result.title } as SpaceNoteRow),
-                    );
-                  }}
+                  active={result.kind === 'note' && result.noteId === data.activeNoteFullId}
+                  onActivate={() => activateHome(result)}
                   notesById={homeNotesById}
-                  highlightsById={highlightsById}
+                  highlightsById={homeHighlightsById}
                   leadIcon={resultLeadIcon(result)}
                 />
               ))}

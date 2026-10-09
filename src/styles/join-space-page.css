@@ -179,3 +179,114 @@ button.proto-menu-item .space-icon-tile--on-dark path {
   right: 0;
   bottom: calc(100% + 8px);
 }
+
+/* ==========================================================================
+   Join page layout (`.public-content--join`) — scoped so /upgrade keeps its shell.
+
+   The cover is a card in the column, not /upgrade's sticky bleed: it has the app frame's
+   radius, no fade, and the letter overlaps its lower edge so the two read as one object.
+   The letter follows the cover and the footer follows the letter; the old `margin: auto`
+   centring floated the card low and left a gap above the footer. The cover always draws the
+   space's colour (or image), so the letter's own colour band would be a second cover.
+   ========================================================================== */
+
+.public-content--upgrade.public-content--join {
+  gap: 0;
+}
+
+.public-content--join .upgrade-hero-section {
+  position: relative;
+  top: auto;
+  height: 200px;
+  min-height: 0;
+  margin-bottom: 0;
+  border-radius: var(--pds-shell-frame-radius, 18px);
+}
+
+.public-content--join .upgrade-hero-section::after {
+  content: none;
+}
+
+.public-content--join .public-paper-stack--join.public-paper-stack--upgrade {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin: -96px auto 0;
+}
+
+.public-content--join .public-join-letter__color-band {
+  display: none;
+}
+
+.public-content--join .public-join-letter,
+.public-content--join .public-join-letter--hero-cover {
+  padding-top: 32px;
+}
+
+.public-content--join .public-join-letter:not(.public-join-letter--hero-cover) .public-join-letter__header {
+  margin-top: 0;
+}
+
+.public-content--join .public-footer--rich {
+  margin-top: 28px;
+}
+
+/* One ink family and one measure for everything under the title. */
+.public-content--join .public-join-letter__invite {
+  max-width: 340px;
+  margin-inline: auto;
+  font-size: 0.9375rem;
+  color: var(--site-ink-soft);
+  text-wrap: pretty;
+}
+
+.public-content--join .public-join-letter__description {
+  max-width: 340px;
+  color: var(--site-ink-soft);
+  text-wrap: pretty;
+}
+
+.public-content--join .public-join-letter .public-addon-letter__title {
+  text-wrap: balance;
+}
+
+/* Who's here is a line of the letter, not a control: no pill to wrap into a lozenge. */
+.public-content--join .public-join-letter__social {
+  max-width: 340px;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.public-content--join .public-join-letter__social-text {
+  color: var(--site-ink-soft);
+}
+
+@media (max-width: 480px) {
+  .public-content.public-content--join {
+    padding: 8px 12px 24px;
+  }
+
+  .public-content--join .upgrade-hero-section {
+    height: 152px;
+  }
+
+  .public-content--join .public-paper-stack--join.public-paper-stack--upgrade {
+    margin-top: -72px;
+    padding: 8px 6px;
+  }
+
+  .public-content--join .public-paper-stack--join .public-paper-stack__leaf {
+    inset: 8px 6px;
+  }
+
+  .public-content--join .public-join-letter,
+  .public-content--join .public-join-letter--hero-cover {
+    padding: 28px 20px 24px;
+  }
+
+  .public-content--join .public-join-letter .public-addon-letter__title {
+    font-size: 1.75rem;
+  }
+}

@@ -77,7 +77,7 @@ function AddonScene({ active }: { active: boolean }) {
     <div className="public-page" style={{ minHeight: 'auto' }}>
       <PublicTopBar isSignedIn={!active} signedInCtaLabel="Back to my Harvous" />
       <div className="public-body">
-        <div className="public-content public-content--upgrade">
+        <div className="public-content public-content--upgrade public-content--pricing">
           <SubtleContentMount variant="fade">
             <UpgradePageContent
               initialHasSharedSpaces={active}

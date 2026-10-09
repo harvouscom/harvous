@@ -9,6 +9,7 @@ import { navigationQueryKeyPrefix } from '../../hooks/queries/useNavigation';
 import { PublicTopBar, PublicErrorState } from './public-shared';
 import PublicJoinSpaceLetter, { type PublicJoinSpaceLetterSpace } from './PublicJoinSpaceLetter';
 import PublicJoinSpaceHero from './PublicJoinSpaceHero';
+import Icon from '@/components/react/Icon';
 import { writePersistedSidebarNav } from '../prototype/proto-sidebar-nav-store';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
@@ -138,12 +139,15 @@ export default function PublicJoinSpacePage() {
         <PublicTopBar isSignedIn={!!isSignedIn} />
 
         <div className="public-body">
-          <div className="public-content public-content--upgrade">
-            <PublicJoinSpaceHero space={space} />
+          <div className="public-content public-content--upgrade public-content--join">
+            {/* Only once there is a space to show: the cover band above a spinner or an
+                "isn't available" message read as a page that loaded wrong. */}
+            {space && !error ? <PublicJoinSpaceHero space={space} /> : null}
             {isLoading ? (
               <div className="page-loading" />
             ) : (error || !space) ? (
               <PublicErrorState
+                icon={<Icon name="link" size={24} />}
                 title="This space isn't available"
                 message="Hmm, we can't find this space. The link might have expired or the owner made it private."
               />

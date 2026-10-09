@@ -18,7 +18,7 @@
  * group order around Actions, and the hoist's place at the head of the result rows.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import type { SpaceNoteRow } from '../../../../hooks/queries/useSpace';
 import type { CommandContext } from '../../../../lib/prototype-commands';
 import { SIDEBAR_NO_MATCH_COPY } from '../../sidebar-no-match-copy';
@@ -58,6 +58,8 @@ function note(id: string, title: string, folder?: string): SpaceNoteRow {
 const state: {
   notes: SpaceNoteRow[];
   scriptureBooks: unknown[];
+  /** My Home's Scripture index — what the "My Home" group reads inside a shared space. */
+  homeScriptureBooks: unknown[];
   resources: unknown[];
   ctx: CommandContext | null;
   isScopedSharedSpace: boolean;
@@ -75,6 +77,7 @@ const state: {
 } = {
   notes: [],
   scriptureBooks: [],
+  homeScriptureBooks: [],
   resources: [],
   ctx: null,
   isScopedSharedSpace: false,
@@ -90,6 +93,7 @@ const setLibraryPanelView = vi.fn();
 const closeLibraryPanel = vi.fn();
 const run = vi.fn();
 const openHomeNote = vi.fn();
+const setListScope = vi.fn();
 
 /* Answers by scope, the way the endpoint does: the space-scoped search finds nothing here,
    and only a query the component actually enabled (non-empty) gets the Home hits. */
@@ -141,6 +145,7 @@ vi.mock('../library-panel-data', () => ({
     activeNoteFullId: undefined,
     openNote: vi.fn(),
     openHomeNote,
+    setListScope,
     openHighlight: vi.fn(),
     openResource: vi.fn(),
     resolveDrillNoteRow: (brief: { id: string }) => brief,
@@ -151,7 +156,9 @@ vi.mock('../../../../hooks/mutations/usePrototypeFolderRegistry', () => ({
   usePrototypeFolderRegistry: () => ({ data: [] }),
 }));
 vi.mock('../../../../hooks/queries/usePrototypeSpaceScriptureIndex', () => ({
-  usePrototypeSpaceScriptureIndex: () => ({ data: state.scriptureBooks }),
+  usePrototypeSpaceScriptureIndex: (spaceId?: string) => ({
+    data: spaceId === 'space_home' ? state.homeScriptureBooks : state.scriptureBooks,
+  }),
 }));
 vi.mock('../../../../hooks/queries/usePrototypeSpaceStudyThreadHighlights', () => ({
   usePrototypeSpaceStudyThreadHighlights: () => ({ data: [] }),
@@ -183,6 +190,7 @@ function headings(container: HTMLElement): string[] {
 beforeEach(() => {
   state.notes = [];
   state.scriptureBooks = [];
+  state.homeScriptureBooks = [];
   state.resources = [];
   state.ctx = null;
   state.isScopedSharedSpace = false;
@@ -277,6 +285,51 @@ describe('My Home, searched from inside a shared space', () => {
 
     screen.getByText('Grace at home').click();
     expect(openHomeNote).toHaveBeenCalledWith(expect.objectContaining({ id: 'h1' }));
+  });
+
+  it('answers a reference with My Home’s passage, not just notes that happen to cite it', () => {
+    // The bug: inside a shared space "John 3:16" found the Home notes citing it, but as
+    // plain note rows previewing each note's first pill — "Proverbs 8:36", "Proverbs 8:32" —
+    // never the "John 3:16 · 3 notes" row My Home answers the same query with.
+    state.homeScriptureBooks = [
+      {
+        bookOrder: 43,
+        title: 'John',
+        referenceCount: 3,
+        noteCount: 3,
+        passages: [
+          {
+            passageKey: '43:3:16-16',
+            displayRef: 'John 3:16',
+            bookOrder: 43,
+            chapter: 3,
+            verseStart: 16,
+            verseEnd: 16,
+            referenceCount: 3,
+            noteCount: 3,
+            notes: [],
+          },
+        ],
+      },
+    ];
+    renderResults({ query: 'John 3:16', tab: 'all' });
+
+    const home = screen
+      .getByRole('heading', { name: 'My Home' })
+      .closest('.proto-library-results__group') as HTMLElement;
+    expect(within(home).getByText('3 notes')).toBeTruthy();
+
+    // Opening it lists Home's notes, so the panel moves to My Home before drilling.
+    within(home).getByText('3 notes').click();
+    expect(setListScope).toHaveBeenCalledWith('my-home');
+    expect(setLibraryPanelView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        drill: expect.objectContaining({
+          kind: 'scripture',
+          drill: expect.objectContaining({ level: 'notes', passageKey: '43:3:16-16' }),
+        }),
+      }),
+    );
   });
 
   it('matches the Home id with or without its space_ prefix', () => {
