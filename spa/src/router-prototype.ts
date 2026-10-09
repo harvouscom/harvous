@@ -255,6 +255,12 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChurchPage')),
   });
 
+  const prototypeSettingsFamilyRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'family',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeFamilyPage')),
+  });
+
   const prototypeSettingsLockPinRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'lock-pin',
@@ -400,6 +406,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
       prototypeSettingsReviewExercisesRoute,
       prototypeSettingsSoundsRoute,
       prototypeSettingsChurchRoute,
+      prototypeSettingsFamilyRoute,
       prototypeSettingsLockPinRoute,
       prototypeSettingsSharingRoute,
       prototypeSettingsAddonsRoute,

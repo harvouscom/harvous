@@ -19,7 +19,19 @@ export function planCardPrice(options: {
   hasPlus: boolean;
   billing: Parameters<typeof formatBillingPriceLine>[0] & Parameters<typeof formatBillingStatusLine>[0] | null;
   canManageBilling: boolean;
+  /** Another family member's Plus covers this account (study features, not hosting). */
+  coverage?: { active: boolean; sponsorFirstName: string | null; familyName: string } | null;
 }): { primary: string; secondary: string | null; note: string | null } {
+  /* Covered, not subscribed: say whose plan it is rather than "Managed by Harvous". */
+  if (!options.hasPlus && options.coverage?.active) {
+    return {
+      primary: 'Covered by your family',
+      secondary: null,
+      note: options.coverage.sponsorFirstName
+        ? `${options.coverage.sponsorFirstName}’s Plus covers ${options.coverage.familyName}`
+        : `Plus covers ${options.coverage.familyName}`,
+    };
+  }
   if (!options.hasPlus) {
     // From the plan definitions, not `planFor`: that only answers once a billing product is
     // configured, and the price is a fact about the plan, not about the environment.

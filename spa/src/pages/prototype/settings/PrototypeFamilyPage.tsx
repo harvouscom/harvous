@@ -1,0 +1,601 @@
+/**
+ * Settings › Family — a household over a shared space. See docs/future/FAMILY_ACCOUNTS.md.
+ *
+ * One page, four readers: someone who could start a family, a parent (who invites, arranges
+ * and sees their children's progress), a child (who sees exactly what their parents see,
+ * and can step out of the child role), and an adult member. Drill-downs — a new invite, an
+ * open invite, one person — are sub-screens inside the pane, the way Account's are.
+ *
+ * What a parent sees is progress, never content, and the child's card renders the very same
+ * payload, so the arrangement is never something a child has to take on trust.
+ */
+import { useRef, useState, type ReactNode } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import Icon from '@/components/react/Icon';
+import { toast } from '@/utils/toast';
+import { enterSpaceUrl } from '@/utils/enter-space-link';
+import {
+  FAMILY_INVITE_LABEL_MAX,
+  FAMILY_ROLE_DISCLOSURE,
+  FAMILY_ROLE_LABEL,
+  canChangeFamilyRole,
+  canRemoveFamilyMember,
+  type FamilyRole,
+} from '@/lib/family-roles';
+import { APIError } from '../../../lib/api';
+import {
+  useChangeFamilyRole,
+  useCreateFamily,
+  useCreateFamilyInvite,
+  useDissolveFamily,
+  useFamily,
+  useFamilyProgress,
+  useRemoveFamilyMember,
+  useRenameFamily,
+  useRevokeFamilyInvite,
+  type FamilyInvite,
+  type FamilyMember,
+  type FamilyProgressEntry,
+  type FamilyResponse,
+} from '../../../hooks/queries/useFamily';
+import ProtoConfirmDialog from '../ProtoConfirmDialog';
+import SharedSpaceMemberAvatar from '../SharedSpaceMemberAvatar';
+import { ErrorText, Field } from './account/accountShared';
+import {
+  SettingsCopyRow,
+  SettingsGroup,
+  SettingsIntro,
+  SettingsRow,
+  SettingsShell,
+  SettingsSubScreen,
+} from './SettingsShell';
+
+type InFamily = Extract<FamilyResponse, { me: unknown }>;
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="pds-inspector-label"
+      style={{ padding: '0 0 6px', textTransform: 'uppercase', color: 'var(--pds-text-tertiary)' }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Footnote({ children }: { children: ReactNode }) {
+  return (
+    <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '-6px 0 20px', textWrap: 'pretty' }}>
+      {children}
+    </p>
+  );
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof APIError || error instanceof Error) return error.message || fallback;
+  return fallback;
+}
+
+const LAST_ACTIVE_LABEL: Record<FamilyProgressEntry['lastActive'], string> = {
+  day: 'In the last day',
+  week: 'This week',
+  month: 'This month',
+  earlier: 'Over a month ago',
+  never: 'Not yet',
+};
+
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function inviteTitle(invite: FamilyInvite): string {
+  const role = FAMILY_ROLE_LABEL[invite.role];
+  return invite.label ? `${role} · ${invite.label}` : `${role} invite`;
+}
+
+/** The four signals, as rows. Shared by a parent's card and the child's own. */
+function ProgressRows({ entry }: { entry: FamilyProgressEntry }) {
+  return (
+    <SettingsGroup>
+      <SettingsRow label="Last active" value={LAST_ACTIVE_LABEL[entry.lastActive]} trailing="none" />
+      <SettingsRow label="Chapters read" value={String(entry.chaptersRead)} trailing="none" />
+      <SettingsRow
+        label="Books"
+        sublabel={entry.booksRead.length > 0 ? entry.booksRead.join(', ') : undefined}
+        value={entry.booksRead.length === 0 ? 'None yet' : undefined}
+        trailing="none"
+      />
+      <SettingsRow label="Notes written" value={String(entry.notesWritten)} trailing="none" />
+    </SettingsGroup>
+  );
+}
+
+// ─── Starting a family ──────────────────────────────────────────────────────
+
+function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }> }) {
+  const navigate = useNavigate();
+  const create = useCreateFamily();
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const others = data.maxMembers - 1;
+
+  async function start() {
+    setError(null);
+    try {
+      await create.mutateAsync(name.trim());
+      toast.success('Your family is ready. Invite someone next.');
+    } catch (e) {
+      setError(errorMessage(e, 'Could not start a family. Try again in a moment.'));
+    }
+  }
+
+  return (
+    <SettingsShell>
+      <SettingsIntro>
+        A Family Space everyone shares, and your Plus covering up to {others} more people. Parents see
+        how a child&rsquo;s study is going, never what they write.
+      </SettingsIntro>
+      {data.start.hasPlus ? (
+        <>
+          <Field label="Family name" value={name} placeholder="The Johnson family" onChange={setName} />
+          <ErrorText>{error}</ErrorText>
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
+            disabled={create.isPending || name.trim().length === 0}
+            onClick={() => void start()}
+          >
+            {create.isPending ? 'Starting…' : 'Start a family'}
+          </button>
+        </>
+      ) : (
+        <>
+          <Footnote>Starting a family needs Harvous Plus. Everyone you invite is covered by it.</Footnote>
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
+            onClick={() => navigate({ to: '/upgrade' })}
+          >
+            Get Harvous Plus
+          </button>
+        </>
+      )}
+    </SettingsShell>
+  );
+}
+
+// ─── New invite ─────────────────────────────────────────────────────────────
+
+function NewInviteScreen({ onDone }: { onDone: () => void }) {
+  const create = useCreateFamilyInvite();
+  const [role, setRole] = useState<FamilyRole>('child');
+  const [label, setLabel] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<FamilyInvite | null>(null);
+
+  async function make() {
+    setError(null);
+    try {
+      const { invite } = await create.mutateAsync({ role, label: label.trim() || undefined });
+      setCreated(invite);
+    } catch (e) {
+      setError(errorMessage(e, 'Could not make an invite. Try again in a moment.'));
+    }
+  }
+
+  if (created) {
+    return (
+      <SettingsSubScreen title="Invite link" onBack={onDone}>
+        <SettingsIntro>
+          Send this to them. It works once, for a week, and asks them to accept the {FAMILY_ROLE_LABEL[created.role].toLowerCase()} role before
+          they join.
+        </SettingsIntro>
+        <SettingsCopyRow value={created.url} layout="field" copyLabel="Copy link" />
+        <div style={{ height: 16 }} />
+        <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={onDone}>
+          Done
+        </button>
+      </SettingsSubScreen>
+    );
+  }
+
+  return (
+    <SettingsSubScreen title="Invite someone" onBack={onDone}>
+      <SectionLabel>They join as</SectionLabel>
+      <SettingsGroup>
+        {(['child', 'adult', 'parent'] as const).map((option) => (
+          <SettingsRow
+            key={option}
+            label={FAMILY_ROLE_LABEL[option]}
+            sublabel={FAMILY_ROLE_DISCLOSURE[option].summary}
+            leadingNode={
+              <span
+                className={`public-join-church__check${role === option ? ' public-join-church__check--on' : ''}`}
+                aria-hidden
+              >
+                {role === option ? <Icon name="check" size={11} /> : null}
+              </span>
+            }
+            trailing="none"
+            onClick={() => setRole(option)}
+          />
+        ))}
+      </SettingsGroup>
+      <Field
+        label="Note for your list (optional)"
+        value={label}
+        placeholder="For Tyler"
+        onChange={(v) => setLabel(v.slice(0, FAMILY_INVITE_LABEL_MAX))}
+      />
+      <ErrorText>{error}</ErrorText>
+      <button
+        type="button"
+        className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
+        disabled={create.isPending}
+        onClick={() => void make()}
+      >
+        {create.isPending ? 'Making a link…' : 'Make invite link'}
+      </button>
+    </SettingsSubScreen>
+  );
+}
+
+// ─── An open invite ─────────────────────────────────────────────────────────
+
+function InviteScreen({ invite, onDone }: { invite: FamilyInvite; onDone: () => void }) {
+  const revoke = useRevokeFamilyInvite();
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <SettingsSubScreen title={inviteTitle(invite)} onBack={onDone}>
+      <SettingsIntro>Works once, until {shortDate(invite.expiresAt)}.</SettingsIntro>
+      <SettingsCopyRow value={invite.url} layout="field" copyLabel="Copy link" />
+      <div style={{ height: 16 }} />
+      <div ref={anchorRef}>
+        <SettingsGroup>
+          <SettingsRow label="Turn off this invite" destructive trailing="none" onClick={() => setConfirming(true)} />
+        </SettingsGroup>
+      </div>
+      {confirming ? (
+        <ProtoConfirmDialog
+          anchorEl={anchorRef.current}
+          preferAbove
+          title="Turn off this invite?"
+          description="The link stops working. You can make a new one any time."
+          confirmLabel="Turn off"
+          busy={revoke.isPending}
+          onConfirm={() =>
+            revoke.mutate(invite.id, {
+              onSuccess: () => onDone(),
+              onError: (e) => toast.error(errorMessage(e, 'Could not turn it off')),
+              onSettled: () => setConfirming(false),
+            })
+          }
+          onCancel={() => setConfirming(false)}
+        />
+      ) : null}
+    </SettingsSubScreen>
+  );
+}
+
+// ─── One person ─────────────────────────────────────────────────────────────
+
+type MemberAction = { key: string; label: string; sublabel?: string; destructive?: boolean; confirm: string; run: () => Promise<unknown> };
+
+function MemberScreen({ data, member, onDone }: { data: InFamily; member: FamilyMember; onDone: () => void }) {
+  const changeRole = useChangeFamilyRole();
+  const remove = useRemoveFamilyMember();
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const [pending, setPending] = useState<MemberAction | null>(null);
+  const actor = { userId: data.me.userId, role: data.me.role };
+  const owner = data.family.ownerUserId;
+
+  const roleMove = (to: FamilyRole, label: string, confirm: string, sublabel?: string): MemberAction | null =>
+    canChangeFamilyRole({ actor, ownerUserId: owner, targetUserId: member.userId, from: member.role, to }).ok
+      ? { key: `role-${to}`, label, sublabel, confirm, run: () => changeRole.mutateAsync({ userId: member.userId, role: to }) }
+      : null;
+
+  const actions = [
+    roleMove(
+      'adult',
+      'Make an adult member',
+      member.role === 'child'
+        ? `Parents will stop seeing ${member.displayName}’s progress.`
+        : `${member.displayName} will no longer see the children’s progress.`,
+      member.role === 'child' ? 'Parents stop seeing their progress.' : undefined,
+    ),
+    roleMove('parent', 'Make a parent', `${member.displayName} will be able to invite people and see the children’s progress.`),
+    canRemoveFamilyMember({ actor, ownerUserId: owner, targetUserId: member.userId, targetRole: member.role }).ok
+      ? {
+          key: 'remove',
+          label: 'Remove from family',
+          destructive: true,
+          confirm: `${member.displayName} leaves the Family Space and the family plan. Their own study stays theirs.`,
+          run: () => remove.mutateAsync(member.userId),
+        }
+      : null,
+  ].filter((a): a is MemberAction => a !== null);
+
+  return (
+    <SettingsSubScreen title={member.displayName} onBack={onDone}>
+      <SettingsIntro>
+        {FAMILY_ROLE_LABEL[member.role]}
+        {member.isOwner ? ' · started this family' : ''}
+        {!member.isOwner ? (member.covered ? ' · covered by the family plan' : ' · not covered right now') : ''}
+      </SettingsIntro>
+      <div ref={anchorRef}>
+        {actions.length > 0 ? (
+          <SettingsGroup>
+            {actions.map((action) => (
+              <SettingsRow
+                key={action.key}
+                label={action.label}
+                sublabel={action.sublabel}
+                destructive={action.destructive}
+                trailing="none"
+                onClick={() => setPending(action)}
+              />
+            ))}
+          </SettingsGroup>
+        ) : (
+          <Footnote>There&rsquo;s nothing you can change for {member.displayName}.</Footnote>
+        )}
+      </div>
+      {pending ? (
+        <ProtoConfirmDialog
+          anchorEl={anchorRef.current}
+          preferAbove
+          title={`${pending.label}?`}
+          description={pending.confirm}
+          confirmLabel={pending.destructive ? 'Remove' : 'Change'}
+          busy={changeRole.isPending || remove.isPending}
+          onConfirm={() => {
+            pending
+              .run()
+              .then(() => onDone())
+              .catch((e) => toast.error(errorMessage(e, 'Could not make that change')))
+              .finally(() => setPending(null));
+          }}
+          onCancel={() => setPending(null)}
+        />
+      ) : null}
+    </SettingsSubScreen>
+  );
+}
+
+// ─── The family ─────────────────────────────────────────────────────────────
+
+type View = { kind: 'main' } | { kind: 'invite-new' } | { kind: 'invite'; id: string } | { kind: 'member'; userId: string } | { kind: 'rename' };
+
+function RenameScreen({ current, onDone }: { current: string; onDone: () => void }) {
+  const rename = useRenameFamily();
+  const [name, setName] = useState(current);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <SettingsSubScreen title="Family name" onBack={onDone}>
+      <Field label="Family name" value={name} onChange={setName} />
+      <ErrorText>{error}</ErrorText>
+      <button
+        type="button"
+        className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
+        disabled={rename.isPending || name.trim().length === 0 || name.trim() === current}
+        onClick={() =>
+          rename.mutate(name.trim(), {
+            onSuccess: () => onDone(),
+            onError: (e) => setError(errorMessage(e, 'Could not rename the family')),
+          })
+        }
+      >
+        Save
+      </button>
+    </SettingsSubScreen>
+  );
+}
+
+function FamilyView({ data }: { data: InFamily }) {
+  const navigate = useNavigate();
+  const { family, me, maxMembers } = data;
+  const isParent = me.role === 'parent';
+  const progress = useFamilyProgress(me.role !== 'adult');
+  const changeRole = useChangeFamilyRole();
+  const remove = useRemoveFamilyMember();
+  const dissolve = useDissolveFamily();
+  const [view, setView] = useState<View>({ kind: 'main' });
+  const leaveAnchorRef = useRef<HTMLDivElement | null>(null);
+  const adultAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmAdult, setConfirmAdult] = useState(false);
+
+  const back = () => setView({ kind: 'main' });
+  if (view.kind === 'invite-new') return <NewInviteScreen onDone={back} />;
+  if (view.kind === 'rename') return <RenameScreen current={family.name} onDone={back} />;
+  if (view.kind === 'invite') {
+    const invite = family.invites.find((i) => i.id === view.id);
+    if (invite) return <InviteScreen invite={invite} onDone={back} />;
+  }
+  if (view.kind === 'member') {
+    const member = family.members.find((m) => m.userId === view.userId);
+    if (member) return <MemberScreen data={data} member={member} onDone={back} />;
+  }
+
+  const seats = family.members.length + family.invites.length;
+  const myEntry = me.role === 'child' ? progress.data?.entries.find((e) => e.userId === me.userId) : undefined;
+  const children = isParent ? (progress.data?.entries ?? []) : [];
+
+  return (
+    <SettingsShell>
+      {!family.sponsoring ? (
+        <SettingsIntro>
+          {me.isOwner
+            ? 'Your Plus has ended, so it isn’t covering your family right now. Everyone stays in the family.'
+            : `${family.ownerFirstName ?? 'The owner'}’s Plus isn’t covering the family right now. You’re still in it.`}
+        </SettingsIntro>
+      ) : null}
+
+      <SettingsGroup>
+        <SettingsRow
+          label={family.name}
+          sublabel={isParent ? 'Rename' : undefined}
+          leadingIcon="user-group"
+          trailing={isParent ? 'chevron' : 'none'}
+          onClick={isParent ? () => setView({ kind: 'rename' }) : undefined}
+        />
+        {family.spaceAvailable ? (
+          <SettingsRow
+            label="Open the Family Space"
+            sublabel="Everyone in the family can read and write here."
+            onClick={() => void navigate({ to: enterSpaceUrl(family.spaceId) as never })}
+          />
+        ) : null}
+      </SettingsGroup>
+
+      <SectionLabel>{`People · ${family.members.length} of ${maxMembers}`}</SectionLabel>
+      <SettingsGroup>
+        {family.members.map((member) => (
+          <SettingsRow
+            key={member.userId}
+            label={member.isMe ? `${member.displayName} (you)` : member.displayName}
+            sublabel={`${FAMILY_ROLE_LABEL[member.role]}${member.isOwner ? ' · pays for Plus' : member.covered ? ' · covered' : ''}`}
+            leadingNode={
+              <SharedSpaceMemberAvatar
+                userId={member.userId}
+                displayName={member.displayName}
+                userColor={member.userColor}
+                profileImageUrl={member.profileImageUrl}
+              />
+            }
+            trailing={isParent && !member.isMe ? 'chevron' : 'none'}
+            onClick={isParent && !member.isMe ? () => setView({ kind: 'member', userId: member.userId }) : undefined}
+          />
+        ))}
+        {isParent
+          ? family.invites.map((invite) => (
+              <SettingsRow
+                key={invite.id}
+                label={inviteTitle(invite)}
+                sublabel={`Invite sent · works until ${shortDate(invite.expiresAt)}`}
+                leadingIcon="envelope"
+                onClick={() => setView({ kind: 'invite', id: invite.id })}
+              />
+            ))
+          : null}
+        {isParent && seats < maxMembers ? (
+          <SettingsRow
+            label="Invite someone"
+            leadingIcon="plus"
+            disabled={!family.sponsoring}
+            onClick={() => setView({ kind: 'invite-new' })}
+          />
+        ) : null}
+      </SettingsGroup>
+      {me.hasOwnPlus && !me.isOwner && family.sponsoring ? (
+        <Footnote>You also have your own Plus. The family covers you, so you can cancel yours from Plan any time.</Footnote>
+      ) : null}
+
+      {isParent && children.length > 0 ? (
+        <>
+          <SectionLabel>How your children are doing · last 30 days</SectionLabel>
+          {children.map((entry) => (
+            <div key={entry.userId}>
+              <p className="pds-list-title" style={{ margin: '0 0 6px', color: 'var(--pds-text-primary)' }}>
+                {entry.displayName}
+              </p>
+              <ProgressRows entry={entry} />
+            </div>
+          ))}
+          <Footnote>Counts only. You never see their notes, highlights, searches, or Review.</Footnote>
+        </>
+      ) : null}
+
+      {me.role === 'child' ? (
+        <>
+          <SectionLabel>What your parents can see · last 30 days</SectionLabel>
+          {myEntry ? <ProgressRows entry={myEntry} /> : null}
+          <Footnote>{FAMILY_ROLE_DISCLOSURE.child.never}</Footnote>
+          <div ref={adultAnchorRef}>
+            <SettingsGroup>
+              <SettingsRow
+                label="Become an adult member"
+                sublabel="Your parents stop seeing your progress. You stay in the family."
+                trailing="none"
+                onClick={() => setConfirmAdult(true)}
+              />
+            </SettingsGroup>
+          </div>
+        </>
+      ) : null}
+
+      <div ref={leaveAnchorRef}>
+        <SettingsGroup>
+          <SettingsRow
+            label={me.isOwner ? 'Dissolve the family' : 'Leave the family'}
+            sublabel={
+              me.isOwner
+                ? 'The Family Space stays, with everyone in it. The family plan stops covering them.'
+                : 'Your notes in the Family Space leave with you. Your own study stays yours.'
+            }
+            destructive
+            trailing="none"
+            onClick={() => setConfirmLeave(true)}
+          />
+        </SettingsGroup>
+      </div>
+
+      {confirmAdult ? (
+        <ProtoConfirmDialog
+          anchorEl={adultAnchorRef.current}
+          preferAbove
+          title="Become an adult member?"
+          description="Your parents will stop seeing your progress. Only a new invite could make you a child again."
+          confirmLabel="Change"
+          busy={changeRole.isPending}
+          onConfirm={() =>
+            changeRole.mutate(
+              { userId: me.userId, role: 'adult' },
+              {
+                onError: (e) => toast.error(errorMessage(e, 'Could not make that change')),
+                onSettled: () => setConfirmAdult(false),
+              },
+            )
+          }
+          onCancel={() => setConfirmAdult(false)}
+        />
+      ) : null}
+
+      {confirmLeave ? (
+        <ProtoConfirmDialog
+          anchorEl={leaveAnchorRef.current}
+          preferAbove
+          title={me.isOwner ? 'Dissolve the family?' : 'Leave the family?'}
+          description={
+            me.isOwner
+              ? 'Everyone keeps the Family Space as an ordinary shared space, but your Plus stops covering them.'
+              : 'You’ll leave the Family Space and the family plan.'
+          }
+          confirmLabel={me.isOwner ? 'Dissolve' : 'Leave'}
+          busy={dissolve.isPending || remove.isPending}
+          onConfirm={() => {
+            const done = { onSettled: () => setConfirmLeave(false), onError: (e: unknown) => toast.error(errorMessage(e, 'Could not do that')) };
+            if (me.isOwner) dissolve.mutate(undefined, done);
+            else remove.mutate(me.userId, done);
+          }}
+          onCancel={() => setConfirmLeave(false)}
+        />
+      ) : null}
+    </SettingsShell>
+  );
+}
+
+export default function PrototypeFamilyPage() {
+  const { data, isLoading, isError } = useFamily();
+  if (isLoading) return <SettingsShell>{null}</SettingsShell>;
+  if (isError || !data) {
+    return (
+      <SettingsShell>
+        <SettingsIntro>Family settings couldn&rsquo;t load. Try again in a moment.</SettingsIntro>
+      </SettingsShell>
+    );
+  }
+  if (data.family === null) return <StartFamily data={data} />;
+  return <FamilyView data={data as InFamily} />;
+}

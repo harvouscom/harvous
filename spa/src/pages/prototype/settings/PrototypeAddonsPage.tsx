@@ -104,7 +104,9 @@ export default function PrototypeAddonsPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [receiptBusyId, setReceiptBusyId] = useState<string | null>(null);
 
-  const price = planCardPrice({ hasPlus: hasSharedSpaces, billing, canManageBilling });
+  const coverage = subscription?.coverage ?? null;
+  const familyCovered = !hasSharedSpaces && Boolean(coverage?.active);
+  const price = planCardPrice({ hasPlus: hasSharedSpaces, billing, canManageBilling, coverage });
 
   async function openOrderReceipt(orderId: string) {
     if (receiptBusyId) return;
@@ -126,7 +128,7 @@ export default function PrototypeAddonsPage() {
         <PlanCard
           name={PLAN_NAME}
           icon="plus"
-          badge={hasSharedSpaces ? (isFounding ? PLUS_FOUNDING_BADGE : 'Active') : null}
+          badge={hasSharedSpaces ? (isFounding ? PLUS_FOUNDING_BADGE : 'Active') : familyCovered ? 'Family' : null}
           price={price}
           tagline={PLUS_PLAN_TAGLINE}
           bullets={featureBullets}
@@ -140,7 +142,14 @@ export default function PrototypeAddonsPage() {
             </>
           ) : null}
 
-          {!hasSharedSpaces ? (
+          {familyCovered ? (
+            <p className="proto-plan-card__note">
+              Your family plan covers Review, full history and the Connector. Hosting your own
+              shared spaces needs your own Plus.
+            </p>
+          ) : null}
+
+          {!hasSharedSpaces && !familyCovered ? (
             <button
               type="button"
               className="proto-settings-btn proto-settings-btn--primary proto-plan-card__cta"
