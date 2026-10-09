@@ -201,6 +201,14 @@ const importDesignGalleryRoute = import.meta.env.DEV
     })
   : null;
 
+const familyDesignRoute = import.meta.env.DEV
+  ? createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/__dev/family-design',
+      component: lazyRouteComponent(() => import('./pages/dev/FamilyDesignPage')),
+    })
+  : null;
+
 const connectorDesignRoute = import.meta.env.DEV
   ? createRoute({
       getParentRoute: () => rootRoute,
@@ -329,6 +337,7 @@ function buildRouteTree() {
     ...(churchDesignGalleryRoute ? [churchDesignGalleryRoute] : []),
     ...(importDesignGalleryRoute ? [importDesignGalleryRoute] : []),
     ...(connectorDesignRoute ? [connectorDesignRoute] : []),
+    ...(familyDesignRoute ? [familyDesignRoute] : []),
     buildPrototypeRouteBranch(rootRoute),
     notFoundRoute,
   ]);

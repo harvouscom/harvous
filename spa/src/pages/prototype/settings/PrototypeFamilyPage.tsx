@@ -56,7 +56,7 @@ import {
   SettingsSubScreen,
 } from './SettingsShell';
 
-type InFamily = Extract<FamilyResponse, { me: unknown }>;
+export type InFamily = Extract<FamilyResponse, { me: unknown }>;
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
@@ -638,7 +638,8 @@ function ParentRequestCard({ request, frozen }: { request: FamilyRoleRequest; fr
   );
 }
 
-function FamilyView({ data }: { data: InFamily }) {
+/** Exported for the dev gallery (`/__dev/family-design`), which renders it inside a demo. */
+export function FamilyView({ data }: { data: InFamily }) {
   const navigate = useNavigate();
   const { family, me, maxMembers } = data;
   const isParent = me.role === 'parent';
