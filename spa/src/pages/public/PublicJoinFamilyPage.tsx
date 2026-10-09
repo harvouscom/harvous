@@ -1,32 +1,45 @@
 /**
  * `/family/join/:token` — a family invite, sent by a parent from Settings › Family.
  *
- * The page's real job is consent. It says which role the invite is for and exactly what
- * that role shares, and the redeem sends the role back (`acknowledgedRole`) so the server
- * can refuse a join that didn't see it. See docs/future/FAMILY_ACCOUNTS.md.
+ * Drawn the way a shared-space invite is (`PublicJoinSpacePage`): the Family Space's own
+ * cover as the hero, a paper-stack letter with the room's accent tile, who invited you and how
+ * many are already in it. It shows the room's looks only, never its threads or notes.
  *
- * Signed out, it goes to sign-up the way the church join page does, and parks the token for
- * the return trip. Unlike that page it does **not** replay the join on return: someone just
- * back from sign-up should still press the button that names the role.
+ * The page's real job is still consent. Under the room sits the role this invite is for and
+ * exactly what that role shares, and the redeem sends the role back (`acknowledgedRole`), so
+ * the server refuses a join that didn't see it. See docs/future/FAMILY_ACCOUNTS.md.
+ *
+ * Signed out, it goes to sign-up and returns here; unlike the church join page it does not
+ * replay the join, so the button that names the role is always pressed on purpose.
  */
+import { useSyncExternalStore, useState, type CSSProperties } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
-import { useState } from 'react';
 import Icon from '@/components/react/Icon';
+import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { enterSpaceUrl } from '@/utils/enter-space-link';
+import { avatarGlyphColorForAccent, spaceIconAccentHex } from '@/utils/space-cover';
 import { FAMILY_ROLE_LABEL } from '@/lib/family-roles';
+import { joinFamilyLabel } from '@/lib/family-name';
 import { APIError } from '../../lib/api';
+import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
+import { resolveJoinCoverDisplay } from '../../lib/space-cover-display';
 import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 import { hasGuestSession } from '../../lib/guest-session';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 import { useFamilyInvitePreview, useRedeemFamilyInvite } from '../../hooks/queries/useFamily';
+import PublicJoinSpaceHero from './PublicJoinSpaceHero';
 import { PublicErrorState, PublicTopBar } from './public-shared';
 
 /** App.tsx's PendingDiscoverToastBridge — generic in everything but its name. */
 const PENDING_TOAST_KEY = 'pendingDiscoverToast';
 
-function article(role: string): string {
-  return /^[aeiou]/i.test(role) ? 'an' : 'a';
+function article(word: string): string {
+  return /^[aeiou]/i.test(word) ? 'an' : 'a';
+}
+
+function peopleLine(count: number): string {
+  return count === 1 ? '1 person in this family' : `${count} people in this family`;
 }
 
 export default function PublicJoinFamilyPage() {
@@ -36,9 +49,25 @@ export default function PublicJoinFamilyPage() {
   const preview = useFamilyInvitePreview(token);
   const redeem = useRedeemFamilyInvite(token);
   const [message, setMessage] = useState<string | null>(null);
+  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
 
   const data = preview.data;
-  const roleLabel = data ? FAMILY_ROLE_LABEL[data.role] : '';
+  const roleLabel = data ? FAMILY_ROLE_LABEL[data.role].toLowerCase() : '';
+  const room = data?.space
+    ? {
+        color: data.space.color,
+        backgroundGradient: data.space.backgroundGradient,
+        cover: { light: data.space.coverBgLight ?? null, dark: data.space.coverBgDark ?? null },
+      }
+    : null;
+  const coverDisplay = room ? resolveJoinCoverDisplay(room, colorScheme) : null;
+  const inviterAccent = data?.inviter ? (colorScheme === 'dark' ? data.inviter.accentDark : data.inviter.accentLight) : null;
+  const inviterAvatarStyle = inviterAccent
+    ? ({
+        '--public-join-avatar-bg': inviterAccent,
+        '--public-join-avatar-color': avatarGlyphColorForAccent(inviterAccent, colorScheme) ?? undefined,
+      } as CSSProperties)
+    : undefined;
 
   function goToSignUp(toSignIn = false) {
     writePendingAuthRedirect(window.location.href);
@@ -85,6 +114,7 @@ export default function PublicJoinFamilyPage() {
 
   const busy = redeem.isPending;
   const failed = preview.isError;
+  const usable = data && data.valid;
 
   return (
     <>
@@ -92,79 +122,130 @@ export default function PublicJoinFamilyPage() {
       <div className="public-page">
         <PublicTopBar isSignedIn={Boolean(isSignedIn)} />
         <div className="public-body">
-          <div className="public-content">
+          <div className="public-content public-content--upgrade public-content--join">
+            {usable && room ? <PublicJoinSpaceHero space={room} /> : null}
             {preview.isLoading || (!data && !failed) ? (
               <div className="page-loading" />
             ) : !data ? (
-              <PublicErrorState title="This invite isn’t working" message="Ask whoever sent it for a new one." />
+              <PublicErrorState
+                icon={<Icon name="link" size={24} />}
+                title="This invite isn’t working"
+                message="Ask whoever sent it for a new one."
+              />
             ) : !data.valid ? (
-              <PublicErrorState title={data.reason ?? 'This invite is no longer active'} message="Ask whoever sent it for a new one." />
+              <PublicErrorState
+                icon={<Icon name="link" size={24} />}
+                title={data.reason ?? 'This invite is no longer active'}
+                message="Ask whoever sent it for a new one."
+              />
             ) : (
-              <>
-                <p className="public-creator">
-                  {data.inviterFirstName ? `${data.inviterFirstName} invited you` : 'You’re invited'}
-                </p>
-                <div className="public-card public-join-church">
-                  <div className="public-join-church__head">
-                    <span className="public-join-church__glyph" aria-hidden>
-                      <Icon name="user-group" size={20} />
-                    </span>
-                    <div className="public-join-church__head-text">
-                      <h1 className="public-card__title">{data.familyName}</h1>
-                      <p className="public-card__meta">{`Joining as ${article(roleLabel)} ${roleLabel.toLowerCase()}`}</p>
-                    </div>
-                  </div>
-
-                  <p className="public-join-church__lede">{data.disclosure.summary}</p>
-
-                  {data.role === 'child' ? (
-                    <div className="public-join-church__group">
-                      <div className="public-join-church__group-head">
-                        <span className="public-join-church__group-name">What your parents can see</span>
-                      </div>
-                      <ul className="public-join-church__channels">
-                        {data.disclosure.shares.map((line) => (
-                          <li key={line}>
-                            <div className="public-join-church__channel public-join-church__channel--static">
-                              <span className="public-join-church__channel-text">
-                                <span className="public-join-church__channel-title">{line}</span>
-                              </span>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-
-                  <p className="public-join-church__lede">{data.disclosure.never}</p>
-
-                  <div className="public-join-church__foot">
-                    {message ? (
-                      <p className="public-join-church__notice public-join-church__notice--error" role="alert">
-                        {message}
-                      </p>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="public-cta-btn"
-                      disabled={busy}
-                      onClick={() => (isSignedIn ? void join() : goToSignUp())}
+              <SubtleContentMount variant="fade">
+                <>
+                  <div className="public-paper-stack public-paper-stack--upgrade public-paper-stack--join">
+                    <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
+                    <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
+                    <article
+                      className={`public-addon-letter public-join-letter${coverDisplay?.isImage ? ' public-join-letter--hero-cover' : ''}`}
                     >
-                      {!isSignedIn ? 'Create your free account' : busy ? 'Joining…' : `Join as ${article(roleLabel)} ${roleLabel.toLowerCase()}`}
-                    </button>
-                    {!isSignedIn ? (
-                      <button type="button" className="public-join-church__text-btn" onClick={() => goToSignUp(true)}>
-                        I already have an account
-                      </button>
-                    ) : null}
+                      {coverDisplay && !coverDisplay.isImage ? (
+                        <div className="public-join-letter__color-band" style={coverDisplay.bandStyle} aria-hidden />
+                      ) : null}
+
+                      <div className="public-addon-letter__header public-join-letter__header">
+                        <span
+                          className={`public-addon-letter__icon public-join-letter__icon space-icon-tile${colorScheme === 'dark' ? ' space-icon-tile--on-dark' : ''}`}
+                          aria-hidden
+                          style={{ ['--space-icon-accent' as string]: spaceIconAccentHex(data.space?.color, colorScheme) }}
+                        >
+                          <Icon name="user-group" size={22} />
+                        </span>
+                        <p className="public-addon-letter__tagline public-join-letter__invite">
+                          {data.inviterFirstName
+                            ? `${data.inviterFirstName} invited you to join their family on Harvous.`
+                            : 'You’re invited to join a family on Harvous.'}
+                        </p>
+                        <h1 className="public-addon-letter__title">{data.familyName}</h1>
+                      </div>
+
+                      <div className="public-join-letter__body">
+                        {data.space?.description ? (
+                          <p className="public-join-letter__description">{data.space.description}</p>
+                        ) : null}
+                        <div className="public-join-letter__social">
+                          <div className="public-join-letter__avatars" aria-hidden>
+                            {data.inviter?.profileImageUrl ? (
+                              <span
+                                className="public-join-letter__avatar public-join-letter__avatar--photo"
+                                style={{ backgroundImage: `url(${data.inviter.profileImageUrl})` }}
+                              />
+                            ) : (
+                              <span className="public-join-letter__avatar" style={inviterAvatarStyle}>
+                                {(data.inviterFirstName ?? '?').charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <p className="public-join-letter__social-text">{peopleLine(data.memberCount ?? 1)}</p>
+                        </div>
+
+                        {/* What joining means, stated before the button that agrees to it. */}
+                        <section className="public-join-family__role" aria-label={`Joining as ${article(roleLabel)} ${roleLabel}`}>
+                          <p className="public-join-family__role-kicker">
+                            You’d join as {article(roleLabel)} {roleLabel}
+                          </p>
+                          <p className="public-join-family__role-summary">{data.disclosure.summary}</p>
+                          {data.role === 'child' ? (
+                            <ul className="public-join-family__shares" role="list">
+                              {data.disclosure.shares.map((line) => (
+                                <li key={line}>
+                                  <Icon name="eye" size={12} aria-hidden />
+                                  <span>{line}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                          <p className="public-join-family__role-never">
+                            <Icon name="lock" size={11} aria-hidden />
+                            <span>{data.disclosure.never}</span>
+                          </p>
+                        </section>
+                      </div>
+
+                      <div className="public-addon-letter__cta public-join-letter__cta">
+                        {message ? (
+                          <p className="public-join-family__error" role="alert">
+                            {message}
+                          </p>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="upgrade-primary-btn"
+                          disabled={busy}
+                          onClick={() => (isSignedIn ? void join() : goToSignUp())}
+                        >
+                          {!isSignedIn
+                            ? 'Create your free account'
+                            : busy
+                              ? 'Joining…'
+                              : joinFamilyLabel(data.familyName)}
+                        </button>
+                        {!isSignedIn ? (
+                          <button type="button" className="public-join-church__text-btn" onClick={() => goToSignUp(true)}>
+                            I already have an account
+                          </button>
+                        ) : null}
+                      </div>
+                    </article>
                   </div>
-                </div>
-                <div className="public-footer public-footer--rich">
-                  <span className="public-footer__tag">
-                    Families share a space on Harvous. Notes you write on your own stay yours.
-                  </span>
-                </div>
-              </>
+                  <div className="public-footer public-footer--rich">
+                    <span className="public-footer__tag">
+                      Harvous is a notes app for Bible study.{' '}
+                      <a href="https://harvous.com" target="_blank" rel="noopener noreferrer" className="public-footer__cta">
+                        harvous.com
+                      </a>
+                    </span>
+                  </div>
+                </>
+              </SubtleContentMount>
             )}
           </div>
         </div>

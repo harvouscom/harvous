@@ -16,7 +16,9 @@ product as it stands; see [Cut](#cut-and-why).
 | 2026-10-09 | **The owner's Plus covers the household.** New entitlement source `family`; no new Polar product. Cap is **6 people including the owner**. |
 | 2026-10-09 | Covered features are the **study features** (`review`, `challenges`, `connector`, `full_history`). Hosting shared spaces (`shared_spaces`) stays with whoever pays. |
 | 2026-10-09 | **13 and older only.** "Child" is a role a person consents to at join, not an age check. No COPPA flow. |
-| 2026-10-09 | A child can **switch themselves to adult member** without a parent's approval. |
+| 2026-10-09 | ~~A child can switch themselves to adult member.~~ Superseded the same day: |
+| 2026-10-09 | A child **asks** to become an adult member and a parent approves. With no answer in 14 days, or after a "not now", they can ask **Harvous support to review** it. No age data is collected. **Leaving the family is always open**, so a child never needs a parent's permission to stop being seen. |
+| 2026-10-09 | **Support overrides** in Admin › Families, each needing a reason and logged: change any role, decide requests, remove a member, revoke invites, stop family sharing, pause changes, transfer ownership. |
 | 2026-10-09 | No leaderboard, XP, streaks or milestone notifications. No parental controls. |
 
 ---
@@ -65,12 +67,12 @@ It complements the church layer rather than replacing it. Church connection stay
 | Remove a child or adult | yes | yes | no | no |
 | Remove a parent | yes | no | no | no |
 | Make someone a parent | yes | no | no | no |
-| Move a child to adult | yes | yes | self | — |
+| Move a child to adult | yes | yes | asks | — |
 | Leave | no (stop family sharing instead) | yes | yes | yes |
 | Stop family sharing | yes | no | no | no |
 
 Nobody can be moved *into* the child role after joining. That role adds visibility, so it is
-only ever entered by accepting an invite that says so.
+only ever entered by accepting an invite that says so (or by a Harvous support correction).
 
 Every family member can write in the Family Space (a shared space lets any member author).
 Parents, as leaders, can also arrange its threads and folders.
@@ -137,8 +139,20 @@ automatically. Redeem is
 refused if the person is already in a family, if the invite is used, revoked or expired, or if
 the family is full. The client must send back the role it showed (`acknowledgedRole`).
 
-**Role change.** See the matrix. Child → adult takes effect immediately and the child's card
-disappears from parents' view. Parents see the member's new role in the list.
+**Role change.** See the matrix. Parents see the member's new role in the list; a change made
+by support says "changed by Harvous support".
+
+**Asking to become an adult member.** The child taps *Ask to become an adult member*; parents
+see a card at the top of Settings › Family with **Approve** and **Not now**. Approving takes
+effect immediately and the child's card leaves parents' view. "Not now" starts a 30-day wait
+before they can ask again. Two ways out of a stuck request, both ending at Harvous support:
+14 days with no answer, or right after a "not now", the child can *Ask Harvous to review*,
+which files a support ticket linked to the family (once per request). Support decides on the
+evidence in the ticket; no birthdate is collected.
+
+**Leaving is always open.** A child can leave the family at any time, without approval, and
+parents stop seeing their progress at once. It costs them the family's coverage, so it is not
+a back door to adult-with-coverage, and it is never paused, even by support.
 
 **Leave / remove.** The member's Family Space membership is removed with
 `removeMemberPreservingResponses`, the same as leaving any shared space: notes they added to
@@ -155,8 +169,27 @@ member's account removes their family row.
 **Owner's Plus lapses.** Nothing is evicted. Coverage switches off, new invites are refused with
 upgrade copy for the owner, and everything resumes when Plus does.
 
+**Pausing.** Support can pause a family while a case is open: invites, role changes, renames,
+requests and their answers, and stopping family sharing are refused. Leaving is not.
+
 **Guarding the Family Space.** While a space is a family's, the generic space routes refuse to
 mint invites for it, remove members from it, or delete it, and point to Settings › Family.
+
+---
+
+## Support (Admin › Families)
+
+Find a family by email, user id or family id; an escalated request's ticket links straight to
+`/admin/families/<id>`. The case view shows members (with email and id), roles, coverage, open
+invites, requests and the full history. Overrides, each with a required reason that lands in
+the history: change any role (including back into child), approve or decline a request
+(including overturning a parent's "not now"), remove a member, turn off invites, stop family
+sharing, pause and resume, and transfer ownership (coverage then comes from the new owner's
+Plus). No admin route reads notes.
+
+History lives in `FamilyEvents` (who, what, to whom, why), outlives a dissolved family as a case
+file, and is deleted with the accounts it names. Requests live in `FamilyRoleRequests` (one
+pending per person).
 
 ---
 
@@ -263,7 +296,7 @@ lists). The Family Space works there already, because it is a shared space.
   spaces. Church connection and channel follows stay per person.
 - **Ownership transfer**, and letting any paying parent sponsor.
 - **Family reading plans** with per-member progress inside the Family Space.
-- **Web push** on membership events (join, leave, role change).
+- **Web push** on membership events (join, leave, role change) and to parents when a child asks.
 - **A weekly digest** for parents.
 - **Native** settings and invite screens.
 - **Under-13 accounts.** Needs verifiable parental consent, minimal data collection and a

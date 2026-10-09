@@ -44,6 +44,13 @@ import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/a
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle } from '@/utils/validation';
+import { getThreadGradientCSS } from '@/utils/colors';
+import {
+  appearanceAccentForThreadColor,
+  appearanceAccentHexFromCoverBg,
+  coerceSpaceCoverBgInput,
+  spaceCoverApiFields,
+} from '@/utils/space-cover';
 import { generateShareToken } from '@/utils/ids';
 import { getPublicAppOrigin } from '../utils/public-app-origin';
 import { broadcastInvalidation } from '../utils/realtime';
@@ -554,16 +561,46 @@ app.get('/api/family/invites/preview/:token', rateLimit('read'), async (c) => {
     }
     const family = first(await db.select().from(Families).where(eq(Families.id, invite.familyId)).limit(1));
     if (!family) return c.json({ error: 'This family no longer exists.', code: 'NOT_FOUND' }, 404);
-    const [space, inviter] = await Promise.all([
-      db.select({ title: Spaces.title }).from(Spaces).where(eq(Spaces.id, family.spaceId)).limit(1).then(first),
+    const [space, inviter, memberCountRow] = await Promise.all([
       db
-        .select({ firstName: UserMetadata.firstName })
+        .select({
+          title: Spaces.title,
+          color: Spaces.color,
+          backgroundGradient: Spaces.backgroundGradient,
+          description: Spaces.description,
+          coverBgLight: Spaces.coverBgLight,
+          coverBgDark: Spaces.coverBgDark,
+        })
+        .from(Spaces)
+        .where(eq(Spaces.id, family.spaceId))
+        .limit(1)
+        .then(first),
+      db
+        .select({
+          firstName: UserMetadata.firstName,
+          profileImageUrl: UserMetadata.profileImageUrl,
+          userColor: UserMetadata.userColor,
+          appearanceSettings: UserMetadata.appearanceSettings,
+        })
         .from(UserMetadata)
         .where(eq(UserMetadata.userId, invite.createdBy))
         .limit(1)
         .then(first),
+      db.select({ value: count() }).from(FamilyMembers).where(eq(FamilyMembers.familyId, family.id)).then(first),
     ]);
     const dead = familyInviteDeadReason(invite, nowISO());
+    const cover = spaceCoverApiFields(space?.coverBgLight ?? null, space?.coverBgDark ?? null, space?.color ?? null);
+    // The inviter's avatar wears their own Appearance accent, as on a space invite.
+    let accentLight: string | null = null;
+    let accentDark: string | null = null;
+    try {
+      const parsed = inviter?.appearanceSettings ? JSON.parse(inviter.appearanceSettings) : null;
+      accentLight = appearanceAccentHexFromCoverBg(coerceSpaceCoverBgInput(parsed?.bgLight ?? null), 'light');
+      accentDark = appearanceAccentHexFromCoverBg(coerceSpaceCoverBgInput(parsed?.bgDark ?? null), 'dark');
+    } catch {
+      /* malformed settings — fall back to userColor */
+    }
+    const userColor = inviter?.userColor || 'blue';
     return c.json({
       familyName: space?.title ?? 'A family',
       inviterFirstName: inviter?.firstName?.trim() || null,
@@ -571,6 +608,21 @@ app.get('/api/family/invites/preview/:token', rateLimit('read'), async (c) => {
       disclosure: FAMILY_ROLE_DISCLOSURE[invite.role],
       valid: !dead,
       reason: dead,
+      /* The family's room, drawn the way a space invite draws one. Looks only — never its
+         threads or notes, which a space invite shows and a family's should not. */
+      space: {
+        color: space?.color ?? 'paper',
+        backgroundGradient: space?.backgroundGradient || getThreadGradientCSS(space?.color || 'paper'),
+        description: space?.description ?? null,
+        coverBgLight: cover.coverBgLight,
+        coverBgDark: cover.coverBgDark,
+      },
+      inviter: {
+        profileImageUrl: inviter?.profileImageUrl ?? null,
+        accentLight: accentLight ?? appearanceAccentForThreadColor(userColor, 'light'),
+        accentDark: accentDark ?? appearanceAccentForThreadColor(userColor, 'dark'),
+      },
+      memberCount: Number(memberCountRow?.value ?? 0),
     });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/family/invites/preview/[token]', action: 'family_invite_preview' });

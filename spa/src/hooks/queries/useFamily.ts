@@ -197,6 +197,16 @@ export type FamilyInvitePreview = {
   disclosure: { summary: string; shares: string[]; never: string };
   valid: boolean;
   reason: string | null;
+  /** The Family Space's looks, drawn the way a space invite draws one. */
+  space?: {
+    color: string;
+    backgroundGradient: string;
+    description: string | null;
+    coverBgLight: import('@/utils/space-cover').SpaceCoverBg | null;
+    coverBgDark: import('@/utils/space-cover').SpaceCoverBg | null;
+  };
+  inviter?: { profileImageUrl: string | null; accentLight: string | null; accentDark: string | null };
+  memberCount?: number;
 };
 
 export function useFamilyInvitePreview(token: string) {

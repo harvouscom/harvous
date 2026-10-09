@@ -78,9 +78,11 @@ describe('family invite preview', () => {
   });
 
   it('returns only what the invite page shows', () => {
-    const response = body().slice(body().indexOf('return c.json({\n'), body().indexOf('} catch'));
-    const fields = [...response.matchAll(/^\s+(\w+):/gm)].map((m) => m[1]).sort();
-    expect(fields).toEqual(['disclosure', 'familyName', 'inviterFirstName', 'reason', 'role', 'valid']);
+    const response = body().slice(body().indexOf('return c.json({\n'), body().lastIndexOf('} catch'));
+    const top = response.split('\n').filter((line) => /^ {6}\w+:/.test(line)).map((line) => line.trim().split(':')[0]).sort();
+    expect(top).toEqual(['disclosure', 'familyName', 'inviter', 'inviterFirstName', 'memberCount', 'reason', 'role', 'space', 'valid']);
+    // The room's looks, never its contents.
+    expect(response.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/threads|notePreviews|threadPreviews|SpaceNotes|email/i);
   });
 });
 
