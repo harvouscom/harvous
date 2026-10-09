@@ -644,7 +644,7 @@ route.delete('/api/spaces/delete', requireAuth, rateLimit('write'), async (c) =>
       return c.json({ error: 'Space is already deleted', code: 'ALREADY_DELETED' }, 409);
     }
     if (await familyForSpace(spaceId)) {
-      return c.json({ error: 'This is your Family Space. End the family first in Settings › Family.', code: 'FAMILY_SPACE' }, 409);
+      return c.json({ error: 'This is your Family Space. Stop family sharing first in Settings › Family.', code: 'FAMILY_SPACE' }, 409);
     }
 
     if (space.type !== 'personal') {

@@ -66,8 +66,8 @@ It complements the church layer rather than replacing it. Church connection stay
 | Remove a parent | yes | no | no | no |
 | Make someone a parent | yes | no | no | no |
 | Move a child to adult | yes | yes | self | — |
-| Leave | no (end it instead) | yes | yes | yes |
-| End the family | yes | no | no | no |
+| Leave | no (stop family sharing instead) | yes | yes | yes |
+| Stop family sharing | yes | no | no | no |
 
 Nobody can be moved *into* the child role after joining. That role adds visibility, so it is
 only ever entered by accepting an invite that says so.
@@ -145,7 +145,7 @@ disappears from parents' view. Parents see the member's new role in the list.
 the space leave with them (they stay in their own library), and replies they wrote stay. Their
 coverage ends.
 
-**End the family** (dissolve, in code). Owner only. Family rows are deleted and coverage ends; the space remains as an
+**Stop family sharing** (dissolve, in code). Owner only. Family rows are deleted and coverage ends; the space remains as an
 ordinary shared space with everyone still in it. The owner can delete it through the normal,
 recoverable space delete.
 

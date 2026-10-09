@@ -390,7 +390,7 @@ app.delete('/api/family', requireAuth, rateLimit('write'), async (c) => {
     const mine = await loadMyFamily(auth.userId);
     if (!mine) return c.json({ error: 'You’re not in a family.', code: 'NOT_IN_FAMILY' }, 404);
     if (mine.family.ownerUserId !== auth.userId) {
-      return c.json({ error: 'Only the family’s owner can end it.', code: 'FAMILY_OWNER_ONLY' }, 403);
+      return c.json({ error: 'Only the person who started the family can stop family sharing.', code: 'FAMILY_OWNER_ONLY' }, 403);
     }
     const now = nowISO();
     const memberIds = await db.transaction((tx) => dissolveFamily(tx, mine.family, now));

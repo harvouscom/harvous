@@ -585,17 +585,17 @@ function FamilyView({ data }: { data: InFamily }) {
       ) : null}
 
       {/* My Notes' danger strip: a hairline and one quiet word, red only when you reach for
-          it, with the confirm replacing it in place. Ending a family isn't something to browse
+          it, with the confirm replacing it in place. Stopping family sharing isn't something to browse
           past in a card of its own. */}
       <section className="proto-settings-danger">
         {confirmLeave ? (
           <SettingsConfirmRow
             prompt={
               me.isOwner
-                ? 'End the family? Everyone keeps the Family Space as a shared space, but your Plus stops covering them.'
+                ? 'Stop family sharing? Your Plus stops covering everyone, and parents stop seeing progress. The Family Space stays, with everyone in it.'
                 : 'Leave the family? Your notes in the Family Space leave with you, and the family plan stops covering you.'
             }
-            confirmLabel={me.isOwner ? 'End family' : 'Leave'}
+            confirmLabel={me.isOwner ? 'Stop sharing' : 'Leave'}
             busy={dissolve.isPending || remove.isPending}
             onConfirm={() => {
               const done = {
@@ -610,7 +610,7 @@ function FamilyView({ data }: { data: InFamily }) {
         ) : (
           <div className="proto-settings-danger__actions">
             <button type="button" className="proto-settings-danger__btn" onClick={() => setConfirmLeave(true)}>
-              {me.isOwner ? 'End the family' : 'Leave the family'}
+              {me.isOwner ? 'Stop family sharing' : 'Leave the family'}
             </button>
           </div>
         )}
