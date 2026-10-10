@@ -36,9 +36,10 @@ export const MEMBERS_PER_SPACE_CAP = 12;
 /**
  * The family line, claimed only once Family Accounts has launched — the same rule as
  * Challenges above: this list must never claim more than what is switched on. Counted as
- * "more people" because the owner is the one paying.
+ * "more people" because the owner is the one paying. Named as a feature of its own
+ * ("Family sharing"), not as a footnote to the space lines, as on harvous.com/pricing.
  */
-export const FAMILY_PLUS_BULLET = `Covers up to ${FAMILY_MAX_MEMBERS - 1} more people in your family`;
+export const FAMILY_PLUS_BULLET = `Family sharing with up to ${FAMILY_MAX_MEMBERS - 1} more people`;
 
 const FAMILY_BULLETS: readonly string[] = FAMILY_LAUNCHED ? [FAMILY_PLUS_BULLET] : [];
 
@@ -51,11 +52,11 @@ export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   // Beside the people line, and naming who: last in the list, after the AI-apps line,
   // "Joining is always free" read as a claim about nothing in particular.
   'People you invite join free, no Plus needed',
-  // Beside the other "people" lines; after the owned-spaces index, so that rewrite still lands.
-  ...FAMILY_BULLETS,
   'Turn a thread into a shared study plan',
   // After OWNED_SPACES_BULLET_INDEX on purpose, so the live-usage rewrite still lands on spaces.
   'Use your study in AI apps like Claude and ChatGPT',
+  // Last, as its own feature rather than a third "people" line under the space limits.
+  ...FAMILY_BULLETS,
 ] as const;
 
 /**

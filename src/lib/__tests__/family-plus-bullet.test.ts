@@ -10,7 +10,7 @@ import { FAMILY_PLUS_BULLET, SHARED_SPACES_ADDON_FEATURE_BULLETS } from '../shar
 
 describe('family line on the Plus list', () => {
   it('counts the people Plus covers beyond the payer', () => {
-    expect(FAMILY_PLUS_BULLET).toBe(`Covers up to ${FAMILY_MAX_MEMBERS - 1} more people in your family`);
+    expect(FAMILY_PLUS_BULLET).toBe(`Family sharing with up to ${FAMILY_MAX_MEMBERS - 1} more people`);
   });
 
   it('is listed exactly when Family Accounts has launched', () => {
