@@ -3,6 +3,8 @@ import {
   formatOwnedSharedSpacesFeatureBullet,
   getSpaceMembersCapacityCopy,
   getSharedSpacesAddonFeatureBullets,
+  FAMILY_PLUS_BULLET,
+  SHARED_SPACES_ADDON_FEATURE_BULLETS,
   OWNED_SHARED_SPACES_ADDON_LIMIT,
 } from '../shared-spaces-limits';
 import { WITHHELD_FEATURES } from '../billing-plans';
@@ -58,7 +60,9 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
     expect(bullets[3]).toBe('Unlimited shared spaces');
     // Connector, launched into Plus Oct 2026 — sold only because it is switched on.
     expect(bullets).toContain('Use your study in AI apps like Claude and ChatGPT');
-    expect(bullets).toHaveLength(8);
+    // Family Accounts, launched Oct 2026 — the same rule: on the list only once it's on.
+    expect(bullets).toContain(FAMILY_PLUS_BULLET);
+    expect(bullets).toHaveLength(9);
   });
 
   /**
@@ -98,7 +102,7 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
     expect(bullets[2]).toBe('Review exercises');
     expect(bullets[3]).toBe('2 out of 10 shared spaces');
     // Only the owned-spaces line is rewritten; everything else passes through.
-    expect(bullets).toHaveLength(8);
+    expect(bullets).toHaveLength(SHARED_SPACES_ADDON_FEATURE_BULLETS.length);
   });
 });
 

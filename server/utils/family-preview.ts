@@ -4,14 +4,14 @@
  * Only starting is gated. Anyone holding an invite can join (a teenager invited by a preview
  * parent is not on any list), and anyone already in a family keeps every family surface.
  *
- * Flip `FAMILY_IN_PREVIEW` (src/lib/billing-plans.ts, shared with the pricing copy) to false at launch. Until then the list comes from
+ * `FAMILY_LAUNCHED` (src/lib/billing-plans.ts, shared with the pricing copy) opens it to everyone. Before launch the list came from
  * `FAMILY_PREVIEW_USER_IDS` (comma-separated), mirroring `CONNECTOR_PREVIEW_USER_IDS`, and
  * any non-production server is open so it can be walked locally.
  */
 
-import { FAMILY_IN_PREVIEW } from '@/lib/billing-plans';
+import { FAMILY_LAUNCHED } from '@/lib/billing-plans';
 
-export { FAMILY_IN_PREVIEW };
+export { FAMILY_LAUNCHED };
 
 export function familyPreviewUserIds(env: NodeJS.ProcessEnv = process.env): Set<string> {
   return new Set(
@@ -23,7 +23,7 @@ export function familyPreviewUserIds(env: NodeJS.ProcessEnv = process.env): Set<
 }
 
 export function canStartFamilyInPreview(userId: string, env: NodeJS.ProcessEnv = process.env): boolean {
-  if (!FAMILY_IN_PREVIEW) return true;
+  if (FAMILY_LAUNCHED) return true;
   if (env.NODE_ENV !== 'production') return true;
   return familyPreviewUserIds(env).has(userId);
 }

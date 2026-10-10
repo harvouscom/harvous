@@ -14,6 +14,8 @@ import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 import { enterSpaceUrl } from '@/utils/enter-space-link';
+import { prototypeHref } from '@/lib/prototype-path';
+import { FAMILY_SHOWS_PREVIEW_NOTE } from '@/lib/billing-plans';
 import {
   FAMILY_INVITE_LABEL_MAX,
   FAMILY_ROLE_FOR_INVITER,
@@ -66,6 +68,28 @@ function SectionLabel({ children }: { children: ReactNode }) {
     >
       {children}
     </div>
+  );
+}
+
+/**
+ * The one place Family says it's new: a quiet caption at the foot of the page, never a badge
+ * in the Settings list or a word on the price list. Off by `FAMILY_SHOWS_PREVIEW_NOTE`.
+ */
+function PreviewNote() {
+  const navigate = useNavigate();
+  if (!FAMILY_SHOWS_PREVIEW_NOTE) return null;
+  return (
+    <p className="pds-caption" style={{ color: 'var(--pds-text-tertiary, var(--pds-text-secondary))', margin: '20px 0 0', textAlign: 'center' }}>
+      Family is in preview. If something looks off,{' '}
+      <button
+        type="button"
+        style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+        onClick={() => void navigate({ to: prototypeHref('settings/support') as never })}
+      >
+        tell us
+      </button>
+      .
+    </p>
   );
 }
 
@@ -243,10 +267,11 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
         <SettingsRow
           leadingIcon="person"
           label="For ages 13 and up"
-          sublabel="A child can become an adult member any time."
+          sublabel="A child can ask to become an adult member, and can always leave."
           trailing="none"
         />
       </SettingsGroup>
+      <PreviewNote />
     </SettingsShell>
   );
 }
@@ -859,8 +884,7 @@ export function FamilyView({ data }: { data: InFamily }) {
           </div>
         )}
       </section>
-
-
+      <PreviewNote />
     </SettingsShell>
   );
 }

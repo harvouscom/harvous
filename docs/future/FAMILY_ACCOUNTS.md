@@ -1,6 +1,6 @@
 # Family Accounts
 
-**Status:** v1 built behind a preview gate (web only). Phases 0–3 done; phase 4 waits on launch.  
+**Status:** Launched October 2026, web only. Any Plus subscriber can start a family (`FAMILY_LAUNCHED`). Settings › Family carries a quiet "in preview" line until a few real families have used it or mid-December 2026 (`FAMILY_SHOWS_PREVIEW_NOTE`).  
 **Last updated:** 2026-10-09  
 **Supersedes:** the April 2026 draft of this file, which assumed Clerk Billing, full parent read
 access to children's notes, an XP leaderboard and InboxItems delivery. None of those fit the

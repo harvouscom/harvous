@@ -3,7 +3,7 @@
  * Keep in sync with server/utils/tier-limits.ts.
  */
 
-import { FAMILY_IN_PREVIEW, FAMILY_MAX_MEMBERS, UNLIMITED, isUnlimited } from './billing-plans';
+import { FAMILY_LAUNCHED, FAMILY_MAX_MEMBERS, UNLIMITED, isUnlimited } from './billing-plans';
 
 export { UNLIMITED, isUnlimited };
 
@@ -40,7 +40,7 @@ export const MEMBERS_PER_SPACE_CAP = 12;
  */
 export const FAMILY_PLUS_BULLET = `Covers up to ${FAMILY_MAX_MEMBERS - 1} more people in your family`;
 
-const FAMILY_BULLETS: readonly string[] = FAMILY_IN_PREVIEW ? [] : [FAMILY_PLUS_BULLET];
+const FAMILY_BULLETS: readonly string[] = FAMILY_LAUNCHED ? [FAMILY_PLUS_BULLET] : [];
 
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Everything in free',
