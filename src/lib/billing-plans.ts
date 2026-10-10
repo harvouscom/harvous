@@ -189,13 +189,27 @@ export const PLUS_FEATURE_KEYS: readonly FeatureKey[] = PLUS_FEATURES;
 export const FAMILY_MAX_MEMBERS = 6; // including the owner
 
 /**
- * Family Accounts is in preview: only `FAMILY_PREVIEW_USER_IDS` can start a family in
- * production (server/utils/family-preview.ts), and nothing that sells Plus mentions it.
- * Flip to false at launch — that one change opens starting a family to every Plus subscriber
- * *and* adds the family line to the Plus list on /upgrade and Settings › Plan
- * (shared-spaces-limits.ts), so the pitch can never run ahead of the product.
+ * Family Accounts is open to everyone. Launched October 2026.
+ *
+ * This one switch opens starting a family to every Plus subscriber (server/utils/family-preview.ts)
+ * *and* puts the family line on the Plus list on /upgrade and Settings › Plan
+ * (shared-spaces-limits.ts), so the pitch never runs ahead of the product. Setting it back to
+ * false closes starting a family to all but `FAMILY_PREVIEW_USER_IDS` again; nobody already in a
+ * family is affected either way.
+ *
+ * Named "launched", not "in preview", on purpose: the Settings page still calls Family a
+ * preview (a quiet line at its foot, `FAMILY_SHOWS_PREVIEW_NOTE`), which is a different thing
+ * from whether anyone can start one.
  */
-export const FAMILY_IN_PREVIEW = true;
+export const FAMILY_LAUNCHED = true;
+
+/**
+ * The quiet "Family is in preview" line at the foot of Settings › Family. Not on /upgrade or
+ * harvous.com — a feature on the price list is sold, and a preview label there undercuts it.
+ * Turn off once a handful of real families have used it, or by mid-December 2026, whichever
+ * comes first: a label that never comes off is the old "beta" again.
+ */
+export const FAMILY_SHOWS_PREVIEW_NOTE = true;
 export const FAMILY_COVERED_FEATURES = [
   'review',
   'challenges',
