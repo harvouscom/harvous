@@ -89,6 +89,20 @@ describe('who it is news to', () => {
     expect(pickCallout([a], {}, ctx({ accountCreatedAt: undefined }))).toBeNull();
   });
 
+  it('waits for its date when merged ahead of it', () => {
+    const later = callout('later', { shippedAt: '2026-10-16' });
+    expect(pickCallout([later], {}, ctx({ now: Date.parse('2026-10-15T23:59:00Z') }))).toBeNull();
+    expect(pickCallout([later], {}, ctx({ now: Date.parse('2026-10-16T00:00:00Z') }))?.id).toBe('later');
+  });
+
+  it('Family is scheduled after Today, tidied, so it does not retire it early', () => {
+    const family = CALLOUTS.find((c) => c.id === 'family-2026-10');
+    const today = CALLOUTS.find((c) => c.id === 'today-tabs-2026-10');
+    expect(family && today).toBeTruthy();
+    expect(pickCallout(CALLOUTS, {}, ctx({ now: Date.parse('2026-10-12T12:00:00Z') }))?.id).toBe('today-tabs-2026-10');
+    expect(pickCallout(CALLOUTS, {}, ctx({ now: Date.parse('2026-10-16T12:00:00Z') }))?.id).toBe('family-2026-10');
+  });
+
   it('goes stale six weeks after shipping unless it says otherwise', () => {
     const a = callout('a', { shippedAt: shipped });
     const stale = Date.parse(shipped) + CALLOUT_SHELF_MS;

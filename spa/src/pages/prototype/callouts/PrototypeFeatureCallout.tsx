@@ -22,7 +22,7 @@ import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { appVersion } from '@/utils/app-version';
 import { markCalloutSeen } from '@/utils/onboarding-state';
-import { prototypeHomeRouteTo } from '@/lib/prototype-path';
+import { prototypeHomeRouteTo, prototypeHref } from '@/lib/prototype-path';
 import { updateOnboardingState } from '../../../lib/proto-onboarding-sync';
 import { useHarvousIdentity } from '../../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../../hooks/useHasFeature';
@@ -163,6 +163,7 @@ export function useActiveCallout(): {
         void navigate({ to: prototypeHomeRouteTo() });
         scrollToTodayTabs();
       },
+      openSettings: (path) => void navigate({ to: prototypeHref(path) as never }),
     };
     if ('href' in callout.action) {
       window.open(callout.action.href, '_blank', 'noopener,noreferrer');

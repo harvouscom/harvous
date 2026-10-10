@@ -101,6 +101,8 @@
 
 .proto-callout-art--today-tabs { background-image: url("/images/callouts/today-tabs.webp"); }
 .proto-callout-art--legal { background-image: url("/images/callouts/legal.webp"); }
+/* Family wears the golden canvas (ai_bg_050). */
+.proto-callout-art--family { background-image: url("/images/callouts/family.webp"); }
 /* The letter wears harvous.com's homepage hero sky (ai_bg_053, cropped from the site's copy). */
 .proto-callout-art--letter { background-image: url("/images/callouts/letter.webp"); }
 
@@ -265,6 +267,24 @@
 .proto-callout-art__row-text span {
   color: var(--pds-text-secondary);
   font-size: 7.5px;
+}
+
+/* Family: who's in the household, as a row of initials like the members list. */
+.proto-callout-art__people {
+  display: flex;
+  gap: 4px;
+}
+
+.proto-callout-art__person {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+  font-size: 7.5px;
+  font-weight: 600;
 }
 
 /* Body copy as soft bars. */

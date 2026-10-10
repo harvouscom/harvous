@@ -19,7 +19,7 @@ import Icon from '@/components/react/Icon';
 import Harvous3Numeral from '../Harvous3Numeral';
 import ImportSourceFan from '../import/ImportSourceFan';
 
-export type CalloutIllustrationKey = 'today-tabs' | 'legal' | 'whats-new' | 'import' | 'letter';
+export type CalloutIllustrationKey = 'today-tabs' | 'legal' | 'whats-new' | 'import' | 'letter' | 'family';
 
 /** A line of body copy: a rounded bar. */
 function Bar({ w, strong = false }: { w: number; strong?: boolean }) {
@@ -111,6 +111,39 @@ function Letter() {
   );
 }
 
+/**
+ * Family: the household's sheet — its name and who's in it — with a child's progress card in
+ * front. Counts and books only, as the real card shows; never a note.
+ */
+function Family() {
+  return (
+    <div className="proto-callout-art__sheet">
+      <div className="proto-callout-art__head">
+        <b>Johnson family</b>
+        <span>4 people</span>
+      </div>
+      <div className="proto-callout-art__people">
+        {['D', 'S', 'K', 'R'].map((initial, i) => (
+          <span key={initial} className={`proto-callout-art__person proto-callout-art__person--${i}`}>
+            {initial}
+          </span>
+        ))}
+      </div>
+      <div className="proto-callout-art__deck proto-callout-art__front">
+        <div className="proto-callout-art__row">
+          <span className="proto-callout-art__glyph">
+            <Icon name="book-open" size={9} aria-hidden />
+          </span>
+          <span className="proto-callout-art__row-text">
+            <b>Kit · 11 chapters read</b>
+            <span>Psalms, Mark, Romans</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CalloutIllustration({ name }: { name: CalloutIllustrationKey }) {
   return (
     <div className={`proto-callout-art proto-callout-art--${name}`} aria-hidden="true">
@@ -122,6 +155,8 @@ export default function CalloutIllustration({ name }: { name: CalloutIllustratio
         <Import />
       ) : name === 'letter' ? (
         <Letter />
+      ) : name === 'family' ? (
+        <Family />
       ) : (
         <TodayTabs />
       )}
