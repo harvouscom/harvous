@@ -22,6 +22,8 @@
  *    and the release notes already cover them.
  * 7. **News goes stale.** Every callout leaves the shelf six weeks after it ships unless it says
  *    otherwise (`until`).
+ * 8. **Not before its date.** A callout whose `shippedAt` is still ahead waits for it, so one can
+ *    be merged early and scheduled — the Family card is dated a week after launch on purpose.
  *
  * ## What earns a callout
  *
@@ -51,6 +53,8 @@ export interface CalloutContext {
 export interface CalloutActionContext {
   /** Go to Home and bring the Today band's tabs into view. */
   openHomeTabs: () => void;
+  /** Open an in-app settings page (`settings/family`), in this tab. `href` is for the web. */
+  openSettings: (path: string) => void;
 }
 
 export type CalloutAction =
@@ -111,6 +115,17 @@ export const CALLOUTS: readonly Callout[] = [
     shippedAt: '2026-10-08',
     audience: 'members',
   },
+  {
+    /* Family launched Oct 9 (#248). Dated a week later on purpose, so "Today, tidied" gets its
+       week before newest-wins retires it — and so it reaches anyone signed up by the 16th. */
+    id: 'family-2026-10',
+    title: 'Study together as a family',
+    body: 'Share a Family Space at home. With Plus, it covers up to 5 more people, and parents see progress, never notes.',
+    illustration: 'family',
+    action: { label: 'Take a look', run: (ctx) => ctx.openSettings('settings/family') },
+    shippedAt: '2026-10-16',
+    audience: 'members',
+  },
 ];
 
 /** -1, 0 or 1, comparing dotted numeric versions ("3.18.5"). Missing parts count as 0. */
@@ -143,6 +158,8 @@ function forThisAccount(callout: Callout, ctx: CalloutContext): boolean {
   if (audience === 'plus' && !ctx.isPlus) return false;
   /* A change is only a change to someone who had the app before it. */
   if (callout.shippedAt) {
+    /* And not before it ships: a callout merged ahead of its date waits for it. */
+    if (ctx.now < Date.parse(callout.shippedAt)) return false;
     if (ctx.accountCreatedAt === undefined) return false;
     if (ctx.accountCreatedAt >= Date.parse(callout.shippedAt)) return false;
   }
