@@ -13,23 +13,23 @@ import { recordAudiencefulMilestoneOnce } from '@/utils/audienceful-milestones-c
  * behind a letter now lives in the Plus card itself, as it does on the site.
  */
 export default function UpgradePage() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
   const [hasSharedSpaces, setHasSharedSpaces] = useState(false);
   const [sharedSpacesOwnedCount, setSharedSpacesOwnedCount] = useState<number | null>(null);
   const [sharedSpacesOwnedLimit, setSharedSpacesOwnedLimit] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshSharedSpacesStatus = useCallback(async (options?: { silent?: boolean }) => {
+    // Until Clerk has answered, `isSignedIn` is undefined and means nothing. Revealing then showed
+    // the signed-out page, and Clerk loading hid it again to fetch — the page appeared to load twice.
+    if (!isLoaded) return;
+
     if (!isSignedIn) {
       setHasSharedSpaces(false);
       setSharedSpacesOwnedCount(null);
       setSharedSpacesOwnedLimit(null);
       setIsLoading(false);
       return;
-    }
-
-    if (!options?.silent) {
-      setIsLoading(true);
     }
 
     type Status = {
@@ -64,7 +64,7 @@ export default function UpgradePage() {
     } catch {
       /* the first read stands */
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, isLoaded]);
 
   useEffect(() => {
     trackUpgradeViewed({ source: 'upgrade_page' });
