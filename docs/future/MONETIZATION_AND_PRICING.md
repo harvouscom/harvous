@@ -13,7 +13,8 @@ auth/orgs: [`docs/CLERK_ARCHITECTURE.md`](../CLERK_ARCHITECTURE.md).
 | **Harvous Plus** | **$6/mo · $36/yr** | **Review**, unlimited history, Shared Spaces hosting, and the **Connector** (MCP access from Claude, ChatGPT and other AI apps: read your study, start a new note); themed seasons fold in later. Both intervals listed. Challenges and Connector are built but withheld until launch — see `WITHHELD_FEATURES`. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
-Plus a **30-day money-back guarantee** on Plus (cancel anytime). There is deliberately **no free
+Plus is cancel-anytime, with **no money-back guarantee** (the checkout line says "You, of course, can
+easily cancel anytime."). There is deliberately **no free
 trial** and **no metered free tier** — but see the caveat under *What changed at 3.0*.
 
 **The one time-windowed exception (September 2026).** Free sees the last 90 days of history —
@@ -84,7 +85,7 @@ experience the paid surface by *joining* a Plus host's space. That does not hold
 Review, which is personal — a free user cannot experience it secondhand, and the entire
 storefront for it is one dismissible row on Activity. The decision stands for now
 (a trial is also blocked by `listActiveFeatureKeys` ignoring `expiresAt`), but it is
-resting on the money-back guarantee alone and should be revisited.
+resting on easy cancellation alone (no guarantee, no trial) and should be revisited.
 
 **Why no Season Pass SKU.** Seasons fold into Plus via `challenges`. Selling them separately meant
 8–11 purchase decisions a year at a price point where the processor takes ~15%, plus a new SKU each
@@ -151,7 +152,7 @@ to explain. The one exception is the 90-day history window above.
   ([server/utils/tier-limits.ts](../../server/utils/tier-limits.ts))
 - Current Compete season — **free track** (play, basic access)
 - Deterministic practice (connection MCQ, etc. from knowledge layer — no LLM)
-- **No free AI Review**, **no trial**. A 30-day money-back guarantee de-risks Plus instead.
+- **No free AI Review**, **no trial**. Easy cancel-anytime is the only de-risking; there is no money-back guarantee.
 
 **How free users experience hosting before they buy:** they don't host — they *join*. A Plus host
 brings up to 12 free members in, and those members use shared spaces for weeks before they ever
@@ -517,8 +518,8 @@ free-track/Plus split in §3 is unchanged by 3.0.
 
 **Closed (July 2026):**
 
-- [x] ~~Trial on signup~~ — **no trial.** 30-day money-back guarantee instead: same de-risking, zero
-      entitlement plumbing, and it sidesteps the `expiresAt` bug in §6.
+- [x] ~~Trial on signup~~ — **no trial.** Cancel-anytime instead (the 30-day money-back guarantee was dropped
+      from the page): zero entitlement plumbing, and it sidesteps the `expiresAt` bug in §6.
 - [x] ~~Season Pass price~~ — **no Season Pass.** Folded into Plus via `challenges` (§3).
 - [x] ~~Connector price~~ — ~~$5/mo · $60/yr, no annual discount~~ **Included in Plus (Oct 2026).**
       Never sold as an add-on; the SKU and its Polar products were retired.
