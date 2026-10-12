@@ -32,36 +32,37 @@ export default function UpgradePage() {
       setIsLoading(true);
     }
 
-    try {
-      const sync = await api.post<{ hasSharedSpaces: boolean }>('/api/billing/sync', {});
-      setHasSharedSpaces(Boolean(sync.hasSharedSpaces));
-      const sub = await api.get<{
-        hasSharedSpaces: boolean;
-        sharedSpacesOwnedCount: number;
-        sharedSpacesOwnedLimit: number;
-      }>('/api/subscription/status');
+    type Status = {
+      hasSharedSpaces: boolean;
+      sharedSpacesOwnedCount: number;
+      sharedSpacesOwnedLimit: number;
+    };
+    const apply = (sub: Status) => {
       setHasSharedSpaces(Boolean(sub.hasSharedSpaces));
       setSharedSpacesOwnedCount(sub.sharedSpacesOwnedCount);
       setSharedSpacesOwnedLimit(sub.sharedSpacesOwnedLimit);
+    };
+
+    // Reveal on the cheap read. The Polar sync can take seconds (or hang), and the page stays
+    // invisible until `isLoading` clears — that was the blank /upgrade that needed a refresh.
+    try {
+      apply(await api.get<Status>('/api/subscription/status'));
     } catch {
-      try {
-        const sub = await api.get<{
-          hasSharedSpaces: boolean;
-          sharedSpacesOwnedCount: number;
-          sharedSpacesOwnedLimit: number;
-        }>('/api/subscription/status');
-        setHasSharedSpaces(Boolean(sub.hasSharedSpaces));
-        setSharedSpacesOwnedCount(sub.sharedSpacesOwnedCount);
-        setSharedSpacesOwnedLimit(sub.sharedSpacesOwnedLimit);
-      } catch {
-        setHasSharedSpaces(false);
-        setSharedSpacesOwnedCount(null);
-        setSharedSpacesOwnedLimit(null);
-      }
+      setHasSharedSpaces(false);
+      setSharedSpacesOwnedCount(null);
+      setSharedSpacesOwnedLimit(null);
     } finally {
       if (!options?.silent) {
         setIsLoading(false);
       }
+    }
+
+    // Then reconcile with the billing provider in the background and re-read if it changed.
+    try {
+      await api.post('/api/billing/sync', {});
+      apply(await api.get<Status>('/api/subscription/status'));
+    } catch {
+      /* the first read stands */
     }
   }, [isSignedIn]);
 

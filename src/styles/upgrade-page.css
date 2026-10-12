@@ -664,3 +664,18 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/*
+ * The pricing layout scrolls as a whole page. `.public-content--upgrade` scrolls itself, which is
+ * right for the narrow letter pages but here left the wheel dead anywhere outside the 920px
+ * column — the gutters on either side. The body takes the scroll; the column just grows.
+ */
+.public-page:has(.public-content--pricing) .public-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.public-content.public-content--pricing {
+  overflow: visible;
+  flex: 0 0 auto;
+}
