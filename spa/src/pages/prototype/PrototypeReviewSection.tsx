@@ -148,8 +148,10 @@ export default function PrototypeReviewSection() {
      church reader sees before their church has given them anything. */
   const renderOffer = () => {
     if (!review.ready) return null;
-    const sample = sampleQuery.data?.sample ?? null;
-    if (plusPromptDismissed && !sample) return null;
+    /* A disabled query keeps its cached data, so "Not now" turning the query off left the card
+       standing. The dismissal itself has to hide it. */
+    const sample = sampleDismissed ? null : sampleQuery.data?.sample ?? null;
+    if (!sample && (plusPromptDismissed || sampleAnswered)) return null;
     return (
       <ProtoDeck label={REVIEW_SECTION_TITLE} pager="foot">
         {sample ? (
