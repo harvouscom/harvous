@@ -259,7 +259,7 @@ export default function UpgradePageContent({
             tone="free"
             name={FREE_PLAN_NAME}
             icon="book-open"
-            badge={isSignedIn ? 'Your plan' : null}
+            badge={isSignedIn ? 'Current' : null}
             price={{ primary: '$0' }}
             tagline={FREE_PLAN_TAGLINE}
             bullets={FREE_PLAN_FEATURE_BULLETS}
