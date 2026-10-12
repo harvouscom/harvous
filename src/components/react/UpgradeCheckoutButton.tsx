@@ -281,7 +281,7 @@ export default function UpgradeCheckoutButton({
         {isStarting ? 'Starting checkout…' : ctaLabel}
       </button>
       <p className="upgrade-checkout__guarantee">
-        You, of course, can easily cancel anytime.
+        Of course, you can cancel anytime.
       </p>
     </div>
   );

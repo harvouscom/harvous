@@ -13,8 +13,8 @@ auth/orgs: [`docs/CLERK_ARCHITECTURE.md`](../CLERK_ARCHITECTURE.md).
 | **Harvous Plus** | **$6/mo · $36/yr** | **Review**, unlimited history, Shared Spaces hosting, and the **Connector** (MCP access from Claude, ChatGPT and other AI apps: read your study, start a new note); themed seasons fold in later. Both intervals listed. Challenges and Connector are built but withheld until launch — see `WITHHELD_FEATURES`. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
-Plus is cancel-anytime, with **no money-back guarantee** (the checkout line says "You, of course, can
-easily cancel anytime."). There is deliberately **no free
+Plus is cancel-anytime, with **no money-back guarantee** (the checkout line says "Of course, you can
+cancel anytime."). There is deliberately **no free
 trial** and **no metered free tier** — but see the caveat under *What changed at 3.0*.
 
 **The one time-windowed exception (September 2026).** Free sees the last 90 days of history —
