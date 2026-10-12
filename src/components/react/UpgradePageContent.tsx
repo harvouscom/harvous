@@ -225,6 +225,7 @@ export default function UpgradePageContent({
       <a href={signInHref} className="upgrade-secondary-btn" onClick={rememberUpgradeReturn}>
         Sign in
       </a>
+      <p className="upgrade-checkout__guarantee">30-day money-back guarantee. Cancel anytime.</p>
     </>
   );
 
