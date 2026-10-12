@@ -24362,6 +24362,10 @@ button.proto-feed-sheet__stat:hover {
   box-shadow: var(--pds-shadow-popover);
   padding: var(--pds-space-3);
   font-family: var(--pds-font-body);
+  /* The list outgrows short windows; the card scrolls rather than running off the bottom. */
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .proto-onboarding-popover__head {
