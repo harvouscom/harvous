@@ -1513,3 +1513,11 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   border-top: 0;
   border-radius: 12px;
 }
+
+/*
+ * The sample's result stacks the verdict, the pitch and the two buttons directly in a flex column
+ * with no gap of their own, so the pitch ran into the buttons beneath it. Space them.
+ */
+.proto-review-sample .proto-review-dock__result {
+  gap: 12px;
+}
