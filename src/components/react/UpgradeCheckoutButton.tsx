@@ -281,7 +281,7 @@ export default function UpgradeCheckoutButton({
         {isStarting ? 'Starting checkout…' : ctaLabel}
       </button>
       <p className="upgrade-checkout__guarantee">
-        30-day money-back guarantee. Cancel anytime.
+        You, of course, can easily cancel anytime.
       </p>
     </div>
   );
