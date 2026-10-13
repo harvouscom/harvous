@@ -253,8 +253,7 @@ export const REVIEW_ADDED_COPY = 'In Review';
  * The Takeaway card, the one self-rated question. The reader brings it to mind, opens the note,
  * then says how it went — in that order, and the verdicts are not on screen until the note is.
  */
-export const REVIEW_TAKEAWAY_ASK_COPY = 'Write what you took from it, then check.';
-export const REVIEW_TAKEAWAY_PLACEHOLDER = 'Write your takeaway';
+export const REVIEW_TAKEAWAY_ASK_COPY = 'Bring it to mind first, then check.';
 export const REVIEW_TAKEAWAY_OPEN_NOTE_COPY = 'Open my note';
 
 /** The three answers. Descriptions of a memory, never ratings of the app. */

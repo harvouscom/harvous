@@ -2,8 +2,8 @@
  * The Takeaway card: bring it to mind, open the note, then say how it went.
  *
  * The order is the whole design. Verdicts on screen before the note is open would be rating a
- * guess, so they are not rendered until "Open my note" has been tapped. The writing box is
- * optional and never gates them.
+ * guess, so they are not rendered until "Open my note" has been tapped; and a note card never
+ * offers a typing box — writing from memory is for Scripture.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -30,7 +30,7 @@ describe('TakeawayCard', () => {
   it('asks first, with one way to check and no verdicts yet', () => {
     const { onPrefetch } = renderCard();
     expect(screen.getByText('What did you take from Adoption, not slavery?')).toBeInTheDocument();
-    expect(screen.getByText('Write what you took from it, then check.')).toBeInTheDocument();
+    expect(screen.getByText('Bring it to mind first, then check.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open my note' })).toBeInTheDocument();
     for (const label of ['Got it now', 'I almost had it', 'I recalled it']) {
       expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
@@ -39,16 +39,9 @@ describe('TakeawayCard', () => {
     expect(onPrefetch).toHaveBeenCalledTimes(1);
   });
 
-  it('offers a writing box, optional, that stays beside the note after checking', () => {
-    const { onOpenNote } = renderCard();
-    const box = screen.getByPlaceholderText('Write your takeaway') as HTMLTextAreaElement;
-    fireEvent.change(box, { target: { value: 'God adopts, he does not enslave' } });
-    // Checking never requires writing, and the words survive the reveal.
-    fireEvent.click(screen.getByRole('button', { name: 'Open my note' }));
-    expect(onOpenNote).toHaveBeenCalledTimes(1);
-    expect((screen.getByPlaceholderText('Write your takeaway') as HTMLTextAreaElement).value).toBe(
-      'God adopts, he does not enslave',
-    );
+  it('never offers a typing box', () => {
+    renderCard();
+    expect(document.querySelector('textarea, input')).toBeNull();
   });
 
   it('opens the note, then offers the three verdicts', () => {
