@@ -176,7 +176,7 @@ export const REVIEW_EXERCISE_FAMILIES = {
     id: 'takeaway',
     label: 'Takeaway',
     icon: 'note-sticky',
-    description: 'Bring to mind what you took from a note, then open it and check.',
+    description: 'Write what you took from a note, then open it and check.',
     typed: false,
   },
   /*

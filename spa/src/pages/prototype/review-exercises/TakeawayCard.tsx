@@ -7,8 +7,10 @@
  * verdicts. Rating before looking would be rating a guess; the verdicts are never on screen until
  * the note has been opened.
  *
- * Not a typing box. Writing from memory is for Scripture; a note card never asks the reader to
- * produce prose to be compared with prose.
+ * There is a writing box (Oct 2026, Derek: "what's its purpose without a text box?"). It is the
+ * one note-card exception to "writing from memory is for Scripture": writing the takeaway is the
+ * act of bringing it to mind. It is never graded, never required (checking is always allowed) and
+ * never sent anywhere — the words stay on the card so they sit beside the note when it opens.
  *
  * Not the paper-stack verdict edge that was retired in 582635025 either: the note opens in the
  * real editor, the dock stays where it is, and the verdicts live here, on the card.
@@ -26,6 +28,7 @@ import {
   REVIEW_REVEALED_ACK_COPY,
   REVIEW_TAKEAWAY_ASK_COPY,
   REVIEW_TAKEAWAY_OPEN_NOTE_COPY,
+  REVIEW_TAKEAWAY_PLACEHOLDER,
 } from '../proto-review-copy';
 
 /** Least to most, left to right, and each a description of a memory rather than a grade. */
@@ -52,6 +55,7 @@ export interface TakeawayCardProps {
 
 export function TakeawayCard({ task, subject, onPrefetch, onOpenNote, onVerdict, disabled = false }: TakeawayCardProps) {
   const [revealed, setRevealed] = useState(false);
+  const [written, setWritten] = useState('');
   const prefetch = useRef(onPrefetch);
   prefetch.current = onPrefetch;
   useEffect(() => {
@@ -89,6 +93,15 @@ export function TakeawayCard({ task, subject, onPrefetch, onOpenNote, onVerdict,
           </button>
         )
       }
-    />
+    >
+      <textarea
+        className="proto-review-dock__attempt"
+        placeholder={REVIEW_TAKEAWAY_PLACEHOLDER}
+        aria-label={REVIEW_TAKEAWAY_PLACEHOLDER}
+        value={written}
+        onChange={(event) => setWritten(event.target.value)}
+        rows={3}
+      />
+    </ExerciseStage>
   );
 }
