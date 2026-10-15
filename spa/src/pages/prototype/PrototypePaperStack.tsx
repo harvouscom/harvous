@@ -324,7 +324,7 @@ export default function PrototypePaperStack({
             type="button"
             className="pds-paper-stack__edge"
             onClick={onFlipDown}
-            aria-label={collapses ? `Back to ${origin.label}` : `Show ${origin.label}`}
+            aria-label={collapses || stack.sheet ? `Back to ${origin.label}` : `Show ${origin.label}`}
           >
             <Icon name={origin.icon as IconName} size={12} aria-hidden />
             <span className="pds-caption">{origin.label}</span>

@@ -404,6 +404,12 @@ export interface PrototypeBibleReaderPaneProps {
    */
   onNavigateTo?: (book: string, chapter: number) => void;
   /**
+   * Open a chapter as a sheet over this one: a passage this chapter prints that Harvous files
+   * as its own chapter (the Prayer of Azariah inside Daniel 3). Absent on the paper-stack base,
+   * which is scenery.
+   */
+  onOpenSheet?: (book: string, chapter: number, fromVerse?: number) => void;
+  /**
    * Choose the translation to read in — from the stack's edges or the heading chip.
    *
    * Optional for the same reason `onNavigateTo` is: the paper-stack base renders this pane as
@@ -589,6 +595,7 @@ export default function PrototypeBibleReaderPane({
   focusVerse,
   focusVerseEnd,
   onNavigateTo,
+  onOpenSheet,
   onChangeTranslation,
   compare,
   onChangeCompare,
@@ -657,14 +664,19 @@ export default function PrototypeBibleReaderPane({
   const bookOptions = useMemo(
     () =>
       // The canon this translation reads: 73 books in the NABRE and the Douay-Rheims, 66 elsewhere.
-      orderedCanonBooks(translation).map((b) => ({
+      // Plus the book on the page when the list has no place for it (the Prayer of Azariah,
+      // opened as a sheet from Daniel 3), or the heading would name the first book instead.
+      (orderedCanonBooks(translation).includes(book)
+        ? orderedCanonBooks(translation)
+        : [...orderedCanonBooks(translation), book]
+      ).map((b) => ({
         value: b,
         label: bookAbbreviation(b),
         // The grid abbreviates; the chapter's own title must not.
         triggerLabel: b,
         group: canonGroupForBook(b)?.testament === 'nt' ? 'New Testament' : 'Old Testament',
       })),
-    [translation],
+    [translation, book],
   );
   const chapterOptions = useMemo(() => {
     const count = bookChapterCount(book, translation) ?? data?.chapterCount ?? 1;
@@ -706,7 +718,12 @@ export default function PrototypeBibleReaderPane({
   const prevChapter = useMemo(() => adjacentChapter(book, chapter, -1, translation), [book, chapter, translation]);
   const nextChapter = useMemo(() => adjacentChapter(book, chapter, 1, translation), [book, chapter, translation]);
   const azariahInset = showsPrayerOfAzariahInset(book, chapter, translation) ? (
-    <ReaderPrayerOfAzariahInset book={book} chapter={chapter} translation={translation} onOpen={onNavigateTo} />
+    <ReaderPrayerOfAzariahInset
+      book={book}
+      chapter={chapter}
+      translation={translation}
+      onOpen={onOpenSheet ? (b, c) => onOpenSheet(b, c, AZARIAH_AFTER_VERSE) : undefined}
+    />
   ) : null;
 
   /**

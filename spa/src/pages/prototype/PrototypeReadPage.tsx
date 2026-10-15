@@ -173,6 +173,7 @@ export default function PrototypeReadPage() {
   const {
     beginPrototypeComposeSession,
     stackNote,
+    stackChapter,
     paperStack,
     clearPaperStack,
     inspectorOpen,
@@ -532,6 +533,20 @@ export default function PrototypeReadPage() {
       base: { type: 'reader', book, chapter, translation, fromVerse, fromVerseEnd },
     }),
     [book, chapter, translation],
+  );
+
+  /**
+   * A passage this chapter prints but Harvous files as its own chapter, opened as a sheet over
+   * this one — Daniel 3:24–90 is "Prayer of Azariah 1". The sheet is the real reader for that
+   * chapter, so selecting, highlighting and taking notes work as they do on any page; flipping
+   * the edge down returns here, at the verse it was opened from.
+   */
+  const handleOpenSheet = useCallback(
+    (sheetBook: string, sheetChapter: number, fromVerse?: number) => {
+      stackChapter(readerOrigin(fromVerse), { book: sheetBook, chapter: sheetChapter, translation });
+      handleNavigateTo(sheetBook, sheetChapter);
+    },
+    [stackChapter, readerOrigin, translation, handleNavigateTo],
   );
 
   /**
@@ -999,6 +1014,7 @@ export default function PrototypeReadPage() {
           focusVerse={Number.isFinite(focusVerse) ? focusVerse : undefined}
           focusVerseEnd={Number.isFinite(focusVerseEnd) ? focusVerseEnd : undefined}
           onNavigateTo={handleNavigateTo}
+          onOpenSheet={handleOpenSheet}
           onChangeTranslation={handleChangeTranslation}
           compare={
             compareTranslation

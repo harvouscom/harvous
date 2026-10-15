@@ -117,8 +117,7 @@ html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover * {
    button and descendant inside proto chrome primary. The range reads a step quieter still, and
    hover lifts the whole line to primary. */
 html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle,
-html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle *,
-html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__open {
+html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle * {
   color: var(--pds-text-secondary) !important;
 }
 
@@ -127,8 +126,7 @@ html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle .
 }
 
 html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle:hover,
-html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle:hover *,
-html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__open:hover {
+html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle:hover * {
   color: var(--pds-text-primary) !important;
 }
 

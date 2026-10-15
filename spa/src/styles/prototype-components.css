@@ -20308,7 +20308,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /* The Prayer of Azariah inside Daniel 3 (NABRE, DRB): one quiet line in the text track that
-   opens the passage in place. Sixty-seven verses printed in full took over the chapter. */
+   opens the passage as a sheet over the chapter. The chevron points the way it goes — on, not
+   down — because nothing unfolds here. */
 .pds-reader-inset {
   margin: 0 var(--pds-reader-text-inset) var(--pds-reader-paragraph-gap)
     calc(var(--pds-reader-gutter) + var(--pds-space-2));
@@ -20324,6 +20325,9 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   font: inherit;
   font-size: 0.8125rem;
   color: var(--pds-text-secondary);
+}
+
+button.pds-reader-inset__toggle {
   cursor: pointer;
 }
 
@@ -20332,33 +20336,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .pds-reader-inset__chevron {
   display: inline-flex;
   transform: rotate(-90deg);
-  transition: transform var(--pds-duration-segment) var(--pds-ease-emphasized);
-}
-
-.pds-reader-inset__toggle[aria-expanded='true'] .pds-reader-inset__chevron {
-  transform: rotate(0deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pds-reader-inset__chevron {
-    transition: none;
-  }
-}
-
-.pds-reader-inset__text {
-  margin: var(--pds-space-2) 0 0;
-}
-
-.pds-reader-inset__open {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 0.8125rem;
-  color: var(--pds-text-secondary);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
 }
 
 /* ── Verse: the unit of selection ──
