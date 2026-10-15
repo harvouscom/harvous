@@ -1024,6 +1024,11 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     animation: proto-sidebar-expanded-mobile-in var(--pds-duration-panel-expand) var(--pds-ease-emphasized) both;
   }
 
+  .proto-sidebar-expanded-panel--fit {
+    bottom: auto;
+    max-height: calc(100% - var(--pds-toolbar-h) - 16px);
+  }
+
   @keyframes proto-sidebar-expanded-mobile-in {
     from {
       transform: translateX(-100%);
@@ -1247,7 +1252,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     top: calc(var(--pds-toolbar-h) + 8px);
     left: 8px;
     bottom: 8px;
-    width: min(calc(100% - 16px), 1040px);
+    width: min(calc(100% - 16px), var(--proto-expanded-panel-max-w, 1040px));
     z-index: 30;
     border-radius: var(--pds-shell-frame-radius);
     /* Opaque: the frame already carries the one blur layer for this stack
@@ -1270,6 +1275,12 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     margin-inline: auto;
   }
 
+  /* Content-height: the top stays put under the toolbar, the foot comes up to the content. */
+  .proto-sidebar-expanded-panel--fit {
+    bottom: auto;
+    max-height: calc(100% - var(--pds-toolbar-h) - 16px);
+  }
+
   /* Width is the animated property so the panel unfurls from the sidebar's
      footprint. The body below is pinned to the final width, so children lay out
      once and each frame is a clip rather than a reflow. If this ever stutters on
@@ -1280,7 +1291,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
       opacity: 0.4;
     }
     to {
-      width: min(calc(100% - 16px), 1040px);
+      width: min(calc(100% - 16px), var(--proto-expanded-panel-max-w, 1040px));
       opacity: 1;
     }
   }
@@ -1291,7 +1302,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
 
   @keyframes proto-sidebar-expanded-out {
     from {
-      width: min(calc(100% - 16px), 1040px);
+      width: min(calc(100% - 16px), var(--proto-expanded-panel-max-w, 1040px));
       opacity: 1;
     }
     to {
@@ -1317,9 +1328,30 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
    * `ProtoSidebarExpandedPanel`. Only the name is overridden, so duration, easing and fill
    * stay the shorthand's above and there is one place to change how fast any of this is.
    */
+  /*
+   * The shadow, in two acts. A clip cuts away everything outside it, the panel's own shadow
+   * included, so while the panel grows there is no shadow to see — and holding the last
+   * frame's `inset(0)` (fill `both`) kept it cut away for good: every tool opened from a
+   * button sat flat on the page. So the clip is not held (`backwards`), and the shadow is its
+   * own animation that starts the moment the grow ends, settling in rather than switching on
+   * as the clip lifts.
+   */
   .proto-sidebar-expanded-panel[data-expand-from='origin'] {
-    width: min(calc(100% - 16px), 1040px);
-    animation-name: proto-sidebar-expanded-clip-in;
+    width: min(calc(100% - 16px), var(--proto-expanded-panel-max-w, 1040px));
+    animation-name: proto-sidebar-expanded-clip-in, proto-sidebar-expanded-shadow-in;
+    animation-duration: var(--pds-duration-panel-expand), var(--pds-duration-segment);
+    animation-delay: 0s, var(--pds-duration-panel-expand);
+    animation-timing-function: var(--pds-ease-emphasized), var(--pds-ease-standard);
+    animation-fill-mode: backwards, backwards;
+  }
+
+  @keyframes proto-sidebar-expanded-shadow-in {
+    from {
+      box-shadow: none;
+    }
+    to {
+      box-shadow: var(--pds-shadow-drawer);
+    }
   }
 
   @keyframes proto-sidebar-expanded-clip-in {
@@ -1333,17 +1365,29 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     }
   }
 
+  /* Lists reset to one value each, or the open's two-animation lists would carry over. */
   .proto-sidebar-expanded-panel--exiting[data-expand-from='origin'] {
     animation-name: proto-sidebar-expanded-clip-out;
+    animation-duration: var(--pds-duration-panel-expand);
+    animation-delay: 0s;
+    animation-timing-function: var(--pds-ease-emphasized);
+    animation-fill-mode: both;
   }
 
+  /*
+   * Closing starts from a clip that already reaches past the panel, by about the shadow's
+   * depth, with corners rounded to match — so the shadow is still there on the first frame
+   * and leaves with the panel, instead of vanishing the instant Close is pressed.
+   */
   @keyframes proto-sidebar-expanded-clip-out {
     from {
-      clip-path: inset(0 round var(--pds-shell-frame-radius));
+      clip-path: inset(-48px round calc(var(--pds-shell-frame-radius) + 48px));
+      box-shadow: var(--pds-shadow-drawer);
       opacity: 1;
     }
     to {
       clip-path: var(--proto-expand-clip-from);
+      box-shadow: none;
       opacity: 0;
     }
   }
