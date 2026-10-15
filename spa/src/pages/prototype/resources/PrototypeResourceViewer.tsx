@@ -23,7 +23,12 @@ import {
   type ResourceVideo,
 } from '../../../hooks/queries/useLibrary';
 import ResourceVideoPlayer, { type PlayableVideo } from './ResourceVideoPlayer';
-import { effectiveResourceType, resourceTypeNoun } from './resource-type-display';
+import {
+  effectiveResourceType,
+  resourceTypeIcon,
+  resourceTypeNoun,
+  type ResourceType,
+} from './resource-type-display';
 import { followResource } from '../library-panel/use-open-resource';
 import type { ResourceShelf } from '../PrototypeResourceLibraryList';
 
@@ -139,16 +144,20 @@ export default function PrototypeResourceViewer({
               ? 'File'
               : 'Link';
 
-  const eyebrow = isFile
+  const type = isVideo ? 'video' : effectiveResourceType(resource);
+  /* Who it is from, then where: the publisher's name leads, its domain trails quietly. A file
+     has no publisher — its own name and format stand in. */
+  const bylineName = isFile ? (resource.fileName ?? resource.title) : sourceNameOf(resource);
+  const bylineDetail = isFile
     ? resourceFileLabel(resource.fileMime, resource.fileBytes, resource.fileName)
-    : sourceNameOf(resource) ?? resourceSourceLabel(resource.sourceDomain, resource.sourceSiteName);
+    : resource.sourceSiteName && resource.sourceDomain
+      ? resource.sourceDomain.replace(/^www\./, '')
+      : null;
   const meta = [
-    /* What it is in Discover's words — Video, Book, Tool — leading the line the way the
-       catalog leads its own. */
-    resourceTypeNoun(isVideo ? 'video' : effectiveResourceType(resource)),
     article ? `${Math.max(1, Math.round(article.wordCount / 230))} min read` : null,
     playable?.durationSeconds ? formatRunningTime(playable.durationSeconds) : null,
-    resource.shelfLabel,
+    /* Whose shelf only when it is not yours — "My Library" on your own items was noise. */
+    resource.source === 'mine' ? null : resource.shelfLabel,
     resource.leadersOnly ? 'Leaders' : null,
     resource.pinned ? 'Pinned' : null,
     addedOn(resource.createdAt),
@@ -159,7 +168,17 @@ export default function PrototypeResourceViewer({
   const key = `${resource.source}:${resource.id}`;
   const head = (
     <header className="proto-resource-viewer__head">
-      {eyebrow ? <p className="proto-resource-viewer__eyebrow">{eyebrow}</p> : null}
+      <div className="proto-resource-byline">
+        <SourceMark key={key} resource={resource} type={type} />
+        <p className="proto-resource-byline__text">
+          {bylineName ? <span className="proto-resource-byline__name">{bylineName}</span> : null}
+          {bylineDetail ? <span className="proto-resource-byline__detail">{bylineDetail}</span> : null}
+        </p>
+        <span className="proto-resource-byline__type">
+          <Icon name={resourceTypeIcon(type)} size={10} aria-hidden />
+          {resourceTypeNoun(type)}
+        </span>
+      </div>
       <h2 className="proto-resource-viewer__title">{resource.title}</h2>
       {meta ? <p className="proto-caption proto-resource-viewer__meta">{meta}</p> : null}
       {canDock ? (
@@ -231,6 +250,34 @@ export default function PrototypeResourceViewer({
         </div>
       </div>
     </aside>
+  );
+}
+
+/**
+ * The publisher's own icon, from its own site — the same mark the browser tab would show.
+ * A site without one at the usual path, or a file, wears its type's glyph on a tile instead,
+ * so the byline never has a hole where the mark should be.
+ */
+function SourceMark({ resource, type }: { resource: ViewerResource; type: ResourceType }) {
+  const [failed, setFailed] = useState(false);
+  const domain = resource.kind === 'link' ? resource.sourceDomain : null;
+  if (domain && !failed) {
+    return (
+      <img
+        className="proto-resource-byline__mark"
+        src={`https://${domain.replace(/^https?:\/\//, '')}/favicon.ico`}
+        alt=""
+        width={20}
+        height={20}
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <span className="proto-resource-byline__mark proto-resource-byline__mark--glyph" aria-hidden>
+      <Icon name={resourceTypeIcon(type)} size={11} />
+    </span>
   );
 }
 

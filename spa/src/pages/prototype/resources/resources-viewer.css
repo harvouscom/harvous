@@ -89,16 +89,85 @@
   gap: 6px;
 }
 
-/* Whose it is, above the title — the way a byline-led article page reads, and the one fact
-   that tells you at a glance whether this is BibleProject or a PDF you uploaded. */
-.proto-resource-viewer__eyebrow {
+/* An article's header ends in a rule, the way a printed one does; a video's head sits under
+   the player and needs none. */
+.proto-resource-viewer__head:has(+ .proto-resource-reader),
+.proto-resource-viewer__head:has(+ .proto-resource-card),
+.proto-resource-viewer__head:has(+ .proto-resource-pdf),
+.proto-resource-viewer__head:has(+ .proto-resource-file) {
+  padding-bottom: 16px;
+  border-bottom: 0.5px solid var(--pds-border-soft);
+}
+
+/* ── Byline: who it is from, and what it is ── */
+.proto-resource-byline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 6px;
+}
+
+/* The publisher's mark, on a tile so a transparent favicon and a glyph sit the same. */
+.proto-resource-byline__mark {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  border-radius: 6px;
+  border: 0.5px solid var(--pds-border-soft);
+  background: var(--pds-bg-page);
+  object-fit: contain;
+}
+
+.proto-resource-byline__mark--glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pds-bg-subtle);
+  color: var(--pds-text-secondary);
+}
+
+.proto-resource-byline__text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   font-family: var(--pds-font-body);
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.proto-resource-byline__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  color: var(--pds-text-primary);
+}
+
+/* The domain is for telling two "Articles" sites apart, not for reading — it gives way first. */
+.proto-resource-byline__detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-resource-byline__type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-subtle);
+  font-family: var(--pds-font-body);
+  font-size: 11.5px;
+  font-weight: 600;
   color: var(--pds-text-secondary);
-  overflow-wrap: anywhere;
 }
 
 .proto-resource-viewer__title {
