@@ -13,6 +13,8 @@
 export type ResourceEmbed = {
   provider: 'youtube' | 'vimeo' | 'spotify';
   src: string;
+  /** YouTube's video id — the Discover player (Plyr) is built from the id, not the URL. */
+  id?: string;
   /** A player is 16:9; Spotify's is a fixed-height strip. */
   shape: 'video' | 'audio';
 };
@@ -65,7 +67,7 @@ function youtubeEmbed(url: URL): ResourceEmbed | null {
   const src = new URL(`https://www.youtube-nocookie.com/embed/${id}`);
   src.searchParams.set('rel', '0');
   if (start) src.searchParams.set('start', String(start));
-  return { provider: 'youtube', src: src.toString(), shape: 'video' };
+  return { provider: 'youtube', src: src.toString(), shape: 'video', id };
 }
 
 function vimeoEmbed(url: URL): ResourceEmbed | null {

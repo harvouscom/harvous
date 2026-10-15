@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import ProtoSidebarExpandedPanel from '../ProtoSidebarExpandedPanel';
+import './resources-viewer.css';
 import type { ExpandedSidebarToolProps } from '../PrototypeExpandedSidebarHost';
 import PrototypeResourceLibraryList, {
   type ResourceSelection,

@@ -7,9 +7,17 @@
  */
 import { extractArticleContent } from '@/utils/content-extractor';
 import { fetchPublicText, UnsafeUrlError, type LookupFn } from './public-url-fetch';
+import { extractResourceVideo, type ResourceVideo } from './resource-video';
 
+export type { ResourceVideo };
+
+/**
+ * A video page answers with its video and no article: the text around a player is captions,
+ * credits and navigation, and reading it was the wrong view of a thing you saved to watch.
+ */
 export type ResourceReaderResult =
   | { readable: true; html: string; wordCount: number }
+  | { readable: false; reason: 'is_video'; video: ResourceVideo }
   | {
       readable: false;
       reason: 'unsafe_url' | 'fetch_failed' | 'not_html' | 'no_article';
@@ -38,6 +46,9 @@ export async function readResourceArticle(
   }
   if (page.status < 200 || page.status >= 300) return { readable: false, reason: 'fetch_failed' };
   if (!/html/i.test(page.contentType)) return { readable: false, reason: 'not_html' };
+
+  const video = extractResourceVideo(page.body, page.url.toString());
+  if (video) return { readable: false, reason: 'is_video', video };
 
   let html: string | null = null;
   try {

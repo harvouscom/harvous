@@ -18,7 +18,7 @@ describe('resourceEmbedFor', () => {
     ['https://www.youtube.com/shorts/dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0'],
     ['https://www.youtube.com/live/dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0'],
   ])('plays %s in the no-cookie player', (url, src) => {
-    expect(resourceEmbedFor(url)).toEqual({ provider: 'youtube', src, shape: 'video' });
+    expect(resourceEmbedFor(url)).toEqual({ provider: 'youtube', src, shape: 'video', id: 'dQw4w9WgXcQ' });
   });
 
   it('refuses a YouTube page that is not one video', () => {

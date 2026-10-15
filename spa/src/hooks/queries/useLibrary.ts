@@ -122,9 +122,21 @@ export function useLibraryFileUrl(itemId: string | null, options?: { enabled?: b
 }
 
 /** Reader view of a link: the article's text, extracted server-side. */
+/** The video a saved page is for, found in its markup (server/utils/resource-video.ts). */
+export type ResourceVideo =
+  | { kind: 'file'; src: string; poster: string | null; durationSeconds: number | null }
+  | {
+      kind: 'youtube' | 'vimeo';
+      id: string;
+      hash?: string;
+      poster: string | null;
+      durationSeconds: number | null;
+    };
+
 export type ResourceReader =
   | { readable: true; html: string; wordCount: number }
-  | { readable: false; reason: string };
+  | { readable: false; reason: 'is_video'; video: ResourceVideo }
+  | { readable: false; reason: string; video?: undefined };
 
 export function useResourceReader(itemId: string | null, options?: { enabled?: boolean }) {
   const authReady = useAuthReady();
