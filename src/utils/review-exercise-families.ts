@@ -285,6 +285,12 @@ export function reviewPromptKeysInFamily(id: ReviewExerciseFamilyId): ReviewProm
  */
 export const CHURCH_EXERCISE_FAMILY_IDS: readonly ReviewExerciseFamilyId[] = ['question', 'match'];
 
+/**
+ * Families the engine no longer asks, kept defined so a stored emphasis still parses. **Not on the
+ * settings page**: a control for something that is never asked would be a control for nothing.
+ */
+export const RESTING_EXERCISE_FAMILY_IDS: readonly ReviewExerciseFamilyId[] = ['takeaway'];
+
 export const REVIEW_EXERCISE_FAMILY_ORDER: ReviewExerciseFamilyId[] = [
   'opening',
   'blanks',

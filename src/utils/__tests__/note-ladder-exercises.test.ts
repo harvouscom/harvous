@@ -21,13 +21,13 @@ describe('a preference can never be the reason a note goes unasked', () => {
    * Turning "ask me this less" into "never show me this note" is the failure being pinned here.
    */
   it('still resolves when the only buildable rung is skipped', () => {
-    const onlyTakeaway: NoteMaterial = {
+    const onlyConnect: NoteMaterial = {
       canPassage: false,
-      canConnect: false,
-      canTakeaway: true,
-      skip: new Set(['note.takeaway' as const]),
+      canConnect: true,
+      canTakeaway: false,
+      skip: new Set(['note.connect' as const]),
     };
-    expect(resolveNoteRung(0, onlyTakeaway, 'seed')).toBe('note.takeaway');
+    expect(resolveNoteRung(0, onlyConnect, 'seed')).toBe('note.connect');
   });
 
   it('still resolves when every rung the note has is skipped', () => {
@@ -58,12 +58,13 @@ describe('resolveNoteRung', () => {
   it('asks the rung the note has climbed to when it can answer it', () => {
     expect(resolveNoteRung(0, ALL)).toBe('note.passage');
     expect(resolveNoteRung(1, ALL)).toBe('note.connect');
-    expect(resolveNoteRung(2, ALL)).toBe('note.takeaway');
+    // Takeaway is resting (Oct 2026), so its step wraps to the first rung.
+    expect(resolveNoteRung(2, ALL)).toBe('note.passage');
   });
 
   it('walks past a rung the note has no material for', () => {
     // A note with no links cannot be asked what it was linked to, whatever step it is on.
-    expect(resolveNoteRung(1, { ...ALL, canConnect: false })).toBe('note.takeaway');
+    expect(resolveNoteRung(1, { ...ALL, canConnect: false })).toBe('note.passage');
     expect(resolveNoteRung(0, { ...ALL, canPassage: false })).toBe('note.connect');
   });
 
@@ -283,9 +284,10 @@ describe('buildNoteTakeaway', () => {
     expect(buildNoteTakeaway({ ...base, locked: true })).toBeNull();
   });
 
-  it('makes a note that cites and links nothing askable, where it has enough written', () => {
+  it('asks nothing of a note that cites and links nothing while Takeaway rests', () => {
+    // Takeaway was what made such a note askable; off for now (Oct 2026), so it is not.
     const material: NoteMaterial = { canPassage: false, canConnect: false, canTakeaway: true };
-    expect(resolveNoteRung(0, material, 'seed')).toBe('note.takeaway');
+    expect(resolveNoteRung(0, material, 'seed')).toBeNull();
   });
 });
 

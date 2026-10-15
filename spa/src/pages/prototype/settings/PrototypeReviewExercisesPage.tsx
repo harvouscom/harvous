@@ -28,6 +28,7 @@ import { toast } from '@/utils/toast';
 import {
   REVIEW_EXERCISE_FAMILIES,
   REVIEW_EXERCISE_FAMILY_ORDER,
+  RESTING_EXERCISE_FAMILY_IDS,
   type ReviewExerciseFamilyId,
 } from '@/utils/review-exercise-families';
 import {
@@ -41,6 +42,7 @@ import {
 } from '@/utils/review-exercise-settings';
 import { api } from '../../../lib/api';
 import { profileQueryKey, useProfile } from '../../../hooks/queries/useProfile';
+import { reviewInboxQueryKey, reviewSessionQueryKey } from '../../../hooks/queries/useReview';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
 import ProtoSelectMenu from '../ProtoSelectMenu';
 
@@ -159,6 +161,13 @@ export default function PrototypeReviewExercisesPage() {
           })
           .then(() => {
             void queryClient.invalidateQueries({ queryKey: profileQueryKey(userId) });
+            /*
+             * The sitting was composed under the old emphasis, and is frozen on purpose
+             * (`useReviewSession`), so a family set to Less kept turning up in the queue. A change
+             * made here is the one deliberate reason to recompose it.
+             */
+            void queryClient.invalidateQueries({ queryKey: reviewSessionQueryKey });
+            void queryClient.invalidateQueries({ queryKey: reviewInboxQueryKey });
           })
           .catch(() => toast.error('Could not save your exercise preferences.'));
       }, SAVE_DEBOUNCE_MS);
@@ -176,6 +185,7 @@ export default function PrototypeReviewExercisesPage() {
     const offeredIds: ReviewExerciseFamilyId[] = [];
     const fixedIds: ReviewExerciseFamilyId[] = [];
     for (const id of REVIEW_EXERCISE_FAMILY_ORDER) {
+      if (RESTING_EXERCISE_FAMILY_IDS.includes(id)) continue;
       (familyIsAlwaysOn(id) ? fixedIds : offeredIds).push(id);
     }
     return { offered: offeredIds, fixed: fixedIds };

@@ -91,7 +91,13 @@ export function resolveNoteRung(
   const can: Partial<Record<ReviewPromptKey, boolean>> = {
     'note.passage': material.canPassage,
     'note.connect': material.canConnect,
-    'note.takeaway': material.canTakeaway,
+    /*
+     * Off for now (Oct 15 2026, Derek): with nothing to compare against, the card could only ask
+     * the reader to grade themselves. Ideas for bringing it back are in
+     * docs/future/TAKEAWAY_REVIEW_IMPROVEMENTS.md. Its material is still built, so turning it back
+     * on is this one line.
+     */
+    'note.takeaway': false,
   };
   /* What the note could be asked before any preference is applied — the floor for the second
      pass below, so a skip can never be the reason a note goes unasked. */

@@ -51,6 +51,12 @@ export interface ExerciseStageProps {
   primary?: ExerciseStageAction | null;
   /** Anything else the footer holds — the self-rated verdicts, a retry for a failed load. */
   actions?: ReactNode;
+  /**
+   * The card takes its content's height (up to the usual one) instead of a fixed one, and the
+   * scene stops growing. For the rungs whose scene is one verse and a tag: stretched to the card,
+   * a short verse floated in an empty grey panel (Oct 2026, Places).
+   */
+  fit?: boolean;
 }
 
 export function ExerciseStage({
@@ -63,10 +69,11 @@ export function ExerciseStage({
   missed = false,
   primary,
   actions,
+  fit = false,
 }: ExerciseStageProps) {
   const hasFoot = Boolean(say || primary || actions);
   return (
-    <div className="rx-stage">
+    <div className="rx-stage" data-fit={fit ? '' : undefined}>
       <div className="rx-main" data-bare={scene ? undefined : ''}>
         <div className="rx-ask">
           <p className="rx-task">{task}</p>
