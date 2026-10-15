@@ -20307,39 +20307,58 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   margin-bottom: 0;
 }
 
-/* The Prayer of Azariah inside Daniel 3 (NABRE, DRB): a passage the page prints but does not
-   number, so it sits in the text track under a hairline rule rather than as more verses. */
+/* The Prayer of Azariah inside Daniel 3 (NABRE, DRB): one quiet line in the text track that
+   opens the passage in place. Sixty-seven verses printed in full took over the chapter. */
 .pds-reader-inset {
   margin: 0 var(--pds-reader-text-inset) var(--pds-reader-paragraph-gap)
     calc(var(--pds-reader-gutter) + var(--pds-space-2));
-  padding-inline-start: var(--pds-space-3);
-  border-inline-start: 1px solid var(--pds-border-on-paper);
 }
 
-.pds-reader-inset__header {
-  margin-bottom: var(--pds-space-2);
-}
-
-.pds-reader-inset__title {
-  margin: 0;
-  font-family: var(--pds-font-body);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--pds-text-primary);
-}
-
-.pds-reader-inset__caption {
-  margin: 0;
+.pds-reader-inset__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: 0.8125rem;
   color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+/* Colours live in prototype-route-overrides-2.css, past the blanket proto-button rule. */
+
+.pds-reader-inset__chevron {
+  display: inline-flex;
+  transform: rotate(-90deg);
+  transition: transform var(--pds-duration-segment) var(--pds-ease-emphasized);
+}
+
+.pds-reader-inset__toggle[aria-expanded='true'] .pds-reader-inset__chevron {
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pds-reader-inset__chevron {
+    transition: none;
+  }
 }
 
 .pds-reader-inset__text {
-  margin: 0;
+  margin: var(--pds-space-2) 0 0;
 }
 
 .pds-reader-inset__open {
-  margin-top: var(--pds-space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--pds-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 /* ── Verse: the unit of selection ──
