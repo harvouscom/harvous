@@ -61,6 +61,7 @@ import {
   uploadLibraryFile,
   LIBRARY_FILE_MAX_BYTES,
 } from '../utils/library-file-upload';
+import { chosenOrDetectedResourceType } from '../utils/resource-type-detect';
 
 const app = new Hono();
 
@@ -103,6 +104,7 @@ function serializeSpaceItem(
     fileName: row.fileName,
     fileMime: row.fileMime,
     fileBytes: row.fileBytes,
+    resourceType: row.resourceType,
     access: row.access,
     /** True when this space itself scoped the item, vs inheriting it org-wide. */
     ownedByThisSpace: ownedOverride ?? scopes.some((s) => s.scopeKind === 'space'),
@@ -292,6 +294,7 @@ app.post(
         description?: string;
         siteName?: string;
         image?: string;
+        resourceType?: string;
         access?: string;
       };
 
@@ -323,6 +326,7 @@ app.post(
         fileName: null,
         fileMime: null,
         fileBytes: null,
+        resourceType: chosenOrDetectedResourceType(body.resourceType, { kind: 'link', sourceUrl }),
         access: body.access === 'leaders' ? 'leaders' : 'members',
         createdByUserId: auth.userId,
         createdAt: timestamp,
@@ -459,6 +463,11 @@ app.post(
         fileName,
         fileMime: file.type.split(';')[0].trim().toLowerCase() || null,
         fileBytes: bytes.length,
+        resourceType: chosenOrDetectedResourceType(formData.get('resourceType'), {
+          kind: 'file',
+          fileName,
+          fileMime: file.type,
+        }),
         access: 'members',
         createdByUserId: auth.userId,
         createdAt: timestamp,

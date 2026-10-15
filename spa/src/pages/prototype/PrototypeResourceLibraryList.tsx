@@ -51,9 +51,29 @@ import {
   useCreateLibraryItem,
   useUploadLibraryItem,
   useArchiveLibraryItem,
+  useUpdateLibraryItem,
   type LibraryItem,
 } from '../../hooks/queries/useLibrary';
 import { followResource } from './library-panel/use-open-resource';
+import ProtoSelectMenu, { type ProtoSelectOption } from './ProtoSelectMenu';
+import {
+  compareResources,
+  effectiveResourceType,
+  RESOURCE_SORT_OPTIONS,
+  RESOURCE_TYPES,
+  resourceTypeIcon,
+  resourceTypeNoun,
+  type ResourceSort,
+  type ResourceType,
+} from './resources/resource-type-display';
+import { inferResourceType, isResourceType } from '@/utils/resource-type';
+
+/** The six types as menu options, each wearing its glyph. */
+const RESOURCE_TYPE_OPTIONS: ProtoSelectOption<ResourceType>[] = RESOURCE_TYPES.map((type) => ({
+  value: type,
+  label: resourceTypeNoun(type),
+  icon: <Icon name={resourceTypeIcon(type)} size={12} />,
+}));
 
 /** Which shelf a row came from — the same item id can never collide across them, but the
  *  viewer needs to know which query to read it back from. */
@@ -73,6 +93,7 @@ function ResourceRow({
   onToggleSelected,
   onSelectRangeTo,
   onShareWithOthers,
+  onChangeType,
 }: {
   item: LibraryItem;
   /** Shown in the expanded tool's viewer right now. */
@@ -98,9 +119,12 @@ function ResourceRow({
     same reasoning the "Suggest to church" bar below already follows.
   */
   onShareWithOthers?: () => void;
+  /** Re-file the item under another type. Own shelf only, like `selectable`. */
+  onChangeType?: (type: ResourceType) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rowRef = useRef<HTMLLIElement>(null);
+  const type = effectiveResourceType(item);
   const menuRootRef = useRef<HTMLDivElement>(null);
   const isFile = item.kind === 'file';
   /* What it is, then whose shelf it's on — the second line carries the source so
@@ -160,7 +184,7 @@ function ResourceRow({
               says which ("PDF · 2.1 MB" vs a domain); a second signal for the
               same fact just makes the list noisier. */}
           <span className="proto-note-row__kind-icon" aria-hidden>
-            <Icon name="newspaper" size={11} />
+            <Icon name={resourceTypeIcon(effectiveResourceType(item))} size={11} />
           </span>
           <span className="pds-list-title proto-note-row__title-text">{item.title}</span>
         </div>
@@ -251,6 +275,37 @@ function ResourceRow({
               <span className="proto-menu-item__label">Remove resource</span>
             </button>
           </div>
+          {/* What it is, changeable — the add form's guess was a guess. Its own section so the
+              six read as one choice, apart from the actions above. */}
+          {onChangeType ? (
+            <div className="proto-menu-section" role="group" aria-label="Type">
+              <div className="proto-menu-section-label">Type</div>
+              {RESOURCE_TYPES.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={option === type}
+                  className="proto-menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    if (option !== type) onChangeType(option);
+                  }}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name={resourceTypeIcon(option)} size={PROTO_TOOLBAR_ICON_SIZE} />
+                  </span>
+                  <span className="proto-menu-item__label">{resourceTypeNoun(option)}</span>
+                  {option === type ? (
+                    <span className="proto-menu-item__check" aria-hidden>
+                      <Icon name="check" size={12} />
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </PrototypeSidebarRowMenuPopover>
       </div>
     </li>
@@ -314,8 +369,9 @@ export function AddResourceForm({
       description?: string;
       siteName?: string;
       image?: string;
+      resourceType?: string | null;
     }) => Promise<unknown>;
-    saveFile: (input: { file: File; title?: string }) => Promise<unknown>;
+    saveFile: (input: { file: File; title?: string; resourceType?: string | null }) => Promise<unknown>;
     busy: boolean;
   };
 }) {
@@ -324,6 +380,9 @@ export function AddResourceForm({
   const [url, setUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
+  /* Pre-selected from what the server could tell about the page (or the file's format); the
+     person has the last word before it is saved. */
+  const [resourceType, setResourceType] = useState<ResourceType>('article');
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const urlInputRef = useRef<HTMLInputElement>(null);
@@ -352,6 +411,7 @@ export function AddResourceForm({
     setUrl('');
     setFile(null);
     setTitle('');
+    setResourceType('article');
     setPendingMeta(null);
     setError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -380,6 +440,7 @@ export function AddResourceForm({
     setPendingMeta(null);
     // Filename minus extension is usually the right title to start from.
     setTitle(picked.name.replace(/\.[^.]+$/, ''));
+    setResourceType(inferResourceType({ kind: 'file', fileMime: picked.type, fileName: picked.name }));
     setError(null);
     setStage({ step: 'confirm' });
     // A file dropped on the list opens the panel straight at confirm.
@@ -399,6 +460,11 @@ export function AddResourceForm({
     try {
       const meta = await preview.mutateAsync(trimmed);
       setTitle(meta.title || '');
+      setResourceType(
+        isResourceType(meta.resourceType)
+          ? meta.resourceType
+          : inferResourceType({ kind: 'link', sourceUrl: meta.url || trimmed }),
+      );
       setPendingMeta({
         siteName: meta.siteName ?? null,
         image: meta.image || null,
@@ -407,6 +473,7 @@ export function AddResourceForm({
       setStage({ step: 'confirm' });
     } catch {
       // Unreachable page: let them save it anyway with a hand-typed title.
+      setResourceType(inferResourceType({ kind: 'link', sourceUrl: trimmed.includes('://') ? trimmed : `https://${trimmed}` }));
       setStage({ step: 'confirm' });
       setError('Could not read that page. You can still save it with your own title.');
     }
@@ -416,7 +483,7 @@ export function AddResourceForm({
     setError(null);
     try {
       if (file) {
-        const input = { file, title: title.trim() || undefined };
+        const input = { file, title: title.trim() || undefined, resourceType };
         await (destination ? destination.saveFile(input) : upload.mutateAsync(input));
       } else {
         const trimmed = url.trim();
@@ -427,6 +494,7 @@ export function AddResourceForm({
           description: pendingMeta?.description || undefined,
           siteName: pendingMeta?.siteName ?? undefined,
           image: pendingMeta?.image ?? undefined,
+          resourceType,
         };
         await (destination ? destination.saveLink(input) : create.mutateAsync(input));
       }
@@ -546,7 +614,7 @@ export function AddResourceForm({
     <div className={panelClassName}>
       <div className="proto-resource-add__body" key={stage.step}>
         <div className="proto-resource-add__source" title={file ? file.name : url}>
-          <Icon name="newspaper" size={11} aria-hidden />
+          <Icon name={resourceTypeIcon(resourceType)} size={11} aria-hidden />
           <span className="proto-resource-add__source-text">
             {file ? file.name : resourceSourceLabel(hostOf(url)) || url}
           </span>
@@ -571,6 +639,15 @@ export function AddResourceForm({
             if (e.key === 'Escape') reset();
           }}
         />
+        <div className="proto-resource-add__type">
+          <span className="proto-resource-add__type-label">Type</span>
+          <ProtoSelectMenu<ResourceType>
+            value={resourceType}
+            onChange={setResourceType}
+            options={RESOURCE_TYPE_OPTIONS}
+            label="What kind of resource this is"
+          />
+        </div>
         <div className="proto-resource-add__actions">
           <button type="button" className="proto-resource-add__cancel" onClick={reset}>
             Cancel
@@ -647,7 +724,7 @@ function ChurchResourceRow({
       >
         <div className="proto-note-row__title-line">
           <span className="proto-note-row__kind-icon" aria-hidden>
-            <Icon name="newspaper" size={11} />
+            <Icon name={resourceTypeIcon(effectiveResourceType(item))} size={11} />
           </span>
           <span
             className="pds-list-title proto-note-row__title-text proto-marquee"
@@ -692,6 +769,8 @@ function SpaceShelfList({
   removingId,
   activeId = null,
   onOpenItem,
+  typeFilter = 'all',
+  sort = 'recent',
 }: {
   items: SpaceLibraryItem[];
   query: string;
@@ -705,16 +784,26 @@ function SpaceShelfList({
   /** The item the expanded tool's viewer is showing. */
   activeId?: string | null;
   onOpenItem: (item: SpaceLibraryItem) => void;
+  typeFilter?: ResourceType | 'all';
+  /* Pinned items still lead whatever the sort: the room chose to put them first. */
+  sort?: ResourceSort;
 }) {
   const trimmed = query.trim().toLowerCase();
   const filtered = useMemo(() => {
-    if (!trimmed) return items;
-    return items.filter((item) =>
-      [item.title, item.sourceSiteName, item.sourceDomain, item.description]
-        .filter(Boolean)
-        .some((field) => field!.toLowerCase().includes(trimmed)),
-    );
-  }, [items, trimmed]);
+    const matched = trimmed
+      ? items.filter((item) =>
+          [item.title, item.sourceSiteName, item.sourceDomain, item.description]
+            .filter(Boolean)
+            .some((field) => field!.toLowerCase().includes(trimmed)),
+        )
+      : items;
+    const typed =
+      typeFilter === 'all' ? matched : matched.filter((item) => effectiveResourceType(item) === typeFilter);
+    /* The server's order (pinned, then recent) is "Recent"; any other sort keeps pins first. */
+    if (sort === 'recent') return typed;
+    const compare = compareResources(sort);
+    return [...typed].sort((a, b) => Number(b.pinned) - Number(a.pinned) || compare(a, b));
+  }, [items, trimmed, typeFilter, sort]);
 
   if (isPending) return <ProtoSpaceLoading label="Loading resources" />;
   if (isError) {
@@ -853,7 +942,7 @@ function SpaceResourceRow({
       >
         <div className="proto-note-row__title-line">
           <span className="proto-note-row__kind-icon" aria-hidden>
-            <Icon name="newspaper" size={11} />
+            <Icon name={resourceTypeIcon(effectiveResourceType(item))} size={11} />
           </span>
           <span
             className="pds-list-title proto-note-row__title-text proto-marquee"
@@ -1001,6 +1090,11 @@ export default function PrototypeResourceLibraryList({
   const spaceActions = useSpaceLibraryActions(spaceId);
   const spaceCanManage = spaceQuery.data?.canManage ?? false;
   const archive = useArchiveLibraryItem();
+  const updateItem = useUpdateLibraryItem();
+  /* Not persisted: a filter left on from last week is how a shelf comes to look half-empty
+     with no reason given. Every open starts on everything, most recent first. */
+  const [typeFilter, setTypeFilter] = useState<ResourceType | 'all'>('all');
+  const [sort, setSort] = useState<ResourceSort>('recent');
   const selectedKey = selected ? resourceSelectionKey(selected) : null;
   const isActive = (source: ResourceShelf, id: string) => selectedKey === `${source}:${id}`;
   /*
@@ -1096,8 +1190,6 @@ export default function PrototypeResourceLibraryList({
    * list to sort by recency like every other list in the app.
    */
   const mergedRows = useMemo(() => {
-    const at = (value: string | Date | null | undefined) =>
-      value ? new Date(value).getTime() || 0 : 0;
     const rows: MergedResourceRow[] = [];
     if (showYours) {
       for (const item of filtered) rows.push({ key: `mine:${item.id}`, source: 'mine', item });
@@ -1107,11 +1199,11 @@ export default function PrototypeResourceLibraryList({
         rows.push({ key: `church:${item.id}`, source: 'church', item });
       }
     }
-    return rows.sort(
-      (a, b) =>
-        at(b.item.updatedAt ?? b.item.createdAt) - at(a.item.updatedAt ?? a.item.createdAt),
-    );
-  }, [filtered, filteredChurch, showYours, showChurch]);
+    const byType =
+      typeFilter === 'all' ? rows : rows.filter((r) => effectiveResourceType(r.item) === typeFilter);
+    const compare = compareResources(sort);
+    return byType.sort((a, b) => compare(a.item, b.item));
+  }, [filtered, filteredChurch, showYours, showChurch, typeFilter, sort]);
 
   /** In list order, personal rows only — what a range means here. */
   const selectableResourceIds = useMemo(
@@ -1355,6 +1447,40 @@ export default function PrototypeResourceLibraryList({
 
   const hasFiles = (e: DragEvent) => e.dataTransfer?.types?.includes('Files');
 
+  /* The filter offers only the types this shelf actually has: a "Series" option that empties
+     the list is a question with no right answer. Counted before the type filter applies, so
+     picking one never removes the others from the menu. */
+  const shelfItems: Array<Parameters<typeof effectiveResourceType>[0]> = spaceId
+    ? (spaceQuery.data?.items ?? [])
+    : [...(showYours ? filtered : []), ...(showChurch ? filteredChurch : [])];
+  const typesPresent = RESOURCE_TYPES.filter((type) =>
+    shelfItems.some((item) => effectiveResourceType(item) === type),
+  );
+  const typeFilterOptions: ProtoSelectOption<ResourceType | 'all'>[] = [
+    { value: 'all', label: 'All types' },
+    ...RESOURCE_TYPE_OPTIONS.filter((option) => typesPresent.includes(option.value)),
+  ];
+  /* A filter that can only say "everything" is furniture — shown once there are two kinds. */
+  const listControls =
+    shelfItems.length > 1 ? (
+      <div className="proto-resource-controls">
+        {typesPresent.length > 1 || typeFilter !== 'all' ? (
+          <ProtoSelectMenu<ResourceType | 'all'>
+            value={typeFilter}
+            onChange={setTypeFilter}
+            options={typeFilterOptions}
+            label="Which types to show"
+          />
+        ) : null}
+        <ProtoSelectMenu<ResourceSort>
+          value={sort}
+          onChange={setSort}
+          options={RESOURCE_SORT_OPTIONS}
+          label="Sort resources"
+        />
+      </div>
+    ) : null;
+
   return (
     <div
       className={`proto-resource-drop${dragOver ? ' proto-resource-drop--active' : ''}`}
@@ -1389,8 +1515,11 @@ export default function PrototypeResourceLibraryList({
           <span>Drop to add a resource</span>
         </div>
       ) : null}
+      {spaceId ? listControls : null}
       {spaceId ? (
         <SpaceShelfList
+          typeFilter={typeFilter}
+          sort={sort}
           items={spaceQuery.data?.items ?? []}
           query={query}
           isPending={spaceQuery.isPending}
@@ -1459,6 +1588,7 @@ export default function PrototypeResourceLibraryList({
               />
             )
           ) : null}
+          {listControls}
 
           {/* One list, newest first. No headings: every row names its own shelf
               on its second line, and that label travels with the item — a heading
@@ -1490,6 +1620,12 @@ export default function PrototypeResourceLibraryList({
                       /* The same line this row already shows under its title. */
                       detail: resourceSourceLabel(row.item.sourceDomain, row.item.sourceSiteName),
                     })
+                  }
+                  onChangeType={(type) =>
+                    updateItem.mutate(
+                      { id: row.item.id, resourceType: type },
+                      { onError: (err) => toastError(err, 'Could not change the type') },
+                    )
                   }
                   isArchiving={archive.isPending && archivingId === row.item.id}
                   onArchive={() => {

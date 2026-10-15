@@ -270,6 +270,7 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'fileName',
     'fileMime',
     'fileBytes',
+    'resourceType',
     'access',
     'createdByUserId',
     'createdAt',

@@ -16,6 +16,8 @@ export type LibraryItem = {
   fileName: string | null;
   fileMime: string | null;
   fileBytes: number | null;
+  /** Discover's type ('video' | 'article' | …). Null on rows saved before types, until backfilled. */
+  resourceType?: string | null;
   createdAt: string | Date;
   updatedAt: string | Date | null;
 };
@@ -33,6 +35,8 @@ export type LibraryLinkPreview = {
   image: string;
   url: string;
   siteName: string | null;
+  /** The server's guess at the type, which the add form pre-selects. */
+  resourceType?: string | null;
 };
 
 export const LIBRARY_QUERY_KEY = ['library'] as const;
@@ -74,6 +78,7 @@ export function useCreateLibraryItem() {
       description?: string;
       siteName?: string | null;
       image?: string | null;
+      resourceType?: string | null;
     }) =>
       api.post<{ success: boolean; duplicate: boolean; item: LibraryItem }>(
         '/api/library/items/create',
@@ -88,10 +93,11 @@ export function useCreateLibraryItem() {
 export function useUploadLibraryItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { file: File; title?: string }) => {
+    mutationFn: async (input: { file: File; title?: string; resourceType?: string | null }) => {
       const form = new FormData();
       form.append('file', input.file);
       if (input.title?.trim()) form.append('title', input.title.trim());
+      if (input.resourceType) form.append('resourceType', input.resourceType);
       return api.post<{ success: boolean; item: LibraryItem }>('/api/library/items/upload', form);
     },
     onSuccess: () => {
@@ -168,6 +174,34 @@ export async function openLibraryFileItem(itemId: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Change what an item is — its type — or its title. Personal items only (the route checks). */
+export function useUpdateLibraryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; resourceType?: string; title?: string }) =>
+      api.post<{ success: boolean; item: LibraryItem }>('/api/library/items/update', input),
+    /* Optimistic: a type change re-files the row under another icon and filter, and a beat of
+       the old icon after the tap reads as the tap not landing. */
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: LIBRARY_QUERY_KEY });
+      const previous = queryClient.getQueryData<LibraryResponse>(LIBRARY_QUERY_KEY);
+      if (previous) {
+        queryClient.setQueryData<LibraryResponse>(LIBRARY_QUERY_KEY, {
+          ...previous,
+          items: previous.items.map((item) => (item.id === input.id ? { ...item, ...input } : item)),
+        });
+      }
+      return { previous };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(LIBRARY_QUERY_KEY, context.previous);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY });
+    },
+  });
 }
 
 export function useArchiveLibraryItem() {

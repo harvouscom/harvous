@@ -59,6 +59,7 @@ import type {
   ResourcePayload,
   TemplatePayload,
 } from './discover-snapshot';
+import { chosenOrDetectedResourceType } from './resource-type-detect';
 
 /** Matches SHARED_BULK_INSERT_CHUNK in shared.ts — same tables, same reason. */
 const BULK_INSERT_CHUNK = 400;
@@ -230,6 +231,8 @@ export async function prepareResourceInstall(
       fileName: null,
       fileMime: null,
       fileBytes: null,
+      /* A curated listing's URL resolves to that listing's own type. */
+      resourceType: chosenOrDetectedResourceType(null, { kind: 'link', sourceUrl: normalizedUrl }),
       access: 'members',
       createdByUserId: userId,
       createdAt: timestamp,

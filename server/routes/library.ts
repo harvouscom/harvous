@@ -50,9 +50,11 @@ import {
 } from '../utils/library-file-upload';
 import { resolveVisibleItem } from '../utils/church-library-access';
 import { readResourceArticle } from '../utils/resource-reader';
+import { isResourceType } from '@/utils/resource-type';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import { validateResourceUrl, extractDomain } from '@/utils/validation';
+import { chosenOrDetectedResourceType } from '../utils/resource-type-detect';
 
 const app = new Hono();
 
@@ -77,6 +79,7 @@ function serializeItem(row: LibraryItemRow) {
     fileName: row.fileName,
     fileMime: row.fileMime,
     fileBytes: row.fileBytes,
+    resourceType: row.resourceType,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -253,6 +256,7 @@ app.post('/api/library/items/create', requireAuth, rateLimit('write'), async (c)
       fileName: null,
       fileMime: null,
       fileBytes: null,
+      resourceType: chosenOrDetectedResourceType(body?.resourceType, { kind: 'link', sourceUrl: normalizedUrl }),
       access: 'members',
       createdByUserId: auth.userId,
       createdAt: timestamp,
@@ -331,6 +335,11 @@ app.post('/api/library/items/upload', requireAuth, rateLimit('write'), async (c)
       fileName,
       fileMime: file.type.split(';')[0].trim().toLowerCase() || null,
       fileBytes: bytes.length,
+      resourceType: chosenOrDetectedResourceType(formData.get('resourceType'), {
+        kind: 'file',
+        fileName,
+        fileMime: file.type,
+      }),
       access: 'members',
       createdByUserId: auth.userId,
       createdAt: timestamp,
@@ -410,6 +419,15 @@ app.get('/api/library/items/:id/reader', requireAuth, rateLimit('read'), async (
     }
 
     const result = await readResourceArticle(item.sourceUrl);
+    /* The page has just told us what it is. An item saved before types existed takes that
+       answer now rather than waiting for the backfill — only when it has none, so a type the
+       owner chose is never overwritten by a GET. */
+    if (result.readable === false && result.reason === 'is_video' && !item.resourceType) {
+      await db
+        .update(LibraryItems)
+        .set({ resourceType: 'video' })
+        .where(and(eq(LibraryItems.id, item.id), isNull(LibraryItems.resourceType)));
+    }
     /* Private: the answer depends on who may see the item. An hour, because re-fetching
        a third-party page on every open is their bandwidth and our latency. */
     c.header('Cache-Control', 'private, max-age=3600');
@@ -438,6 +456,9 @@ app.post('/api/library/items/update', requireAuth, rateLimit('write'), async (c)
     const updates: Partial<LibraryItemRow> = { updatedAt: now() };
     if (body?.title !== undefined) updates.title = normalizeTitle(body.title, item.title);
     if (body?.description !== undefined) updates.description = normalizeDescription(body.description);
+    /* Only one of the six: anything else is ignored rather than stored, so a stale client can
+       never write a type no reader knows how to draw. */
+    if (isResourceType(body?.resourceType)) updates.resourceType = body.resourceType;
 
     await db.update(LibraryItems).set(updates).where(eq(LibraryItems.id, id));
 

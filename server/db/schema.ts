@@ -2923,6 +2923,14 @@ export const LibraryItems = pgTable(
     fileMime: text('fileMime'),
     fileBytes: integer('fileBytes'),
     /**
+     * What the resource is, in Discover's words: 'video' | 'article' | 'book' | 'tool' |
+     * 'guide' | 'series' (`CuratedResourceType`). Detected at save and editable by its owner.
+     * Nullable on purpose: rows saved before types existed stay null until the backfill
+     * reaches them, and readers fall back to `inferResourceType` meanwhile — a NOT NULL with a
+     * default would have stamped every old row 'article', true or not.
+     */
+    resourceType: text('resourceType'),
+    /**
      * 'leaders' | 'members' — who in a church may see the item. Read by the
      * church and space library routes. Written with the default from day one so
      * the church lane needed no backfill on a table that already held user data.

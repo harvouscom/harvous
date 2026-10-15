@@ -23,6 +23,7 @@ import {
   type ResourceVideo,
 } from '../../../hooks/queries/useLibrary';
 import ResourceVideoPlayer, { type PlayableVideo } from './ResourceVideoPlayer';
+import { effectiveResourceType, resourceTypeNoun } from './resource-type-display';
 import { followResource } from '../library-panel/use-open-resource';
 import type { ResourceShelf } from '../PrototypeResourceLibraryList';
 
@@ -43,6 +44,7 @@ export type ViewerResource = {
   fileName: string | null;
   fileMime: string | null;
   fileBytes: number | null;
+  resourceType?: string | null;
   createdAt: string | Date | null;
   /** Whose shelf, in words: "My Library", the church's name, "This space". */
   shelfLabel: string;
@@ -141,6 +143,9 @@ export default function PrototypeResourceViewer({
     ? resourceFileLabel(resource.fileMime, resource.fileBytes, resource.fileName)
     : sourceNameOf(resource) ?? resourceSourceLabel(resource.sourceDomain, resource.sourceSiteName);
   const meta = [
+    /* What it is in Discover's words — Video, Book, Tool — leading the line the way the
+       catalog leads its own. */
+    resourceTypeNoun(isVideo ? 'video' : effectiveResourceType(resource)),
     article ? `${Math.max(1, Math.round(article.wordCount / 230))} min read` : null,
     playable?.durationSeconds ? formatRunningTime(playable.durationSeconds) : null,
     resource.shelfLabel,

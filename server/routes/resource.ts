@@ -16,6 +16,7 @@ import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import { validateResourceUrl, extractDomain, getDomainFriendlyName, normalizeUrl } from '@/utils/validation';
 import { extractArticleContent } from '@/utils/content-extractor';
+import { detectResourceType } from '../utils/resource-type-detect';
 
 const app = new Hono();
 
@@ -176,7 +177,7 @@ app.post('/api/resource/metadata', requireAuth, rateLimit('write'), async (c) =>
         }
       }
       if (!filename || filename.trim().length === 0) filename = 'PDF Document';
-      return c.json({ success: true, metadata: { title: filename, description: 'PDF Document', image: '', url: normalizedUrl, siteName: parsedUrl.hostname.replace('www.', ''), contentType: 'pdf' } });
+      return c.json({ success: true, metadata: { title: filename, description: 'PDF Document', image: '', url: normalizedUrl, siteName: parsedUrl.hostname.replace('www.', ''), contentType: 'pdf', resourceType: detectResourceType({ kind: 'link', sourceUrl: normalizedUrl }) } });
     }
 
     const response = await fetch(normalizedUrl, {
@@ -233,6 +234,9 @@ app.post('/api/resource/metadata', requireAuth, rateLimit('write'), async (c) =>
     }
 
     const extractedMetadata: any = { title: bestTitle, description: descriptionMatch ? decodeHtmlEntities(descriptionMatch[1].trim()) : '', image: imageUrl, url: normalizedUrl, siteName };
+    /* What the add form pre-fills its type with. Here, not on the client, because only the
+       server knows the curated catalog and has the page to look for a video in. */
+    extractedMetadata.resourceType = detectResourceType({ kind: 'link', sourceUrl: normalizedUrl }, { html, url: normalizedUrl });
     if (extractContent === true) {
       try { extractedMetadata.articleContent = await extractArticleContent(html, normalizedUrl); } catch (e) { console.error('Error extracting article content:', e); }
     }

@@ -58,6 +58,7 @@ import {
   type LibraryItemScopeRow,
 } from '../utils/church-library-access';
 import { listMinistriesForOrg } from '../utils/church-ministries';
+import { chosenOrDetectedResourceType } from '../utils/resource-type-detect';
 
 const app = new Hono();
 
@@ -93,6 +94,7 @@ function serializeChurchItem(row: LibraryItemRow, scopes: readonly LibraryItemSc
     fileName: row.fileName,
     fileMime: row.fileMime,
     fileBytes: row.fileBytes,
+    resourceType: row.resourceType,
     access: row.access,
     scopes: scopes.map((s) => ({ scopeKind: s.scopeKind, spaceId: s.spaceId, ministryId: s.ministryKey })),
     createdAt: row.createdAt,
@@ -326,6 +328,7 @@ app.post('/api/church/library/items/create', requireAuth, rateLimit('write'), as
       description?: string;
       siteName?: string;
       image?: string;
+      resourceType?: string;
       access?: string;
       scopes?: unknown;
     };
@@ -366,6 +369,7 @@ app.post('/api/church/library/items/create', requireAuth, rateLimit('write'), as
       fileName: null,
       fileMime: null,
       fileBytes: null,
+      resourceType: chosenOrDetectedResourceType(body.resourceType, { kind: 'link', sourceUrl }),
       access,
       createdByUserId: auth.userId,
       createdAt: timestamp,
@@ -480,6 +484,11 @@ app.post('/api/church/library/items/upload', requireAuth, rateLimit('write'), as
       fileName,
       fileMime: file.type.split(';')[0].trim().toLowerCase() || null,
       fileBytes: bytes.length,
+      resourceType: chosenOrDetectedResourceType(formData.get('resourceType'), {
+        kind: 'file',
+        fileName,
+        fileMime: file.type,
+      }),
       access,
       createdByUserId: auth.userId,
       createdAt: timestamp,

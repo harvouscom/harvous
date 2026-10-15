@@ -30,6 +30,7 @@ export type SpaceLibraryItem = {
   fileName: string | null;
   fileMime: string | null;
   fileBytes: number | null;
+  resourceType?: string | null;
   access: string;
   /** True when this room scoped the item itself, rather than inheriting it. */
   ownedByThisSpace: boolean;
@@ -69,8 +70,8 @@ export function spaceLibraryMeta(items: SpaceLibraryItem[]): string {
 }
 
 export type SpaceLibraryAction =
-  | { kind: 'link'; url: string; title?: string; description?: string }
-  | { kind: 'upload'; file: File; title?: string; description?: string }
+  | { kind: 'link'; url: string; title?: string; description?: string; resourceType?: string | null }
+  | { kind: 'upload'; file: File; title?: string; description?: string; resourceType?: string | null }
   | { kind: 'pin'; itemId: string; pinned: boolean; sortOrder?: number }
   /* Only what the room owns. An org-wide item belongs to the church; taking it
      out of this room is `pin: false`, not an archive. */
@@ -121,6 +122,7 @@ export function useSpaceLibraryActions(spaceId: string | null | undefined) {
         form.append('file', action.file);
         if (action.title) form.append('title', action.title);
         if (action.description) form.append('description', action.description);
+        if (action.resourceType) form.append('resourceType', action.resourceType);
         return api.post<{ success: boolean; item: SpaceLibraryItem }>(
           `${base}/items/upload`,
           form,
@@ -131,6 +133,7 @@ export function useSpaceLibraryActions(spaceId: string | null | undefined) {
         url: action.url,
         title: action.title,
         description: action.description,
+        resourceType: action.resourceType,
       });
     },
     onSuccess: () => {

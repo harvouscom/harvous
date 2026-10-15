@@ -43,6 +43,7 @@ import {
   resolveChurchLibraryViewer,
 } from '../utils/church-library-access';
 import { displayNamesFor } from '../utils/suggestion-display-names';
+import { chosenOrDetectedResourceType } from '../utils/resource-type-detect';
 
 const app = new Hono();
 
@@ -437,6 +438,7 @@ app.post('/api/church/library/suggestions/review', requireAuth, rateLimit('write
         fileName: null,
         fileMime: null,
         fileBytes: null,
+        resourceType: chosenOrDetectedResourceType(null, { kind: 'link', sourceUrl: existing.url }),
         access: 'members',
         /* The reviewer, not the suggester: they are the person who decided the
            church keeps this, and the one to ask about it later. */

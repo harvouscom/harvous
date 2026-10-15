@@ -11,6 +11,26 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const openLibraryFileItem = vi.fn();
+const updateMutate = vi.fn();
+
+/* A second personal item, older, so the sort and type filter have something to move. */
+const personalVideo = {
+  id: 'lib_2',
+  libraryId: 'library_1',
+  kind: 'link',
+  title: 'A video about Romans',
+  description: null,
+  sourceUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  sourceDomain: 'youtube.com',
+  sourceSiteName: 'YouTube',
+  sourceImage: null,
+  fileName: null,
+  fileMime: null,
+  fileBytes: null,
+  resourceType: null,
+  createdAt: '2026-09-01T00:00:00Z',
+  updatedAt: null,
+};
 
 const personal = {
   id: 'lib_1',
@@ -58,7 +78,7 @@ vi.mock('../../../layouts/proto-shell-context', () => ({
 
 vi.mock('../../../hooks/queries/useLibrary', () => ({
   useLibrary: () => ({
-    data: { library: { id: 'library_1' }, items: [personal] },
+    data: { library: { id: 'library_1' }, items: [personal, personalVideo] },
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
@@ -67,6 +87,7 @@ vi.mock('../../../hooks/queries/useLibrary', () => ({
   useCreateLibraryItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUploadLibraryItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useArchiveLibraryItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateLibraryItem: () => ({ mutate: updateMutate, isPending: false }),
   openLibraryFileItem: (...args: unknown[]) => openLibraryFileItem(...args),
 }));
 
@@ -149,5 +170,52 @@ describe('resource list select mode', () => {
     expect(onOpenResource).toHaveBeenCalledWith(personal);
     fireEvent.click(screen.getByRole('button', { name: 'Church resource: Romans study guide' }));
     expect(openLibraryFileItem).toHaveBeenCalledWith('church_1');
+  });
+
+  it('filters by type and sorts', () => {
+    /* The select menu scrolls its current option into view and watches its trigger's size;
+       jsdom has neither, so the same stubs ProtoSelectMenu's own tests use. */
+    Element.prototype.scrollIntoView = vi.fn();
+    if (!('ResizeObserver' in globalThis)) {
+      (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+        observe() {}
+        disconnect() {}
+      };
+    }
+    /* A trigger at 0×0 reads to the menu as scrolled out of view, and it closes on open. */
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 20, bottom: 50, left: 20, right: 140, width: 120, height: 30, x: 20, y: 20, toJSON: () => ({}),
+    } as DOMRect);
+    renderList({ shelfFilterAs: 'switch' });
+    const titles = () =>
+      screen.getAllByRole('button', { name: /^(Church resource|Resource): / }).map((b) => b.getAttribute('aria-label'));
+    expect(titles()).toEqual([
+      'Resource: What is the gospel?',
+      'Church resource: Romans study guide',
+      'Resource: A video about Romans',
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: /Sort resources/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'A–Z' }));
+    expect(titles()).toEqual([
+      'Resource: A video about Romans',
+      'Church resource: Romans study guide',
+      'Resource: What is the gospel?',
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: /Which types to show/ }));
+    // Only the types this shelf has are offered: a video and two articles.
+    expect(screen.queryByRole('menuitemradio', { name: 'Series' })).toBeNull();
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Video' }));
+    expect(titles()).toEqual(['Resource: A video about Romans']);
+    rect.mockRestore();
+  });
+
+  it('changes a personal item’s type from its menu', () => {
+    renderList();
+    const row = screen.getByRole('button', { name: 'Resource: What is the gospel?' }).closest('li')!;
+    fireEvent.click(row.querySelector('button[aria-label="Resource actions"]')!);
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Book' }));
+    expect(updateMutate).toHaveBeenCalledWith({ id: 'lib_1', resourceType: 'book' }, expect.anything());
   });
 });

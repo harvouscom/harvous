@@ -3315,6 +3315,26 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
   gap: 8px;
 }
 
+/* The add form's type, pre-picked from the page: a labelled menu on one line. */
+.proto-resource-add__type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proto-resource-add__type-label {
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+/* Type and sort, right-aligned under the shelf switch so the switch keeps its full row. */
+.proto-resource-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px 4px 2px;
+}
+
 /* Drop anywhere on the Resources list to attach a file. */
 /* A column at least as tall as the scroll viewport, so the footer's `margin-top:
    auto` has somewhere to push to on a short list and its `position: sticky`

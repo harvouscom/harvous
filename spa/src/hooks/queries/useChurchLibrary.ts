@@ -34,6 +34,7 @@ export type ChurchLibraryItem = {
   fileName: string | null;
   fileMime: string | null;
   fileBytes: number | null;
+  resourceType?: string | null;
   access: LibraryItemAccess;
   scopes: LibraryScope[];
   createdAt: string | null;
