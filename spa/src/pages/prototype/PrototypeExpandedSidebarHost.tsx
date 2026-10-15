@@ -16,6 +16,9 @@ import PrototypeExpandedDiscover from './PrototypeExpandedDiscover';
 const PrototypeExpandedChurchReview = lazy(() => import('./PrototypeExpandedChurchReview'));
 const PrototypeExpandedMinistries = lazy(() => import('./PrototypeExpandedMinistries'));
 const PrototypeExpandedChurchContent = lazy(() => import('./PrototypeExpandedChurchContent'));
+/* Lazy for the same reason: its viewer carries reader view and the player embeds, and only
+   someone who presses Expand on the Resources tab needs them. */
+const PrototypeExpandedResources = lazy(() => import('./resources/PrototypeExpandedResources'));
 
 export type ExpandedSidebarToolProps = {
   exiting: boolean;
@@ -51,6 +54,12 @@ export default function PrototypeExpandedSidebarHost({
       return (
         <Suspense fallback={null}>
           <PrototypeExpandedMinistries exiting={exiting} origin={origin} onClose={onClose} />
+        </Suspense>
+      );
+    case 'resources':
+      return (
+        <Suspense fallback={null}>
+          <PrototypeExpandedResources exiting={exiting} origin={origin} onClose={onClose} />
         </Suspense>
       );
     case 'church-content':
