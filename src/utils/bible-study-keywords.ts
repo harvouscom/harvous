@@ -256,6 +256,44 @@ export const BIBLE_STUDY_KEYWORDS: BibleStudyKeyword[] = [
   { name: 'Hope', category: 'life', synonyms: ['optimism', 'expectation'], confidence: 0.7 },
 ];
 
+/**
+ * The books only the Catholic translations carry (NABRE, DRB), as names a reference can use.
+ *
+ * Deliberately not in `BIBLE_STUDY_KEYWORDS`: that list is also the auto-tag vocabulary, which
+ * matches bare words in prose, and "Wisdom" is already a theme there while "Judith", "Tobit" and
+ * "Baruch" are just as likely to be a person in a note. Here they only resolve the book part of
+ * a reference ("Wisdom 3:1", "Sir 2:1"), through `SCRIPTURE_BOOK_KEYWORDS`.
+ *
+ * "Ecclesiasticus" is an exact synonym on purpose: the book resolver prefers an exact match, so
+ * it can't fall through to Ecclesiastes' "eccl" prefix.
+ */
+export const DEUTEROCANON_BOOK_KEYWORDS: BibleStudyKeyword[] = [
+  { name: 'Tobit', category: 'book', synonyms: ['tob', 'tobias'], confidence: 0.9 },
+  { name: 'Judith', category: 'book', synonyms: ['jdt', 'jdth'], confidence: 0.9 },
+  { name: 'Wisdom', category: 'book', synonyms: ['wis', 'wisdom of solomon'], confidence: 0.9 },
+  {
+    name: 'Sirach',
+    category: 'book',
+    synonyms: ['sir', 'ecclesiasticus', 'ecclus', 'ben sira', 'wisdom of ben sira'],
+    confidence: 0.9,
+  },
+  { name: 'Baruch', category: 'book', synonyms: ['bar'], confidence: 0.9 },
+  { name: '1 Maccabees', category: 'book', synonyms: ['1 macc', '1 mac', 'first maccabees'], confidence: 0.9 },
+  { name: '2 Maccabees', category: 'book', synonyms: ['2 macc', '2 mac', 'second maccabees'], confidence: 0.9 },
+  {
+    name: 'Prayer of Azariah',
+    category: 'book',
+    synonyms: ['pr azar', 'song of the three', 'song of the three young men', 'song of the three jews'],
+    confidence: 0.9,
+  },
+];
+
+/** Every book a scripture reference can name: the 66, then the deuterocanon. */
+export const SCRIPTURE_BOOK_KEYWORDS: BibleStudyKeyword[] = [
+  ...BIBLE_STUDY_KEYWORDS.filter((k) => k.category === 'book'),
+  ...DEUTEROCANON_BOOK_KEYWORDS,
+];
+
 let keywordTrie: ReturnType<typeof buildKeywordTrie> | null = null;
 function getKeywordTrie() {
   if (!keywordTrie) keywordTrie = buildKeywordTrie(BIBLE_STUDY_KEYWORDS);

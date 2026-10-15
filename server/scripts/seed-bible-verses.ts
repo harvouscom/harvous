@@ -21,10 +21,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 import { BibleTranslations, BibleVerses } from '../db/schema';
 import { now } from '../db/dates';
-import { TRANSLATIONS } from '../../src/data/translations';
+import { TRANSLATIONS, translationHasDeuterocanon } from '../../src/data/translations';
 
-// Canonical book names from bible-chapters.json
+// Canonical book names from bible-chapters.json, plus deuterocanon-chapters.json for the
+// translations that carry it (NABRE, DRB). A deuterocanonical book in any other translation's
+// file is an unmapped book, and aborts that translation like any other.
 import bibleChaptersData from '../../src/data/bible-chapters.json';
+import deuterocanonChaptersData from '../../src/data/deuterocanon-chapters.json';
 
 interface BibleChapter {
   book: string;
@@ -52,6 +55,11 @@ const BOOK_NAME_MAP: Record<string, string> = {
   // produced a book the reader could not open.
   'song of solomon': 'Song of Solomon',
   'song of songs': 'Song of Solomon',
+  'tobias': 'Tobit',
+  'wisdom of solomon': 'Wisdom',
+  'ecclesiasticus': 'Sirach',
+  '1maccabees': '1 Maccabees',
+  '2maccabees': '2 Maccabees',
   'canticles': 'Song of Solomon',
   '1samuel': '1 Samuel',
   '2samuel': '2 Samuel',
@@ -72,19 +80,28 @@ const BOOK_NAME_MAP: Record<string, string> = {
   '3john': '3 John',
 };
 
-function buildCanonicalBooks(): Set<string> {
+function chapterRows(translationId: string): BibleChapter[] {
+  const shared = bibleChaptersData as BibleChapter[];
+  return translationHasDeuterocanon(translationId)
+    ? [...shared, ...(deuterocanonChaptersData as BibleChapter[])]
+    : shared;
+}
+
+function buildCanonicalBooks(translationId: string): Set<string> {
   const books = new Set<string>();
-  for (const ch of bibleChaptersData as BibleChapter[]) {
+  for (const ch of chapterRows(translationId)) {
     books.add(ch.book);
   }
   return books;
 }
 
-function buildExpectedVerseCounts(): Map<string, Map<number, number>> {
+/** Book → chapter → verses expected. Esther 10 has two rows (1–3, 4–13); they add up. */
+function buildExpectedVerseCounts(translationId: string): Map<string, Map<number, number>> {
   const map = new Map<string, Map<number, number>>();
-  for (const ch of bibleChaptersData as BibleChapter[]) {
+  for (const ch of chapterRows(translationId)) {
     if (!map.has(ch.book)) map.set(ch.book, new Map());
-    map.get(ch.book)!.set(ch.chapter, ch.endVerse);
+    const chapters = map.get(ch.book)!;
+    chapters.set(ch.chapter, (chapters.get(ch.chapter) ?? 0) + ch.endVerse - ch.startVerse + 1);
   }
   return map;
 }
@@ -100,7 +117,7 @@ function normalizeBookName(name: string, canonicalBooks: Set<string>): string | 
 
   // Known variants
   const lower = name.toLowerCase().replace(/\s+/g, '');
-  if (BOOK_NAME_MAP[lower]) return BOOK_NAME_MAP[lower];
+  if (BOOK_NAME_MAP[lower] && canonicalBooks.has(BOOK_NAME_MAP[lower])) return BOOK_NAME_MAP[lower];
 
   // Try without leading number space: "1 Samuel" vs "1Samuel"
   const withSpace = name.replace(/^(\d)(\w)/, '$1 $2');
@@ -151,8 +168,8 @@ async function seedVerses(translationId: string) {
   }
 
   console.log(`Seeding verses for ${translationId}...`);
-  const canonicalBooks = buildCanonicalBooks();
-  const expectedCounts = buildExpectedVerseCounts();
+  const canonicalBooks = buildCanonicalBooks(translationId);
+  const expectedCounts = buildExpectedVerseCounts(translationId);
 
   const raw = readFileSync(filePath, 'utf-8');
   const verses: VerseEntry[] = JSON.parse(raw);

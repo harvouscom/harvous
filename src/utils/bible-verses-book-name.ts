@@ -18,14 +18,16 @@
  * silently removing a book.
  */
 
-import { orderedCanonBooks } from './bible-book-chapters';
+import { PRAYER_OF_AZARIAH, orderedCanonBooks } from './bible-book-chapters';
+import { DEUTEROCANON_TRANSLATIONS } from '../data/translations';
 import { parseScriptureReference } from './scripture-detector';
 
 let map: Map<string, string> | null = null;
 
 function buildMap(): Map<string, string> {
   const built = new Map<string, string>();
-  for (const storageName of orderedCanonBooks()) {
+  // Every book any translation stores, the deuterocanon included.
+  for (const storageName of [...orderedCanonBooks(DEUTEROCANON_TRANSLATIONS[0]), PRAYER_OF_AZARIAH]) {
     const parsed = parseScriptureReference(`${storageName} 1`);
     // Identity while the canons agree; a divergent name lands under its own key.
     built.set(parsed?.book ?? storageName, storageName);

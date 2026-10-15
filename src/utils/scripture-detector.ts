@@ -1,9 +1,8 @@
 // Scripture Detection Utility
 // Detects both scripture references and actual Bible verse text
 
-import { BIBLE_STUDY_KEYWORDS } from './bible-study-keywords';
-// @ts-ignore - JSON import with resolveJsonModule
-import bibleChaptersData from '../data/bible-chapters.json';
+import { SCRIPTURE_BOOK_KEYWORDS } from './bible-study-keywords';
+import { allChapterRecords } from './bible-book-chapters';
 import { TRANSLATION_ORDER } from '../data/translations';
 
 /**
@@ -100,7 +99,10 @@ function buildBibleChaptersMap(): Map<string, Map<number, { startVerse: number; 
   }
 
   const map = new Map<string, Map<number, { startVerse: number; endVerse: number }>>();
-  const data = bibleChaptersData as BibleChapter[];
+  // Every chapter any translation carries: a reference to Tobit or Esther 12 is a reference,
+  // whatever translation the note reads in. Whether that translation has it is the verse
+  // lookup's question. Esther 10 is listed twice (1–3 shared, 4–13 Catholic); keep the longer.
+  const data = allChapterRecords() as BibleChapter[];
 
   for (const chapter of data) {
     const bookName = chapter.book;
@@ -108,9 +110,10 @@ function buildBibleChaptersMap(): Map<string, Map<number, { startVerse: number; 
       map.set(bookName, new Map());
     }
     const bookMap = map.get(bookName)!;
+    const existing = bookMap.get(chapter.chapter);
     bookMap.set(chapter.chapter, {
-      startVerse: chapter.startVerse,
-      endVerse: chapter.endVerse
+      startVerse: Math.min(existing?.startVerse ?? chapter.startVerse, chapter.startVerse),
+      endVerse: Math.max(existing?.endVerse ?? 0, chapter.endVerse),
     });
   }
 
@@ -394,16 +397,13 @@ export const NET_BIBLE_COPYRIGHT = 'Scripture quotations are from the NET Bible�
 
 // Get all Bible book names from keywords
 const getBibleBookNames = (): string[] => {
-  return BIBLE_STUDY_KEYWORDS
-    .filter(k => k.category === 'book')
-    .map(k => k.name);
+  return SCRIPTURE_BOOK_KEYWORDS.map(k => k.name);
 };
 
 // Get book name variations (including synonyms)
 export const getBookNameVariations = (): string[] => {
   const variations: string[] = [];
-  BIBLE_STUDY_KEYWORDS
-    .filter(k => k.category === 'book')
+  SCRIPTURE_BOOK_KEYWORDS
     .forEach(k => {
       variations.push(k.name);
       variations.push(...k.synonyms);
@@ -580,9 +580,8 @@ export function resolveCanonicalBookName(bookPart: string, bookNames: string[]):
   if (!best) return null;
 
   return (
-    BIBLE_STUDY_KEYWORDS.find(
+    SCRIPTURE_BOOK_KEYWORDS.find(
       k =>
-        k.category === 'book' &&
         (k.name.toLowerCase() === best!.bookName.toLowerCase() ||
           k.synonyms.some(s => s.toLowerCase() === best!.bookName.toLowerCase())),
     )?.name || best.bookName

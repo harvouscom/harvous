@@ -60,11 +60,12 @@ export function chaptersFrom(
   chapter: number,
   count: number,
   direction: 1 | -1,
+  translation?: string,
 ): { book: string; chapter: number }[] {
   const out: { book: string; chapter: number }[] = [];
   let cursor: { book: string; chapter: number } | null = { book, chapter };
   for (let i = 0; i < count; i += 1) {
-    cursor = cursor ? adjacentChapter(cursor.book, cursor.chapter, direction) : null;
+    cursor = cursor ? adjacentChapter(cursor.book, cursor.chapter, direction, translation) : null;
     if (!cursor) break;
     out.push(cursor);
   }
@@ -72,8 +73,8 @@ export function chaptersFrom(
 }
 
 /** The chapters immediately behind this one, nearest first. Empty at Genesis 1. */
-export function chaptersBehind(book: string, chapter: number, count: number) {
-  return chaptersFrom(book, chapter, count, -1);
+export function chaptersBehind(book: string, chapter: number, count: number, translation?: string) {
+  return chaptersFrom(book, chapter, count, -1, translation);
 }
 
 export default function PrototypeReaderChapterStack({
@@ -99,8 +100,8 @@ export default function PrototypeReaderChapterStack({
   const queryClient = useQueryClient();
 
   const edges = useMemo(
-    () => chaptersFrom(book, chapter, READER_CHAPTER_EDGES, direction === 'ahead' ? 1 : -1),
-    [book, chapter, direction],
+    () => chaptersFrom(book, chapter, READER_CHAPTER_EDGES, direction === 'ahead' ? 1 : -1, translation),
+    [book, chapter, direction, translation],
   );
 
   /*

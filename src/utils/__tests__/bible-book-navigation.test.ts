@@ -4,6 +4,7 @@ import {
   bookChapterCount,
   bookFromSlug,
   bookSlug,
+  isDeuterocanonPassage,
   orderedCanonBooks,
 } from '../bible-book-chapters';
 
@@ -94,5 +95,48 @@ describe('bookSlug / bookFromSlug', () => {
   it('returns null for a segment that names no book', () => {
     expect(bookFromSlug('hezekiah')).toBeNull();
     expect(bookFromSlug('')).toBeNull();
+  });
+});
+
+describe('the deuterocanon', () => {
+  it('is in the book list only for the translations that carry it', () => {
+    expect(orderedCanonBooks('ESV')).toHaveLength(66);
+    const catholic = orderedCanonBooks('NABRE');
+    expect(catholic).toHaveLength(73);
+    expect(catholic.slice(15, 21)).toEqual(['Nehemiah', 'Tobit', 'Judith', 'Esther', '1 Maccabees', '2 Maccabees']);
+    expect(catholic.indexOf('Baruch')).toBe(catholic.indexOf('Lamentations') + 1);
+    expect(catholic).not.toContain('Prayer of Azariah');
+  });
+
+  it('counts Esther and Daniel by the translation', () => {
+    expect(bookChapterCount('Esther', 'ESV')).toBe(10);
+    expect(bookChapterCount('Esther', 'DRB')).toBe(16);
+    expect(bookChapterCount('Daniel', 'NABRE')).toBe(14);
+    expect(bookChapterCount('Tobit', 'ESV')).toBeNull();
+    expect(bookChapterCount('Tobit', 'NABRE')).toBe(14);
+  });
+
+  it('walks the canon the translation reads', () => {
+    expect(adjacentChapter('Nehemiah', 13, 1, 'ESV')).toEqual({ book: 'Esther', chapter: 1 });
+    expect(adjacentChapter('Nehemiah', 13, 1, 'NABRE')).toEqual({ book: 'Tobit', chapter: 1 });
+    expect(adjacentChapter('Esther', 10, 1, 'ESV')).toEqual({ book: 'Job', chapter: 1 });
+    expect(adjacentChapter('Esther', 16, 1, 'DRB')).toEqual({ book: '1 Maccabees', chapter: 1 });
+    expect(adjacentChapter('Hosea', 1, -1, 'NABRE')).toEqual({ book: 'Daniel', chapter: 14 });
+    expect(adjacentChapter('Prayer of Azariah', 1, 1, 'NABRE')).toEqual({ book: 'Daniel', chapter: 4 });
+  });
+
+  it('opens a shared link to a deuterocanonical book', () => {
+    expect(bookFromSlug('1-maccabees')).toBe('1 Maccabees');
+    expect(bookFromSlug('prayer-of-azariah')).toBe('Prayer of Azariah');
+  });
+
+  it('knows which passages only the Catholic translations carry', () => {
+    expect(isDeuterocanonPassage('Sirach', 2)).toBe(true);
+    expect(isDeuterocanonPassage('Esther', 10)).toBe(false);
+    expect(isDeuterocanonPassage('Esther', 10, 4)).toBe(true);
+    expect(isDeuterocanonPassage('Esther', 11)).toBe(true);
+    expect(isDeuterocanonPassage('Daniel', 12)).toBe(false);
+    expect(isDeuterocanonPassage('Daniel', 13)).toBe(true);
+    expect(isDeuterocanonPassage('John', 3, 16)).toBe(false);
   });
 });

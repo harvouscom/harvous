@@ -11,7 +11,8 @@
  * correct without it, only slower: every verse of the translation is tokenised per request.
  */
 import { db, and, eq, sql, BibleVerses } from '../db';
-import { orderedCanonBooks } from '@/utils/bible-book-chapters';
+import { PRAYER_OF_AZARIAH, orderedCanonBooks } from '@/utils/bible-book-chapters';
+import { DEUTEROCANON_TRANSLATIONS } from '@/data/translations';
 import { getTranslation } from '@/data/translations';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { VERSE_MATCH_END, VERSE_MATCH_START } from '@/utils/verse-search-snippet';
@@ -130,7 +131,8 @@ export async function searchBibleVerses(params: {
   const tsQuery = sql`websearch_to_tsquery('english', ${query})`;
   const verseTsVector = sql`to_tsvector('english', ${BibleVerses.text})`;
   const phrasePattern = `%${escapeLikePattern(phraseForBoost(query))}%`;
-  const canon = orderedCanonBooks();
+  // Catholic order, so Tobit sorts after Nehemiah when the NABRE is searched; the 66 keep theirs.
+  const canon = [...orderedCanonBooks(DEUTEROCANON_TRANSLATIONS[0]), PRAYER_OF_AZARIAH];
   const canonArray = sql`ARRAY[${sql.join(canon.map((book) => sql`${book}`), sql`, `)}]::text[]`;
 
   const rows = await db

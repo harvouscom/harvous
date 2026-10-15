@@ -11,8 +11,9 @@
  * "am 5:30" from offering Amos.
  */
 
-import { BIBLE_STUDY_KEYWORDS } from './bible-study-keywords';
-import { orderedCanonBooks } from './bible-book-chapters';
+import { SCRIPTURE_BOOK_KEYWORDS } from './bible-study-keywords';
+import { PRAYER_OF_AZARIAH, orderedCanonBooks } from './bible-book-chapters';
+import { DEUTEROCANON_TRANSLATIONS } from '../data/translations';
 import {
   checkScriptureReferenceValidity,
   detectScriptureReferences,
@@ -55,7 +56,7 @@ let bookNamesCache: BookNames[] | null = null;
 
 function bookNames(): BookNames[] {
   if (bookNamesCache) return bookNamesCache;
-  bookNamesCache = BIBLE_STUDY_KEYWORDS.filter((k) => k.category === 'book').map((k) => ({
+  bookNamesCache = SCRIPTURE_BOOK_KEYWORDS.map((k) => ({
     book: k.name,
     // "first book" / "second book" are keyword synonyms for Genesis/Exodus, not things anyone
     // types in front of a chapter number.
@@ -85,7 +86,7 @@ function booksMatching(typed: string, tail: string): string[] {
   // The detector's own pick goes first, so accepting with Tab agrees with how the same text
   // would resolve elsewhere; the rest stay in canon order.
   const preferred = resolveCanonicalBookName(typed, getBookNameVariations());
-  const canon = orderedCanonBooks();
+  const canon = [...orderedCanonBooks(DEUTEROCANON_TRANSLATIONS[0]), PRAYER_OF_AZARIAH];
   const order = (book: string) => {
     const i = canon.indexOf(book);
     return i === -1 ? canon.length : i;

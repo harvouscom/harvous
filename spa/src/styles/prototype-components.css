@@ -20307,6 +20307,41 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   margin-bottom: 0;
 }
 
+/* The Prayer of Azariah inside Daniel 3 (NABRE, DRB): a passage the page prints but does not
+   number, so it sits in the text track under a hairline rule rather than as more verses. */
+.pds-reader-inset {
+  margin: 0 var(--pds-reader-text-inset) var(--pds-reader-paragraph-gap)
+    calc(var(--pds-reader-gutter) + var(--pds-space-2));
+  padding-inline-start: var(--pds-space-3);
+  border-inline-start: 1px solid var(--pds-border-on-paper);
+}
+
+.pds-reader-inset__header {
+  margin-bottom: var(--pds-space-2);
+}
+
+.pds-reader-inset__title {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.pds-reader-inset__caption {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--pds-text-secondary);
+}
+
+.pds-reader-inset__text {
+  margin: 0;
+}
+
+.pds-reader-inset__open {
+  margin-top: var(--pds-space-3);
+}
+
 /* ── Verse: the unit of selection ──
    Selection snaps to whole verses, so each verse advertises itself as a target on approach
    and holds a mark once chosen.

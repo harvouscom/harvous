@@ -38,6 +38,7 @@ import ProtoSelectMenu from './ProtoSelectMenu';
 import {
   adjacentChapter,
   bookChapterCount,
+  isDeuterocanonPassage,
   orderedCanonBooks,
 } from '@/utils/bible-book-chapters';
 import { canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
@@ -102,7 +103,16 @@ import {
 } from '@/utils/study-dock-stack';
 import { useSettledFlag } from '../../hooks/useSettledFlag';
 import PrototypeReaderChapterStack from './PrototypeReaderChapterStack';
-import { TRANSLATION_ORDER, getTranslationAbbreviationDisplay } from '@/data/translations';
+import {
+  DEUTEROCANON_TRANSLATIONS,
+  TRANSLATION_ORDER,
+  getTranslationAbbreviationDisplay,
+  translationHasDeuterocanon,
+} from '@/data/translations';
+import ReaderPrayerOfAzariahInset, {
+  AZARIAH_AFTER_VERSE,
+  showsPrayerOfAzariahInset,
+} from './ReaderPrayerOfAzariahInset';
 import { alignChapterVerses } from '@/utils/compare-chapter-alignment';
 
 /**
@@ -646,19 +656,20 @@ export default function PrototypeBibleReaderPane({
    */
   const bookOptions = useMemo(
     () =>
-      orderedCanonBooks().map((b) => ({
+      // The canon this translation reads: 73 books in the NABRE and the Douay-Rheims, 66 elsewhere.
+      orderedCanonBooks(translation).map((b) => ({
         value: b,
         label: bookAbbreviation(b),
         // The grid abbreviates; the chapter's own title must not.
         triggerLabel: b,
         group: canonGroupForBook(b)?.testament === 'nt' ? 'New Testament' : 'Old Testament',
       })),
-    [],
+    [translation],
   );
   const chapterOptions = useMemo(() => {
-    const count = bookChapterCount(book) ?? data?.chapterCount ?? 1;
+    const count = bookChapterCount(book, translation) ?? data?.chapterCount ?? 1;
     return Array.from({ length: count }, (_, i) => ({ value: i + 1, label: String(i + 1) }));
-  }, [book, data?.chapterCount]);
+  }, [book, translation, data?.chapterCount]);
   /*
     Every translation, in canon order — the reader's whole set, not the two the stack peeks. Labels go
     through `getTranslationAbbreviationDisplay` because one of them is not its own id: NASB
@@ -692,8 +703,11 @@ export default function PrototypeBibleReaderPane({
     [data?.translation],
   );
 
-  const prevChapter = useMemo(() => adjacentChapter(book, chapter, -1), [book, chapter]);
-  const nextChapter = useMemo(() => adjacentChapter(book, chapter, 1), [book, chapter]);
+  const prevChapter = useMemo(() => adjacentChapter(book, chapter, -1, translation), [book, chapter, translation]);
+  const nextChapter = useMemo(() => adjacentChapter(book, chapter, 1, translation), [book, chapter, translation]);
+  const azariahInset = showsPrayerOfAzariahInset(book, chapter, translation) ? (
+    <ReaderPrayerOfAzariahInset book={book} chapter={chapter} translation={translation} onOpen={onNavigateTo} />
+  ) : null;
 
   /**
    * Dictionary suggestions inside the Scripture itself — the dotted underlines a note body and
@@ -1637,6 +1651,32 @@ export default function PrototypeBibleReaderPane({
   );
 
 
+  /*
+   * A passage only the Catholic translations carry, asked for in one that doesn't (Tobit in the
+   * ESV, Esther 12 in the NIV). Said before the fetch can fail, and with the way to it.
+   */
+  if (isDeuterocanonPassage(book, chapter) && !translationHasDeuterocanon(translation)) {
+    const carriers = DEUTEROCANON_TRANSLATIONS.map(getTranslationAbbreviationDisplay);
+    const passage = book === 'Esther' || book === 'Daniel' ? `${book} ${chapter}` : book;
+    return (
+      <div className="pds-reader">
+        <PrototypePaneEmptyState
+          icon="scroll"
+          title={`Not in ${getTranslationAbbreviationDisplay(translation)}`}
+          description={`${passage} is in the ${carriers.join(' and the ')}, which include the deuterocanonical books.`}
+          action={
+            onChangeTranslation
+              ? {
+                  label: `Read in ${carriers[0]}`,
+                  onClick: () => onChangeTranslation(DEUTEROCANON_TRANSLATIONS[0]),
+                }
+              : undefined
+          }
+        />
+      </div>
+    );
+  }
+
   if (isLoading) {
     // Below the grace threshold the reader shows nothing rather than a line that would be
     // gone before it could be read — a 40ms "Loading…" is a flicker, not information.
@@ -2497,9 +2537,18 @@ export default function PrototypeBibleReaderPane({
                 </div>
               ))
             ) : verseLayout === 'prose' ? (
+              (azariahInset
+                ? [
+                    verses.filter((v) => v.number <= AZARIAH_AFTER_VERSE),
+                    verses.filter((v) => v.number > AZARIAH_AFTER_VERSE),
+                  ]
+                : [verses]
+              ).map((run, runIndex) => (
+              <Fragment key={runIndex}>
+              {runIndex > 0 ? azariahInset : null}
               <div className="pds-reader__block" role="none">
                 <p className="pds-reader-text" role="none">
-                  {verses.map((verse, i) => (
+                  {run.map((verse, i) => (
                     <Fragment key={verse.number}>
                       {/* A real space, outside the verse span: it separates verses the way
                           prose does and collapses at a line break, where a CSS margin
@@ -2531,9 +2580,13 @@ export default function PrototypeBibleReaderPane({
                   ))}
                 </p>
               </div>
+              </Fragment>
+              ))
             ) : (
               verses.map((verse) => (
-                <div className="pds-reader__block" role="none" key={verse.number}>
+                <Fragment key={verse.number}>
+                {verse.number === AZARIAH_AFTER_VERSE + 1 ? azariahInset : null}
+                <div className="pds-reader__block" role="none">
                   <p className="pds-reader-text" role="none">
                     <VerseSpan
                       verse={verse}
@@ -2559,6 +2612,7 @@ export default function PrototypeBibleReaderPane({
                     />
                   </p>
                 </div>
+                </Fragment>
               ))
             )}
           </div>

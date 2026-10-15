@@ -77,7 +77,7 @@
     "testament": "old",
     "chapter": 1,
     "startVerse": 1,
-    "endVerse": 22
+    "endVerse": 25
   },
   {
     "book": "Tobit",
@@ -85,7 +85,7 @@
     "testament": "old",
     "chapter": 2,
     "startVerse": 1,
-    "endVerse": 14
+    "endVerse": 23
   },
   {
     "book": "Tobit",
@@ -93,7 +93,7 @@
     "testament": "old",
     "chapter": 3,
     "startVerse": 1,
-    "endVerse": 17
+    "endVerse": 25
   },
   {
     "book": "Tobit",
@@ -101,7 +101,7 @@
     "testament": "old",
     "chapter": 4,
     "startVerse": 1,
-    "endVerse": 21
+    "endVerse": 23
   },
   {
     "book": "Tobit",
@@ -109,7 +109,7 @@
     "testament": "old",
     "chapter": 5,
     "startVerse": 1,
-    "endVerse": 22
+    "endVerse": 28
   },
   {
     "book": "Tobit",
@@ -117,7 +117,7 @@
     "testament": "old",
     "chapter": 6,
     "startVerse": 1,
-    "endVerse": 18
+    "endVerse": 22
   },
   {
     "book": "Tobit",
@@ -125,7 +125,7 @@
     "testament": "old",
     "chapter": 7,
     "startVerse": 1,
-    "endVerse": 18
+    "endVerse": 20
   },
   {
     "book": "Tobit",
@@ -133,7 +133,7 @@
     "testament": "old",
     "chapter": 8,
     "startVerse": 1,
-    "endVerse": 21
+    "endVerse": 24
   },
   {
     "book": "Tobit",
@@ -141,7 +141,7 @@
     "testament": "old",
     "chapter": 9,
     "startVerse": 1,
-    "endVerse": 6
+    "endVerse": 12
   },
   {
     "book": "Tobit",
@@ -157,7 +157,7 @@
     "testament": "old",
     "chapter": 11,
     "startVerse": 1,
-    "endVerse": 19
+    "endVerse": 21
   },
   {
     "book": "Tobit",
@@ -173,7 +173,7 @@
     "testament": "old",
     "chapter": 13,
     "startVerse": 1,
-    "endVerse": 18
+    "endVerse": 23
   },
   {
     "book": "Tobit",
@@ -181,7 +181,7 @@
     "testament": "old",
     "chapter": 14,
     "startVerse": 1,
-    "endVerse": 15
+    "endVerse": 17
   },
   {
     "book": "Judith",
@@ -205,7 +205,7 @@
     "testament": "old",
     "chapter": 3,
     "startVerse": 1,
-    "endVerse": 10
+    "endVerse": 15
   },
   {
     "book": "Judith",
@@ -213,7 +213,7 @@
     "testament": "old",
     "chapter": 4,
     "startVerse": 1,
-    "endVerse": 15
+    "endVerse": 16
   },
   {
     "book": "Judith",
@@ -221,7 +221,7 @@
     "testament": "old",
     "chapter": 5,
     "startVerse": 1,
-    "endVerse": 24
+    "endVerse": 29
   },
   {
     "book": "Judith",
@@ -253,7 +253,7 @@
     "testament": "old",
     "chapter": 9,
     "startVerse": 1,
-    "endVerse": 14
+    "endVerse": 19
   },
   {
     "book": "Judith",
@@ -285,7 +285,7 @@
     "testament": "old",
     "chapter": 13,
     "startVerse": 1,
-    "endVerse": 20
+    "endVerse": 31
   },
   {
     "book": "Judith",
@@ -301,7 +301,7 @@
     "testament": "old",
     "chapter": 15,
     "startVerse": 1,
-    "endVerse": 14
+    "endVerse": 15
   },
   {
     "book": "Judith",
@@ -309,7 +309,7 @@
     "testament": "old",
     "chapter": 16,
     "startVerse": 1,
-    "endVerse": 25
+    "endVerse": 31
   },
   {
     "book": "Wisdom",
@@ -469,7 +469,7 @@
     "testament": "old",
     "chapter": 1,
     "startVerse": 1,
-    "endVerse": 30
+    "endVerse": 40
   },
   {
     "book": "Sirach",
@@ -477,7 +477,7 @@
     "testament": "old",
     "chapter": 2,
     "startVerse": 1,
-    "endVerse": 18
+    "endVerse": 23
   },
   {
     "book": "Sirach",
@@ -485,7 +485,7 @@
     "testament": "old",
     "chapter": 3,
     "startVerse": 1,
-    "endVerse": 31
+    "endVerse": 34
   },
   {
     "book": "Sirach",
@@ -493,7 +493,7 @@
     "testament": "old",
     "chapter": 4,
     "startVerse": 1,
-    "endVerse": 31
+    "endVerse": 36
   },
   {
     "book": "Sirach",
@@ -501,7 +501,7 @@
     "testament": "old",
     "chapter": 5,
     "startVerse": 1,
-    "endVerse": 15
+    "endVerse": 18
   },
   {
     "book": "Sirach",
@@ -517,7 +517,7 @@
     "testament": "old",
     "chapter": 7,
     "startVerse": 1,
-    "endVerse": 36
+    "endVerse": 40
   },
   {
     "book": "Sirach",
@@ -525,7 +525,7 @@
     "testament": "old",
     "chapter": 8,
     "startVerse": 1,
-    "endVerse": 19
+    "endVerse": 22
   },
   {
     "book": "Sirach",
@@ -533,7 +533,7 @@
     "testament": "old",
     "chapter": 9,
     "startVerse": 1,
-    "endVerse": 18
+    "endVerse": 25
   },
   {
     "book": "Sirach",
@@ -541,7 +541,7 @@
     "testament": "old",
     "chapter": 10,
     "startVerse": 1,
-    "endVerse": 31
+    "endVerse": 34
   },
   {
     "book": "Sirach",
@@ -549,7 +549,7 @@
     "testament": "old",
     "chapter": 11,
     "startVerse": 1,
-    "endVerse": 34
+    "endVerse": 36
   },
   {
     "book": "Sirach",
@@ -557,7 +557,7 @@
     "testament": "old",
     "chapter": 12,
     "startVerse": 1,
-    "endVerse": 18
+    "endVerse": 19
   },
   {
     "book": "Sirach",
@@ -565,7 +565,7 @@
     "testament": "old",
     "chapter": 13,
     "startVerse": 1,
-    "endVerse": 26
+    "endVerse": 32
   },
   {
     "book": "Sirach",
@@ -581,7 +581,7 @@
     "testament": "old",
     "chapter": 15,
     "startVerse": 1,
-    "endVerse": 20
+    "endVerse": 22
   },
   {
     "book": "Sirach",
@@ -589,7 +589,7 @@
     "testament": "old",
     "chapter": 16,
     "startVerse": 1,
-    "endVerse": 30
+    "endVerse": 31
   },
   {
     "book": "Sirach",
@@ -621,7 +621,7 @@
     "testament": "old",
     "chapter": 20,
     "startVerse": 1,
-    "endVerse": 32
+    "endVerse": 33
   },
   {
     "book": "Sirach",
@@ -629,7 +629,7 @@
     "testament": "old",
     "chapter": 21,
     "startVerse": 1,
-    "endVerse": 28
+    "endVerse": 31
   },
   {
     "book": "Sirach",
@@ -637,7 +637,7 @@
     "testament": "old",
     "chapter": 22,
     "startVerse": 1,
-    "endVerse": 27
+    "endVerse": 33
   },
   {
     "book": "Sirach",
@@ -645,7 +645,7 @@
     "testament": "old",
     "chapter": 23,
     "startVerse": 1,
-    "endVerse": 27
+    "endVerse": 38
   },
   {
     "book": "Sirach",
@@ -653,7 +653,7 @@
     "testament": "old",
     "chapter": 24,
     "startVerse": 1,
-    "endVerse": 34
+    "endVerse": 47
   },
   {
     "book": "Sirach",
@@ -661,7 +661,7 @@
     "testament": "old",
     "chapter": 25,
     "startVerse": 1,
-    "endVerse": 26
+    "endVerse": 36
   },
   {
     "book": "Sirach",
@@ -677,7 +677,7 @@
     "testament": "old",
     "chapter": 27,
     "startVerse": 1,
-    "endVerse": 30
+    "endVerse": 33
   },
   {
     "book": "Sirach",
@@ -685,7 +685,7 @@
     "testament": "old",
     "chapter": 28,
     "startVerse": 1,
-    "endVerse": 26
+    "endVerse": 30
   },
   {
     "book": "Sirach",
@@ -693,7 +693,7 @@
     "testament": "old",
     "chapter": 29,
     "startVerse": 1,
-    "endVerse": 28
+    "endVerse": 34
   },
   {
     "book": "Sirach",
@@ -701,7 +701,7 @@
     "testament": "old",
     "chapter": 30,
     "startVerse": 1,
-    "endVerse": 25
+    "endVerse": 27
   },
   {
     "book": "Sirach",
@@ -709,7 +709,7 @@
     "testament": "old",
     "chapter": 31,
     "startVerse": 1,
-    "endVerse": 31
+    "endVerse": 42
   },
   {
     "book": "Sirach",
@@ -717,7 +717,7 @@
     "testament": "old",
     "chapter": 32,
     "startVerse": 1,
-    "endVerse": 24
+    "endVerse": 28
   },
   {
     "book": "Sirach",
@@ -757,7 +757,7 @@
     "testament": "old",
     "chapter": 37,
     "startVerse": 1,
-    "endVerse": 31
+    "endVerse": 34
   },
   {
     "book": "Sirach",
@@ -765,7 +765,7 @@
     "testament": "old",
     "chapter": 38,
     "startVerse": 1,
-    "endVerse": 34
+    "endVerse": 39
   },
   {
     "book": "Sirach",
@@ -773,7 +773,7 @@
     "testament": "old",
     "chapter": 39,
     "startVerse": 1,
-    "endVerse": 35
+    "endVerse": 41
   },
   {
     "book": "Sirach",
@@ -781,7 +781,7 @@
     "testament": "old",
     "chapter": 40,
     "startVerse": 1,
-    "endVerse": 30
+    "endVerse": 32
   },
   {
     "book": "Sirach",
@@ -789,7 +789,7 @@
     "testament": "old",
     "chapter": 41,
     "startVerse": 1,
-    "endVerse": 23
+    "endVerse": 28
   },
   {
     "book": "Sirach",
@@ -797,7 +797,7 @@
     "testament": "old",
     "chapter": 42,
     "startVerse": 1,
-    "endVerse": 25
+    "endVerse": 26
   },
   {
     "book": "Sirach",
@@ -805,7 +805,7 @@
     "testament": "old",
     "chapter": 43,
     "startVerse": 1,
-    "endVerse": 33
+    "endVerse": 37
   },
   {
     "book": "Sirach",
@@ -813,7 +813,7 @@
     "testament": "old",
     "chapter": 44,
     "startVerse": 1,
-    "endVerse": 23
+    "endVerse": 27
   },
   {
     "book": "Sirach",
@@ -821,7 +821,7 @@
     "testament": "old",
     "chapter": 45,
     "startVerse": 1,
-    "endVerse": 26
+    "endVerse": 31
   },
   {
     "book": "Sirach",
@@ -829,7 +829,7 @@
     "testament": "old",
     "chapter": 46,
     "startVerse": 1,
-    "endVerse": 20
+    "endVerse": 23
   },
   {
     "book": "Sirach",
@@ -837,7 +837,7 @@
     "testament": "old",
     "chapter": 47,
     "startVerse": 1,
-    "endVerse": 25
+    "endVerse": 31
   },
   {
     "book": "Sirach",
@@ -845,7 +845,7 @@
     "testament": "old",
     "chapter": 48,
     "startVerse": 1,
-    "endVerse": 25
+    "endVerse": 28
   },
   {
     "book": "Sirach",
@@ -853,7 +853,7 @@
     "testament": "old",
     "chapter": 49,
     "startVerse": 1,
-    "endVerse": 16
+    "endVerse": 19
   },
   {
     "book": "Sirach",
@@ -861,7 +861,7 @@
     "testament": "old",
     "chapter": 50,
     "startVerse": 1,
-    "endVerse": 29
+    "endVerse": 31
   },
   {
     "book": "Sirach",
@@ -869,7 +869,7 @@
     "testament": "old",
     "chapter": 51,
     "startVerse": 1,
-    "endVerse": 30
+    "endVerse": 38
   },
   {
     "book": "Baruch",

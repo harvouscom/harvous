@@ -707,3 +707,28 @@ describe('unresolvable references are rejected, not just warned about', () => {
     expect(detectScriptureReferences('Exodus 16:1620').length).toBeGreaterThan(0);
   });
 });
+
+describe('deuterocanonical references', () => {
+  it('detects the seven books, their common abbreviations and the Greek chapters', () => {
+    const books = (text: string) => detectScriptureReferences(text).map((r) => `${r.book} ${r.chapter}`);
+    expect(books('Read Sirach 2:1 today')).toEqual(['Sirach 2']);
+    expect(books('Ecclesiasticus 2:1')).toEqual(['Sirach 2']);
+    expect(books('Ecclesiastes 3:1')).toEqual(['Ecclesiastes 3']);
+    expect(books('Tobias 1:1')).toEqual(['Tobit 1']);
+    expect(books('1 Macc 2:3 and I Maccabees 4:1')).toEqual(['1 Maccabees 2', '1 Maccabees 4']);
+    expect(books('Bar 3:9')).toEqual(['Baruch 3']);
+    expect(books('Daniel 13:1')).toEqual(['Daniel 13']);
+    expect(books('Esther 12:1')).toEqual(['Esther 12']);
+    expect(books('Song of the Three 1:30')).toEqual(['Prayer of Azariah 1']);
+  });
+
+  it('leaves the theme word alone when it is not a reference', () => {
+    expect(detectScriptureReferences('Wisdom is good 3 times over')).toEqual([]);
+  });
+
+  it('rejects verses past the Catholic chapter ends', () => {
+    expect(isResolvableScriptureReference('Esther 16:24')).toBe(true);
+    expect(isResolvableScriptureReference('Esther 16:25')).toBe(false);
+    expect(isResolvableScriptureReference('Prayer of Azariah 1:68')).toBe(false);
+  });
+});

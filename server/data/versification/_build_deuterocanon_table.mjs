@@ -5,9 +5,9 @@
  *   node server/data/versification/_build_deuterocanon_table.mjs
  *
  * Each chapter's last verse is the longest of the English table (`eng.vrs`, the RSV's numbering)
- * and the NABRE and Douay-Rheims as Harvous stores them. Where a corpus file doesn't carry the
- * deuterocanon yet, its raw download stands in, so the first import isn't cut short by a table
- * built before it. Re-run after re-importing either translation, then re-run `_remap.mjs` for both.
+ * and the NABRE and Douay-Rheims where they keep their own numbering (`KEPT_NUMBERING`), read
+ * from their raw downloads. Re-run after re-downloading either translation, then re-run
+ * `_remap.mjs` for both.
  *
  * Rows have the same shape as bible-chapters.json. The seven books and the Prayer of Azariah take
  * `bookOrder` 67–74 (appended, so no stored `bookOrder` for Genesis–Revelation moves). Esther 10
@@ -53,29 +53,29 @@ function engTable() {
   return out;
 }
 
-/** Highest verse per `code chapter` in one translation: its stored corpus, else its raw download. */
+/**
+ * Books whose source numbering survives renumbering, per translation. The NABRE's deuterocanon
+ * is numbered like the Greek, as `eng.vrs` is (give or take a verse). The Douay-Rheims' Wisdom,
+ * Baruch and Maccabees are mapped onto that numbering by `vul.vrs`; its Tobit, Judith and Sirach
+ * translate the Vulgate's longer Latin text, have no mapping, and keep their printed numbers.
+ */
+const KEPT_NUMBERING = {
+  NABRE: DEUTERO_BOOKS,
+  DRB: ['TOB', 'JDT', 'SIR'],
+};
+
+/** Highest verse per `code chapter` in one translation's raw download (source numbering). */
 function corpusCounts(translationId) {
   const counts = new Map();
-  const bump = (code, chapter, verse) => {
-    const k = `${code} ${chapter}`;
-    counts.set(k, Math.max(counts.get(k) ?? 0, verse));
-  };
-  const finalPath = join(BIBLES, `${translationId}.json`);
-  const codeByName = new Map([
-    ...Object.entries(DEUTERO_NAMES).map(([code, name]) => [name, code]),
-    ['Esther', 'EST'],
-    ['Daniel', 'DAN'],
-  ]);
-  const final = existsSync(finalPath) ? JSON.parse(readFileSync(finalPath, 'utf-8')) : [];
-  if (final.some((v) => v.book === 'Tobit')) {
-    for (const v of final) if (codeByName.has(v.book)) bump(codeByName.get(v.book), v.chapter, v.verse);
+  const rawPath = join(BIBLES, 'raw', `${translationId}.json`);
+  if (!existsSync(rawPath)) {
+    console.warn(`  No raw download for ${translationId}; its longer chapters won't be in the table.`);
     return counts;
   }
-  const rawPath = join(BIBLES, 'raw', `${translationId}.json`);
-  if (!existsSync(rawPath)) return counts;
   for (const v of JSON.parse(readFileSync(rawPath, 'utf-8'))) {
-    // Raw Esther and Daniel are in the source's own layout; only the books themselves count here.
-    if (DEUTERO_BOOKS.includes(v.book)) bump(v.book, v.chapter, v.verse);
+    if (!KEPT_NUMBERING[translationId].includes(v.book)) continue;
+    const k = `${v.book} ${v.chapter}`;
+    counts.set(k, Math.max(counts.get(k) ?? 0, v.verse));
   }
   return counts;
 }

@@ -410,6 +410,7 @@ export function remapVerses(raw, translationId, { reference } = {}) {
     const codeByName = new Map([...books].map(([code, b]) => [b.name, code]));
     for (const r of reference) refStems.set(key(codeByName.get(r.book), r.chapter, r.verse), stems(r.text));
   }
+  const refChapters = new Set([...refStems.keys()].map((k) => k.replace(/:\d+$/, '')));
 
   const byTarget = new Map(); // eng key → texts[]
   for (const [code, units] of unitsByBook) {
@@ -419,7 +420,15 @@ export function remapVerses(raw, translationId, { reference } = {}) {
     }
     const rank = new Map(targets.map((t, i) => [t, i]));
     units.sort((a, b) => rank.get(a.proposed) - rank.get(b.proposed) || a.order - b.order);
-    const placed = reference ? align(units, targets, refStems) : units.map((x) => x.proposed);
+    // Chapters the reference doesn't print (the deuterocanon, Esther's additions, Daniel 13–14
+    // against the KJV or ESV) have no wording to check the tables against, so their addresses
+    // stand, and they're left out of the alignment so a gap there can't pull a verse across it.
+    const printed = (k) => refChapters.has(k.replace(/:\d+$/, ''));
+    const aligned = reference ? units.filter((u) => printed(u.proposed)) : [];
+    const alignedAt = new Map(
+      aligned.length ? align(aligned, targets.filter(printed), refStems).map((t, i) => [aligned[i], t]) : [],
+    );
+    const placed = units.map((u) => alignedAt.get(u) ?? u.proposed);
     units.forEach((unit, i) => {
       if (placed[i] !== unit.proposed) report.moved.push(`${unit.proposed} → ${placed[i].split(' ')[1]}`);
       if (!byTarget.has(placed[i])) byTarget.set(placed[i], []);

@@ -46,11 +46,62 @@ describe('remapVerses', () => {
       'NABRE',
     );
     expect(report.titlesDropped).toBe(2);
-    expect(report.outsideCanon).toEqual(['EST 1:1']);
+    expect(report.outsideCanon).toEqual([]);
     expect(verses).toEqual([
       { book: 'Esther', chapter: 1, verse: 1, text: 'In the second year.' },
+      // Addition A goes where the Douay-Rheims prints it.
+      { book: 'Esther', chapter: 11, verse: 2, text: 'Addition A.' },
       { book: 'Psalms', chapter: 51, verse: 1, text: 'Have mercy on me, God.' },
       { book: 'Joel', chapter: 3, verse: 1, text: 'For see, in those days.' },
+    ]);
+  });
+
+  it('keeps the Greek parts of Daniel and Esther at Catholic addresses that do not collide', () => {
+    const { verses } = remapVerses(
+      [
+        { book: 'DAN', chapter: 3, verse: 23, text: 'fell bound into the furnace' },
+        { book: 'DAN', chapter: 3, verse: 24, text: 'They walked about in the flames' },
+        { book: 'DAN', chapter: 3, verse: 90, text: 'Bless the God of gods' },
+        { book: 'DAN', chapter: 3, verse: 91, text: 'Then King Nebuchadnezzar was startled' },
+        { book: 'DAN', chapter: 13, verse: 1, text: 'In Babylon there lived a man named Joakim' },
+        { book: 'DAN', chapter: 14, verse: 2, text: 'Daniel was the king’s companion' },
+        // Addition C runs across two Vulgate chapters: C11 is 13:18, C12 is 14:1.
+        { book: 'EST', chapter: 8, verse: 11, text: 'All Israel cried out' },
+        { book: 'EST', chapter: 8, verse: 12, text: 'Queen Esther fled to the Lord' },
+        // Addition F: 10:4–13, then the colophon at 11:1.
+        { book: 'EST', chapter: 18, verse: 1, text: 'This is the work of God' },
+        { book: 'EST', chapter: 18, verse: 11, text: 'In the fourth year of Ptolemy' },
+      ],
+      'NABRE',
+    );
+    const at = (book: string, chapter: number, verse: number) =>
+      verses.find((v) => v.book === book && v.chapter === chapter && v.verse === verse)?.text;
+    expect(at('Daniel', 3, 23)).toBe('fell bound into the furnace');
+    expect(at('Prayer of Azariah', 1, 1)).toBe('They walked about in the flames');
+    expect(at('Prayer of Azariah', 1, 67)).toBe('Bless the God of gods');
+    expect(at('Daniel', 3, 24)).toBe('Then King Nebuchadnezzar was startled');
+    expect(at('Daniel', 13, 1)).toBe('In Babylon there lived a man named Joakim');
+    expect(at('Daniel', 14, 2)).toBe('Daniel was the king’s companion');
+    expect(at('Esther', 13, 18)).toBe('All Israel cried out');
+    expect(at('Esther', 14, 1)).toBe('Queen Esther fled to the Lord');
+    expect(at('Esther', 10, 4)).toBe('This is the work of God');
+    expect(at('Esther', 11, 1)).toBe('In the fourth year of Ptolemy');
+  });
+
+  it('keeps the Douay-Rheims Tobit numbering, which no table maps', () => {
+    const { verses, report } = remapVerses(
+      [
+        { book: 'TOB', chapter: 1, verse: 25, text: 'Tobias of the tribe of Nephtali' },
+        { book: 'SIR', chapter: 1, verse: 40, text: 'Exalt not thyself' },
+      ],
+      'DRB',
+      { reference: [{ book: 'Genesis', chapter: 1, verse: 1, text: 'In the beginning' }] },
+    );
+    expect(report.outsideCanon).toEqual([]);
+    expect(report.moved).toEqual([]);
+    expect(verses).toEqual([
+      { book: 'Tobit', chapter: 1, verse: 25, text: 'Tobias of the tribe of Nephtali' },
+      { book: 'Sirach', chapter: 1, verse: 40, text: 'Exalt not thyself' },
     ]);
   });
 

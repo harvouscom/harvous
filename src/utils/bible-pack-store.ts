@@ -25,7 +25,8 @@
  */
 
 import { offlineDB, type OfflineBiblePack } from './offline-db';
-import { orderedCanonBooks } from './bible-book-chapters';
+import { PRAYER_OF_AZARIAH, orderedCanonBooks } from './bible-book-chapters';
+import { translationHasDeuterocanon } from '../data/translations';
 import { isCurrentBibleTextVersion } from './bible-text-revision';
 
 /**
@@ -75,6 +76,16 @@ type ChapterPayload = { chapter: number; verses: { number: number; text: string 
 export type BookPayload = { book: string; translation: string; version: string; chapters: ChapterPayload[] };
 
 /** A book's text, or null when this translation has no offline copy of it. */
+/**
+ * The books a whole pack of this translation holds: the 66, or for the NABRE and the
+ * Douay-Rheims the 73 of a Catholic Bible plus the Prayer of Azariah, which the reader shows
+ * inside Daniel 3 and so must be offline with it.
+ */
+export function packBooks(translationId: string): string[] {
+  const books = orderedCanonBooks(translationId);
+  return translationHasDeuterocanon(translationId) ? [...books, PRAYER_OF_AZARIAH] : books;
+}
+
 export async function readPackedBook(
   translationId: string,
   book: string,
@@ -197,10 +208,9 @@ export async function translationsWithOutdatedBooks(): Promise<Set<string>> {
  */
 async function adoptLegacyCompletePacks(
   stored: Map<string, { count: number; savedAt: number }>,
-  booksTotal: number,
 ): Promise<string[]> {
   const complete = [...stored.entries()]
-    .filter(([, { count }]) => count >= booksTotal)
+    .filter(([translationId, { count }]) => count >= packBooks(translationId).length)
     .map(([translationId]) => translationId);
   if (complete.length === 0) return [];
   await offlineDB.biblePackRequests.bulkPut(
@@ -221,14 +231,14 @@ async function adoptLegacyCompletePacks(
  * about to start or one that failed, and either way the page has to be able to say so.
  */
 export async function listPacks(): Promise<PackSummary[]> {
-  const booksTotal = orderedCanonBooks().length;
   try {
     const stored = await countStoredBooks();
     let requested = (await offlineDB.biblePackRequests.toArray()).map((r) => r.translationId);
-    if (requested.length === 0) requested = await adoptLegacyCompletePacks(stored, booksTotal);
+    if (requested.length === 0) requested = await adoptLegacyCompletePacks(stored);
 
     return requested
       .map((translationId) => {
+        const booksTotal = packBooks(translationId).length;
         const found = stored.get(translationId);
         const count = found?.count ?? 0;
         return {
@@ -324,7 +334,7 @@ export async function downloadPack(
    */
   await requestPack(translationId);
 
-  const books = orderedCanonBooks();
+  const books = packBooks(translationId);
   let saved = 0;
 
   for (const book of books) {

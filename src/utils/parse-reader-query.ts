@@ -12,6 +12,7 @@
  */
 
 import { bookChapterCount } from './bible-book-chapters';
+import { DEUTEROCANON_TRANSLATIONS } from '../data/translations';
 import { getBookNameVariations, normalizeText, resolveCanonicalBookName } from './scripture-detector';
 
 export interface ReaderQueryMatch {
@@ -61,7 +62,9 @@ export function parseReaderQuery(rawQuery: string): ReaderQueryMatch | null {
   const book = resolveCanonicalBookName(bookPart ?? '', getBookNameVariations());
   if (!book) return null;
 
-  const chapterCount = bookChapterCount(book);
+  // Against every chapter any translation has, so "Tobit 3" and "Esther 12" are destinations;
+  // the reader says so itself when the translation being read doesn't carry them.
+  const chapterCount = bookChapterCount(book, DEUTEROCANON_TRANSLATIONS[0]);
   if (chapterCount == null) return null;
 
   /*

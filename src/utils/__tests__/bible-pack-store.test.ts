@@ -49,6 +49,7 @@ const {
   canAddPack,
   downloadPack,
   listPacks,
+  packBooks,
   readPackedChapter,
   packStorageBytes,
   removePack,
@@ -289,5 +290,16 @@ describe('canAddPack', () => {
 
   it('still allows one already stored, so a partial pack can be resumed at the limit', () => {
     expect(canAddPack(full, full[0].translationId)).toBe(true);
+  });
+});
+
+describe('packBooks', () => {
+  it('holds the canon each translation carries', () => {
+    expect(packBooks('ESV')).toHaveLength(66);
+    const nabre = packBooks('NABRE');
+    // 73 books of a Catholic Bible, plus the Prayer of Azariah the reader shows inside Daniel 3.
+    expect(nabre).toHaveLength(74);
+    expect(nabre).toContain('Sirach');
+    expect(nabre.at(-1)).toBe('Prayer of Azariah');
   });
 });

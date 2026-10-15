@@ -6,6 +6,7 @@ import {
   canAddPack,
   downloadPack,
   listPacks,
+  packBooks,
   packStorageBytes,
   removePack,
   requestPack,
@@ -94,7 +95,7 @@ export function useBiblePacks() {
         const translationId = queueRef.current[0];
         const controller = new AbortController();
         abortRef.current = controller;
-        setDownloading({ translationId, booksSaved: 0, booksTotal: 66 });
+        setDownloading({ translationId, booksSaved: 0, booksTotal: packBooks(translationId).length });
 
         const result = await downloadPack(
           translationId,
