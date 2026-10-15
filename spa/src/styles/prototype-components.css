@@ -23328,17 +23328,20 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   /*
    * The greeting as the sheet's opening line: centred, across the sheet's full column.
    *
-   * It used to be held to 34em with `text-wrap: balance`, and balance evened the lines out by
-   * shortening all of them: a typical greeting set as three ~470px lines in a 744px column, a
-   * narrow block in the middle of a wide sheet (Oct 2026: "the container could be wider").
-   * `pretty` fills each line and only stops a lone word dangling at the end, so the same
-   * sentence sits on two full-width lines. Wide sheets only: on a phone the measure is already
-   * narrow, and centred prose there would just be ragged on both sides.
+   * No max-width. It used to be held to 34em, and that cap, not `balance`, was what made it
+   * narrow: a typical greeting needed three lines at 34em, and balance then evened all three
+   * to ~470px in a 744px column (Oct 2026: "the container could be wider"). At the full column
+   * the same sentence balances onto two near-full lines (621 / 704px).
+   *
+   * Balance rather than `pretty`, which fills each line and can leave two words alone on the
+   * last. So the block adapts to its length: a short greeting stays one line at its own width,
+   * two lines split evenly, longer ones fill. Wide sheets only: on a phone the measure is
+   * already narrow, and centred prose there would just be ragged on both sides.
    */
   .proto-feed-sheet .proto-home-greeting {
     padding-block: 10px 6px;
     text-align: center;
-    text-wrap: pretty;
+    text-wrap: balance;
   }
 
 }
