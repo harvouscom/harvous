@@ -38,6 +38,8 @@ const BOLLS_CODES = {
   CSB:  'CSB17',  // Christian Standard Bible (2017)
   AMP:  'AMP',    // Amplified Bible (2015)
   MSG:  'MSG',    // The Message (2002)
+  RSV2CE: 'RSV2CE', // Revised Standard Version, 2nd Catholic Edition — English numbering, 73 books
+  NRSVCE: 'NRSVCE', // New Revised Standard Version, Catholic Edition — English numbering, 73 books
   NABRE: 'NABRE', // New American Bible, Revised Edition (2011) — Hebrew numbering, renumbered by _remap.mjs
 };
 

@@ -147,6 +147,21 @@ export const SOURCES = {
     verseShifts: { 'PSA 115': 9, 'PSA 147': 11 },
     alignWith: 'KJV',
   },
+  // RSV-family Catholic editions: printed in English numbering already. WIP (Oct 15 2026): text
+  // cleanup (headings fused into verses, name accents like Ahasu-e′rus) and the fused RSV2CE
+  // additions (Esther 1:1, Daniel 3:23, the Sirach Prologue in 1:1) are not handled yet.
+  RSV2CE: {
+    versification: 'eng',
+    books: {},
+    chapterMaps: {},
+    alignWith: 'ESV',
+  },
+  NRSVCE: {
+    versification: 'eng',
+    books: { 'DAN 3': 'vul' }, // Greek Daniel 3 (97 verses): 24–90 → Prayer of Azariah
+    chapterMaps: {},
+    alignWith: 'ESV',
+  },
 };
 
 const key = (book, chapter, verse) => `${book} ${chapter}:${verse}`;
@@ -221,6 +236,7 @@ function loadTables() {
 export function englishCandidates(book, chapter, verse, versification) {
   const { vulToOrg, orgToEng } = loadTables();
   const source = key(book, chapter, verse);
+  if (versification === 'eng') return [harvousAddress({ book, chapter, verse })];
   let orgs = [source];
   if (versification === 'vul') {
     orgs = vulToOrg.get(source);
