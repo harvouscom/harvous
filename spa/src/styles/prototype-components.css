@@ -23343,12 +23343,6 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
     text-wrap: balance;
   }
 
-  /* The field under it, one step up with it, so the pair keeps its proportion. Scoped to the
-     sheet because the base rule sits later in this file and would win a tie. */
-  .proto-feed-sheet .proto-feed-compose {
-    font-size: 17px;
-    padding: 13px 16px;
-  }
 }
 
 /*
@@ -25201,36 +25195,44 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
- * "What are you studying today?" — a button shaped like a field, under the greeting.
- * The input fill and control border so it reads as the place you type, not as a row.
+ * "What's on your mind?" — Home's compose prompt, docked at the foot of the paper.
+ *
+ * The band's card chrome (2px hairline, 18px radius, the solid popover fill every dock in the
+ * shell band uses — glass reads too translucent over the feed) on the button itself, so it reads
+ * as one of the band's cards rather than a field floating on nothing.
+ * One line tall — it is a way in, not a panel. The slot is `pointer-events: none` so the band
+ * never blocks the page; the button takes clicks back.
  */
 .proto-feed-compose {
   appearance: none;
   display: flex;
   align-items: center;
   gap: var(--pds-space-2);
+  box-sizing: border-box;
   width: 100%;
-  /* No margin of its own: the sheet body's 20px gap is the one step between every block. */
   margin: 0;
-  padding: 11px 14px;
-  border: 0.5px solid var(--pds-border-control);
-  border-radius: var(--pds-radius-row);
-  background: var(--pds-bg-input);
+  padding: 13px 16px;
+  border: 2px solid var(--pds-border);
+  border-radius: 18px;
+  background: var(--pds-bg-popover-solid);
   font: inherit;
   font-size: 15px;
   text-align: left;
   cursor: text;
-  transition: background var(--pds-duration-press) var(--pds-ease-standard);
+  pointer-events: auto;
+  transition: background-color var(--pds-duration-press) var(--pds-ease-standard);
 }
 
+/* Tints laid over the solid fill rather than replacing it, so hover and press never turn the
+   card see-through over the rows behind it. */
 @media (hover: hover) and (pointer: fine) {
   .proto-feed-compose:hover {
-    background: var(--pds-bg-input-hover);
+    background-image: linear-gradient(var(--pds-bg-input-hover), var(--pds-bg-input-hover));
   }
 }
 
 .proto-feed-compose:active {
-  background: var(--pds-bg-row-selected);
+  background-image: linear-gradient(var(--pds-bg-row-selected), var(--pds-bg-row-selected));
 }
 
 .proto-feed-compose__label {

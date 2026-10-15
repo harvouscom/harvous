@@ -775,6 +775,13 @@ type ProtoShellContextValue = {
   setFormatToolbarHostEl: (el: HTMLDivElement | null) => void;
   studyDockCarouselHostEl: HTMLDivElement | null;
   setStudyDockCarouselHostEl: (el: HTMLDivElement | null) => void;
+  /**
+   * The compose dock's slot in the same band — Home's "What's on your mind?" prompt. The page
+   * portals into it so the prompt can be built from the page's own data; the band hides it
+   * while any other dock is up (see `.proto-shell__study-dock-layer__slot--compose`).
+   */
+  composeDockHostEl: HTMLDivElement | null;
+  setComposeDockHostEl: (el: HTMLDivElement | null) => void;
   /** Search route hides sidebar — chrome row skips the sidebar gutter pad. */
   hideSidebar: boolean;
   setHideSidebar: (hide: boolean) => void;
@@ -942,6 +949,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [editorChromeMode, setEditorChromeMode] = useState<PrototypeEditorChromeMode>('hidden');
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
   const [studyDockCarouselHostEl, setStudyDockCarouselHostEl] = useState<HTMLDivElement | null>(null);
+  const [composeDockHostEl, setComposeDockHostEl] = useState<HTMLDivElement | null>(null);
   const [hideSidebar, setHideSidebar] = useState(false);
 
   useEffect(() => {
@@ -1996,6 +2004,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setFormatToolbarHostEl,
       studyDockCarouselHostEl,
       setStudyDockCarouselHostEl,
+      composeDockHostEl,
+      setComposeDockHostEl,
       hideSidebar,
       setHideSidebar,
     }),
@@ -2097,6 +2107,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       editorChromeMode,
       formatToolbarHostEl,
       studyDockCarouselHostEl,
+      composeDockHostEl,
       hideSidebar,
     ],
   );
