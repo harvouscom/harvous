@@ -23318,37 +23318,35 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    * sized for a 640px sheet and read as a caption once the decks under it sat two to a row;
    * it is the page's one piece of prose and its opening line, so it takes the room. The chips
    * are sized in `em` off this, so they grow with it.
+   *
+   * 19px since Oct 2026: at 21 the sentence and its chips read as too big once the greeting ran
+   * the full column. 19 is still clearly the page's headline, a step over the 15–17px rows.
    */
   .proto-feed-sheet .proto-home-greeting,
   .proto-feed-sheet__body .proto-feed-sheet__summary {
-    font-size: 21px;
+    font-size: 19px;
     line-height: 1.6;
   }
 
   /*
-   * The greeting as the sheet's opening line: a narrower measure, centred, its lines balanced.
+   * The greeting as the sheet's opening line: centred, across the sheet's full column.
    *
-   * Across the full 744px it ran as one long line and a stub, which read as a paragraph that
-   * happened to be first. Held to about 34em and set centred it reads as a title-like sentence
-   * over the decks, and `balance` keeps two lines roughly equal rather than full-then-short.
-   * Wide sheets only: on a phone the measure is already narrow, and centred prose there would
-   * just be ragged on both sides.
+   * No max-width. It used to be held to 34em, and that cap, not `balance`, was what made it
+   * narrow: a typical greeting needed three lines at 34em, and balance then evened all three
+   * to ~470px in a 744px column (Oct 2026: "the container could be wider"). At the full column
+   * the same sentence balances onto two near-full lines (621 / 704px).
+   *
+   * Balance rather than `pretty`, which fills each line and can leave two words alone on the
+   * last. So the block adapts to its length: a short greeting stays one line at its own width,
+   * two lines split evenly, longer ones fill. Wide sheets only: on a phone the measure is
+   * already narrow, and centred prose there would just be ragged on both sides.
    */
   .proto-feed-sheet .proto-home-greeting {
-    /* 34em, not 28: "Good afternoon" and a long chip broke 28em into three lines. */
-    max-width: 34em;
-    margin-inline: auto;
     padding-block: 10px 6px;
     text-align: center;
     text-wrap: balance;
   }
 
-  /* The field under it, one step up with it, so the pair keeps its proportion. Scoped to the
-     sheet because the base rule sits later in this file and would win a tie. */
-  .proto-feed-sheet .proto-feed-compose {
-    font-size: 17px;
-    padding: 13px 16px;
-  }
 }
 
 /*
@@ -25201,36 +25199,44 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
- * "What are you studying today?" — a button shaped like a field, under the greeting.
- * The input fill and control border so it reads as the place you type, not as a row.
+ * "What's on your mind?" — Home's compose prompt, docked at the foot of the paper.
+ *
+ * The band's card chrome (2px hairline, 18px radius, the solid popover fill every dock in the
+ * shell band uses — glass reads too translucent over the feed) on the button itself, so it reads
+ * as one of the band's cards rather than a field floating on nothing.
+ * One line tall — it is a way in, not a panel. The slot is `pointer-events: none` so the band
+ * never blocks the page; the button takes clicks back.
  */
 .proto-feed-compose {
   appearance: none;
   display: flex;
   align-items: center;
   gap: var(--pds-space-2);
+  box-sizing: border-box;
   width: 100%;
-  /* No margin of its own: the sheet body's 20px gap is the one step between every block. */
   margin: 0;
-  padding: 11px 14px;
-  border: 0.5px solid var(--pds-border-control);
-  border-radius: var(--pds-radius-row);
-  background: var(--pds-bg-input);
+  padding: 13px 16px;
+  border: 2px solid var(--pds-border);
+  border-radius: 18px;
+  background: var(--pds-bg-popover-solid);
   font: inherit;
   font-size: 15px;
   text-align: left;
   cursor: text;
-  transition: background var(--pds-duration-press) var(--pds-ease-standard);
+  pointer-events: auto;
+  transition: background-color var(--pds-duration-press) var(--pds-ease-standard);
 }
 
+/* Tints laid over the solid fill rather than replacing it, so hover and press never turn the
+   card see-through over the rows behind it. */
 @media (hover: hover) and (pointer: fine) {
   .proto-feed-compose:hover {
-    background: var(--pds-bg-input-hover);
+    background-image: linear-gradient(var(--pds-bg-input-hover), var(--pds-bg-input-hover));
   }
 }
 
 .proto-feed-compose:active {
-  background: var(--pds-bg-row-selected);
+  background-image: linear-gradient(var(--pds-bg-row-selected), var(--pds-bg-row-selected));
 }
 
 .proto-feed-compose__label {

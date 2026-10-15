@@ -21,6 +21,7 @@ import { reviewAnswersByDay, reviewDaySubjects } from '@/utils/review-activity-s
 import PrototypeStudyFeedDateJump from './PrototypeStudyFeedDateJump';
 import { studyFeedJumpStep } from '@/utils/study-feed-date-jump';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
@@ -150,7 +151,7 @@ export default function PrototypeStudyFeedPage() {
 
   const libraryNav = useLibraryPanelNav();
   const queryClient = useQueryClient();
-  const { openLibraryPanel, setSidebarThreadProposal } = useProtoShell();
+  const { openLibraryPanel, setSidebarThreadProposal, composeDockHostEl } = useProtoShell();
   const organize = useOrganizeApi();
   const greeting = useHomeNotes();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
@@ -914,9 +915,12 @@ export default function PrototypeStudyFeedPage() {
               summarySentence ? <p className="proto-feed-sheet__summary">{summarySentence}</p> : null
             )}
 
-            {/* Today, unfiltered: the way to start writing, in words, on every visit. A day
+            {/* Today, unfiltered: the way to start writing, in words, on every visit — docked at
+                the foot of the paper rather than inline, so scrolling never takes it away. A day
                 you flipped back to or a single room's trail is not where a new note goes. */}
-            {safeIndex === 0 && !scopedSpace ? <PrototypeFeedComposePrompt prompts={composePrompts} /> : null}
+            {safeIndex === 0 && !scopedSpace && composeDockHostEl
+              ? createPortal(<PrototypeFeedComposePrompt prompts={composePrompts} />, composeDockHostEl)
+              : null}
 
             {/* Above everything when it is up: it is a question waiting on an answer, and
                 the day's record can wait behind it. */}

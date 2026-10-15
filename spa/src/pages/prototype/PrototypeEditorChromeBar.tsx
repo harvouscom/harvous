@@ -34,6 +34,7 @@ export default function PrototypeEditorChromeBar({
     editorChromeMode,
     setFormatToolbarHostEl,
     setStudyDockCarouselHostEl,
+    setComposeDockHostEl,
   } = useProtoShell();
 
   // Off a note or the reader there is no editor to wear chrome for, so the bar reports itself
@@ -61,6 +62,13 @@ export default function PrototypeEditorChromeBar({
           <PrototypeReviewDock />
         </div>
         <div ref={setStudyDockCarouselHostEl} className="proto-shell__study-dock-layer__slot" />
+        {/* Home's compose prompt, portalled in by the feed. Last, and only while every slot
+            above it is empty — CSS on the band says so, so any dock that opens here (today's
+            or a future one) takes its place without having to know the prompt exists. */}
+        <div
+          ref={setComposeDockHostEl}
+          className="proto-shell__study-dock-layer__slot proto-shell__study-dock-layer__slot--compose"
+        />
       </div>
       <div
         className="proto-editor-bottom-bar"

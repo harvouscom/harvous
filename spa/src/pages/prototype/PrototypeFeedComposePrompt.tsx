@@ -5,7 +5,13 @@
  * teaches it, but only until it is dismissed or done; after that the one way in was the pencil
  * in the toolbar segment, an icon whose name ("New note in My Home") exists only as a hover
  * tooltip — which a phone never shows. Onboarding runs once; this has to be findable on the
- * tenth visit too, so it sits in the page itself, under the greeting, in words.
+ * tenth visit too, so it is always on screen on Activity, in words.
+ *
+ * A dock now (Oct 2026), where it used to sit inline under the greeting: scrolled past, it was
+ * gone again. It floats at the foot of the paper in the shell's dock band, like the Review dock,
+ * and the page portals it into `composeDockHostEl` so the lines can still come from the page's
+ * own data. It is the band's fallback, not a peer: CSS hides it whenever any other dock is up,
+ * and it returns when they close.
  *
  * Shaped like a field because that is what a composer prompt is everywhere else, but it is a
  * button: it opens the editor the same way the toolbar pencil does (`prototypeShortcutNewNote`),
@@ -134,28 +140,32 @@ export default function PrototypeFeedComposePrompt({
   const label = passDone ? ANCHOR_LINE : list[activeIndex];
 
   return (
-    <button
-      type="button"
-      className="proto-feed-compose"
-      /* A fixed name: a screen reader should not re-announce each rotating line. */
-      aria-label="Write a note"
-      onClick={() => window.dispatchEvent(new Event('prototypeShortcutNewNote'))}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
-    >
-      <Icon name="pen-to-square" size={14} aria-hidden />
-      {/* Keyed so each new line mounts and types from nothing — including the settle onto the
-          anchor line, a distinct key from every rotation index so it always plays. A single line
-          never rotates, so it is simply shown. */}
-      <span key={passDone ? 'rest' : activeIndex} className="proto-feed-compose__label">
-        <TypedLine
-          text={label}
-          animate={!reducedMotion && list.length > 1}
-          caret={!passDone}
-        />
-      </span>
-    </button>
+    <div className="study-dock-card proto-feed-compose-dock">
+      <div className="study-dock-card__outer">
+        <button
+          type="button"
+          className="proto-feed-compose"
+          /* A fixed name: a screen reader should not re-announce each rotating line. */
+          aria-label="Write a note"
+          onClick={() => window.dispatchEvent(new Event('prototypeShortcutNewNote'))}
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocus={() => setPaused(true)}
+          onBlur={() => setPaused(false)}
+        >
+          <Icon name="pen-to-square" size={14} aria-hidden />
+          {/* Keyed so each new line mounts and types from nothing — including the settle onto the
+              anchor line, a distinct key from every rotation index so it always plays. A single line
+              never rotates, so it is simply shown. */}
+          <span key={passDone ? 'rest' : activeIndex} className="proto-feed-compose__label">
+            <TypedLine
+              text={label}
+              animate={!reducedMotion && list.length > 1}
+              caret={!passDone}
+            />
+          </span>
+        </button>
+      </div>
+    </div>
   );
 }

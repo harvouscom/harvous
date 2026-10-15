@@ -154,6 +154,34 @@
   transform: translateX(var(--proto-study-dock-center-offset, 0px));
 }
 
+/*
+ * The compose slot — Home's "What's on your mind?" prompt (`PrototypeFeedComposePrompt`).
+ *
+ * The band's fallback rather than a peer: while any other slot holds a card, this one is not
+ * shown. Said here, on the band, so a dock that opens on Home — Review today, anything later —
+ * replaces the prompt without having to know it exists, and the prompt comes back on its own
+ * when the slot above empties. `display: none` also takes it out of the measured band height,
+ * so the room the paper reserves for the band follows whichever card is showing.
+ *
+ * Same centring as the Review card: a bare card in a slot takes the carousel's offset.
+ */
+.proto-shell__study-dock-layer__slot--compose > .study-dock-card {
+  transform: translateX(var(--proto-study-dock-center-offset, 0px));
+}
+
+.proto-shell__study-dock-layer:has(
+    > .proto-shell__study-dock-layer__slot:not(.proto-shell__study-dock-layer__slot--compose):not(:empty)
+  )
+  > .proto-shell__study-dock-layer__slot--compose {
+  display: none;
+}
+
+/* Rises in each time it is shown — first paint and every return after another dock closes,
+   since an animation restarts when an element comes back from `display: none`. */
+.proto-shell__study-dock-layer__slot--compose > .study-dock-card > .study-dock-card__outer {
+  animation: study-dock-card-enter var(--study-dock-motion-spring-layer) both;
+}
+
 /* Two cards in one band need air between them; one card must not gain a stray gap. */
 .proto-shell__study-dock-layer__slot--review:not(:empty) + .proto-shell__study-dock-layer__slot:not(:empty) {
   margin-top: 4px;
