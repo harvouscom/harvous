@@ -25,7 +25,12 @@ import {
 } from '@/utils/scripture-draft-events';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
-import { getCachedPassageHistory, getPassageHistory, passageHistoryLabel } from '@/utils/passage-history';
+import {
+  getCachedPassageHistory,
+  getPassageHistory,
+  passageHistoryLabel,
+  type PassageHistory,
+} from '@/utils/passage-history';
 import { isGuestLocalNote } from '../../../spa/src/lib/guest-store';
 import Icon from './Icon';
 
@@ -53,8 +58,10 @@ interface BookSuggestionState {
 interface VersePeekState {
   /** Verse text; empty when only the history line could be had. */
   text: string;
-  /** "in 3 of your notes" — other notes of yours on this passage, or null. */
+  /** "Also in 3 of your notes", or null. Read aloud; on screen it is the count beside an icon. */
   history: string | null;
+  /** How many other notes of yours cite this passage, or null when there are none. */
+  historyCount: number | null;
   /** Short label for the translation the text is in, e.g. "NET". */
   translationLabel: string;
   top: number;
@@ -209,13 +216,17 @@ export default function ScriptureDraftChromeWeb({
       const noteId = sourceNoteIdRef.current;
       // Guests have no server notes to count, and the request would only 401.
       const wantsHistory = !isGuestLocalNote(noteId);
-      const show = (text: string | null, history: string | null) =>
-        setPeek(text || history ? placePeek(editor, text ?? '', history, target.translation) : null);
+      const show = (text: string | null, history: PassageHistory | null) =>
+        setPeek(
+          text || passageHistoryLabel(history)
+            ? placePeek(editor, text ?? '', history, target.translation)
+            : null,
+        );
 
       const cachedText = getCachedVersePeek(target.reference, target.translation);
       const cachedHistory = wantsHistory ? getCachedPassageHistory(target.reference, noteId) : null;
       if (cachedText && (!wantsHistory || cachedHistory)) {
-        show(cachedText, passageHistoryLabel(cachedHistory));
+        show(cachedText, cachedHistory);
         return;
       }
       const token = ++peekToken;
@@ -224,7 +235,7 @@ export default function ScriptureDraftChromeWeb({
         wantsHistory ? (cachedHistory ?? getPassageHistory(target.reference, noteId)) : null,
       ]).then(([text, history]) => {
         if (token !== peekToken) return;
-        show(text, passageHistoryLabel(history));
+        show(text, history);
       });
     };
 
@@ -490,12 +501,17 @@ export default function ScriptureDraftChromeWeb({
           }}
         >
           {peek.text && (
-            <span className="scripture-verse-peek__line">
+            <>
               <span className="scripture-verse-peek__text">{peek.text}</span>
               <span className="scripture-verse-peek__trans">{peek.translationLabel}</span>
+            </>
+          )}
+          {peek.history && peek.historyCount != null && (
+            <span className="scripture-verse-peek__history" aria-label={peek.history} title={peek.history}>
+              <Icon name="file-lines" size={12} />
+              <span aria-hidden="true">{peek.historyCount}</span>
             </span>
           )}
-          {peek.history && <span className="scripture-verse-peek__history">{peek.history}</span>}
         </div>
       )}
       {bookSuggestion && (
@@ -672,7 +688,7 @@ function computePeekTarget(editor: Editor): { reference: string; translation: st
 function placePeek(
   editor: Editor,
   text: string,
-  history: string | null,
+  history: PassageHistory | null,
   translation: string,
 ): VersePeekState | null {
   if (!isTiptapViewReady(editor)) return null;
@@ -692,7 +708,8 @@ function placePeek(
   const left = Math.max(8, Math.min(first.left - 4, vw - 200));
   return {
     text,
-    history,
+    history: passageHistoryLabel(history),
+    historyCount: history && history.total > 0 ? history.total : null,
     translationLabel: getTranslationAbbreviationDisplay(translation),
     top: (below ? last.bottom + 6 : first.top - 6) + oy,
     left: left + ox,
