@@ -29,4 +29,11 @@ export interface ScriptureDraftConfirmedDetail {
    * Both are confirmations; only the first is someone using the feature for the first time.
    */
   isNew: boolean;
+  /**
+   * True when an edited pill was re-confirmed as a different passage (Exodus 5:1 → 5:2).
+   * Always false for a from-scratch pill and for an edit that changed nothing.
+   *
+   * Kept apart from `isNew` so the getting-started checklist still means "first time".
+   */
+  referenceChanged: boolean;
 }
