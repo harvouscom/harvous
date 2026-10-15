@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 import { api } from '../../lib/api';
 import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
 import { spaceGroupThreadsQueryKey } from '../queries/useSpaceGroupThreads';
@@ -61,6 +62,7 @@ export function useAttachNotesToCurrentThread() {
       return { addedCount: response.results.length };
     },
     onSuccess: (_result, input) => {
+      markOnboardingStep('thread');
       void queryClient.invalidateQueries({ queryKey: threadNotesQueryKey(input.threadId, input.spaceId) });
       void queryClient.invalidateQueries({ queryKey: spaceGroupThreadsQueryKey(input.spaceId) });
       invalidatePrototypeSpaceDerivedQueries(queryClient, input.spaceId);

@@ -1966,6 +1966,29 @@ export async function createReviewItem(
   return { item: inserted, created: true };
 }
 
+/**
+ * Which of these items already have a `shown` event since `since`.
+ *
+ * The dock re-reads its sitting as it opens and when it runs dry, so the same question can be
+ * composed several times in a day. `shown` is the denominator of every per-rung rate
+ * (`review-ladder-health.ts`), and counting each re-read would sink every rate it divides.
+ */
+export async function itemsShownSince(userId: string, itemIds: string[], since: Date): Promise<Set<string>> {
+  if (itemIds.length === 0) return new Set();
+  const rows = await db
+    .select({ id: ReviewEvents.reviewItemId })
+    .from(ReviewEvents)
+    .where(
+      and(
+        eq(ReviewEvents.userId, userId),
+        eq(ReviewEvents.action, 'shown'),
+        gte(ReviewEvents.createdAt, since),
+        inArray(ReviewEvents.reviewItemId, itemIds),
+      ),
+    );
+  return new Set(rows.map((row) => row.id).filter((id): id is string => Boolean(id)));
+}
+
 export async function recordReviewEvent(
   userId: string,
   item: ReviewItemRow,

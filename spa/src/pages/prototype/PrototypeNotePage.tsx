@@ -2563,6 +2563,7 @@ export default function PrototypeNotePage() {
           collectionExtras,
           saveOptions?.saveOrigin,
         );
+        if (createdId) markOnboardingStep('note');
         return createdId ? { noteId: createdId } : undefined;
       }
       /* The usual moment a suggested draft becomes a real note: the seed alone was enough to

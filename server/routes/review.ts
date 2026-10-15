@@ -57,6 +57,7 @@ import {
   listReviewItems,
   nextScheduledReviewAt,
   recordReviewEvent,
+  itemsShownSince,
   reviewDislikeRowsFor,
   setReviewItemStatus,
   stepBackReviewItem,
@@ -302,14 +303,20 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireReviewAc
      * a per-rung rate can have — and `rows` holds candidates the sitting then left out.
      */
     const rowById = new Map(rows.map((row) => [row.id, row]));
-    void Promise.all(
-      items.map((item) => {
-        const row = rowById.get(item.id);
-        return row
-          ? recordReviewEvent(auth.userId, row, 'shown', { rungKey: item.promptKey })
-          : Promise.resolve();
-      }),
-    ).catch(() => {});
+    /* Once a day per question: the dock re-reads its sitting, and a re-read is not a showing. */
+    const shownSince = since ?? new Date(now.getTime() - 86_400_000);
+    void itemsShownSince(auth.userId, items.map((item) => item.id), shownSince)
+      .then((already) =>
+        Promise.all(
+          items.map((item) => {
+            const row = rowById.get(item.id);
+            return row && !already.has(item.id)
+              ? recordReviewEvent(auth.userId, row, 'shown', { rungKey: item.promptKey })
+              : Promise.resolve();
+          }),
+        ),
+      )
+      .catch(() => {});
 
     /* Kept one release for a page still reading the old field; `reveals` replaces it. */
     const first = items[0];

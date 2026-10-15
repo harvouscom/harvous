@@ -10,6 +10,7 @@
  * "turn off reminders", which it is not.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/clerk-react';
 import Icon from '@/components/react/Icon';
@@ -244,6 +245,7 @@ export default function PrototypeRemindersPage() {
       // just promised.
       save(settings);
       refreshStatus();
+      markOnboardingStep('reminders');
       toast.success('Reminders are on for this device.');
     } finally {
       setBusy(false);

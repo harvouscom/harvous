@@ -26,13 +26,14 @@ vi.mock('../../../../hooks/queries/useProfile', () => ({
 vi.mock('@/utils/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const { ALWAYS_ON_FAMILIES } = await import('@/utils/review-exercise-settings');
-const { REVIEW_EXERCISE_FAMILIES, REVIEW_EXERCISE_FAMILY_ORDER } = await import(
+const { REVIEW_EXERCISE_FAMILIES, REVIEW_EXERCISE_FAMILY_ORDER, RESTING_EXERCISE_FAMILY_IDS } = await import(
   '@/utils/review-exercise-families'
 );
 const PrototypeReviewExercisesPage = (await import('../PrototypeReviewExercisesPage')).default;
 
 const offeredIds = REVIEW_EXERCISE_FAMILY_ORDER.filter(
-  (id) => !(ALWAYS_ON_FAMILIES as readonly string[]).includes(id),
+  (id) =>
+    !(ALWAYS_ON_FAMILIES as readonly string[]).includes(id) && !RESTING_EXERCISE_FAMILY_IDS.includes(id),
 );
 
 describe('review exercises settings', () => {

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 import { api, APIError } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import { runOfflineFirst } from './withOfflineQueue';
@@ -48,6 +49,9 @@ export function useConnectNote() {
       return outcome.online!;
     },
     onSuccess: (_data, vars) => {
+      // The checklist's "Connect two notes", for every surface that connects (the connect
+      // sheet, the Inspector, thread proposals, add-to-thread).
+      markOnboardingStep('thread');
       const sid = normalizeSpaceId(vars.spaceId);
       queryClient.invalidateQueries({ queryKey: ['note', vars.parentNoteId] });
       queryClient.invalidateQueries({ queryKey: ['note', vars.linkedNoteId] });

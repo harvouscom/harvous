@@ -8,6 +8,7 @@ import { updateCachedProfile, type UserProfile } from '../queries/useProfile';
 import { getCachedProfileData, getEffectiveDefaultTranslation, updateCachedProfileData } from '@/utils/profile-cache';
 import { useHarvousIdentity } from '../useHarvousIdentity';
 import { setGuestPrefs } from '../../lib/guest-store';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 
 interface UpdateTranslationResponse {
   success?: boolean;
@@ -90,6 +91,8 @@ export function useUpdateTranslation() {
       updateCachedProfileData({ defaultTranslation: context.previousDefault });
     },
     onSuccess: (_data, defaultTranslation, context) => {
+      // Settings or the reader's own picker — either way it is the checklist's translation row.
+      markOnboardingStep('translation');
       const previousDefault = context?.previousDefault ?? getEffectiveDefaultTranslation();
       void queryClient.invalidateQueries({ queryKey: key });
       void queryClient.invalidateQueries({ queryKey: votdTodayQueryKey });

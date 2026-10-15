@@ -166,6 +166,7 @@ import { useChurchSermons } from '../../hooks/queries/useChurchSermons';
 import { useChurchFeed } from '../../hooks/queries/useChurchFeed';
 
 import { spotlightNow } from './useSpotlightOnArrival';
+import { DECK_SHOW_EVENT } from './ProtoDeck';
 import {
   markOnboardingStepDone,
   requestSpotlight,
@@ -802,6 +803,8 @@ export function useHomeSurfaceData({
           row.id,
         );
       }
+      // "Worth another look" is Harvous bringing a note back — the checklist's "Revisit something".
+      markOnboardingStepDone('recall');
       onOpenNote(row);
     },
     [onOpenNote, stackNote],
@@ -1841,7 +1844,12 @@ export function useHomeSurfaceData({
           // Already on this page — no navigation, just point at the deck the prompts live in.
           // This named `home-suggested`, a target only the retired sidebar view carried, so the
           // step pointed at nothing.
-          spotlightNow('home-up-next');
+          // The deck sits in the Suggestions tab, which is `hidden` unless chosen — glowing it
+          // from another tab lit nothing. Bring the tab forward first, then glow once it paints.
+          document
+            .querySelector('[data-today-tab="suggestions"]')
+            ?.dispatchEvent(new Event(DECK_SHOW_EVENT, { bubbles: true }));
+          requestAnimationFrame(() => spotlightNow('home-up-next'));
           return;
       }
     },

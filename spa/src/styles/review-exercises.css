@@ -38,6 +38,21 @@
   overflow: hidden;
 }
 
+/*
+ * A card that fits its content (`ExerciseStage` `fit`): one verse and a tag has no use for the
+ * full height, and stretching its scene to fill it left the verse adrift in an empty panel.
+ * Capped at the usual height, so a long verse still scrolls inside the card.
+ */
+.proto-review-dock .proto-review-dock__body:has(> .rx-stage[data-fit]) {
+  block-size: auto;
+  max-block-size: var(--rx-card-h);
+}
+
+.rx-stage[data-fit] .rx-scene {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
 /* The route override pads the body for a focus ring; the stage pads its own regions instead. */
 html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .rx-stage) {
   padding: 0;

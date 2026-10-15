@@ -18,6 +18,7 @@ import {
 import { mergeNoteTagsInCache, previewNoteTagsFromContent, type NoteTagRow } from '../../lib/note-tags-cache';
 import type { SpaceNoteRow } from '../queries/useSpace';
 import { isOfflineError } from './withOfflineQueue';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 import { createNoteOffline } from '@/utils/offline-mutations';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getPersistedUserId } from '@/utils/user-id';
@@ -225,6 +226,8 @@ export function useCreateSimpleNote() {
       return { previous, targetSpaceIds, optimisticId };
     },
     onSuccess: async (data, variables, context) => {
+      // The checklist's "Write a note", for every way a note gets made — queued offline included.
+      markOnboardingStep('note');
       const sid = normalizedSpaceIdForApi(variables.spaceId);
       const homeSid = variables.canonicalHomeSpaceId
         ? normalizedSpaceIdForApi(variables.canonicalHomeSpaceId)
