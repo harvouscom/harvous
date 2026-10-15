@@ -172,20 +172,7 @@ describe('resource list select mode', () => {
     expect(openLibraryFileItem).toHaveBeenCalledWith('church_1');
   });
 
-  it('filters by type and sorts', () => {
-    /* The select menu scrolls its current option into view and watches its trigger's size;
-       jsdom has neither, so the same stubs ProtoSelectMenu's own tests use. */
-    Element.prototype.scrollIntoView = vi.fn();
-    if (!('ResizeObserver' in globalThis)) {
-      (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
-        observe() {}
-        disconnect() {}
-      };
-    }
-    /* A trigger at 0×0 reads to the menu as scrolled out of view, and it closes on open. */
-    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-      top: 20, bottom: 50, left: 20, right: 140, width: 120, height: 30, x: 20, y: 20, toJSON: () => ({}),
-    } as DOMRect);
+  it('filters by type and sorts from one button beside the switch', () => {
     renderList({ shelfFilterAs: 'switch' });
     const titles = () =>
       screen.getAllByRole('button', { name: /^(Church resource|Resource): / }).map((b) => b.getAttribute('aria-label'));
@@ -195,7 +182,11 @@ describe('resource list select mode', () => {
       'Resource: A video about Romans',
     ]);
 
-    fireEvent.click(screen.getByRole('button', { name: /Sort resources/ }));
+    // One row: the button lives in the switch's toolbar.
+    const button = screen.getByRole('button', { name: 'Filter and sort' });
+    expect(button.closest('.proto-resource-toolbar')?.querySelector('[role="tablist"]')).not.toBeNull();
+
+    fireEvent.click(button);
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'A–Z' }));
     expect(titles()).toEqual([
       'Resource: A video about Romans',
@@ -203,12 +194,13 @@ describe('resource list select mode', () => {
       'Resource: What is the gospel?',
     ]);
 
-    fireEvent.click(screen.getByRole('button', { name: /Which types to show/ }));
     // Only the types this shelf has are offered: a video and two articles.
     expect(screen.queryByRole('menuitemradio', { name: 'Series' })).toBeNull();
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Video' }));
     expect(titles()).toEqual(['Resource: A video about Romans']);
-    rect.mockRestore();
+    // The menu stayed open across both picks, and the button now says something is set.
+    expect(screen.getByRole('menu', { name: 'Filter and sort' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Filter and sort (changed)' })).toBeTruthy();
   });
 
   it('changes a personal item’s type from its menu', () => {

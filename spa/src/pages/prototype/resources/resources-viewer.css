@@ -36,7 +36,9 @@
   }
 }
 .proto-resources-tool--viewing > .proto-resources-tool__list {
-  flex: 0 0 320px;
+  /* 372, not 320: the shelf switch shares its row with the filter button, and "Church
+     Library" needs ~99px, padding included, of a three-way equal split. */
+  flex: 0 0 372px;
   min-width: 0;
 }
 

@@ -3327,20 +3327,64 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
   color: var(--pds-text-secondary);
 }
 
-/* Type and sort, right-aligned under the shelf switch so the switch keeps its full row. */
-.proto-resource-controls {
+/* The shelf switch and the filter button share one row; the switch takes what is left. */
+.proto-resource-toolbar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 6px;
-  padding: 6px 4px 2px;
+  margin-bottom: 10px;
 }
 
-/* The select trigger fills its container by default; here two share a row and size to what
-   they say. */
-.proto-resource-controls .proto-select-menu__trigger {
-  flex: 0 1 auto;
-  width: auto;
+.proto-resource-toolbar > .proto-library-kinds,
+.proto-resource-toolbar > .proto-chip-bar {
+  flex: 1 1 auto;
   min-width: 0;
+  margin-bottom: 0;
+}
+
+.proto-resource-toolbar--solo {
+  justify-content: flex-end;
+}
+
+/* Same height, radius and fill as the switch's track, so the two read as one control. */
+.proto-resource-filter-btn {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 33px;
+  height: 33px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-resource-filter-btn:hover,
+.proto-resource-filter-btn[aria-expanded='true'] {
+  background: var(--pds-bg-control-hover);
+  color: var(--pds-text-primary);
+}
+
+/* Two short sections; the menus' default 440px cap made the last sort option scroll. */
+.proto-resource-filter-menu {
+  max-height: min(560px, calc(100vh - 24px));
+}
+
+/* Something other than "all types, most recent" is in force. The accent, which is the
+   gradient and nothing else. */
+.proto-resource-filter-btn__dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pds-bg-accent-button);
+  box-shadow: 0 0 0 1.5px var(--pds-bg-page);
 }
 
 /* Drop anywhere on the Resources list to attach a file. */

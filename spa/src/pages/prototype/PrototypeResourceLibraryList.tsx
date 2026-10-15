@@ -56,10 +56,10 @@ import {
 } from '../../hooks/queries/useLibrary';
 import { followResource } from './library-panel/use-open-resource';
 import ProtoSelectMenu, { type ProtoSelectOption } from './ProtoSelectMenu';
+import ResourceFilterMenu from './resources/ResourceFilterMenu';
 import {
   compareResources,
   effectiveResourceType,
-  RESOURCE_SORT_OPTIONS,
   RESOURCE_TYPES,
   resourceTypeIcon,
   resourceTypeNoun,
@@ -1456,30 +1456,21 @@ export default function PrototypeResourceLibraryList({
   const typesPresent = RESOURCE_TYPES.filter((type) =>
     shelfItems.some((item) => effectiveResourceType(item) === type),
   );
-  const typeFilterOptions: ProtoSelectOption<ResourceType | 'all'>[] = [
-    { value: 'all', label: 'All types' },
-    ...RESOURCE_TYPE_OPTIONS.filter((option) => typesPresent.includes(option.value)),
-  ];
-  /* A filter that can only say "everything" is furniture — shown once there are two kinds. */
-  const listControls =
+  /* One square at the end of the switch's row, not a row of its own. */
+  const filterMenu =
     shelfItems.length > 1 ? (
-      <div className="proto-resource-controls">
-        {typesPresent.length > 1 || typeFilter !== 'all' ? (
-          <ProtoSelectMenu<ResourceType | 'all'>
-            value={typeFilter}
-            onChange={setTypeFilter}
-            options={typeFilterOptions}
-            label="Which types to show"
-          />
-        ) : null}
-        <ProtoSelectMenu<ResourceSort>
-          value={sort}
-          onChange={setSort}
-          options={RESOURCE_SORT_OPTIONS}
-          label="Sort resources"
-        />
-      </div>
+      <ResourceFilterMenu
+        types={typesPresent}
+        typeFilter={typeFilter}
+        onTypeFilter={setTypeFilter}
+        sort={sort}
+        onSort={setSort}
+      />
     ) : null;
+  /* With no switch to sit beside — a room's shelf, or no church shelf — it takes the row's end. */
+  const soloFilterRow = filterMenu ? (
+    <div className="proto-resource-toolbar proto-resource-toolbar--solo">{filterMenu}</div>
+  ) : null;
 
   return (
     <div
@@ -1515,7 +1506,7 @@ export default function PrototypeResourceLibraryList({
           <span>Drop to add a resource</span>
         </div>
       ) : null}
-      {spaceId ? listControls : null}
+      {spaceId ? soloFilterRow : null}
       {spaceId ? (
         <SpaceShelfList
           typeFilter={typeFilter}
@@ -1572,23 +1563,27 @@ export default function PrototypeResourceLibraryList({
               one list to begin with; the other two are for when you know which
               shelf you want. */}
           {showSections ? (
-            shelfFilterAs === 'switch' ? (
-              <PrototypeLibrarySegmented
-                options={sourceTabs}
-                value={sourceTab}
-                onChange={setSourceTab}
-                label="Which resources"
-              />
-            ) : (
-              <ProtoChipBar
-                ariaLabel="Which resources"
-                options={sourceTabs}
-                selectedId={sourceTab}
-                onSelect={setSourceTab}
-              />
-            )
-          ) : null}
-          {listControls}
+            <div className="proto-resource-toolbar">
+              {shelfFilterAs === 'switch' ? (
+                <PrototypeLibrarySegmented
+                  options={sourceTabs}
+                  value={sourceTab}
+                  onChange={setSourceTab}
+                  label="Which resources"
+                />
+              ) : (
+                <ProtoChipBar
+                  ariaLabel="Which resources"
+                  options={sourceTabs}
+                  selectedId={sourceTab}
+                  onSelect={setSourceTab}
+                />
+              )}
+              {filterMenu}
+            </div>
+          ) : (
+            soloFilterRow
+          )}
 
           {/* One list, newest first. No headings: every row names its own shelf
               on its second line, and that label travels with the item — a heading

@@ -152,6 +152,7 @@ import rotateLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/rotate-left.
 import tagsSvg from '@fortawesome/fontawesome-free/svgs/solid/tags.svg?raw';
 import glassesSvg from '@fortawesome/fontawesome-free/svgs/solid/glasses.svg?raw';
 import playSvg from '@fortawesome/fontawesome-free/svgs/solid/play.svg?raw';
+import slidersSvg from '@fortawesome/fontawesome-free/svgs/solid/sliders.svg?raw';
 
 function withCurrentColor(svg: string): string {
   return svg.includes('fill="currentColor"') ? svg : svg.replace(/<path /, '<path fill="currentColor" ');
@@ -210,6 +211,7 @@ const icons = {
   tags: svgRootCurrentColor(tagsSvg),
   glasses: svgRootCurrentColor(glassesSvg),
   play: svgRootCurrentColor(playSvg),
+  sliders: svgRootCurrentColor(slidersSvg),
   /** Settings › Plan — membership, neutral across personal and church plans. */
   'id-card': svgRootCurrentColor(idCardSvg),
   'id-card-clip': svgRootCurrentColor(idCardClipSvg),
