@@ -25412,6 +25412,12 @@ button.proto-feed-sheet__stat:hover {
  * name for the reading and its citation as a missal prints it. Rows rather than chips so the
  * citations, which run long ("Isaiah 63:16b-17, 19b; 64:2-7"), never truncate.
  */
+/* Where a reading skips verses between chapters (Luke 1:1-4; 4:14-21): the gap, said quietly. */
+.proto-daily-passage__gap {
+  color: var(--pds-text-tertiary);
+  padding: 0 0.15em;
+}
+
 .proto-daily-passage__readings {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);

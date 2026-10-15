@@ -91,7 +91,7 @@ If the full table is too much, ship ~190 rows (Sundays A/B/C, seasonal Sundays, 
 
 ## What was built (Oct 15 2026, branch `claude/catholic-tradition-setting`)
 
-The fallback scope: Sundays, solemnities and feasts of the Lord. On other days a Catholic reader keeps Today's passage.
+First pass: Sundays, solemnities and feasts of the Lord. The weekdays followed the same day; see **Weekdays** below.
 
 - **Table:** `src/data/lectionary/sundays-and-solemnities.ts`, 62 days, 171 entries, about 680 citations. Written from the Lectionary's order of readings, as the Lectionary prints them (NAB numbering, half-verse letters). Where the Lectionary offers "or", the first option.
 - **Calendar:** `src/utils/lectionary.ts` → `lectionaryDayFor(date)`. US practice: Epiphany and Ascension on Sundays, Corpus Christi on Sunday. Transfers: St. Joseph and the Annunciation out of Holy Week and off Lent Sundays, the Immaculate Conception off an Advent Sunday, St. John the Baptist and Sts. Peter and Paul off the Sacred Heart and Trinity/Corpus Christi, Guadalupe dropped on an Advent Sunday. A test walks every Sunday from 2025 to 2040 and checks each resolves to a table row.
@@ -107,10 +107,24 @@ The fallback scope: Sundays, solemnities and feasts of the Lord. On other days a
 
 Not yet checked against a second source: Ash Wednesday, Easter 3 B/C, Christ the King A/B, All Souls (the Lectionary gives a menu; the table uses Wis 3:1-9, Ps 23, Rom 5:5-11, Jn 6:37-40), and Our Lady of Guadalupe. Worth a look against a printed Lectionary or USCCB before the first of those dates.
 
+### Weekdays (built Oct 15 2026, second pass)
+
+Every day of the year now has readings, except Holy Saturday, which has no Mass during the day; that day Home shows Today's passage.
+
+- `src/data/lectionary/weekdays-seasons.ts`: Advent (by week to Dec 16, by date Dec 17–24), Christmas (Dec 29–31, Jan 2–7 before the Epiphany, Monday–Saturday after it), Lent, Holy Week, the Easter Octave and Easter weeks 2–7 (including the Thursday–Saturday readings used where the Ascension is on Sunday), and Mary, Mother of the Church. 117 days.
+- `src/data/lectionary/weekdays-ordinary.ts`: weeks 1–34, Monday–Saturday, Year I and Year II first readings and psalms with the shared Gospel. 204 days, Lectionary #305–508.
+- `src/data/lectionary/saints.ts`: the 20 saints' feasts with proper readings. A feast outranks the weekday, but is not kept on a Sunday, in Holy Week or in the Easter Octave. Memorials are left out on purpose: most take the weekday readings.
+- Year I in odd years, Year II in even (`weekdayCycle`).
+
+How they were checked:
+1. The same text check as the Sundays: every reading renumbered, its first and last verse printed from the NABRE corpus. This found two parser gaps (half-verse letters past "e", like Tobit 13:6efgh) and nothing wrong in the citations themselves.
+2. Every row was compared with Felix Just's tables (OT Year I, OT Year II, Advent/Christmas, Lent, Easter, Proper of Saints). The comparison ran as a script inside his pages that returned only differences, so none of his data was copied. Of about 650 day-rows, the real differences fixed were two psalm ranges (OT I 21 Thursday Ps 90:3-4; OT I 31 Monday Ps 69:36-37) and two Gospels (Lent 4 Tuesday Jn 5:1-3a, 5-16; Easter 4 Monday Jn 10:1-10). The rest were "or" options, page typos (Ps 78 for 79; every "20" in the Year II page renders as "22") or Vulgate-numbered Tobit canticles.
+3. Kept against his table, worth a check with a printed Lectionary: Dec 18 Gospel (Mt 1:18-25 here, 1:18-24 there); Sts. Simon and Jude Gospel (Lk 6:12-16 here, 6:12-19 there); the Tobit 13 canticle verse lists (OT I 9 Saturday, 25 Wednesday).
+
 ### Known limits
 
 - A citation across chapters ("Genesis 2:7-9; 3:1-7") opens in the reader as its whole span (2:7-3:7). Harvous references can't express a gap across chapters.
-- Weekdays (Year I/II), optional memorials, Ascension Thursday provinces, and vigil Masses are not in the table.
+- Optional memorials, local feasts, Ascension Thursday provinces and vigil Masses are not modelled. Where the Lectionary offers alternatives by year on a weekday (Lent 5 Monday in Year C, Easter 4 Monday in Year A), the first option is always used.
 - Native apps get the Gospel as the passage (same `reference` field) but not the other readings yet.
 
 ## Draft: permission note to USCCB (not sent; Derek's call)

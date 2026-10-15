@@ -169,7 +169,7 @@ describe('votdTodayPublicHandler for a Catholic reader', () => {
     mockGetAuth.mockReturnValue({ userId: 'user_abc' });
     mockGetUserTradition.mockReturnValue('catholic');
     mockRow();
-    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC' }))) as Record<string, unknown>;
+    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC' }))) as unknown as Record<string, unknown>;
     expect(result.reference).toBe('Matthew 22:15-21');
     expect(mockFetchVerseText).toHaveBeenCalledWith('Matthew 22:15-21', 'NABRE');
     // Engagement still keys on the day's verse row.
@@ -190,7 +190,7 @@ describe('votdTodayPublicHandler for a Catholic reader', () => {
     mockGetAuth.mockReturnValue({ userId: 'user_abc' });
     mockGetUserTradition.mockReturnValue('protestant');
     mockRow();
-    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC', tradition: 'catholic' }))) as Record<string, unknown>;
+    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC', tradition: 'catholic' }))) as unknown as Record<string, unknown>;
     expect(result.reference).toBe('Psalm 18:1-2');
     expect(result.readings).toBeUndefined();
   });
@@ -199,17 +199,46 @@ describe('votdTodayPublicHandler for a Catholic reader', () => {
     nowIso = '2026-10-18T15:00:00.000Z';
     mockGetAuth.mockReturnValue({ userId: null });
     mockRow();
-    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC', tradition: 'catholic' }))) as Record<string, unknown>;
+    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC', tradition: 'catholic' }))) as unknown as Record<string, unknown>;
     expect(result.reference).toBe('Matthew 22:15-21');
     expect(result.readings).toBeDefined();
   });
 
-  it("keeps Today's passage on a weekday with no proper readings", async () => {
-    nowIso = '2026-10-15T15:00:00.000Z';
+  it('gives the words of a Gospel that skips chapters part by part, not the chapters between', async () => {
+    nowIso = '2025-01-26T15:00:00.000Z'; // 3rd Sunday in Ordinary Time, Year C: Luke 1:1-4; 4:14-21
+    mockGetAuth.mockReturnValue({ userId: 'user_abc' });
+    mockGetUserTradition.mockReturnValue('catholic');
+    mockFetchVerseText.mockImplementation(async (ref: unknown) => `<p>${String(ref)}</p>`);
+    mockRow();
+    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC' }))) as unknown as Record<string, unknown>;
+    expect(result.reference).toBe('Luke 4:14-21');
+    expect(mockFetchVerseText).toHaveBeenCalledWith('Luke 1:1-4', 'NABRE');
+    expect(mockFetchVerseText).toHaveBeenCalledWith('Luke 4:14-21', 'NABRE');
+    expect(mockFetchVerseText).not.toHaveBeenCalledWith('Luke 1:1-4:21', 'NABRE');
+    expect(result.textHtml).toMatch(/Luke 1:1-4.*….*Luke 4:14-21/);
+  });
+
+  it("gives a weekday's readings too, without a second reading", async () => {
+    nowIso = '2026-10-15T15:00:00.000Z'; // Thursday of the 28th week in Ordinary Time, Year II
     mockGetAuth.mockReturnValue({ userId: 'user_abc' });
     mockGetUserTradition.mockReturnValue('catholic');
     mockRow();
-    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC' }))) as Record<string, unknown>;
+    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC' }))) as unknown as {
+      reference: string;
+      readings: { title: string; items: Array<{ slot: string; citation: string }> };
+    };
+    expect(result.reference).toBe('Luke 11:47-54');
+    expect(result.readings.title).toBe('Thursday of the 28th week in Ordinary Time');
+    expect(result.readings.items.map((r) => r.slot)).toEqual(['first', 'psalm', 'gospel']);
+    expect(result.readings.items[0]!.citation).toBe('Ephesians 1:1-10');
+  });
+
+  it("keeps Today's passage on Holy Saturday", async () => {
+    nowIso = '2026-04-04T15:00:00.000Z';
+    mockGetAuth.mockReturnValue({ userId: 'user_abc' });
+    mockGetUserTradition.mockReturnValue('catholic');
+    mockRow();
+    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC' }))) as unknown as Record<string, unknown>;
     expect(result.reference).toBe('Psalm 18:1-2');
     expect(result.readings).toBeUndefined();
   });

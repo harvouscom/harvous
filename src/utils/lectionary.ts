@@ -2,9 +2,10 @@
  * Today's readings for a Catholic reader: which day of the Lectionary a date is, and its
  * readings as citations Harvous can open.
  *
- * Sundays, solemnities and feasts of the Lord only (src/data/lectionary/sundays-and-solemnities.ts).
- * A weekday without a solemnity returns null, and Home shows Today's passage as it does for
- * everyone. The calendar is the US one: Epiphany and Ascension on Sundays, Corpus Christi on the
+ * Every day of the year (src/data/lectionary/): Sundays, solemnities and feasts of the Lord;
+ * the saints' feasts; the weekdays of the seasons and of Ordinary Time (Years I and II). Holy
+ * Saturday, which has no Mass during the day, returns null, and Home shows Today's passage. The
+ * calendar is the US one: Epiphany and Ascension on Sundays, Corpus Christi on the
  * Sunday after Trinity, as most US dioceses keep them. Ascension Thursday provinces see the
  * Ascension readings on the Sunday after (docs/future/LECTIONARY_SOURCE.md).
  */
@@ -14,6 +15,9 @@ import {
   type LectionarySlot,
   type SundayCycle,
 } from '@/data/lectionary/sundays-and-solemnities';
+import { SEASONAL_WEEKDAYS } from '@/data/lectionary/weekdays-seasons';
+import { ORDINARY_WEEKDAYS } from '@/data/lectionary/weekdays-ordinary';
+import { SAINTS_FEASTS } from '@/data/lectionary/saints';
 import NABRE_PRINTED from '@/data/printed-verse-numbers/NABRE.json';
 import type { PrintedVerseMap } from './printed-verse-number';
 import {
@@ -27,6 +31,7 @@ import {
 } from './liturgical-season';
 
 export type { LectionarySlot, SundayCycle };
+export type WeekdayCycle = 'I' | 'II';
 
 export interface LectionaryDay {
   /** Key into the readings table: `ordinary-29`, `advent-2`, `assumption`. */
@@ -35,6 +40,8 @@ export interface LectionaryDay {
   title: string;
   /** The Sunday cycle of the liturgical year the date falls in (Year A begins Advent 2025). */
   cycle: SundayCycle;
+  /** The weekday cycle in Ordinary Time: Year I in odd years, Year II in even. */
+  weekdayCycle: WeekdayCycle;
 }
 
 export interface LectionaryReading {
@@ -43,8 +50,18 @@ export interface LectionaryReading {
   label: string;
   /** As the Lectionary prints it: "Psalm 51:3-4, 12-13". What a missal says. */
   citation: string;
-  /** The same verses in Harvous's numbering, for the reader and for the words: "Psalms 51:1-2, 10-11". */
+  /**
+   * The same verses in Harvous's numbering, as one reference the reader and a pill can open:
+   * "Psalms 51:1-2, 10-11". For a reading that skips between chapters it is the part holding most
+   * of it (Luke 4:14-21 of "Luke 1:1-4; 4:14-21"), since a Harvous reference can't skip chapters.
+   */
   reference: string;
+  /**
+   * Every part of the reading, one reference per run of verses: `[reference]` for most readings,
+   * `["Luke 1:1-4", "Luke 4:14-21"]` for one that skips chapters. The card's words are these,
+   * joined — never the whole span between them.
+   */
+  segments: string[];
 }
 
 export interface TodaysReadings extends LectionaryDay {
@@ -87,7 +104,34 @@ const FIXED_TITLES: Record<string, string> = {
   'our-lady-of-guadalupe': 'Our Lady of Guadalupe',
 };
 
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function weekdayTitle(key: string): string | null {
+  const day = (k: string) => DAY_NAMES[DAY_KEYS.indexOf(k as (typeof DAY_KEYS)[number])];
+  let m = /^(advent|lent|easter|ordinary)-(\d+)-([a-z]{3})$/.exec(key);
+  if (m) {
+    const [, season, n, d] = m;
+    if (season === 'lent' && n === '0') return `${day(d!)} after Ash Wednesday`;
+    if (season === 'easter' && n === '1') return `${day(d!)} in the Octave of Easter`;
+    if (season === 'ordinary') return `${day(d!)} of the ${ordinal(Number(n))} week in Ordinary Time`;
+    const name = season === 'advent' ? 'Advent' : season === 'lent' ? 'Lent' : 'Easter';
+    return `${day(d!)} of the ${ordinal(Number(n))} week of ${name}`;
+  }
+  m = /^(?:advent|christmas)-(dec|jan)-(\d+)$/.exec(key);
+  if (m) return `${m[1] === 'dec' ? 'December' : 'January'} ${m[2]}`;
+  m = /^(after-epiphany|holy)-([a-z]{3})$/.exec(key);
+  if (m) return m[1] === 'holy' ? `${day(m[2]!)} of Holy Week` : `${day(m[2]!)} after the Epiphany`;
+  if (key === 'mary-mother-of-the-church') return 'Mary, Mother of the Church';
+  m = /^saint-(\d{2})-(\d{2})$/.exec(key);
+  if (m) return SAINTS_FEASTS[`${m[1]}-${m[2]}`]?.title ?? `${MONTHS[Number(m[1]) - 1]} ${Number(m[2])}`;
+  return null;
+}
+
 function titleFor(key: string): string {
+  const weekday = weekdayTitle(key);
+  if (weekday) return weekday;
   const numbered = /^(advent|lent|easter|ordinary)-(\d+)$/.exec(key);
   if (!numbered) return FIXED_TITLES[key] ?? key;
   const [, season, n] = numbered;
@@ -181,16 +225,83 @@ function movableDays(year: number): Map<number, string> {
   return days;
 }
 
-/** The Lectionary day for `date`, or null for a weekday with no proper readings. */
+/** The Lectionary day for `date`, or null on Holy Saturday. */
 export function lectionaryDayFor(date: Date): LectionaryDay | null {
   const year = date.getFullYear();
   const today = localDayIndex(date);
   const adventStart = adventStartIndex(year);
   const cycle = CYCLES[(today >= adventStart ? year + 1 : year) % 3]!;
+  const weekdayCycle: WeekdayCycle = year % 2 === 1 ? 'I' : 'II';
 
   const movable = movableDays(year);
-  const key = movable.get(today) ?? fixedDays(year, movable).get(today) ?? ordinarySunday(date, today);
-  return key ? { key, title: titleFor(key), cycle } : null;
+  const key =
+    movable.get(today) ??
+    fixedDays(year, movable).get(today) ??
+    ordinarySunday(date, today) ??
+    saintsFeast(date, today) ??
+    weekdayKey(date, today);
+  return key ? { key, title: titleFor(key), cycle, weekdayCycle } : null;
+}
+
+/**
+ * A saint's feast, which outranks the weekday it falls on — except a Sunday, Holy Week and the
+ * Easter Octave, where it is not kept that year.
+ */
+function saintsFeast(date: Date, today: number): string | null {
+  if (date.getDay() === 0) return null;
+  const mmdd = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  if (!SAINTS_FEASTS[mmdd]) return null;
+  const easter = computeEaster(date.getFullYear());
+  const easterIdx = dayIndex(date.getFullYear(), easter.month, easter.day);
+  if (today >= easterIdx - 7 && today <= easterIdx + 7) return null;
+  return `saint-${mmdd}`;
+}
+
+/** The weekday of whichever season `date` falls in. Sundays never reach here. */
+function weekdayKey(date: Date, today: number): string | null {
+  const year = date.getFullYear();
+  const dow = DAY_KEYS[date.getDay()]!;
+  const easter = computeEaster(year);
+  const easterIdx = dayIndex(year, easter.month, easter.day);
+  const ashWednesday = easterIdx - 46;
+  const pentecost = easterIdx + 49;
+  const adventStart = adventStartIndex(year);
+  const epiphany = epiphanySundayIndex(year);
+  const baptism = baptismOfTheLordIndex(year);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+
+  // Advent: by week to December 16, by date after.
+  if (today > adventStart && today < dayIndex(year, 12, 25)) {
+    if (month === 12 && day >= 17) return `advent-dec-${day}`;
+    return `advent-${Math.floor((today - adventStart) / 7) + 1}-${dow}`;
+  }
+  // Christmas: the last days of December, then January by date until the Epiphany, by weekday after it.
+  if (month === 12 && day >= 29) return `christmas-dec-${day}`;
+  if (today < epiphany && month === 1 && day >= 2) return `christmas-jan-${day}`;
+  if (today > epiphany && today < baptism) return `after-epiphany-${dow}`;
+  // Lent and Holy Week (Holy Saturday has no Mass of the day).
+  if (today > ashWednesday && today < easterIdx - 7) {
+    if (today < ashWednesday + 4) return `lent-0-${dow}`;
+    return `lent-${Math.floor((today - (ashWednesday + 4)) / 7) + 1}-${dow}`;
+  }
+  if (today > easterIdx - 7 && today < easterIdx) {
+    return today < easterIdx - 3 ? `holy-${dow}` : null;
+  }
+  // Easter, to Pentecost; the Monday after is Mary, Mother of the Church.
+  if (today > easterIdx && today < pentecost) return `easter-${Math.floor((today - easterIdx) / 7) + 1}-${dow}`;
+  if (today === pentecost + 1) return 'mary-mother-of-the-church';
+  // Ordinary Time.
+  let week: number;
+  if (today > baptism && today < ashWednesday) {
+    const anchor = baptism === epiphany + 7 ? baptism : epiphany;
+    week = Math.floor((today - anchor) / 7) + 1;
+  } else if (today > pentecost && today < adventStart) {
+    week = 34 - Math.floor((adventStart - today - 1) / 7);
+  } else {
+    return null;
+  }
+  return `ordinary-${week}-${dow}`;
 }
 
 function ordinarySunday(date: Date, today: number): string | null {
@@ -277,7 +388,7 @@ export function parseLectionaryCitation(citation: string): { book: string; spans
   const match = /^(.+?)\s+(\d.*)$/.exec(citation.trim());
   if (!match) return null;
   const book = BOOK_ALIASES[match[1]!] ?? match[1]!;
-  const spec = match[2]!.replace(/[a-e]+(?=$|[\s,;—–-])/g, '');
+  const spec = match[2]!.replace(/(\d)[a-z]+/g, '$1');
   const spans: Span[] = [];
   let chapter = 1;
   const point = (text: string): Address | null => {
@@ -297,36 +408,65 @@ export function parseLectionaryCitation(citation: string): { book: string; spans
   return spans.length ? { book, spans } : null;
 }
 
+/** One chapter's verse groups as a reference: adjacent printed groups ("2-3, 3-4") join into one run. */
+function chapterReference(book: string, chapter: number, ranges: Array<[number, number]>): string {
+  const groups: Array<[number, number]> = [];
+  for (const [a, b] of ranges) {
+    const prev = groups[groups.length - 1];
+    if (prev && a <= prev[1] + 1) prev[1] = Math.max(prev[1], b);
+    else groups.push([a, b]);
+  }
+  return `${book} ${chapter}:${groups.map(([a, b]) => (a === b ? `${a}` : `${a}-${b}`)).join(', ')}`;
+}
+
 /**
- * Harvous's reference for a Lectionary citation, renumbered: "Psalm 51:3-4, 12-13" → "Psalms 51:1-2,
- * 10-11". Verses in one chapter keep their gaps; a citation across chapters ("Genesis 2:7-9;
- * 3:1-7") opens as its whole span, the shape Harvous references can take.
+ * A Lectionary citation in Harvous's numbering, as the references it takes to say it exactly:
+ * "Psalm 51:3-4, 12-13" → ["Psalms 51:1-2, 10-11"]; "Genesis 2:7-9; 3:1-7" → ["Genesis 2:7-9",
+ * "Genesis 3:1-7"]. A span that runs on across a chapter ("2 Corinthians 5:20—6:2") stays one
+ * reference, which Harvous can open; only a skip between chapters splits it.
  */
-export function harvousReferenceForCitation(citation: string): string | null {
+export function harvousSegmentsForCitation(citation: string): string[] | null {
   const parsed = parseLectionaryCitation(citation);
   if (!parsed) return null;
-  const spans = parsed.spans.map(({ start, end }) => ({
-    start: harvousAddressForPrinted(start.book, start.chapter, start.verse),
-    end: harvousAddressForPrinted(end.book, end.chapter, end.verse),
-  }));
-  const first = spans[0]!.start;
-  const last = spans[spans.length - 1]!.end;
-  const oneChapter = spans.every(
-    (s) => s.start.book === first.book && s.end.book === first.book && s.start.chapter === first.chapter && s.end.chapter === first.chapter,
-  );
-  if (oneChapter) {
-    // Adjacent printed groups ("2-3, 3-4", one verse sung twice) collapse into one run.
-    const groups: Array<[number, number]> = [];
-    for (const { start, end } of spans) {
-      const prev = groups[groups.length - 1];
-      if (prev && start.verse <= prev[1] + 1) prev[1] = Math.max(prev[1], end.verse);
-      else groups.push([start.verse, end.verse]);
+  const segments: Array<{ book: string; chapter: number; ranges: Array<[number, number]> } | string> = [];
+  for (const span of parsed.spans) {
+    const start = harvousAddressForPrinted(span.start.book, span.start.chapter, span.start.verse);
+    const end = harvousAddressForPrinted(span.end.book, span.end.chapter, span.end.verse);
+    if (start.book !== end.book) return null;
+    if (start.chapter !== end.chapter) {
+      segments.push(`${start.book} ${start.chapter}:${start.verse}-${end.chapter}:${end.verse}`);
+      continue;
     }
-    const verses = groups.map(([a, b]) => (a === b ? `${a}` : `${a}-${b}`)).join(', ');
-    return `${first.book} ${first.chapter}:${verses}`;
+    const prev = segments[segments.length - 1];
+    if (prev && typeof prev !== 'string' && prev.book === start.book && prev.chapter === start.chapter) {
+      prev.ranges.push([start.verse, end.verse]);
+    } else {
+      segments.push({ book: start.book, chapter: start.chapter, ranges: [[start.verse, end.verse]] });
+    }
   }
-  if (first.book !== last.book) return null;
-  return `${first.book} ${first.chapter}:${first.verse}-${last.chapter}:${last.verse}`;
+  const out = segments.map((seg) => (typeof seg === 'string' ? seg : chapterReference(seg.book, seg.chapter, seg.ranges)));
+  return out.length ? out : null;
+}
+
+/** How many verses a one-chapter reference names, to find the part of a reading that is most of it. */
+function verseCount(reference: string): number {
+  const groups = reference.slice(reference.indexOf(':') + 1).split(',');
+  return groups.reduce((n, g) => {
+    const [a, b] = g.trim().split('-').map(Number);
+    return n + (b && !Number.isNaN(b) ? b - a + 1 : 1);
+  }, 0);
+}
+
+/**
+ * Harvous's one reference for a Lectionary citation: the whole of it when it can be said in one
+ * ("Psalms 51:1-2, 10-11"), else its largest part ("Genesis 2:7-9; 3:1-7" → "Genesis 3:1-7").
+ * The words of every part are `harvousSegmentsForCitation`.
+ */
+export function harvousReferenceForCitation(citation: string): string | null {
+  const segments = harvousSegmentsForCitation(citation);
+  if (!segments) return null;
+  if (segments.length === 1) return segments[0]!;
+  return segments.reduce((best, seg) => (verseCount(seg) > verseCount(best) ? seg : best));
 }
 
 function readingsOf(entry: LectionaryEntry): LectionaryReading[] {
@@ -334,19 +474,32 @@ function readingsOf(entry: LectionaryEntry): LectionaryReading[] {
   for (const [slot, label] of SLOTS) {
     const citation = entry[slot];
     if (!citation) continue;
-    const reference = entry.text?.[slot] ?? harvousReferenceForCitation(citation);
-    if (reference) readings.push({ slot, label, citation, reference });
+    const override = entry.text?.[slot];
+    const segments = override ? [override] : harvousSegmentsForCitation(citation);
+    const reference = override ?? harvousReferenceForCitation(citation);
+    if (reference && segments) readings.push({ slot, label, citation, reference, segments });
   }
   return readings;
 }
 
-/** The day's readings for `date`, or null when the table has none for it (most weekdays). */
+/** The table entry for a Lectionary day, whichever table it lives in. */
+export function lectionaryEntryFor(day: LectionaryDay): LectionaryEntry | null {
+  const ordinary = ORDINARY_WEEKDAYS[day.key];
+  if (ordinary) return ordinary[day.weekdayCycle];
+  const saint = /^saint-(.+)$/.exec(day.key);
+  const readings = saint
+    ? SAINTS_FEASTS[saint[1]!]?.readings
+    : (SUNDAYS_AND_SOLEMNITIES[day.key] ?? SEASONAL_WEEKDAYS[day.key]);
+  if (!readings) return null;
+  return 'all' in readings ? readings.all : readings[day.cycle];
+}
+
+/** The day's readings for `date`, or null when there are none (Holy Saturday). */
 export function todaysReadingsFor(date: Date): TodaysReadings | null {
   const day = lectionaryDayFor(date);
   if (!day) return null;
-  const readings = SUNDAYS_AND_SOLEMNITIES[day.key];
-  if (!readings) return null;
-  const entry = 'all' in readings ? readings.all : readings[day.cycle];
+  const entry = lectionaryEntryFor(day);
+  if (!entry) return null;
   return { ...day, readings: readingsOf(entry) };
 }
 

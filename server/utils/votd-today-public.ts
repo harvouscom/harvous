@@ -82,6 +82,21 @@ export async function resolveVotdForLocalDate(
   };
 }
 
+/**
+ * The words of a reading that skips between chapters (Luke 1:1-4; 4:14-21): each part, in order,
+ * with the gap marked — never the chapters in between. Empty if any part fails, so the card
+ * falls back to its row rather than showing half a reading.
+ */
+async function passageText(segments: string[], translation: string): Promise<string> {
+  try {
+    const parts = await Promise.all(segments.map((segment) => fetchVerseText(segment, translation)));
+    if (parts.some((part) => !part.trim())) return '';
+    return parts.join(' <span class="proto-daily-passage__gap" aria-hidden="true">…</span> ');
+  } catch {
+    return '';
+  }
+}
+
 /** What the card needs of the day's readings: its name and each reading, Gospel last. */
 function readingsPayload(readings: TodaysReadings) {
   return {
@@ -136,7 +151,9 @@ export async function votdTodayPublicHandler(c: Context) {
      * the row, as it did before there was a card.
      */
     const [textHtml, actedToday] = await Promise.all([
-      fetchVerseText(reference, translation).catch(() => ''),
+      gospel && gospel.segments.length > 1
+        ? passageText(gospel.segments, translation)
+        : fetchVerseText(reference, translation).catch(() => ''),
       row?.featuredItemId
         ? votdActedOnToday(auth.userId, row.featuredItemId).catch(() => false)
         : Promise.resolve(false),
