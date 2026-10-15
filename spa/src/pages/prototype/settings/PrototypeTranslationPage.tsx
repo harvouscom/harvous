@@ -5,6 +5,7 @@ import { useUpdateTranslation } from '../../../hooks/mutations/useUpdateTranslat
 import { useBiblePacks } from '../../../hooks/useBiblePacks';
 import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 import PrototypeTranslationRow from './PrototypeTranslationRow';
+import TraditionControl from './TraditionControl';
 import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
 
 /**
@@ -84,6 +85,8 @@ export default function PrototypeTranslationPage() {
           </>
         ) : null}
       </SettingsIntro>
+
+      <TraditionControl variant="settings" />
 
       <SettingsGroup>
         {TRANSLATION_ORDER.map((id) => {

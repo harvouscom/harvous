@@ -102,6 +102,8 @@ import {
   type StudyDockStack,
 } from '@/utils/study-dock-stack';
 import { useSettledFlag } from '../../hooks/useSettledFlag';
+import { useIsCatholic } from '../../hooks/useTradition';
+import { usePrintedVerseLabels } from '../../hooks/usePrintedVerseLabels';
 import PrototypeReaderChapterStack from './PrototypeReaderChapterStack';
 import {
   DEUTEROCANON_TRANSLATIONS,
@@ -228,11 +230,21 @@ const VerseSpan = memo(function VerseSpan({
   roving,
   noteCount,
   html,
+  printedLabel,
+  printedTranslation,
   onFocusVerse,
   onActivate,
   onKeys,
 }: {
   verse: { number: number; text: string };
+  /**
+   * What the printed edition calls this verse, where it differs ("12" beside our 10 in the NABRE's
+   * Psalm 51, "50:12" in the Douay-Rheims). Drawn small and gray after our number, so a reader
+   * with a missal open at 51:12 can still find the verse. See usePrintedVerseLabels.
+   */
+  printedLabel?: string;
+  /** Names the edition in the printed number's tooltip ("12 in the NABRE"). */
+  printedTranslation?: string;
   /**
    * Which of the two texts this verse is in.
    *
@@ -276,6 +288,16 @@ const VerseSpan = memo(function VerseSpan({
       onKeyDown={(e) => onKeys(verse.number, e, column)}
     >
       <sup className="pds-reader-verse-num">{verse.number}</sup>
+      {printedLabel ? (
+        <sup
+          className="pds-reader-verse-num pds-reader-verse-num--printed"
+          title={printedTranslation ? `${printedLabel} in the ${printedTranslation}` : undefined}
+        >
+          <span aria-hidden>·</span>
+          <span className="sr-only">, printed as </span>
+          {printedLabel}
+        </sup>
+      ) : null}
       <span className="pds-reader__verse-text" dangerouslySetInnerHTML={html} />
       {/*
         The margin's signal, for anyone not looking at it.
@@ -611,6 +633,9 @@ export default function PrototypeBibleReaderPane({
   landRequestKey,
 }: PrototypeBibleReaderPaneProps) {
   const { data, isLoading, isError, error } = usePrototypeBibleChapter(book, chapter, translation);
+  const catholic = useIsCatholic();
+  const printedLabels = usePrintedVerseLabels(book, chapter, translation);
+  const comparePrintedLabels = usePrintedVerseLabels(book, chapter, compare?.translation);
   const { verseLayout, showMarginNotes } = useSyncExternalStore(
     subscribeReadingPrefs,
     getReadingPrefsSnapshot,
@@ -656,20 +681,21 @@ export default function PrototypeBibleReaderPane({
    */
   const bookOptions = useMemo(
     () =>
-      // The canon this translation reads: 73 books in the NABRE and the Douay-Rheims, 66 elsewhere.
-      orderedCanonBooks(translation).map((b) => ({
+      // The canon this translation reads: 73 books in the NABRE and the Douay-Rheims, 66 elsewhere
+      // — and 73 everywhere for a Catholic reader, whose Tobit in the ESV says "Not in ESV".
+      orderedCanonBooks(translation, { catholic }).map((b) => ({
         value: b,
         label: bookAbbreviation(b),
         // The grid abbreviates; the chapter's own title must not.
         triggerLabel: b,
         group: canonGroupForBook(b)?.testament === 'nt' ? 'New Testament' : 'Old Testament',
       })),
-    [translation],
+    [translation, catholic],
   );
   const chapterOptions = useMemo(() => {
-    const count = bookChapterCount(book, translation) ?? data?.chapterCount ?? 1;
+    const count = bookChapterCount(book, translation, { catholic }) ?? data?.chapterCount ?? 1;
     return Array.from({ length: count }, (_, i) => ({ value: i + 1, label: String(i + 1) }));
-  }, [book, translation, data?.chapterCount]);
+  }, [book, translation, catholic, data?.chapterCount]);
   /*
     Every translation, in canon order — the reader's whole set, not the two the stack peeks. Labels go
     through `getTranslationAbbreviationDisplay` because one of them is not its own id: NASB
@@ -703,8 +729,14 @@ export default function PrototypeBibleReaderPane({
     [data?.translation],
   );
 
-  const prevChapter = useMemo(() => adjacentChapter(book, chapter, -1, translation), [book, chapter, translation]);
-  const nextChapter = useMemo(() => adjacentChapter(book, chapter, 1, translation), [book, chapter, translation]);
+  const prevChapter = useMemo(
+    () => adjacentChapter(book, chapter, -1, translation, { catholic }),
+    [book, chapter, translation, catholic],
+  );
+  const nextChapter = useMemo(
+    () => adjacentChapter(book, chapter, 1, translation, { catholic }),
+    [book, chapter, translation, catholic],
+  );
   const azariahInset = showsPrayerOfAzariahInset(book, chapter, translation) ? (
     <ReaderPrayerOfAzariahInset book={book} chapter={chapter} translation={translation} onOpen={onNavigateTo} />
   ) : null;
@@ -2486,6 +2518,8 @@ export default function PrototypeBibleReaderPane({
                         }
                         roving={rovingVerse('primary') === row.verse}
                         html={verseHtml.get(row.verse) ?? EMPTY_VERSE_HTML}
+                        printedLabel={printedLabels.get(row.verse)}
+                        printedTranslation={getTranslationAbbreviationDisplay(data.translation)}
                         onFocusVerse={handleVerseFocus}
                         onActivate={handleVerseActivate}
                         onKeys={handleVerseKeys}
@@ -2528,6 +2562,8 @@ export default function PrototypeBibleReaderPane({
                         }
                         roving={rovingVerse('compare') === row.verse}
                         html={compareVerseHtml.get(row.verse) ?? EMPTY_VERSE_HTML}
+                        printedLabel={comparePrintedLabels.get(row.verse)}
+                        printedTranslation={getTranslationAbbreviationDisplay(compare.translation)}
                         onFocusVerse={handleVerseFocus}
                         onActivate={handleVerseActivate}
                         onKeys={handleVerseKeys}
@@ -2572,6 +2608,8 @@ export default function PrototypeBibleReaderPane({
                         }
                         roving={rovingVerse('primary') === verse.number}
                         html={verseHtml.get(verse.number) ?? EMPTY_VERSE_HTML}
+                        printedLabel={printedLabels.get(verse.number)}
+                        printedTranslation={getTranslationAbbreviationDisplay(translation)}
                         onFocusVerse={handleVerseFocus}
                         onActivate={handleVerseActivate}
                         onKeys={handleVerseKeys}
@@ -2606,6 +2644,8 @@ export default function PrototypeBibleReaderPane({
                       }
                       roving={rovingVerse('primary') === verse.number}
                       html={verseHtml.get(verse.number) ?? EMPTY_VERSE_HTML}
+                        printedLabel={printedLabels.get(verse.number)}
+                        printedTranslation={getTranslationAbbreviationDisplay(translation)}
                       onFocusVerse={handleVerseFocus}
                       onActivate={handleVerseActivate}
                       onKeys={handleVerseKeys}

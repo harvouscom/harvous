@@ -46,6 +46,12 @@ export default function ReaderPrayerOfAzariahInset({
           <Fragment key={verse.number}>
             {i > 0 ? ' ' : null}
             <sup className="pds-reader-verse-num">{verse.number}</sup>
+            {/* The printed Daniel 3 number, as the reader shows NABRE/DRB numbers elsewhere. */}
+            <sup className="pds-reader-verse-num pds-reader-verse-num--printed">
+              <span aria-hidden>·</span>
+              <span className="sr-only">, Daniel 3:</span>
+              {verse.number + AZARIAH_AFTER_VERSE}
+            </sup>
             {verse.text}
           </Fragment>
         ))}

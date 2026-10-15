@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useAuthReady } from '../useAuthReady';
 import { api } from '../../lib/api';
 import { updateCachedProfileData } from '@/utils/profile-cache';
+import { normalizeTradition, type Tradition } from '@/utils/tradition';
 import {
   HARVOUS_PROFILE_CACHE_KEY,
   HARVOUS_USER_COLOR_KEY,
@@ -223,6 +224,8 @@ export interface UserProfile {
   hasLockPinSet?: boolean;
   /** Preferred Bible translation (e.g. ESV, NET); from UserMetadata via get-profile */
   defaultTranslation?: string;
+  /** Protestant or Catholic (src/utils/tradition.ts); read it through `useTradition`. */
+  tradition?: Tradition;
   /** Per-user My Home switcher order for personal Shared Spaces (hosted + joined). */
   sharedSpaceSwitcherOrder?: string[] | null;
   /**
@@ -333,6 +336,7 @@ function fetchProfile(userId: string): Promise<UserProfile> {
           ? data.sharedSpaceSwitcherOrder
           : null,
         defaultTranslation,
+        tradition: normalizeTradition(data.tradition),
         displayName:
           (data.displayName ?? `${data.firstName ?? ''} ${(data.lastName ?? '').charAt(0)}`.trim()) || 'User',
       } as UserProfile;

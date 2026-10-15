@@ -37,6 +37,7 @@ import {
   type ReferenceProvider,
 } from '@/utils/reference-suggestion-text';
 import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
+import { useIsCatholic } from '../../../spa/src/hooks/useTradition';
 import { deriveReferenceFromPassageSelection } from '@/utils/derive-passage-selection-reference';
 import { useCoarsePointer } from '../../../spa/src/lib/use-coarse-pointer';
 import { isGuestLocalNote } from '../../../spa/src/lib/guest-store';
@@ -207,18 +208,16 @@ export default function ScripturePillChromeWeb({
   });
   const [trans, setTrans] = useState(translation || getCachedProfileData()?.defaultTranslation || 'NET');
   /*
-   * The book picker lists the canon being read: 73 books in the NABRE and the Douay-Rheims, and
-   * also for a pill that already names one of the deuterocanonical books, whatever its
-   * translation, so the picker can show where it is.
+   * The book picker lists the canon being read: 73 books in the NABRE and the Douay-Rheims, for
+   * a Catholic reader in any translation, and for a pill that already names one of the
+   * deuterocanonical books, whatever its translation, so the picker can show where it is.
    */
   const pillIsDeuterocanon =
     initialParsed != null && isDeuterocanonPassage(initialParsed.book, initialParsed.chapter);
+  const catholic = useIsCatholic();
   const books = useMemo(
-    () =>
-      orderedCanonBooks(
-        translationHasDeuterocanon(trans) || pillIsDeuterocanon ? DEUTEROCANON_TRANSLATIONS[0] : undefined,
-      ),
-    [trans, pillIsDeuterocanon],
+    () => orderedCanonBooks(trans, { catholic: catholic || pillIsDeuterocanon }),
+    [trans, catholic, pillIsDeuterocanon],
   );
   // Reactive, unlike the `isMobileDevice()` UA sniff this replaced — that was read once during
   // render and never re-evaluated, so the footer-vs-floating-capsule choice could not respond to

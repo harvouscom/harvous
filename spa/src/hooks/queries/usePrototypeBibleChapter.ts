@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { adjacentChapter, isDeuterocanonPassage } from '@/utils/bible-book-chapters';
 import { translationHasDeuterocanon } from '@/data/translations';
 import { BIBLE_TEXT_REVISION, scriptureBookUrl } from '@/utils/bible-text-revision';
+import { useIsCatholic } from '../useTradition';
 
 export interface BibleChapterVerse {
   number: number;
@@ -186,6 +187,7 @@ export function usePrefetchAdjacentChapters(
   translation: string,
 ) {
   const queryClient = useQueryClient();
+  const catholic = useIsCatholic();
   useEffect(() => {
     if (!book || !Number.isInteger(chapter)) return;
     /*
@@ -194,8 +196,10 @@ export function usePrefetchAdjacentChapters(
      * reader is most likely to hesitate.
      */
     for (const dir of [1, -1] as const) {
-      const target = adjacentChapter(book, chapter as number, dir, translation);
+      const target = adjacentChapter(book, chapter as number, dir, translation, { catholic });
       if (!target) continue;
+      // A Catholic reader's walk passes Tobit in the ESV; there is no text to warm there.
+      if (!translationHasDeuterocanon(translation) && isDeuterocanonPassage(target.book, target.chapter)) continue;
       /*
        * `retry: false` is the one option a prefetch may differ on. Nobody is waiting for a
        * neighbour, so its failure has no consequence worth three attempts — and with the
@@ -208,5 +212,5 @@ export function usePrefetchAdjacentChapters(
         retry: false,
       });
     }
-  }, [queryClient, book, chapter, translation]);
+  }, [queryClient, book, chapter, translation, catholic]);
 }

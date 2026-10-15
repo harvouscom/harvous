@@ -136,7 +136,7 @@ export const SOURCES = {
     versification: 'org',
     books: { 'DAN 3': 'vul', 'DAN 13': 'vul', 'DAN 14': 'vul' },
     chapterMaps: { EST: NABRE_ESTHER },
-    verseShifts: { 'JHN 8': -1 },
+    corrections: { 'JHN 8': -1 },
     cleanText: cleanNabreText,
     alignWith: 'ESV',
   },
@@ -366,7 +366,7 @@ export function remapVerses(raw, translationId, { reference } = {}) {
   const books = loadChapterTable();
 
   const report = { titlesDropped: 0, outsideCanon: [], moved: [], joined: [], missing: [] };
-  const unitsByBook = new Map(); // USFM code → [{ proposed: eng key, text, order }]
+  const unitsByBook = new Map(); // USFM code → [{ proposed: eng key, text, order, printed }]
 
   raw.forEach((v, order) => {
     let { chapter, verse } = v;
@@ -381,11 +381,19 @@ export function remapVerses(raw, translationId, { reference } = {}) {
 
     const versification =
       source.books[`${v.book} ${chapter}`] ?? source.books[v.book] ?? source.versification;
+    const wrap = () => {
+      if (verse < 1) {
+        chapter -= 1;
+        verse += books.get(v.book).chapters.get(chapter);
+      }
+    };
+    // A source's own numbering error: fixing it changes what the edition prints, too.
+    verse += source.corrections?.[`${v.book} ${chapter}`] ?? 0;
+    wrap();
+    // What the printed edition calls this verse, before it's renumbered to English.
+    const printed = { book: v.book, chapter, verse };
     verse += source.verseShifts?.[`${v.book} ${chapter}`] ?? 0;
-    if (verse < 1) {
-      chapter -= 1;
-      verse += books.get(v.book).chapters.get(chapter);
-    }
+    wrap();
 
     const candidates = englishCandidates(v.book, chapter, verse, versification);
     const endOf = (c) => books.get(c.book)?.chapters.get(c.chapter) ?? 0;
@@ -402,7 +410,7 @@ export function remapVerses(raw, translationId, { reference } = {}) {
     }
     if (!unitsByBook.has(eng.book)) unitsByBook.set(eng.book, []);
     const text = source.cleanText ? source.cleanText(v.text, v.book) : v.text;
-    unitsByBook.get(eng.book).push({ proposed: key(eng.book, eng.chapter, eng.verse), text, order });
+    unitsByBook.get(eng.book).push({ proposed: key(eng.book, eng.chapter, eng.verse), text, order, printed });
   });
 
   const refStems = new Map();
@@ -413,6 +421,7 @@ export function remapVerses(raw, translationId, { reference } = {}) {
   const refChapters = new Set([...refStems.keys()].map((k) => k.replace(/:\d+$/, '')));
 
   const byTarget = new Map(); // eng key → texts[]
+  const printedAt = new Map(); // eng key → the printed addresses of the verses placed there
   for (const [code, units] of unitsByBook) {
     const targets = [];
     for (const [chapter, endVerse] of books.get(code).chapters) {
@@ -433,6 +442,8 @@ export function remapVerses(raw, translationId, { reference } = {}) {
       if (placed[i] !== unit.proposed) report.moved.push(`${unit.proposed} → ${placed[i].split(' ')[1]}`);
       if (!byTarget.has(placed[i])) byTarget.set(placed[i], []);
       byTarget.get(placed[i]).push(unit.text);
+      if (!printedAt.has(placed[i])) printedAt.set(placed[i], []);
+      printedAt.get(placed[i]).push(unit.printed);
       if (byTarget.get(placed[i]).length === 2) report.joined.push(placed[i]);
     });
   }
@@ -453,5 +464,67 @@ export function remapVerses(raw, translationId, { reference } = {}) {
     }
   }
 
-  return { verses, report };
+  // Only the verses whose printed address differs from Harvous's, for the reader's quiet second
+  // number (see printedVerseRuns).
+  const printed = [];
+  for (const [k, addresses] of printedAt) {
+    const at = parseKey(k);
+    const first = addresses[0];
+    const last = addresses[addresses.length - 1];
+    if (addresses.length === 1 && first.book === at.book && first.chapter === at.chapter && first.verse === at.verse) {
+      continue;
+    }
+    printed.push({
+      book: books.get(at.book).name,
+      chapter: at.chapter,
+      verse: at.verse,
+      printedBook: books.get(first.book)?.name ?? first.book,
+      printedChapter: first.chapter,
+      printedVerse: first.verse,
+      // Two source verses printed as one English verse read "12–13"; both are in one chapter.
+      printedVerseEnd: last.chapter === first.chapter && last.verse !== first.verse ? last.verse : undefined,
+    });
+  }
+
+  return { verses, report, printed };
+}
+
+/**
+ * The printed differences as runs, for `src/data/printed-verse-numbers/<ID>.json`: per book,
+ * `[chapter, from, to, printedChapter, offset]`, plus `printedBook` when the edition files the
+ * verse under another book (the Prayer of Azariah is Daniel 3:24–90) and `printedTo` when one
+ * English verse holds two printed ones. Psalm 51:1–19 in the NABRE is one row: 51, 1, 19, 51, +2.
+ */
+export function printedVerseRuns(printed) {
+  const byBook = {};
+  const sorted = [...printed].sort((a, b) => a.chapter - b.chapter || a.verse - b.verse);
+  for (const p of sorted) {
+    const rows = (byBook[p.book] ??= []);
+    const offset = p.printedVerse - p.verse;
+    const otherBook = p.printedBook !== p.book ? p.printedBook : undefined;
+    const prev = rows[rows.length - 1];
+    if (
+      prev &&
+      !prev.printedTo &&
+      p.printedVerseEnd === undefined &&
+      prev.chapter === p.chapter &&
+      prev.to === p.verse - 1 &&
+      prev.printedChapter === p.printedChapter &&
+      prev.offset === offset &&
+      prev.printedBook === otherBook
+    ) {
+      prev.to = p.verse;
+      continue;
+    }
+    rows.push({
+      chapter: p.chapter,
+      from: p.verse,
+      to: p.verse,
+      printedChapter: p.printedChapter,
+      offset,
+      ...(otherBook ? { printedBook: otherBook } : {}),
+      ...(p.printedVerseEnd !== undefined ? { printedTo: p.printedVerseEnd } : {}),
+    });
+  }
+  return byBook;
 }

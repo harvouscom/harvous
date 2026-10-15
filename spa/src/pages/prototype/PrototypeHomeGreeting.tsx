@@ -27,6 +27,7 @@ import {
   type RecallTrendGreetingParts,
 } from '@/utils/prototype-home-trends';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
+import { useIsCatholic } from '../../hooks/useTradition';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import { protoRelativeCaption } from './proto-time';
 import { recallKindIcon } from './recall-kind-icons';
@@ -104,7 +105,8 @@ export default function PrototypeHomeGreeting({
   const rhythm = useMemo(() => computeActivityRhythm(notes), [notes]);
   const weeklyDays = useMemo(() => countWeeklyActivityDays(notes, new Date()), [notes]);
   const lastActivityMs = useMemo(() => computeLastActivityTime(notes), [notes]);
-  const season = useMemo(() => currentLiturgicalSeason(new Date()), []);
+  const catholic = useIsCatholic();
+  const season = useMemo(() => currentLiturgicalSeason(new Date(), { catholic }), [catholic]);
 
   const hello = `${greetingForHour(new Date().getHours())}${firstName ? `, ${firstName}` : ''}.`;
   const activityTail = useMemo(

@@ -55,11 +55,30 @@ function catholicChapterCounts(): Map<string, number> {
 }
 
 /**
- * Number of chapters in a book, or null when the book name isn't recognized — or, given a
- * translation, when that translation doesn't carry the book.
+ * Whose canon a list follows. `catholic` is the reader's tradition (src/utils/tradition.ts): a
+ * Catholic reader sees the 73 books in every translation's book list, and a book the translation
+ * doesn't carry opens on "Not in X". Whether the *text* exists stays a question for the
+ * translation alone — callers checking that pass no options.
  */
-export function bookChapterCount(book: string, translation?: string | null): number | null {
-  const counts = translationHasDeuterocanon(translation) ? catholicChapterCounts() : bibleBookChapterCounts();
+export interface CanonOptions {
+  catholic?: boolean;
+}
+
+function readsCatholicCanon(translation: string | null | undefined, options?: CanonOptions): boolean {
+  return Boolean(options?.catholic) || translationHasDeuterocanon(translation);
+}
+
+/**
+ * Number of chapters in a book, or null when the book name isn't recognized — or, given a
+ * translation, when that translation doesn't carry the book (unless `options.catholic` asks for
+ * the Catholic canon's count regardless).
+ */
+export function bookChapterCount(
+  book: string,
+  translation?: string | null,
+  options?: CanonOptions,
+): number | null {
+  const counts = readsCatholicCanon(translation, options) ? catholicChapterCounts() : bibleBookChapterCounts();
   return counts.get(book) ?? null;
 }
 
@@ -77,8 +96,8 @@ let orderCache: string[] | null = null;
  * after the Song, Baruch after Lamentations). The Prayer of Azariah isn't in that list: it reads
  * inside Daniel 3.
  */
-export function orderedCanonBooks(translation?: string | null): string[] {
-  if (translationHasDeuterocanon(translation)) return catholicOrderedBooks();
+export function orderedCanonBooks(translation?: string | null, options?: CanonOptions): string[] {
+  if (readsCatholicCanon(translation, options)) return catholicOrderedBooks();
   if (orderCache) return orderCache;
   const seen = new Set<string>();
   const out: string[] = [];
@@ -170,16 +189,17 @@ export function adjacentChapter(
   chapter: number,
   direction: 1 | -1,
   translation?: string | null,
+  options?: CanonOptions,
 ): { book: string; chapter: number } | null {
   if (book === PRAYER_OF_AZARIAH) return { book: 'Daniel', chapter: direction === 1 ? 4 : 3 };
 
-  const count = bookChapterCount(book, translation);
+  const count = bookChapterCount(book, translation, options);
   if (count == null) return null;
 
   const target = chapter + direction;
   if (target >= 1 && target <= count) return { book, chapter: target };
 
-  const books = orderedCanonBooks(translation);
+  const books = orderedCanonBooks(translation, options);
   const index = books.indexOf(book);
   if (index === -1) return null;
 
@@ -187,7 +207,7 @@ export function adjacentChapter(
   if (!nextBook) return null;
 
   // Stepping back lands on the previous book's LAST chapter, not its first.
-  const nextCount = bookChapterCount(nextBook, translation);
+  const nextCount = bookChapterCount(nextBook, translation, options);
   if (nextCount == null) return null;
   return { book: nextBook, chapter: direction === 1 ? 1 : nextCount };
 }

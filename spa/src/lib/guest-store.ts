@@ -72,6 +72,8 @@ export interface GuestNote {
  */
 export interface GuestPrefs {
   defaultTranslation?: string;
+  /** 'protestant' | 'catholic'. A guest can be Catholic before they have an account. */
+  tradition?: string;
 }
 
 interface GuestStore {

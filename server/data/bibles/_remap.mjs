@@ -12,10 +12,10 @@
  * known difference (a dropped addition, two verses printed as one), not a mapping mistake.
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { remapVerses, SOURCES } from '../versification/remap.mjs';
+import { printedVerseRuns, remapVerses, SOURCES } from '../versification/remap.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -23,9 +23,13 @@ export function writeRemapped(translationId) {
   const raw = JSON.parse(readFileSync(join(__dirname, 'raw', `${translationId}.json`), 'utf-8'));
   const { alignWith } = SOURCES[translationId];
   const reference = alignWith && JSON.parse(readFileSync(join(__dirname, `${alignWith}.json`), 'utf-8'));
-  const { verses, report } = remapVerses(raw, translationId, { reference });
+  const { verses, report, printed } = remapVerses(raw, translationId, { reference });
   const outPath = join(__dirname, `${translationId}.json`);
   writeFileSync(outPath, JSON.stringify(verses, null, 2));
+  // The edition's own verse numbers where they differ, for the reader's quiet second number.
+  const printedDir = join(__dirname, '../../../src/data/printed-verse-numbers');
+  mkdirSync(printedDir, { recursive: true });
+  writeFileSync(join(printedDir, `${translationId}.json`), `${JSON.stringify(printedVerseRuns(printed))}\n`);
 
   console.log(`\n${translationId}: ${raw.length} source verses → ${verses.length} Harvous verses`);
   console.log(`  Psalm titles dropped: ${report.titlesDropped}`);

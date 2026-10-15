@@ -62,6 +62,12 @@ export type HomeRowProps = {
    * id when rows come and go, and reports it to whoever needs to know which one is showing.
    */
   deckId?: string;
+  /**
+   * A control answered in the row itself, drawn under the title and beside — never inside — the
+   * row's button, which can't hold another control. The onboarding "Which Bible do you read?"
+   * row is the first: one tap answers it, where every other row is a link to Settings.
+   */
+  below?: ReactNode;
 };
 
 /* Correct the fade estimate against a real measurement, once per hover. */
@@ -156,6 +162,7 @@ export default function PrototypeHomeRow({
   'aria-label': ariaLabel,
   title_attr,
   deckId,
+  below,
 }: HomeRowProps) {
   const metaItems = homeRowMetaItems(meta);
   const titleChars = marqueeCharCount(title);
@@ -232,9 +239,12 @@ export default function PrototypeHomeRow({
     </>
   );
 
-  if (trailing) {
+  if (trailing || below) {
     return (
-      <div className="proto-list-panel__row" data-deck-id={deckId}>
+      <div
+        className={`proto-list-panel__row${below ? ' proto-list-panel__row--with-below' : ''}`}
+        data-deck-id={deckId}
+      >
         <button
           type="button"
           className="proto-list-panel__row-main"
@@ -249,7 +259,8 @@ export default function PrototypeHomeRow({
         >
           {body}
         </button>
-        <span className="proto-list-panel__row-trailing">{trailing}</span>
+        {trailing ? <span className="proto-list-panel__row-trailing">{trailing}</span> : null}
+        {below ? <div className="proto-list-panel__row-below">{below}</div> : null}
       </div>
     );
   }

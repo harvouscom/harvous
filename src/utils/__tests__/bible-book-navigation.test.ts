@@ -140,3 +140,33 @@ describe('the deuterocanon', () => {
     expect(isDeuterocanonPassage('John', 3, 16)).toBe(false);
   });
 });
+
+describe('the Catholic canon by tradition', () => {
+  it('lists the 73 books for a Catholic reader in any translation, and only then', () => {
+    const esv = orderedCanonBooks('ESV');
+    const catholicEsv = orderedCanonBooks('ESV', { catholic: true });
+    expect(esv).toHaveLength(66);
+    expect(catholicEsv).toHaveLength(73);
+    expect(catholicEsv.slice(catholicEsv.indexOf('Nehemiah'), catholicEsv.indexOf('Nehemiah') + 3)).toEqual([
+      'Nehemiah',
+      'Tobit',
+      'Judith',
+    ]);
+    // A Protestant reading the NABRE still sees the books the NABRE carries.
+    expect(orderedCanonBooks('NABRE')).toHaveLength(73);
+    expect(orderedCanonBooks('NABRE', { catholic: false })).toHaveLength(73);
+  });
+
+  it('walks a Catholic reader from Nehemiah into Tobit, even in the ESV', () => {
+    expect(adjacentChapter('Nehemiah', 13, 1, 'ESV')).toEqual({ book: 'Esther', chapter: 1 });
+    expect(adjacentChapter('Nehemiah', 13, 1, 'ESV', { catholic: true })).toEqual({ book: 'Tobit', chapter: 1 });
+    expect(adjacentChapter('Tobit', 1, -1, 'ESV', { catholic: true })).toEqual({ book: 'Nehemiah', chapter: 13 });
+  });
+
+  it("counts a Catholic reader's chapters in the Catholic canon, and leaves text checks to the translation", () => {
+    expect(bookChapterCount('Esther', 'ESV')).toBe(10);
+    expect(bookChapterCount('Esther', 'ESV', { catholic: true })).toBe(16);
+    expect(bookChapterCount('Tobit', 'ESV')).toBeNull();
+    expect(bookChapterCount('Tobit', 'ESV', { catholic: true })).toBe(14);
+  });
+});

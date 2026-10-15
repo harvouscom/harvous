@@ -30,7 +30,9 @@
  */
 import { useEffect, useMemo, type CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { adjacentChapter } from '@/utils/bible-book-chapters';
+import { adjacentChapter, isDeuterocanonPassage, type CanonOptions } from '@/utils/bible-book-chapters';
+import { translationHasDeuterocanon } from '@/data/translations';
+import { useIsCatholic } from '../../hooks/useTradition';
 import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleChapter';
 import { playSound } from '@/utils/sounds';
 
@@ -61,11 +63,12 @@ export function chaptersFrom(
   count: number,
   direction: 1 | -1,
   translation?: string,
+  options?: CanonOptions,
 ): { book: string; chapter: number }[] {
   const out: { book: string; chapter: number }[] = [];
   let cursor: { book: string; chapter: number } | null = { book, chapter };
   for (let i = 0; i < count; i += 1) {
-    cursor = cursor ? adjacentChapter(cursor.book, cursor.chapter, direction, translation) : null;
+    cursor = cursor ? adjacentChapter(cursor.book, cursor.chapter, direction, translation, options) : null;
     if (!cursor) break;
     out.push(cursor);
   }
@@ -73,8 +76,14 @@ export function chaptersFrom(
 }
 
 /** The chapters immediately behind this one, nearest first. Empty at Genesis 1. */
-export function chaptersBehind(book: string, chapter: number, count: number, translation?: string) {
-  return chaptersFrom(book, chapter, count, -1, translation);
+export function chaptersBehind(
+  book: string,
+  chapter: number,
+  count: number,
+  translation?: string,
+  options?: CanonOptions,
+) {
+  return chaptersFrom(book, chapter, count, -1, translation, options);
 }
 
 export default function PrototypeReaderChapterStack({
@@ -98,10 +107,12 @@ export default function PrototypeReaderChapterStack({
   onSelect: (book: string, chapter: number) => void;
 }) {
   const queryClient = useQueryClient();
+  const catholic = useIsCatholic();
 
   const edges = useMemo(
-    () => chaptersFrom(book, chapter, READER_CHAPTER_EDGES, direction === 'ahead' ? 1 : -1, translation),
-    [book, chapter, direction, translation],
+    () =>
+      chaptersFrom(book, chapter, READER_CHAPTER_EDGES, direction === 'ahead' ? 1 : -1, translation, { catholic }),
+    [book, chapter, direction, translation, catholic],
   );
 
   /*
@@ -115,6 +126,8 @@ export default function PrototypeReaderChapterStack({
    */
   useEffect(() => {
     for (const e of edges) {
+      // A Catholic reader's pile can hold Tobit in the ESV: a "Not in ESV" sheet, nothing to warm.
+      if (!translationHasDeuterocanon(translation) && isDeuterocanonPassage(e.book, e.chapter)) continue;
       void queryClient.prefetchQuery(bibleChapterQueryOptions(e.book, e.chapter, translation));
     }
   }, [queryClient, edges, translation]);

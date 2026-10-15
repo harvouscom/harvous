@@ -51,7 +51,7 @@ export type OnboardingStepId =
  * They still live in the same `steps` record, so they persist, merge, and dismiss through
  * exactly the machinery the tour uses — see `ALL_STEP_IDS`.
  */
-export type OnboardingCustomizeId = 'reminders' | 'appearance' | 'translation' | 'import';
+export type OnboardingCustomizeId = 'reminders' | 'appearance' | 'translation' | 'import' | 'tradition';
 
 /** Display order, and the set `shouldShowOnboarding` counts against. */
 export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
@@ -99,6 +99,8 @@ function settleStepsAddedAfterFinishing(
 
 /** Display order of the "Make it yours" section, beneath the tour. */
 export const CUSTOMIZE_STEP_IDS: readonly OnboardingCustomizeId[] = [
+  // First, and answered in the row itself: which Bible you read decides the others' defaults.
+  'tradition',
   'translation',
   'import',
   'appearance',
