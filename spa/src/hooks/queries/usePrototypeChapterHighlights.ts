@@ -187,6 +187,7 @@ export function useCreateChapterHighlight(
         body: JSON.stringify({ ...input, translation, spaceId }),
       });
       if (!res.ok) throw new Error('Failed to save highlight');
+      markOnboardingStep('highlight');
       return res.json();
     },
     /**

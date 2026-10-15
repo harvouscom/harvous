@@ -80,6 +80,7 @@ export function useUpdateHighlight() {
     },
     /* The shared helper rather than a copy of its keys — see `useCreateHighlight`. */
     onSuccess: (_data, variables) => {
+      if (!isGuest && variables.miniNoteBody?.trim()) markOnboardingStep('note');
       invalidatePrototypeStudyThreadListQueries(
         queryClient,
         variables.spaceId,

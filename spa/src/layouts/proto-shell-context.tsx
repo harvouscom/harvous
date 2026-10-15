@@ -1,5 +1,6 @@
 import type { ReviewAnswerEcho } from '@/utils/review-answer-echo';
 import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
+import { markOnboardingStep } from '../lib/proto-onboarding-sync';
 import { clearComposeRestoreStash } from '../lib/compose-session-restore';
 import {
   readSidebarOpenPreference,
@@ -1168,6 +1169,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       const fresh = !libraryPanelViewRef.current || Boolean(libraryPanelExitTimerRef.current);
       if (fresh) {
         resetLibraryListScope();
+        /* The checklist's "Find what you've saved" — however the panel was opened. */
+        markOnboardingStep('library');
       }
       /* A fresh open breathes in; one that lands on a panel already up is a move within it. */
       const moveSound = fresh ? 'panel.open' : libraryMoveSound(libraryPanelViewRef.current, view);

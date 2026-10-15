@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { markOnboardingStep } from '../../../spa/src/lib/proto-onboarding-sync';
 import { useEditor, EditorContent } from '@tiptap/react';
 // BubbleMenu replaced with custom createPortal-based floating toolbar for reliability
 import StarterKit from '@tiptap/starter-kit';
@@ -5867,6 +5868,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             const data = await res.json();
             studyId = data.studyThread?.id ?? null;
             syncStudyThreadList(sourceNoteId);
+            // A verse highlighted inside a note is still "Highlight a verse" on the checklist.
+            markOnboardingStep('highlight');
           }
         } catch {
           /* fall through to local-only mark */
