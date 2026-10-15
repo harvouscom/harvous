@@ -23318,10 +23318,13 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    * sized for a 640px sheet and read as a caption once the decks under it sat two to a row;
    * it is the page's one piece of prose and its opening line, so it takes the room. The chips
    * are sized in `em` off this, so they grow with it.
+   *
+   * 19px since Oct 2026: at 21 the sentence and its chips read as too big once the greeting ran
+   * the full column. 19 is still clearly the page's headline, a step over the 15–17px rows.
    */
   .proto-feed-sheet .proto-home-greeting,
   .proto-feed-sheet__body .proto-feed-sheet__summary {
-    font-size: 21px;
+    font-size: 19px;
     line-height: 1.6;
   }
 
