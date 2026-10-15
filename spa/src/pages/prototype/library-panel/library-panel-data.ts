@@ -18,7 +18,8 @@
  * two surfaces must not move each other.
  */
 import { recordRecentOpen } from './proto-recent-opens';
-import { useOpenResource } from './use-open-resource';
+import { markPendingResourceSelection } from '../resources/pending-resource-selection';
+import type { ResourceSelection } from '../PrototypeResourceLibraryList';
 import { useCallback, useMemo } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -110,8 +111,10 @@ export type LibraryPanelData = {
   openHomeNote: (row: SpaceNoteRow) => void;
   /** Opens a highlight on whichever surface can actually show it. */
   openHighlight: (row: PrototypeHighlightStudyThreadRow) => void;
-  /** Docks a resource onto the open note, or follows it when there is no note. */
+  /** Shows a personal resource in the Resources tool's viewer, which the panel becomes. */
   openResource: (item: LibraryItem) => void;
+  /** The same, for any shelf's row — church and room items included. */
+  previewResource: (selection: ResourceSelection) => void;
   /** Thread/scripture briefs carry id+title only; fill them out from the loaded list. */
   resolveDrillNoteRow: (brief: LibraryNoteBrief) => SpaceNoteRow;
 };
@@ -121,6 +124,7 @@ export function useLibraryPanelData(): LibraryPanelData {
   const queryClient = useQueryClient();
   const {
     closeLibraryPanel,
+    expandLibraryPanelInto,
     composePersistedNoteId,
     sidebarListSpaceScope,
     setSidebarListSpaceScope,
@@ -401,12 +405,23 @@ export function useLibraryPanelData(): LibraryPanelData {
     [spaceId, isScopedSharedSpace, queryClient, navigate, closeLibraryPanel],
   );
 
-  /* Dock-or-follow lives in `use-open-resource`, shared with the expanded Resources tool. */
-  const onResourceDocked = useCallback(
-    () => closeLibraryPanel({ preserveHistory: true }),
-    [closeLibraryPanel],
+  /*
+   * A resource opens in the viewer first, wherever it was found — the panel gives way to the
+   * Resources tool with that item showing. Leaving for the source, or docking it on the open
+   * note, are one press away there; neither is what a plain click should commit you to.
+   */
+  const previewResource = useCallback(
+    (selection: ResourceSelection) => {
+      recordRecentOpen(spaceId, 'resource', selection.id);
+      markPendingResourceSelection(selection);
+      expandLibraryPanelInto('resources');
+    },
+    [spaceId, expandLibraryPanelInto],
   );
-  const openResource = useOpenResource({ spaceId, onDocked: onResourceDocked });
+  const openResource = useCallback(
+    (item: LibraryItem) => previewResource({ source: 'mine', id: item.id }),
+    [previewResource],
+  );
 
   const resolveDrillNoteRow = useCallback(
     (brief: LibraryNoteBrief): SpaceNoteRow => {
@@ -459,6 +474,7 @@ export function useLibraryPanelData(): LibraryPanelData {
     openHomeNote,
     openHighlight,
     openResource,
+    previewResource,
     resolveDrillNoteRow,
   };
 }

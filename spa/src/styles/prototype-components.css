@@ -12914,6 +12914,32 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 /* ── Resources tool ───────────────────────────────────────────────────────────
    The planner's list-and-rail skeleton, but the rail is where you read, so it takes
    the room: the shelf narrows to a column and the viewer gets the rest. */
+
+/* The shelf is the Library panel's list, so it gets that body's treatment: its own scroll,
+   the same inset (by the same variable), and the Add footer pulled flush to the column's
+   edges. Without it the switch ran edge to edge and rows scrolled out under the footer. */
+.proto-resources-tool__list {
+  --proto-library-body-pad: 10px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px var(--proto-library-body-pad) var(--proto-library-body-pad);
+}
+
+.proto-resources-tool__list .proto-resource-footer {
+  margin-inline: calc(-1 * var(--proto-library-body-pad));
+  margin-bottom: calc(-1 * var(--proto-library-body-pad));
+  bottom: calc(-1 * var(--proto-library-body-pad));
+}
+
+/* Narrow: the viewer covers the shelf (the planner rail's own rule), but sits inside its 8px
+   margin, so the list's sticky footer showed through the gap. Hidden outright while a resource
+   is open — which also stops a screen reader reading the shelf behind the article. */
+@media (max-width: 899px) {
+  .proto-resources-tool--viewing > .proto-resources-tool__list {
+    visibility: hidden;
+  }
+}
 .proto-resources-tool--viewing > .proto-resources-tool__list {
   flex: 0 0 320px;
   min-width: 0;

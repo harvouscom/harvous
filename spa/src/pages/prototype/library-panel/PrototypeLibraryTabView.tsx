@@ -225,6 +225,9 @@ function ResourcesSection() {
          list is never filtered from here — it shows the shelf. */
       query=""
       onOpenResource={data.openResource}
+      /* Every shelf's rows open in the viewer — church and room items too, which would
+         otherwise leave for their source straight from the list. */
+      onSelectResource={data.previewResource}
       /* Inside a shared space, "this space" means that room's shelf; on My Home the
          personal and church shelves are what the list already sections for itself. */
       spaceId={data.isScopedSharedSpace ? data.spaceId : null}

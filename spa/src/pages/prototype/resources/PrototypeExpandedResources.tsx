@@ -6,7 +6,7 @@
  * shows the article, the video, the PDF, without leaving Harvous. Same list component, so
  * the two never drift in what a shelf contains or how its rows behave.
  */
-import { useCallback, useMemo, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import ProtoSidebarExpandedPanel from '../ProtoSidebarExpandedPanel';
 import type { ExpandedSidebarToolProps } from '../PrototypeExpandedSidebarHost';
 import PrototypeResourceLibraryList, {
@@ -14,6 +14,10 @@ import PrototypeResourceLibraryList, {
 } from '../PrototypeResourceLibraryList';
 import PrototypeResourceViewer, { type ViewerResource } from './PrototypeResourceViewer';
 import { useOpenResource, useDockResource } from '../library-panel/use-open-resource';
+import {
+  clearPendingResourceSelection,
+  peekPendingResourceSelection,
+} from './pending-resource-selection';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { useActiveSpace } from '../../../hooks/useActiveSpace';
 import { resolveLibraryListScope } from '../../../lib/shared-space-capabilities';
@@ -44,7 +48,9 @@ export default function PrototypeExpandedResources({
   );
   const shelfSpaceId = scope.isScopedSharedSpace ? scope.spaceId : null;
 
-  const [selection, setSelection] = useState<ResourceSelection | null>(null);
+  /* Opened from a resource click in the Library panel: start on that item. */
+  const [selection, setSelection] = useState<ResourceSelection | null>(peekPendingResourceSelection);
+  useEffect(() => clearPendingResourceSelection(), []);
   const closeViewer = useCallback(() => setSelection(null), []);
 
   const library = useLibrary();
