@@ -8,7 +8,6 @@
  * them.
  */
 import { useMemo, useState, type ReactNode } from 'react';
-import Icon from '@/components/react/Icon';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
 import PrototypeLibrarySegmented from './PrototypeLibrarySegmented';
 import { SIDEBAR_NO_MATCH_COPY } from '../sidebar-no-match-copy';
@@ -201,26 +200,8 @@ function HighlightsSection({ selection }: { selection: LibrarySelection }) {
 
 function ResourcesSection() {
   const data = useLibraryPanelData();
-  const { isMobileSidebar, expandLibraryPanelInto } = useProtoShell();
   return (
     <PrototypeResourceLibraryList
-      /* Room to read the resource itself. Desktop only: the phone sheet is already the
-         whole screen, and the expanded tool's takeover there adds a step, not space. */
-      headerAction={
-        isMobileSidebar ? null : (
-          <button
-            type="button"
-            className="proto-side-panel__action-btn"
-            title="Expand"
-            aria-label="Expand resources"
-            onClick={(e) =>
-              expandLibraryPanelInto('resources', e.currentTarget.getBoundingClientRect())
-            }
-          >
-            <Icon name="up-right-and-down-left-from-center" size={14} />
-          </button>
-        )
-      }
       /* The panel's search is a separate surface (see PrototypeLibraryBody), so this
          list is never filtered from here — it shows the shelf. */
       query=""

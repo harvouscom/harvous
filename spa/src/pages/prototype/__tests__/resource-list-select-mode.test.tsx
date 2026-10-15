@@ -150,11 +150,4 @@ describe('resource list select mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Church resource: Romans study guide' }));
     expect(openLibraryFileItem).toHaveBeenCalledWith('church_1');
   });
-
-  it('puts the header action beside the shelf switch', () => {
-    renderList({ shelfFilterAs: 'switch', headerAction: <button type="button">Expand</button> });
-    const expand = screen.getByRole('button', { name: 'Expand' });
-    expect(expand.closest('.proto-resource-toolbar')).not.toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Expand' })).toHaveLength(1);
-  });
 });

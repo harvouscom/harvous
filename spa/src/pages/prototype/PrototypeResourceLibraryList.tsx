@@ -9,15 +9,7 @@
  * Personal-only today, including inside a shared space. Church-owned libraries
  * merge into this same list later (docs/future/RESOURCE_LIBRARY.md §5.1).
  */
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type DragEvent,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import Icon from '@/components/react/Icon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoRowSelectCheckbox from './ProtoRowSelectCheckbox';
@@ -968,7 +960,6 @@ export default function PrototypeResourceLibraryList({
   shelfFilterAs = 'chips',
   selected = null,
   onSelectResource,
-  headerAction,
 }: {
   /** Sidebar search text — filters by title, site name, and domain. */
   query: string;
@@ -981,8 +972,6 @@ export default function PrototypeResourceLibraryList({
   onSelectResource?: (selection: ResourceSelection) => void;
   /** The row the viewer is showing, marked the way the sidebar marks the open note. */
   selected?: ResourceSelection | null;
-  /** A control for the list's top row, beside the shelf switch when there is one. */
-  headerAction?: ReactNode;
   /**
    * How the shelf filter is drawn.
    *
@@ -1365,9 +1354,6 @@ export default function PrototypeResourceLibraryList({
   ) : null;
 
   const hasFiles = (e: DragEvent) => e.dataTransfer?.types?.includes('Files');
-  /* Mirrors the branch below that draws the switch, so the header action is shown once. */
-  const switchShown =
-    !spaceId && showSections && !libraryQuery.isLoading && !libraryQuery.isError;
 
   return (
     <div
@@ -1402,10 +1388,6 @@ export default function PrototypeResourceLibraryList({
           <Icon name="paperclip" size={18} aria-hidden />
           <span>Drop to add a resource</span>
         </div>
-      ) : null}
-      {/* With no shelf switch to sit beside, the action takes a row of its own. */}
-      {headerAction && !switchShown ? (
-        <div className="proto-resource-toolbar proto-resource-toolbar--solo">{headerAction}</div>
       ) : null}
       {spaceId ? (
         <SpaceShelfList
@@ -1461,24 +1443,21 @@ export default function PrototypeResourceLibraryList({
               one list to begin with; the other two are for when you know which
               shelf you want. */}
           {showSections ? (
-            <div className={headerAction ? 'proto-resource-toolbar' : undefined}>
-              {shelfFilterAs === 'switch' ? (
-                <PrototypeLibrarySegmented
-                  options={sourceTabs}
-                  value={sourceTab}
-                  onChange={setSourceTab}
-                  label="Which resources"
-                />
-              ) : (
-                <ProtoChipBar
-                  ariaLabel="Which resources"
-                  options={sourceTabs}
-                  selectedId={sourceTab}
-                  onSelect={setSourceTab}
-                />
-              )}
-              {headerAction}
-            </div>
+            shelfFilterAs === 'switch' ? (
+              <PrototypeLibrarySegmented
+                options={sourceTabs}
+                value={sourceTab}
+                onChange={setSourceTab}
+                label="Which resources"
+              />
+            ) : (
+              <ProtoChipBar
+                ariaLabel="Which resources"
+                options={sourceTabs}
+                selectedId={sourceTab}
+                onSelect={setSourceTab}
+              />
+            )
           ) : null}
 
           {/* One list, newest first. No headings: every row names its own shelf
