@@ -18,11 +18,11 @@
  * two surfaces must not move each other.
  */
 import { recordRecentOpen } from './proto-recent-opens';
+import { useOpenResource } from './use-open-resource';
 import { useCallback, useMemo } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  isPrototypeNotePath,
   matchPrototypeNoteId,
   prototypeNoteRouteTo,
   prototypeReadRouteTo,
@@ -59,7 +59,7 @@ import {
   seedNoteFromList,
   type ListNoteForSeed,
 } from '../../../hooks/queries/useNote';
-import { openLibraryFileItem, type LibraryItem } from '../../../hooks/queries/useLibrary';
+import type { LibraryItem } from '../../../hooks/queries/useLibrary';
 
 /** How many items a root-level section previews before "See all". */
 export const LIBRARY_PREVIEW_COUNT = 4;
@@ -401,44 +401,12 @@ export function useLibraryPanelData(): LibraryPanelData {
     [spaceId, isScopedSharedSpace, queryClient, navigate, closeLibraryPanel],
   );
 
-  /**
-   * Where a resource opens.
-   *
-   * The study dock is per-note, so a resource chip only has somewhere to live when a
-   * note is open. Jumping to an arbitrary note just to hold the chip would be worse
-   * than following the link, so: dock it when we are on a note, open it otherwise.
-   */
-  const openResource = useCallback(
-    (item: LibraryItem) => {
-      recordRecentOpen(spaceId, 'resource', item.id);
-      if (isPrototypeNotePath(pathname) && activeNoteFullId) {
-        navigate({
-          to: prototypeNoteRouteTo(),
-          params: { noteId: noteParamSlug(activeNoteFullId) },
-          search: {
-            /* The shell's context, not the panel's: this re-navigates the note already open,
-               and that note's `?space=` is a fact about it. Taking the panel's Home scope here
-               would drop it — 404ing a note reachable only through the room, or moving the
-               shell home just for docking a chip. */
-            ...prototypeNoteListNavigationSearch({
-              isScopedSharedSpace: isSharedSpace,
-              spaceId: activeSpaceId ?? '',
-            }),
-            libItem: item.id,
-            dockReq: String(Date.now()),
-          },
-        });
-        closeLibraryPanel({ preserveHistory: true });
-        return;
-      }
-      if (item.kind === 'file') {
-        void openLibraryFileItem(item.id);
-        return;
-      }
-      if (item.sourceUrl) window.open(item.sourceUrl, '_blank', 'noopener,noreferrer');
-    },
-    [pathname, activeNoteFullId, isSharedSpace, activeSpaceId, spaceId, navigate, closeLibraryPanel],
+  /* Dock-or-follow lives in `use-open-resource`, shared with the expanded Resources tool. */
+  const onResourceDocked = useCallback(
+    () => closeLibraryPanel({ preserveHistory: true }),
+    [closeLibraryPanel],
   );
+  const openResource = useOpenResource({ spaceId, onDocked: onResourceDocked });
 
   const resolveDrillNoteRow = useCallback(
     (brief: LibraryNoteBrief): SpaceNoteRow => {

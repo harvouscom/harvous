@@ -686,6 +686,11 @@ type ProtoShellContextValue = {
   expandedSidebarOrigin: ProtoExpandRect | null;
   closeExpandedSidebar: (options?: { preserveHistory?: boolean }) => void;
   /**
+   * Swap the Library panel for an expanded tool — "show me more of this". The panel's history
+   * entry becomes the tool's, so one Back from the tool lands where the panel was opened from.
+   */
+  expandLibraryPanelInto: (tool: string, origin?: ProtoExpandRect | null) => void;
+  /**
    * Library panel — the browse surface that morphs out of the toolbar's center chip.
    *
    * `null` is closed. Deliberately NOT sharing the sidebar's list mode or drilldowns:
@@ -1215,6 +1220,28 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       beginLibraryPanelClose(options?.preserveHistory ? 'navigate' : undefined);
     },
     [beginLibraryPanelClose, popLibraryPanelHistory],
+  );
+
+  const expandLibraryPanelInto = useCallback(
+    (tool: string, origin?: ProtoExpandRect | null) => {
+      /*
+       * Handed over, not popped and pushed: `history.back()` settles asynchronously, so a push
+       * straight after it lands first and is then undone by the pop. Rewriting the panel's
+       * entry in place leaves one entry for one surface, and `openExpandedSidebar`'s push sees
+       * the flag already standing and skips itself.
+       */
+      if (typeof window !== 'undefined') {
+        const state = window.history.state as Record<string, unknown> | null;
+        if (state?.[LIBRARY_PANEL_HISTORY_FLAG]) {
+          const next: Record<string, unknown> = { ...state, [EXPANDED_SIDEBAR_HISTORY_FLAG]: true };
+          delete next[LIBRARY_PANEL_HISTORY_FLAG];
+          window.history.replaceState(next, '');
+        }
+      }
+      closeLibraryPanel({ preserveHistory: true });
+      openExpandedSidebar(tool, origin);
+    },
+    [closeLibraryPanel, openExpandedSidebar],
   );
 
   const pushMobileDrawerHistory = useCallback(() => {
@@ -1959,6 +1986,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       expandedSidebarOrigin,
       openExpandedSidebar,
       closeExpandedSidebar,
+      expandLibraryPanelInto,
       libraryPanelView,
       libraryPanelExiting,
       openLibraryPanel,
@@ -2063,6 +2091,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       expandedSidebarOrigin,
       openExpandedSidebar,
       closeExpandedSidebar,
+      expandLibraryPanelInto,
       libraryPanelView,
       libraryPanelExiting,
       openLibraryPanel,

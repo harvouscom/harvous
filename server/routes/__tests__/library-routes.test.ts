@@ -128,10 +128,24 @@ describe('resource library route contracts', () => {
   it.each([
     "app.get('/api/library/items/:id'",
     "app.get('/api/library/items/:id/file'",
+    "app.get('/api/library/items/:id/reader'",
   ])('resolves %s through the shared visibility check, not personal ownership', (marker) => {
     const body = handlerBody(marker);
     expect(body).toContain('resolveVisibleItem(auth.userId, id)');
     expect(body).not.toContain('findOwnedItem');
+  });
+
+  it('reads only the stored link of a link item, through the private-address guard', () => {
+    const body = handlerBody("app.get('/api/library/items/:id/reader'");
+    // The fetched URL is the item's own, never one from the request.
+    expect(body).toContain('readResourceArticle(item.sourceUrl)');
+    expect(body).not.toContain('c.req.query');
+    expect(body).toContain("code: 'NOT_A_LINK' }, 400");
+    expect(body).toContain("rateLimit('read')");
+    // Per-viewer answer: never cache it where another account could be served it.
+    expect(body).toContain("'Cache-Control', 'private");
+    const reader = source('server/utils/resource-reader.ts');
+    expect(reader).toContain('fetchPublicText(');
   });
 
   it('still gates writes on personal ownership', () => {

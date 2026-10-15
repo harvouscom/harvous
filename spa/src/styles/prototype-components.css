@@ -12911,6 +12911,270 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   flex-basis: 420px;
 }
 
+/* ── Resources tool ───────────────────────────────────────────────────────────
+   The planner's list-and-rail skeleton, but the rail is where you read, so it takes
+   the room: the shelf narrows to a column and the viewer gets the rest. */
+.proto-resources-tool--viewing > .proto-resources-tool__list {
+  flex: 0 0 320px;
+  min-width: 0;
+}
+
+.proto-planner-editor.proto-resource-viewer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-resource-viewer__body {
+  padding-bottom: 0;
+}
+
+/* One scroll for the title and the thing itself: a video or an article reads as one
+   page, not a fixed header over a scrolling well. */
+.proto-resource-viewer__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 4px 24px;
+}
+
+/* A reading measure: on a 700px viewer a line of article text otherwise runs the full
+   width, which is the width nobody reads at. */
+.proto-resource-viewer__head,
+.proto-resource-card,
+.proto-resource-reader,
+.proto-resource-embed-wrap,
+.proto-resource-pdf,
+.proto-resource-file {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.proto-resource-viewer__head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-resource-viewer__head .proto-church-content__title {
+  font-size: 19px;
+  line-height: 1.3;
+}
+
+.proto-resource-viewer__meta {
+  margin: 0;
+}
+
+.proto-resource-viewer__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.proto-resource-viewer__hero {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1.91 / 1;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 0.5px solid var(--pds-border-soft);
+  background: var(--pds-bg-subtle);
+}
+
+.proto-resource-card,
+.proto-resource-reader,
+.proto-resource-embed-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.proto-resource-card__notice {
+  margin: 0;
+}
+
+.proto-resource-card__description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--pds-text-primary);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.proto-resource-card__open {
+  align-self: flex-start;
+}
+
+.proto-resource-reader__byline {
+  margin: 0;
+}
+
+.proto-resource-reader__body {
+  font-family: var(--pds-font-reading);
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--pds-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.proto-resource-reader__body :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--pds-font-body);
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.4em 0 0.5em;
+}
+
+.proto-resource-reader__body h1 {
+  font-size: 22px;
+}
+
+.proto-resource-reader__body h2 {
+  font-size: 19px;
+}
+
+.proto-resource-reader__body :is(h3, h4, h5, h6) {
+  font-size: 17px;
+}
+
+.proto-resource-reader__body :is(p, ul, ol, blockquote) {
+  margin: 0 0 1em;
+}
+
+.proto-resource-reader__body :is(ul, ol) {
+  padding-left: 1.4em;
+}
+
+.proto-resource-reader__body blockquote {
+  padding-left: 14px;
+  border-left: 2px solid var(--pds-border-control);
+  color: var(--pds-text-secondary);
+}
+
+.proto-resource-reader__body a {
+  color: var(--pds-text-link);
+}
+
+/* Some extractors keep the article's own figures. Fit them to the measure. */
+.proto-resource-reader__body :is(img, video) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1em auto;
+  border-radius: 8px;
+}
+
+.proto-resource-reader__body figcaption {
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+  text-align: center;
+}
+
+.proto-resource-reader__footer {
+  padding-top: 12px;
+  border-top: 0.5px solid var(--pds-border-soft);
+}
+
+.proto-resource-embed {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--pds-bg-subtle);
+}
+
+.proto-resource-embed--video {
+  aspect-ratio: 16 / 9;
+}
+
+/* Spotify's full player: artwork, title and the episode list. Its compact strip (152px)
+   hides everything but play. */
+.proto-resource-embed--audio {
+  height: 352px;
+}
+
+.proto-resource-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.proto-resource-file--image img,
+.proto-resource-file--video video {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  margin: 0 auto;
+  border-radius: 10px;
+}
+
+.proto-resource-file--video video,
+.proto-resource-file--audio audio {
+  width: 100%;
+}
+
+.proto-resource-file--text {
+  margin: 0 auto;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--pds-bg-subtle);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.proto-resource-pdf {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.proto-resource-pdf__count {
+  margin: 0;
+}
+
+/* A sheet of paper: pdf.js paints the page's own white, so the frame only needs to hold
+   its place and edge it while the page draws. */
+.proto-resource-pdf__page {
+  width: 100%;
+  border-radius: 4px;
+  border: 0.5px solid var(--pds-border-soft);
+  background: var(--pds-bg-subtle);
+  overflow: hidden;
+}
+
+.proto-resource-pdf__page canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The list's top row: the shelf switch with an action beside it, or the action alone. */
+.proto-resource-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proto-resource-toolbar:not(.proto-resource-toolbar--solo) > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-resource-toolbar--solo {
+  justify-content: flex-end;
+  padding: 0 8px 4px;
+}
+
 /* The only part that scrolls; the pane's body already sets the side inset. `flex: 1 1 auto`
    + `min-height: 0` because the app reset sets `flex-shrink: 0`, which pushed the footer
    out of the card instead of scrolling. */
