@@ -12,6 +12,11 @@ export interface TranslationInfo {
   website: string;
   isPublicDomain: boolean;
   sortOrder: number;
+  /**
+   * Carries the deuterocanonical books (Tobit, Judith, Wisdom, Sirach, Baruch, 1–2 Maccabees),
+   * Daniel 13–14, Esther 10:4–16:24 and the Prayer of Azariah. See `src/data/deuterocanon-chapters.json`.
+   */
+  deuterocanon?: boolean;
 }
 
 export const TRANSLATIONS: Record<string, TranslationInfo> = {
@@ -145,6 +150,7 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
     website: 'https://bible.usccb.org',
     isPublicDomain: false,
     sortOrder: 11,
+    deuterocanon: true,
   },
   DRB: {
     id: 'DRB',
@@ -155,6 +161,7 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
     website: 'https://ebible.org/find/details.php?id=engDRA',
     isPublicDomain: true,
     sortOrder: 12,
+    deuterocanon: true,
   },
 };
 
@@ -172,3 +179,11 @@ export function getTranslation(id: string): TranslationInfo | undefined {
 export function getTranslationAbbreviationDisplay(id: string): string {
   return getTranslation(id)?.abbreviation ?? id;
 }
+
+/** True when this translation carries the deuterocanonical books (NABRE, DRB). */
+export function translationHasDeuterocanon(id: string | null | undefined): boolean {
+  return Boolean(id && TRANSLATIONS[id]?.deuterocanon);
+}
+
+/** The translations that carry the deuterocanon, in picker order. */
+export const DEUTEROCANON_TRANSLATIONS = TRANSLATION_ORDER.filter(translationHasDeuterocanon);

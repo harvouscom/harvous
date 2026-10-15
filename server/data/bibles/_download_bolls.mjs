@@ -12,14 +12,14 @@
  * Output: server/data/bibles/<ID>.json
  * Then:   npx tsx server/scripts/seed-bible-verses.ts <ID>
  *
- * Translations numbered differently from Harvous (NABRE) are saved raw to
+ * Translations numbered differently from Harvous (NABRE) are saved raw, deuterocanon included, to
  * server/data/bibles/raw/<ID>.json and renumbered by _remap.mjs on the way out.
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { SOURCES, USFM_BOOKS } from '../versification/remap.mjs';
+import { SOURCES, USFM_BOOKS, BOLLS_DEUTERO_BOOK_IDS } from '../versification/remap.mjs';
 import { writeRemapped } from './_remap.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -46,6 +46,11 @@ const BOOK_NAME_MAP = {
   'Psalm': 'Psalms',
   'Song of Songs': 'Song of Solomon',
 };
+
+/** USFM code for a Bolls book id: 1–66 are Harvous's order, the deuterocanon has its own ids. */
+function bollsUsfmCode(bookid) {
+  return USFM_BOOKS[bookid - 1] ?? BOLLS_DEUTERO_BOOK_IDS[bookid] ?? null;
+}
 
 function canonicalize(bollsName) {
   return BOOK_NAME_MAP[bollsName] ?? bollsName;
@@ -96,7 +101,8 @@ async function main() {
   }
 
   const bollsCode = BOLLS_CODES[translationId];
-  // A renumbered translation is saved raw, keyed by USFM book code, and only its 66 books.
+  // A renumbered translation is saved raw, keyed by USFM book code: the 66 books plus the
+  // deuterocanon, which only the renumbered (Catholic) translations carry.
   const remap = Boolean(SOURCES[translationId]);
   if (remap) mkdirSync(join(__dirname, 'raw'), { recursive: true });
   const outPath = remap
@@ -120,7 +126,7 @@ async function main() {
 
   console.log(`Fetching book list for ${translationId} (Bolls code: ${bollsCode})...`);
   const books = (await fetchJson(`https://bolls.life/get-books/${bollsCode}/`))
-    .filter((b) => !remap || b.bookid <= USFM_BOOKS.length);
+    .filter((b) => !remap || bollsUsfmCode(b.bookid));
   console.log(`${books.length} books found.\n`);
 
   const allVerses = [...existingVerses];
@@ -128,7 +134,7 @@ async function main() {
   let chaptersProcessed = 0;
 
   for (const book of books) {
-    const canonicalBook = remap ? USFM_BOOKS[book.bookid - 1] : canonicalize(book.name);
+    const canonicalBook = remap ? bollsUsfmCode(book.bookid) : canonicalize(book.name);
 
     // Bolls' book list can undercount (it gives NABRE Ezekiel 47 chapters and serves 48), so
     // keep asking past the advertised count until a chapter comes back empty.

@@ -14,9 +14,14 @@
  *
  * What the renumbering does with text that has no English home:
  * - A verse that lands on English verse 0 (a Psalm title) is dropped, as our ESV already drops them.
- * - A verse that lands outside the 66-book chapter table (Daniel 3:24–90, Susanna, Bel, the Greek
- *   additions to Esther) is dropped and listed in the report. Those come back with the
- *   deuterocanonical books.
+ * - The Greek parts of Daniel and Esther keep the addresses Catholic Bibles give them where those
+ *   don't collide with English: Daniel 13 (Susanna), Daniel 14 (Bel), Esther 10:4–16:24 in the
+ *   Vulgate's layout. Daniel 3:24–90 does collide (English 3:24–30 is the fourth man in the fire),
+ *   so it becomes the book "Prayer of Azariah", verse n = Daniel 3:n+23.
+ * - Tobit, Judith and Sirach in the Douay-Rheims translate the Vulgate's Latin, a different text
+ *   from the Greek the NABRE translates, with verses that don't correspond. No table maps them, so
+ *   they keep their printed numbers, and the chapter table takes the longer of the two.
+ * - Anything still outside the chapter table is dropped and listed in the report.
  * - Two source verses that land on one English verse are joined in order.
  */
 
@@ -37,36 +42,64 @@ export const USFM_BOOKS = [
 ];
 
 /**
- * NABRE Esther as Bolls serves it: the Hebrew chapters and the Greek additions (A–F) numbered as
- * one run of 18 "chapters". Bolls chapter → [Hebrew chapter, verse offset], or null for an
- * addition. Bolls has no chapter 6, so NABRE Esther 3:14–15 is missing from the source.
+ * USFM codes for the books only the Catholic translations carry, in `bookOrder` 67–74 order (see
+ * `src/data/deuterocanon-chapters.json`). Appended rather than placed in Catholic order so that
+ * every stored `bookOrder` for Genesis–Revelation keeps its number. `S3Y` is Daniel 3:24–90,
+ * which Harvous calls "Prayer of Azariah" because English Daniel 3:24–30 already has those
+ * addresses. Susanna and Bel keep their Catholic addresses, Daniel 13–14.
  */
-/** The Douay-Rheims prints Esther's Greek additions after the Hebrew book, as 10:4–16:24. */
-const DRB_ESTHER = Object.fromEntries([
-  ...Array.from({ length: 10 }, (_, i) => [i + 1, [i + 1, 0]]),
-  ...[11, 12, 13, 14, 15, 16].map((c) => [c, null]),
-]);
+export const DEUTERO_BOOKS = ['TOB', 'JDT', 'WIS', 'SIR', 'BAR', '1MA', '2MA', 'S3Y'];
 
+/** Every book Harvous knows, indexed by `bookOrder - 1`. */
+export const ALL_BOOKS = [...USFM_BOOKS, ...DEUTERO_BOOKS];
+
+/** Bolls' book ids for the deuterocanon (its 1–66 are Harvous's). */
+export const BOLLS_DEUTERO_BOOK_IDS = { 68: 'TOB', 69: 'JDT', 70: 'WIS', 71: 'SIR', 73: 'BAR', 74: '1MA', 75: '2MA' };
+
+/**
+ * The tables carry Susanna and Bel as books of their own; Harvous keeps them where the Catholic
+ * Bibles print them.
+ */
+const RENAMED_CODES = { SUS: 'DAN 13', BEL: 'DAN 14' };
+
+/** The Douay-Rheims prints Esther's Greek additions after the Hebrew book, as 10:4–16:24. */
+const DRB_ESTHER = Object.fromEntries(Array.from({ length: 16 }, (_, i) => [i + 1, [i + 1, 0]]));
+
+/**
+ * NABRE Esther as Bolls serves it: the Hebrew chapters and the Greek additions (A–F) numbered as
+ * one run of 18 "chapters". Bolls chapter → [chapter, verse offset], or a list of
+ * [first source verse, chapter, verse offset] runs where one addition spans two chapters. The
+ * additions go where the Douay-Rheims prints them (checked verse by verse against its text), so
+ * "Esther 13:8" is the same verse in both. Bolls has no chapter 6, so NABRE Esther 3:14–15 is
+ * missing from the source.
+ */
 const NABRE_ESTHER = {
-  1: null, // Addition A
+  1: [[1, 11, 1], [12, 12, -11]], // Addition A: 11:2–12, 12:1–6
   2: [1, 0],
   3: [2, 0],
   4: [3, 0],
-  5: null, // Addition B
+  5: [13, 0], // Addition B: 13:1–7
   6: [3, 13],
   7: [4, 0],
-  8: null, // Addition C
-  9: null, // Addition D
+  8: [[1, 13, 7], [12, 14, -11]], // Addition C: 13:8–18, 14:1–19
+  9: [15, 3], // Addition D: 15:4–19 (the Vulgate's 15:1–3 have no Greek)
   10: [5, 0],
   11: [6, 0],
   12: [7, 0],
   13: [8, 0],
-  14: null, // Addition E
+  14: [16, 0], // Addition E: 16:1–24
   15: [8, 12],
   16: [9, 0],
   17: [10, 0],
-  18: null, // Addition F
+  18: [[1, 10, 3], [11, 11, -10]], // Addition F: 10:4–13, 11:1
 };
+
+/** [chapter, verse offset] for one source verse under a chapter map entry. */
+function chapterMapTarget(entry, verse) {
+  if (!Array.isArray(entry[0])) return entry;
+  const run = entry.filter(([first]) => verse >= first).at(-1);
+  return [run[1], run[2]];
+}
 
 const ROMAN_SECTION = '(?:XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)';
 
@@ -146,7 +179,7 @@ export function parseVrsMappings(text) {
     else if (left.length === 1) right.forEach((r) => pairs.push([left[0], r]));
     else if (right.length === 1) left.forEach((l) => pairs.push([l, right[0]]));
     // The vendored file has one malformed line (`DAG 3:52-23`), in a book Harvous doesn't carry.
-    else if (USFM_BOOKS.includes(m[1]) || USFM_BOOKS.includes(m[5])) {
+    else if (ALL_BOOKS.includes(m[1])) {
       throw new Error(`Unequal ranges in versification line: ${raw}`);
     }
     for (const [l, r] of pairs) {
@@ -203,17 +236,32 @@ export function englishCandidates(book, chapter, verse, versification) {
     }
     orgs ??= [source];
   }
-  return orgs.flatMap((org) => orgToEng.get(org) ?? [org]).map(parseKey);
+  return orgs.flatMap((org) => orgToEng.get(org) ?? [org]).map(parseKey).map(harvousAddress);
 }
 
-function loadChapterTable() {
-  const rows = JSON.parse(readFileSync(join(ROOT, 'src/data/bible-chapters.json'), 'utf-8'));
+/** The tables' Greek-Daniel codes, at the addresses Harvous keeps them. */
+function harvousAddress(c) {
+  if (c.book === 'DAG') return { ...c, book: 'DAN' };
+  const renamed = RENAMED_CODES[c.book];
+  if (!renamed) return c;
+  const [book, chapter] = renamed.split(' ');
+  return { book, chapter: Number(chapter), verse: c.verse };
+}
+
+/**
+ * The chapter table every Catholic translation is renumbered into: the 66 books, extended by the
+ * deuterocanon table (its own books, and the extra chapters and verses of Esther and Daniel).
+ */
+export function loadChapterTable() {
+  const read = (f) => JSON.parse(readFileSync(join(ROOT, 'src/data', f), 'utf-8'));
   const byCode = new Map(); // 'PSA' → { name, order, chapters: Map<chapter, endVerse> }
-  for (const r of rows) {
-    const code = USFM_BOOKS[r.bookOrder - 1];
+  for (const r of [...read('bible-chapters.json'), ...read('deuterocanon-chapters.json')]) {
+    const code = ALL_BOOKS[r.bookOrder - 1];
     if (!byCode.has(code)) byCode.set(code, { name: r.book, order: r.bookOrder, chapters: new Map() });
-    byCode.get(code).chapters.set(r.chapter, r.endVerse);
+    const chapters = byCode.get(code).chapters;
+    chapters.set(r.chapter, Math.max(chapters.get(r.chapter) ?? 0, r.endVerse));
   }
+  for (const book of byCode.values()) book.chapters = new Map([...book.chapters].sort((a, b) => a[0] - b[0]));
   return byCode;
 }
 
@@ -326,12 +374,9 @@ export function remapVerses(raw, translationId, { reference } = {}) {
     if (chapterMap) {
       const to = chapterMap[chapter];
       if (to === undefined) throw new Error(`${translationId} ${v.book} ${chapter} is not in its chapter map`);
-      if (to === null) {
-        report.outsideCanon.push(key(v.book, chapter, verse));
-        return;
-      }
-      chapter = to[0];
-      verse += to[1];
+      const [toChapter, offset] = chapterMapTarget(to, verse);
+      chapter = toChapter;
+      verse += offset;
     }
 
     const versification =

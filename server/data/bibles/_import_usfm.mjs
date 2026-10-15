@@ -14,7 +14,8 @@
  * Writes: server/data/bibles/raw/<ID>.json, then server/data/bibles/<ID>.json via _remap.mjs.
  * Then:   npx tsx server/scripts/seed-bible-verses.ts <ID>
  *
- * Only the 66 books Harvous knows are kept; the deuterocanonical books are skipped for now.
+ * Keeps the 66 books and the deuterocanon. Daniel 3:24–90 and 13–14 and Esther 10:4–16:24 arrive
+ * inside DAN and EST and are placed by _remap.mjs.
  */
 
 import { writeFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'fs';
@@ -22,7 +23,7 @@ import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { USFM_BOOKS } from '../versification/remap.mjs';
+import { ALL_BOOKS } from '../versification/remap.mjs';
 import { writeRemapped } from './_remap.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -104,12 +105,13 @@ function main() {
     const byBook = new Map();
     for (const f of files) {
       const { id, verses } = parseUsfmBook(readFileSync(join(work, 'usfm', f), 'utf-8'));
-      if (USFM_BOOKS.includes(id)) byBook.set(id, verses);
+      if (ALL_BOOKS.includes(id)) byBook.set(id, verses);
     }
-    const missingBooks = USFM_BOOKS.filter((b) => !byBook.has(b));
+    // S3Y never arrives as a book of its own: the source prints it inside Daniel 3.
+    const missingBooks = ALL_BOOKS.filter((b) => b !== 'S3Y' && !byBook.has(b));
     if (missingBooks.length) throw new Error(`Source is missing books: ${missingBooks.join(', ')}`);
 
-    const raw = USFM_BOOKS.flatMap((b) => byBook.get(b));
+    const raw = ALL_BOOKS.filter((b) => byBook.has(b)).flatMap((b) => byBook.get(b));
     mkdirSync(join(__dirname, 'raw'), { recursive: true });
     const rawPath = join(__dirname, 'raw', `${translationId}.json`);
     writeFileSync(rawPath, JSON.stringify(raw, null, 2));
