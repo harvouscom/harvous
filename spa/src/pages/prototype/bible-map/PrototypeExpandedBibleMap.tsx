@@ -15,6 +15,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import '../../../styles/prototype-bible-map.css';
 import Icon from '@/components/react/Icon';
 import ProtoSidebarExpandedPanel from '../ProtoSidebarExpandedPanel';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
