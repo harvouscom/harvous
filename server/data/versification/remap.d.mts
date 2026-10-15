@@ -23,13 +23,18 @@ export interface RemapReport {
 export interface VersificationSource {
   versification: Versification;
   books: Record<string, Versification>;
-  chapterMaps: Record<string, Record<number, [number, number] | null>>;
+  /** Source chapter → [chapter, verse offset], or runs of [first source verse, chapter, offset]. */
+  chapterMaps: Record<string, Record<number, [number, number] | Array<[number, number, number]>>>;
   verseShifts?: Record<string, number>;
   cleanText?: (text: string, book: string) => string;
   alignWith?: string;
 }
 
 export const USFM_BOOKS: string[];
+export const DEUTERO_BOOKS: string[];
+export const ALL_BOOKS: string[];
+export const BOLLS_DEUTERO_BOOK_IDS: Record<number, string>;
+export function loadChapterTable(): Map<string, { name: string; order: number; chapters: Map<number, number> }>;
 export const SOURCES: Record<string, VersificationSource>;
 export function parseVrsMappings(text: string): Map<string, string[]>;
 export function englishCandidates(book: string, chapter: number, verse: number, versification: Versification): VerseRef[];

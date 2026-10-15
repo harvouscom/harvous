@@ -38,7 +38,13 @@ struct ScriptureDetector {
             "Hebrews|Heb", "James|Jas?",
             "1\\s*Peter|1\\s*Pet", "2\\s*Peter|2\\s*Pet",
             "1\\s*John", "2\\s*John", "3\\s*John",
-            "Jude", "Revelation|Rev"
+            "Jude", "Revelation|Rev",
+            // Deuterocanon (NABRE, DRB)
+            "Tobit|Tobias|Tob", "Judith|Jdt",
+            "Wisdom\\s*of\\s*Solomon|Wisdom|Wis",
+            "Sirach|Ecclesiasticus|Ecclus|Sir", "Baruch|Bar",
+            "1\\s*Maccabees|1\\s*Macc?", "2\\s*Maccabees|2\\s*Macc?",
+            "Prayer\\s*of\\s*Azariah|Song\\s*of\\s*the\\s*Three(?:\\s*Young\\s*Men|\\s*Jews)?|Pr\\s*Azar"
         ]
         return "(?:" + books.joined(separator: "|") + ")"
     }()

@@ -52,10 +52,21 @@ How it works (`server/data/versification/remap.mjs`):
 
 To re-run just the renumbering: `node server/data/bibles/_remap.mjs NABRE`.
 
-What's deliberately left out for now:
+### The deuterocanon (NABRE and DRB only)
 
-- **The deuterocanonical books** (Tobit, Judith, Wisdom, Sirach, Baruch, 1–2 Maccabees), and the Greek parts of shared books: Daniel 3:24–90 (Song of the Three), Daniel 13–14 (Susanna, Bel), the additions to Esther. They need the book list, parser and reader to know more than 66 books.
-- **Psalm titles** that are a verse of their own, as in our ESV. A title that shares verse 1 with the psalm's first line stays, as printed.
+Both Catholic translations also carry Tobit, Judith, Wisdom, Sirach, Baruch, 1–2 Maccabees and the Greek parts of Daniel and Esther. The other eleven translations don't, and the reader and pills say "Not in ESV" (or whichever) with a way to read it in the NABRE.
+
+- **Where the chapters live.** `src/data/bible-chapters.json` stays the 66 books: stored `bookOrder` values, packs, continue-book and progress are built on it. `src/data/deuterocanon-chapters.json` adds the rest, written by `node server/data/versification/_build_deuterocanon_table.mjs` (each chapter takes the longest of `eng.vrs` and the two translations' raw downloads). Pass a translation to `bookChapterCount` / `orderedCanonBooks` / `adjacentChapter` in `src/utils/bible-book-chapters.ts` to get the canon it reads.
+- **Book order.** The seven books and the Prayer of Azariah are appended at `bookOrder` 67–74 so no existing number moves. The reader lists them in Catholic order (Tobit and Judith after Nehemiah, the Maccabees after Esther, Wisdom and Sirach after the Song, Baruch after Lamentations).
+- **Daniel.** Susanna and Bel stay where Catholic Bibles print them, Daniel 13–14. Daniel 3:24–90 collides with English 3:24–30 (the fourth man in the fire), so it is the book "Prayer of Azariah", 1:1–67, verse n = Daniel 3:n+23 in print. The reader shows it inside Daniel 3, after verse 23, in the NABRE and DRB.
+- **Esther.** The additions are at the Douay-Rheims' addresses, Esther 10:4–16:24. The NABRE's lettered sections A–F are mapped onto them, checked verse by verse against the DRB text.
+- **Different source texts.** The Douay-Rheims' Tobit, Judith and Sirach translate the Vulgate's Latin, a different text from the Greek the NABRE translates; their verses don't correspond, and no table maps them. They keep their printed numbers, so "Sirach 1:31" exists in the DRB and not in the NABRE, and the two columns of a compare won't line up in those books. Wisdom, Baruch and the Maccabees are renumbered to the English (RSV) numbering through `vul.vrs`.
+- **Not in the sources.** Neither source has the Prologue to Sirach. Bolls' NABRE leaves out a few verses in Sirach (1:5, 1:7 and others the NABRE itself brackets).
+- **Detection.** The books resolve in references ("Sir 2:1", "Ecclesiasticus 2:1", "1 Macc 2:3", "Song of the Three 1:30"), but are not in the auto-tag vocabulary: "Wisdom" is already a theme there.
+
+To refresh after a re-download: `node server/data/versification/_build_deuterocanon_table.mjs`, then `node server/data/bibles/_remap.mjs NABRE` and `... DRB`. A re-seed with `seed-bible-verses.ts` only inserts rows it doesn't have (`onConflictDoNothing`).
+
+Still left out: **Psalm titles** that are a verse of their own, as in our ESV. A title that shares verse 1 with the psalm's first line stays, as printed.
 
 Known gaps after renumbering: NABRE has no Esther 3:14–15 (Bolls doesn't serve them). Each translation has a few dozen English verses it prints joined to a neighbour (DRB 44, NABRE 24 including the usual omitted NT verses). The text is in the neighbouring verse.
 
@@ -69,7 +80,7 @@ Not all translations have the same verse count. This is expected:
 - **MSG** (~31,015 verses): merges verse ranges freely as a paraphrase
 - **ESV, NIV, BSB, CSB, NET** (~31,086 verses): omit a handful of verses that textual critics consider later additions
 - **KJV, NKJV** (31,102 verses): traditional full versification
-- **NABRE, DRB** (~31,060–31,080 verses): renumbered to English (see above); the gaps are verses their editions print joined
+- **NABRE, DRB** (~35,400–35,700 verses with the deuterocanon): renumbered to English (see above); the gaps are verses their editions print joined
 
 ## After generating or updating a `.json` file
 

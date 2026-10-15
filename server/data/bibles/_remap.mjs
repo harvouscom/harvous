@@ -29,7 +29,7 @@ export function writeRemapped(translationId) {
 
   console.log(`\n${translationId}: ${raw.length} source verses → ${verses.length} Harvous verses`);
   console.log(`  Psalm titles dropped: ${report.titlesDropped}`);
-  console.log(`  Outside the 66-book table (${report.outsideCanon.length}): ${summarize(report.outsideCanon)}`);
+  console.log(`  Outside the chapter table (${report.outsideCanon.length}): ${summarize(report.outsideCanon)}`);
   console.log(`  Moved by alignment with ${alignWith ?? '(none)'} (${report.moved.length}): ${report.moved.join(', ') || 'none'}`);
   console.log(`  Joined into one verse (${report.joined.length}): ${report.joined.join(', ') || 'none'}`);
   console.log(`  Missing (${report.missing.length}): ${report.missing.join(', ') || 'none'}`);
