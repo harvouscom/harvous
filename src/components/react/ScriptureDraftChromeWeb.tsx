@@ -345,8 +345,9 @@ export default function ScriptureDraftChromeWeb({
    * A typed pill named the passage and stopped there: to see what it said you tapped it, and
    * to keep the words in the note you opened the dock and quoted from it. The verse peek
    * already showed the words while the draft was open — this is the moment after, when the
-   * pill exists and the question is whether you want them on the page. Only for a pill typed
-   * from scratch (`isNew`); re-confirming an edited pill is not asking for anything.
+   * pill exists and the question is whether you want them on the page. For a pill typed from
+   * scratch (`isNew`) or one edited into a different passage (`referenceChanged`) — that is a
+   * new passage too. Re-confirming an edit that changed nothing is not asking for anything.
    *
    * An offer, not a step: it goes the moment the caret moves (you kept writing, which is an
    * answer) or after a few seconds, and nothing is inserted unless it is tapped.
@@ -363,7 +364,7 @@ export default function ScriptureDraftChromeWeb({
     };
     const onConfirmed = (e: Event) => {
       const detail = (e as CustomEvent<ScriptureDraftConfirmedDetail>).detail;
-      if (!detail?.isNew || !onQuoteRef.current) return;
+      if (!(detail?.isNew || detail?.referenceChanged) || !onQuoteRef.current) return;
       // After the confirm's own transaction has painted, so the pill has a box to sit beside.
       requestAnimationFrame(() => {
         const placed = placeQuoteOffer(editor);

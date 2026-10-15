@@ -1151,9 +1151,11 @@ export function confirmScriptureDraftView(
     // doing the thing for the first time, which is what the getting-started checklist is
     // asking about. An edit-draft carries the reference it came from (see
     // `editScripturePillAsDraft`); a from-scratch draft carries nothing.
+    const originalReference: string | null = carried?.attrs?.originalReference ?? null;
     const detail: ScriptureDraftConfirmedDetail = {
       reference,
-      isNew: carried?.attrs?.originalReference == null,
+      isNew: originalReference == null,
+      referenceChanged: originalReference != null && originalReference !== reference,
     };
     view.dom.dispatchEvent(
       new CustomEvent(SCRIPTURE_DRAFT_CONFIRMED_EVENT, { detail, bubbles: true }),

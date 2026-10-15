@@ -7,11 +7,13 @@ import Bold from '@tiptap/extension-bold';
 import Italic from '@tiptap/extension-italic';
 import { ScripturePill } from '../TiptapScripturePill';
 import {
+  SCRIPTURE_DRAFT_CONFIRMED_EVENT,
   ScriptureDraft,
   confirmScriptureDraftView,
   draftShouldDissolveOnDigitsRemoved,
   scriptureDraftInputDecision,
 } from '../TiptapScriptureDraft';
+import type { ScriptureDraftConfirmedDetail } from '@/utils/scripture-draft-events';
 
 const extensions = [Document, Paragraph, Text, Bold, Italic, ScripturePill, ScriptureDraft];
 
@@ -238,5 +240,40 @@ describe('the guard end-to-end through the view (someProp), not just the pure ru
     } finally {
       editor.destroy();
     }
+  });
+});
+
+describe('the confirmed event says whether an edit changed the passage', () => {
+  function confirmAndCapture(draftText: string, attrs: Record<string, unknown> = {}) {
+    const editor = editorWithDraft(draftText, attrs);
+    let detail: ScriptureDraftConfirmedDetail | null = null;
+    editor.view.dom.addEventListener(SCRIPTURE_DRAFT_CONFIRMED_EVENT, (e) => {
+      detail = (e as CustomEvent<ScriptureDraftConfirmedDetail>).detail;
+    });
+    try {
+      confirmScriptureDraftView(editor.view, 2);
+    } finally {
+      editor.destroy();
+    }
+    return detail as ScriptureDraftConfirmedDetail | null;
+  }
+
+  it('a from-scratch pill is new, not changed', () => {
+    expect(confirmAndCapture('Exodus 5:1')).toMatchObject({ isNew: true, referenceChanged: false });
+  });
+
+  it('an edited pill pointing somewhere else is changed, not new', () => {
+    expect(confirmAndCapture('Exodus 5:2', { originalReference: 'Exodus 5:1' })).toMatchObject({
+      reference: 'Exodus 5:2',
+      isNew: false,
+      referenceChanged: true,
+    });
+  });
+
+  it('re-confirming an edit that changed nothing is neither', () => {
+    expect(confirmAndCapture('Exodus 5:1', { originalReference: 'Exodus 5:1' })).toMatchObject({
+      isNew: false,
+      referenceChanged: false,
+    });
   });
 });
