@@ -37,7 +37,7 @@ import { isCurrentBibleTextVersion } from './bible-text-revision';
  *
  * **The reasoning behind the number is weaker than it looks, and the measurements are here so
  * the next person does not have to take it on trust.** Measured Aug 2026 in Chrome: a
- * translation is 4.6MB stored (6.3MB as raw JSON), so all eleven would be ~51MB against a
+ * translation is 4.6MB stored (6.3MB as raw JSON), so all eleven of the time would be ~51MB against a
  * 4.28GB origin quota — 1.2%. The app's own service-worker asset cache was 37.8MB at the time,
  * uncapped, which is 2.75× everything this limit governs.
  *
@@ -50,7 +50,7 @@ import { isCurrentBibleTextVersion } from './bible-text-revision';
  * This was three, held there on one stated condition: "persistence is not yet granted… raise it
  * when it is." `usePersistentStorage` now asks at boot, so the condition is met and this is the
  * raise it named — not a re-argument of the number, which was never the part doing the work.
- * Five rather than eleven only because a cap that has never been reached costs nothing to keep,
+ * Five rather than all of them only because a cap that has never been reached costs nothing to keep,
  * and the honest lever remains showing the reader the megabytes (which the settings page does)
  * over rationing on their behalf.
  */

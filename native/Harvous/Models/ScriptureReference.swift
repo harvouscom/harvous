@@ -43,7 +43,7 @@ struct ScriptureReference: Equatable, Sendable {
     let range: NSRange           // location in the text storage
 
     /// Canonical order matches current web app `TRANSLATION_ORDER`.
-    static let availableTranslations = ["BSB", "CSB", "ESV", "KJV", "NKJV", "NASB", "NET", "NIV", "NLT", "AMP", "MSG"]
+    static let availableTranslations = ["BSB", "CSB", "ESV", "KJV", "NKJV", "NASB", "NET", "NIV", "NLT", "AMP", "MSG", "NABRE", "DRB"]
     struct TranslationAttribution: Equatable, Sendable {
         let copyright: String
         let website: String
@@ -60,6 +60,8 @@ struct ScriptureReference: Equatable, Sendable {
         "CSB": "CSB",
         "AMP": "AMP",
         "MSG": "MSG",
+        "NABRE": "NABRE",
+        "DRB": "DRB",
     ]
     private static let translationAttributions: [String: TranslationAttribution] = [
         "KJV": TranslationAttribution(
@@ -105,6 +107,14 @@ struct ScriptureReference: Equatable, Sendable {
         "MSG": TranslationAttribution(
             copyright: "Scripture quotations marked MSG are taken from THE MESSAGE, copyright © 1993, 2002, 2018 by Eugene H. Peterson.",
             website: "https://www.navpress.com"
+        ),
+        "NABRE": TranslationAttribution(
+            copyright: "Scripture texts are taken from the New American Bible, revised edition © 2010, 1991, 1986, 1970 Confraternity of Christian Doctrine, Washington, D.C. All Rights Reserved.",
+            website: "https://bible.usccb.org"
+        ),
+        "DRB": TranslationAttribution(
+            copyright: "The Douay-Rheims Bible (Challoner revision, 1899 American edition) is in the public domain.",
+            website: "https://ebible.org/find/details.php?id=engDRA"
         ),
     ]
     static func displayTranslationLabel(_ id: String) -> String { translationLabels[id] ?? id }

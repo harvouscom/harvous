@@ -22110,7 +22110,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  *
  * The importer's ink-on-a-ruled-line at the row's own width — progress answered by the
  * shape of the row rather than by a sentence. Absolutely positioned so appearing and
- * vanishing never changes the row's height: a list of eleven translations must not reflow
+ * vanishing never changes the row's height: a list of a dozen translations must not reflow
  * every time one of them starts or finishes saving.
  */
 .proto-translation-row__progress {

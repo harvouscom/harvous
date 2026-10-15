@@ -87,8 +87,8 @@ export default function PrototypeReaderInspectorPane({
 
       <section className="proto-inspector-section">
         <PrototypeSectionHeader>Translation</PrototypeSectionHeader>
-        {/* `ProtoSelectMenu`, never a native <select> — eleven translations is a list to
-            pick from, not eleven rows worth of a panel. */}
+        {/* `ProtoSelectMenu`, never a native <select> — a dozen translations is a list to
+            pick from, not a dozen rows worth of a panel. */}
         <ProtoSelectMenu
           label="Translation"
           value={translation}

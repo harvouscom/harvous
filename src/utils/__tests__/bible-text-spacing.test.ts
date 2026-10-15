@@ -61,6 +61,33 @@ describe('Bible JSON spacing', () => {
     expect(text(id, book, chapter, verse)).toContain(expected);
   });
 
+  // NABRE and DRB are printed in Hebrew and Vulgate numbering and renumbered on import
+  // (server/data/versification/remap.mjs), so a reference means the same verse in every translation.
+  it.each([
+    ['NABRE', 'Psalms', 51, 10, 'clean heart'],
+    ['DRB', 'Psalms', 51, 10, 'clean heart'],
+    ['NABRE', 'Psalms', 23, 1, 'my shepherd'],
+    ['DRB', 'Psalms', 23, 1, 'ruleth me'],
+    ['NABRE', 'Joel', 2, 28, 'pour out my spirit'],
+    ['DRB', 'Joel', 2, 28, 'pour out my spirit'],
+    ['NABRE', 'Malachi', 4, 5, 'Elijah'],
+    ['DRB', 'Malachi', 4, 5, 'Elias'],
+    ['NABRE', 'Daniel', 4, 1, 'Nebuchadnezzar'],
+    ['DRB', 'Jonah', 1, 17, 'great fish'],
+    ['NABRE', 'John', 7, 53, 'his own house'],
+    ['DRB', '1 Thessalonians', 4, 17, 'taken up together'],
+  ])('%s %s %i:%i is the same verse as in English Bibles', (id, book, chapter, verse, expected) => {
+    expect(text(id, book, chapter, verse)).toContain(expected);
+  });
+
+  it('carries none of the source markup into the Catholic translations', () => {
+    for (const id of ['NABRE', 'DRB']) {
+      const leftovers = load(id).filter((v) => /<|\\|strong=|\[[A-Z]{1,3}\]|(^|\s)t\s/.test(v.text));
+      expect(leftovers).toEqual([]);
+    }
+    expect(text('NABRE', 'Psalms', 51, 1)).toMatch(/^Have mercy on me/);
+  });
+
   it('leaves the bracket-heavy translations’ brackets alone', () => {
     const count = (id: string) => load(id).reduce((n, v) => n + (v.text.match(/\[/g)?.length ?? 0), 0);
     expect(count('AMP')).toBe(21551);

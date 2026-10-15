@@ -400,6 +400,11 @@ describe('normalizeInlineTranslationAbbreviation', () => {
     expect(normalizeInlineTranslationAbbreviation('esv')).toBe('ESV');
     expect(normalizeInlineTranslationAbbreviation('MSG')).toBe('MSG');
   });
+
+  it('maps the Douay-Rheims abbreviation DRA to DRB', () => {
+    expect(normalizeInlineTranslationAbbreviation('DRA')).toBe('DRB');
+    expect(normalizeInlineTranslationAbbreviation('drb')).toBe('DRB');
+  });
 });
 
 describe('matchTrailingTranslationAbbreviation', () => {
@@ -437,6 +442,11 @@ describe('matchAnchoredTrailingTranslationAbbreviation', () => {
 
   it('returns null when abbrev is part of a longer word', () => {
     expect(matchAnchoredTrailingTranslationAbbreviation(' NLTish')).toBeNull();
+  });
+
+  it('matches the Catholic translations, NABRE ahead of NASB', () => {
+    expect(matchAnchoredTrailingTranslationAbbreviation(' NABRE, and')!.canonicalId).toBe('NABRE');
+    expect(matchAnchoredTrailingTranslationAbbreviation(' DRA here')!.canonicalId).toBe('DRB');
   });
 
   it('still matches block-end abbrev (parity with matchTrailingTranslationAbbreviation)', () => {

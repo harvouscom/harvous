@@ -660,7 +660,7 @@ export default function PrototypeBibleReaderPane({
     return Array.from({ length: count }, (_, i) => ({ value: i + 1, label: String(i + 1) }));
   }, [book, data?.chapterCount]);
   /*
-    All eleven, in canon order — the reader's whole set, not the two the stack peeks. Labels go
+    Every translation, in canon order — the reader's whole set, not the two the stack peeks. Labels go
     through `getTranslationAbbreviationDisplay` because one of them is not its own id: NASB
     shows as "NASB 1995", and a menu that said "NASB" beside a chip that said "NASB 1995" would
     be two names for one translation.
@@ -2147,7 +2147,7 @@ export default function PrototypeBibleReaderPane({
               It was a bare `<span>` — the one fact this heading named that it could not act on,
               which is the observation the date jump made about Activity's header: "a label that
               names exactly the thing you would want to change". The stack behind reaches the two
-              you last read in; this reaches all eleven, the same division the day sheet draws
+              you last read in; this reaches all of them, the same division the day sheet draws
               between flipping an edge and jumping from the date.
 
               `ProtoSelectMenu`, not a hand-rolled popover, because this app has a settled answer

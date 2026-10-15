@@ -62,6 +62,9 @@ native/Harvous/.harvous_ios_derived_data/
 skills-lock.json
 .claude/scheduled_tasks.lock
 
+# Bible downloads before renumbering (server/data/bibles/_remap.mjs writes the committed file)
+server/data/bibles/raw/
+
 # Scripture knowledge layer — raw downloads + large generated data (regenerate via scripts)
 server/data/scripture-knowledge/raw/
 server/data/scripture-knowledge/cross-references.json

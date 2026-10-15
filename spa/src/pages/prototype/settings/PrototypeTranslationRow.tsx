@@ -105,7 +105,7 @@ export default function PrototypeTranslationRow({
 
               On the title line because that is the line you scan. It used to be said only
               in a caption under the row — easy to miss, and impossible to compare down a
-              list of eleven translations. Which ones you can read on a plane is the
+              list of a dozen translations. Which ones you can read on a plane is the
               question this page exists to answer, so it is answered where the eye is.
             */}
             <span className="proto-translation-row__name">

@@ -14,7 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../../..');
 
 // KJV excluded — bolls serves Strong's-numbered KJV; our KJV is from a clean public-domain source.
-const IDS = ['ESV', 'NIV', 'NLT', 'NKJV', 'BSB', 'NET', 'NASB', 'CSB', 'AMP', 'MSG'];
+const IDS = ['ESV', 'NIV', 'NLT', 'NKJV', 'BSB', 'NET', 'NASB', 'CSB', 'AMP', 'MSG', 'NABRE'];
 
 function runNode(scriptPath, args) {
   return new Promise((resolve, reject) => {

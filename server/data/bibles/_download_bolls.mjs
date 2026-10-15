@@ -11,11 +11,16 @@
  *
  * Output: server/data/bibles/<ID>.json
  * Then:   npx tsx server/scripts/seed-bible-verses.ts <ID>
+ *
+ * Translations numbered differently from Harvous (NABRE) are saved raw to
+ * server/data/bibles/raw/<ID>.json and renumbered by _remap.mjs on the way out.
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { SOURCES, USFM_BOOKS } from '../versification/remap.mjs';
+import { writeRemapped } from './_remap.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../../..');
@@ -33,6 +38,7 @@ const BOLLS_CODES = {
   CSB:  'CSB17',  // Christian Standard Bible (2017)
   AMP:  'AMP',    // Amplified Bible (2015)
   MSG:  'MSG',    // The Message (2002)
+  NABRE: 'NABRE', // New American Bible, Revised Edition (2011) — Hebrew numbering, renumbered by _remap.mjs
 };
 
 // Bolls book name → Harvous canonical book name (only differences listed)
@@ -49,6 +55,7 @@ function stripHtml(html) {
   return html
     .replace(/<[^>]*>/g, ' ')               // replace HTML tags with spaces (prevents word concatenation)
     .replace(/\[\d+\]/g, '')                 // strip bracketed footnote anchors (e.g. [5] in CSB)
+    .replace(/\[[A-Z]{1,3}\]/g, '')           // strip lettered cross-reference anchors (e.g. [AA] in NABRE)
     .replace(/[\u2460-\u24FF]/g, '')          // strip circled letter/number cross-reference markers (e.g. ⓒ in CSB)
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -89,7 +96,12 @@ async function main() {
   }
 
   const bollsCode = BOLLS_CODES[translationId];
-  const outPath = join(__dirname, `${translationId}.json`);
+  // A renumbered translation is saved raw, keyed by USFM book code, and only its 66 books.
+  const remap = Boolean(SOURCES[translationId]);
+  if (remap) mkdirSync(join(__dirname, 'raw'), { recursive: true });
+  const outPath = remap
+    ? join(__dirname, 'raw', `${translationId}.json`)
+    : join(__dirname, `${translationId}.json`);
 
   // Resume from partial file if it exists
   let existingVerses = [];
@@ -107,7 +119,8 @@ async function main() {
   }
 
   console.log(`Fetching book list for ${translationId} (Bolls code: ${bollsCode})...`);
-  const books = await fetchJson(`https://bolls.life/get-books/${bollsCode}/`);
+  const books = (await fetchJson(`https://bolls.life/get-books/${bollsCode}/`))
+    .filter((b) => !remap || b.bookid <= USFM_BOOKS.length);
   console.log(`${books.length} books found.\n`);
 
   const allVerses = [...existingVerses];
@@ -115,9 +128,11 @@ async function main() {
   let chaptersProcessed = 0;
 
   for (const book of books) {
-    const canonicalBook = canonicalize(book.name);
+    const canonicalBook = remap ? USFM_BOOKS[book.bookid - 1] : canonicalize(book.name);
 
-    for (let ch = 1; ch <= book.chapters; ch++) {
+    // Bolls' book list can undercount (it gives NABRE Ezekiel 47 chapters and serves 48), so
+    // keep asking past the advertised count until a chapter comes back empty.
+    for (let ch = 1; ch <= book.chapters + 3; ch++) {
       chaptersProcessed++;
       const key = `${canonicalBook}:${ch}`;
 
@@ -129,6 +144,7 @@ async function main() {
       process.stdout.write(`\r[${chaptersProcessed}/${totalChapters}] ${canonicalBook} ${ch}...   `);
 
       const verses = await fetchJson(`https://bolls.life/get-text/${bollsCode}/${book.bookid}/${ch}/`);
+      if (ch > book.chapters && verses.length === 0) break;
 
       for (const v of verses) {
         const text = stripHtml(v.text);
@@ -146,6 +162,7 @@ async function main() {
 
   console.log(`\n\nTotal verses: ${allVerses.length}`);
   console.log(`Saved to ${outPath}`);
+  if (remap) writeRemapped(translationId);
   console.log(`\nNext: npx tsx server/scripts/seed-bible-verses.ts ${translationId}`);
 }
 

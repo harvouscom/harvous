@@ -8,23 +8,25 @@ import { TRANSLATION_ORDER } from '../data/translations';
 
 /**
  * Regex alternation for inline translation suffix — NASB 1995 before NASB; then longest ids first
- * (e.g. NKJV before KJV) so alternation matches correctly.
+ * (e.g. NKJV before KJV) so alternation matches correctly. DRA is the Douay-Rheims' other common
+ * abbreviation (Bible Gateway's) and resolves to DRB.
  */
 function buildInlineTranslationAlternation(): string {
   const sorted = [...TRANSLATION_ORDER].sort((a, b) => b.length - a.length || a.localeCompare(b));
   const ids = sorted.map((id) => `(?:${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`);
-  return ['(?:NASB\\s+1995)', ...ids].join('|');
+  return ['(?:NASB\\s+1995)', ...ids, '(?:DRA)'].join('|');
 }
 
 const INLINE_TRANSLATION_ALT = buildInlineTranslationAlternation();
 
 /**
  * Normalize a matched inline translation token to the canonical id stored on pills / API.
- * e.g. "NASB 1995", "nasb  1995" → "NASB"
+ * e.g. "NASB 1995", "nasb  1995" → "NASB"; "DRA" → "DRB"
  */
 export function normalizeInlineTranslationAbbreviation(raw: string): string {
   const t = raw.trim().replace(/\s+/g, ' ');
   if (/^NASB\s+1995$/i.test(t)) return 'NASB';
+  if (/^DRA$/i.test(t)) return 'DRB';
   return t.toUpperCase();
 }
 
@@ -42,7 +44,7 @@ export function matchTrailingTranslationAbbreviation(text: string): { canonicalI
 /** Translation codes longest-first for anchored suffix matching (NKJV before KJV). */
 const ANCHORED_TRANSLATION_CODES = (() => {
   const sorted = [...TRANSLATION_ORDER].sort((a, b) => b.length - a.length || a.localeCompare(b));
-  return ['NASB 1995', ...sorted];
+  return ['NASB 1995', ...sorted, 'DRA'];
 })();
 
 /**

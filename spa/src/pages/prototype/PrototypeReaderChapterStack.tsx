@@ -10,7 +10,7 @@
  * was already describing; parallel versions, in print, are two columns rather than a pile.
  *
  * So the pile is the canon and the reader is somewhere in it. Translations kept the heading chip,
- * which reaches all eleven, and a two-column comparison sheet is its own piece of work.
+ * which reaches all of them, and a two-column comparison sheet is its own piece of work.
  *
  * ## Why both directions
  *

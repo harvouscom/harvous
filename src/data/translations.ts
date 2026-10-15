@@ -135,6 +135,27 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
     isPublicDomain: false,
     sortOrder: 10,
   },
+  NABRE: {
+    id: 'NABRE',
+    name: 'New American Bible, Revised Edition',
+    abbreviation: 'NABRE',
+    publisher: 'Confraternity of Christian Doctrine',
+    copyright:
+      'Scripture texts are taken from the New American Bible, revised edition © 2010, 1991, 1986, 1970 Confraternity of Christian Doctrine, Washington, D.C. All Rights Reserved.',
+    website: 'https://bible.usccb.org',
+    isPublicDomain: false,
+    sortOrder: 11,
+  },
+  DRB: {
+    id: 'DRB',
+    name: 'Douay-Rheims Bible',
+    abbreviation: 'DRB',
+    publisher: 'Public Domain',
+    copyright: 'The Douay-Rheims Bible (Challoner revision, 1899 American edition) is in the public domain.',
+    website: 'https://ebible.org/find/details.php?id=engDRA',
+    isPublicDomain: true,
+    sortOrder: 12,
+  },
 };
 
 /** Ordered list of translation IDs for UI dropdowns */
