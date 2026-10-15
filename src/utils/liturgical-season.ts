@@ -24,12 +24,12 @@ export interface LiturgicalSeason {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function dayIndex(year: number, month1: number, day: number): number {
+export function dayIndex(year: number, month1: number, day: number): number {
   // month1 is 1-based; build at local midnight so comparisons are calendar-day exact.
   return Math.floor(new Date(year, month1 - 1, day).getTime() / DAY_MS);
 }
 
-function localDayIndex(date: Date): number {
+export function localDayIndex(date: Date): number {
   return Math.floor(
     new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() / DAY_MS,
   );
@@ -54,7 +54,7 @@ export function computeEaster(year: number): { month: number; day: number } {
   return { month, day };
 }
 
-function ordinal(n: number): string {
+export function ordinal(n: number): string {
   // 11th–13th, then 21st, 22nd, 23rd: Ordinary Time counts past ten.
   const teen = n % 100 >= 11 && n % 100 <= 13;
   if (!teen && n % 10 === 1) return `${n}st`;
@@ -64,7 +64,7 @@ function ordinal(n: number): string {
 }
 
 /** Advent begins on the 4th Sunday before Christmas Day. */
-function adventStartIndex(year: number): number {
+export function adventStartIndex(year: number): number {
   const christmasDow = new Date(year, 11, 25).getDay(); // 0 = Sunday
   // 4th Advent Sunday is the Sunday strictly before Christmas (Dec 18 when Dec 25 is Sunday).
   const fourthAdventSunday = dayIndex(year, 12, 25) - (christmasDow === 0 ? 7 : christmasDow);
@@ -139,7 +139,7 @@ export function currentLiturgicalSeason(
 const WEEKDAY_SUNDAY = 0;
 
 /** Epiphany as US dioceses keep it: the Sunday between January 2 and 8. */
-function epiphanySundayIndex(year: number): number {
+export function epiphanySundayIndex(year: number): number {
   const jan2 = dayIndex(year, 1, 2);
   const dow = new Date(year, 0, 2).getDay();
   return jan2 + ((7 - dow) % 7);
@@ -149,7 +149,7 @@ function epiphanySundayIndex(year: number): number {
  * The Baptism of the Lord ends the Christmas season: the Sunday after Epiphany, or the Monday
  * after it when Epiphany falls on January 7 or 8.
  */
-function baptismOfTheLordIndex(year: number): number {
+export function baptismOfTheLordIndex(year: number): number {
   const epiphany = epiphanySundayIndex(year);
   return epiphany >= dayIndex(year, 1, 7) ? epiphany + 1 : epiphany + 7;
 }

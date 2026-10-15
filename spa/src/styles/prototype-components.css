@@ -25408,6 +25408,56 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
+ * A Catholic reader's other readings, under the Gospel: one quiet line each, the Lectionary's
+ * name for the reading and its citation as a missal prints it. Rows rather than chips so the
+ * citations, which run long ("Isaiah 63:16b-17, 19b; 64:2-7"), never truncate.
+ */
+.proto-daily-passage__readings {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--pds-space-3);
+  row-gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each row spans both columns and shares them, so the citations line up under the longest name. */
+.proto-daily-passage__readings > li {
+  display: contents;
+}
+
+.proto-daily-passage__reading {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: baseline;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-daily-passage__reading-label {
+  color: var(--pds-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.proto-daily-passage__reading-citation {
+  min-width: 0;
+  font-size: 0.8125rem;
+  text-wrap: pretty;
+}
+
+.proto-daily-passage__reading:hover .proto-daily-passage__reading-citation {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/*
  * The sitting card — the head of Review on Activity.
  *
  * The one place on the page that asks something of the reader, and it used to be shaped exactly

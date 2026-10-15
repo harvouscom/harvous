@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Context } from 'hono';
 
 const mockGetUserDefaultTranslation = vi.fn();
+const mockGetUserTradition = vi.fn(() => 'protestant');
+let nowIso = '2026-06-26T12:00:00.000Z';
 const mockGetAuth = vi.fn();
 const mockFirst = vi.fn();
 const mockLimit = vi.fn();
@@ -18,7 +20,7 @@ vi.mock('../../db', () => ({
 }));
 
 vi.mock('../../db/dates', () => ({
-  now: () => new Date('2026-06-26T12:00:00.000Z'),
+  now: () => new Date(nowIso),
 }));
 
 vi.mock('../../middleware/auth', () => ({
@@ -26,7 +28,10 @@ vi.mock('../../middleware/auth', () => ({
 }));
 
 vi.mock('../votd-user-translation', () => ({
-  getUserDefaultTranslation: (...args: unknown[]) => mockGetUserDefaultTranslation(...args),
+  getUserReadingPrefs: async (...args: unknown[]) => ({
+    translation: await mockGetUserDefaultTranslation(...args),
+    tradition: mockGetUserTradition(),
+  }),
 }));
 
 const mockFetchVerseText = vi.fn();
@@ -142,5 +147,70 @@ describe('votdTodayPublicHandler for a member', () => {
     const result = await votdTodayPublicHandler(makeContext({ tz: 'UTC' }));
     expect(result).toEqual({ reference: 'Psalm 18:1-2', translation: 'NET' });
     expect(mockFetchVerseText).not.toHaveBeenCalled();
+  });
+});
+
+describe('votdTodayPublicHandler for a Catholic reader', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFirst.mockImplementation((rows: unknown) => (Array.isArray(rows) ? rows[0] : undefined));
+    mockFetchVerseText.mockResolvedValue('<sup class="verse-num">15</sup>Then the Pharisees went off');
+    mockVotdActedOnToday.mockResolvedValue(false);
+    mockGetUserDefaultTranslation.mockResolvedValue('NABRE');
+  });
+
+  function mockRow() {
+    mockLimit.mockResolvedValueOnce([{ reference: 'Psalm 18:1-2', translation: 'NET', featuredItemId: 'votd_fi_1' }]);
+    mockSelect.mockReturnValueOnce({ from: () => ({ where: () => ({ limit: mockLimit }) }) });
+  }
+
+  it("gives a member the Sunday's Gospel, with the other readings, from the account's tradition", async () => {
+    nowIso = '2026-10-18T15:00:00.000Z'; // 29th Sunday in Ordinary Time, Year A
+    mockGetAuth.mockReturnValue({ userId: 'user_abc' });
+    mockGetUserTradition.mockReturnValue('catholic');
+    mockRow();
+    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC' }))) as Record<string, unknown>;
+    expect(result.reference).toBe('Matthew 22:15-21');
+    expect(mockFetchVerseText).toHaveBeenCalledWith('Matthew 22:15-21', 'NABRE');
+    // Engagement still keys on the day's verse row.
+    expect(mockVotdActedOnToday).toHaveBeenCalledWith('user_abc', 'votd_fi_1');
+    expect(result.readings).toMatchObject({
+      title: '29th Sunday in Ordinary Time',
+      items: [
+        { slot: 'first', citation: 'Isaiah 45:1, 4-6', reference: 'Isaiah 45:1, 4-6' },
+        { slot: 'psalm', citation: 'Psalm 96:1, 3, 4-5, 7-8, 9-10', reference: 'Psalms 96:1, 3-5, 7-10' },
+        { slot: 'second', citation: '1 Thessalonians 1:1-5b' },
+        { slot: 'gospel', citation: 'Matthew 22:15-21' },
+      ],
+    });
+  });
+
+  it("ignores the query for a member: the account decides", async () => {
+    nowIso = '2026-10-18T15:00:00.000Z';
+    mockGetAuth.mockReturnValue({ userId: 'user_abc' });
+    mockGetUserTradition.mockReturnValue('protestant');
+    mockRow();
+    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC', tradition: 'catholic' }))) as Record<string, unknown>;
+    expect(result.reference).toBe('Psalm 18:1-2');
+    expect(result.readings).toBeUndefined();
+  });
+
+  it('answers a guest who asks for the Catholic readings', async () => {
+    nowIso = '2026-10-18T15:00:00.000Z';
+    mockGetAuth.mockReturnValue({ userId: null });
+    mockRow();
+    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC', tradition: 'catholic' }))) as Record<string, unknown>;
+    expect(result.reference).toBe('Matthew 22:15-21');
+    expect(result.readings).toBeDefined();
+  });
+
+  it("keeps Today's passage on a weekday with no proper readings", async () => {
+    nowIso = '2026-10-15T15:00:00.000Z';
+    mockGetAuth.mockReturnValue({ userId: 'user_abc' });
+    mockGetUserTradition.mockReturnValue('catholic');
+    mockRow();
+    const result = (await votdTodayPublicHandler(makeContext({ tz: 'UTC' }))) as Record<string, unknown>;
+    expect(result.reference).toBe('Psalm 18:1-2');
+    expect(result.readings).toBeUndefined();
   });
 });
