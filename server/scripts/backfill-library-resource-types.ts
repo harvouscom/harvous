@@ -12,6 +12,10 @@
  *   npx tsx server/scripts/backfill-library-resource-types.ts
  *   npx tsx server/scripts/backfill-library-resource-types.ts --apply
  *   npx tsx server/scripts/backfill-library-resource-types.ts --no-fetch   # URL rules only
+ *   npx tsx server/scripts/backfill-library-resource-types.ts --verbose    # + id, type, domain per row
+ *
+ * Prints counts, not titles: this runs over every account's library, and what someone saved
+ * is theirs. `--verbose` adds ids and domains for debugging a rule, still without titles.
  */
 import 'dotenv/config';
 import { db, LibraryItems, and, eq, isNull } from '../db';
@@ -20,6 +24,7 @@ import { fetchPublicText } from '../utils/public-url-fetch';
 
 const apply = process.argv.includes('--apply');
 const fetchPages = !process.argv.includes('--no-fetch');
+const verbose = process.argv.includes('--verbose');
 const CONCURRENCY = 4;
 
 type Row = Pick<
@@ -63,7 +68,10 @@ async function main() {
       batch.map(async (row) => {
         const type = detectResourceType(row, await pageFor(row));
         counts[type] = (counts[type] ?? 0) + 1;
-        console.log(`${type.padEnd(8)} ${row.id}  ${row.title.slice(0, 60)}`);
+        if (verbose) {
+          const where = row.kind === 'link' && row.sourceUrl ? new URL(row.sourceUrl).hostname : `file:${row.fileMime ?? '?'}`;
+          console.log(`${type.padEnd(8)} ${row.id}  ${where}`);
+        }
         if (!apply) return;
         await db
           .update(LibraryItems)

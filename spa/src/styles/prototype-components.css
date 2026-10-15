@@ -3335,6 +3335,14 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
   padding: 6px 4px 2px;
 }
 
+/* The select trigger fills its container by default; here two share a row and size to what
+   they say. */
+.proto-resource-controls .proto-select-menu__trigger {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
 /* Drop anywhere on the Resources list to attach a file. */
 /* A column at least as tall as the scroll viewport, so the footer's `margin-top:
    auto` has somewhere to push to on a short list and its `position: sticky`
