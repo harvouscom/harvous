@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  SITTING_RECHECK_MS,
   SITTING_STALE_MS,
   resolveReviewDockItem,
   reviewQuestionKey,
   shouldReaskInSitting,
+  REVIEW_REASK_OUTCOMES,
   shouldReleaseHeldItem,
   sittingIsStale,
+  sittingNeedsRecheck,
   sittingProgress,
 } from '../review-dock-state';
 
@@ -104,6 +107,24 @@ describe('shouldReleaseHeldItem', () => {
   });
 });
 
+describe('sittingNeedsRecheck', () => {
+  const at = new Date(2026, 9, 15, 10, 0, 0).getTime();
+
+  it('hands over a sitting composed moments ago as it is', () => {
+    expect(sittingNeedsRecheck(at, at + SITTING_RECHECK_MS - 1)).toBe(false);
+  });
+
+  it('asks again once a minute has passed, so a pause or delete elsewhere is seen', () => {
+    expect(sittingNeedsRecheck(at, at + SITTING_RECHECK_MS)).toBe(true);
+  });
+
+  it('asks again on a new day, and never when nothing was fetched', () => {
+    expect(sittingNeedsRecheck(new Date(2026, 9, 14, 23, 59, 50).getTime(), at)).toBe(true);
+    expect(sittingNeedsRecheck(0, at)).toBe(false);
+    expect(sittingNeedsRecheck(undefined, at)).toBe(false);
+  });
+});
+
 describe('sittingIsStale', () => {
   const noon = Date.parse('2026-09-11T12:00:00Z');
 
@@ -132,8 +153,10 @@ describe('sittingIsStale', () => {
 describe('one more look at something missed', () => {
   const base = { outcome: 'revealed', practice: false, graded: true, finalized: true };
 
-  it('brings back a question that ran out of goes', () => {
-    expect(shouldReaskInSitting(base)).toBe(true);
+  it('brings nothing back while One more look is switched off', () => {
+    // Off for now (Oct 15 2026). Putting 'revealed' back in REVIEW_REASK_OUTCOMES turns it on.
+    expect(REVIEW_REASK_OUTCOMES.size).toBe(0);
+    expect(shouldReaskInSitting(base)).toBe(false);
   });
 
   it('leaves an almost alone', () => {

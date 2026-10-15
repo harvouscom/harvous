@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ALWAYS_ON_FAMILIES, emphasisIsOfferable } from '@/utils/review-exercise-settings';
 import {
   REVIEW_EXERCISE_FAMILY_ORDER,
+  RESTING_EXERCISE_FAMILY_IDS,
   reviewExerciseFamilyId,
   reviewPromptKeysInFamily,
   type ReviewExerciseFamilyId,
@@ -91,8 +92,11 @@ describe('where Settings offers More and Less', () => {
     ]);
   });
 
+  /* A resting family is never asked, so neither setting can move it — and Settings hides it. */
+  const asked = REVIEW_EXERCISE_FAMILY_ORDER.filter((id) => !RESTING_EXERCISE_FAMILY_IDS.includes(id));
+
   it('offers a control exactly where Less asks the family less often', () => {
-    for (const id of REVIEW_EXERCISE_FAMILY_ORDER) {
+    for (const id of asked) {
       const normal = askedCount(id, {});
       const less = askedCount(id, { skip: keysOf(id) });
       expect(less, `Less ${id} asked it more often`).toBeLessThanOrEqual(normal);
@@ -101,7 +105,7 @@ describe('where Settings offers More and Less', () => {
   });
 
   it('offers a control exactly where More asks the family more often', () => {
-    for (const id of REVIEW_EXERCISE_FAMILY_ORDER) {
+    for (const id of asked) {
       const normal = askedCount(id, {});
       const more = askedCount(id, { prefer: keysOf(id) });
       expect(more, `More ${id} asked it less often`).toBeGreaterThanOrEqual(normal);

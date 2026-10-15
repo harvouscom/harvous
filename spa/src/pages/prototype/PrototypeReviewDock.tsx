@@ -44,7 +44,7 @@ import {
   resolveReviewDockItem,
   reviewQuestionKey,
   shouldReleaseHeldItem,
-  sittingIsStale,
+  sittingNeedsRecheck,
   sittingProgress,
 } from '@/utils/review-dock-state';
 import { reviewRowSubtitle } from '@/utils/review-row-subtitle';
@@ -713,8 +713,34 @@ export default function PrototypeReviewDock() {
     const opening = open && !wasOpen.current;
     wasOpen.current = open;
     if (opening) warmSounds();
-    if (opening && sittingIsStale(sessionQuery.dataUpdatedAt)) void sessionQuery.refetch();
+    if (opening && sittingNeedsRecheck(sessionQuery.dataUpdatedAt)) void sessionQuery.refetch();
   }, [open, sessionQuery]);
+
+  /*
+   * A sitting that runs dry asks the server once whether that is really the end.
+   *
+   * The sitting was composed when Home loaded, but Home's own list is re-read after every answer —
+   * so anything that became due meanwhile (the engine tops up beside each read) was on Home and
+   * never in the dock. The dock said "done", the reader went back, and Home still showed
+   * questions. One refetch at the empty edge makes the two agree: either the dock carries on with
+   * what arrived, or both say done. Not a reshuffle — there is no question on screen to move.
+   *
+   * Once per run dry: the ref is cleared only when the queue has something in it again.
+   */
+  const askedAtEmpty = useRef(false);
+  useEffect(() => {
+    if (!open || sessionItems.length > 0) {
+      askedAtEmpty.current = false;
+      return;
+    }
+    /* Never while the last answer is in flight: a sitting composed before it lands would hand
+       back the question that was just answered. */
+    if (askedAtEmpty.current || !sessionQuery.isSuccess || sessionQuery.isFetching || outcome.isPending) {
+      return;
+    }
+    askedAtEmpty.current = true;
+    void sessionQuery.refetch();
+  }, [open, sessionItems.length, sessionQuery, outcome.isPending]);
 
   /*
    * Closing a sitting says what it came to.
@@ -2037,6 +2063,7 @@ export default function PrototypeReviewDock() {
            */
           <ExerciseStage
             task={item.prompt}
+            fit={ILLUSTRATED_RUNGS[item.promptKey] !== 'portrait'}
             scene={(() => {
               const look = ILLUSTRATED_RUNGS[item.promptKey]!;
               const quote = verseMarkup ? (

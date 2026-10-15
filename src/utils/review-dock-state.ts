@@ -108,18 +108,40 @@ export function sittingIsStale(fetchedAt: number | null | undefined, now: number
   return new Date(fetchedAt).toDateString() !== new Date(now).toDateString();
 }
 
+/** How old a sitting can be and still be handed over as the dock opens without a second look. */
+export const SITTING_RECHECK_MS = 60 * 1000;
+
+/**
+ * Whether the dock should ask the server again as it opens, in the background.
+ *
+ * Stale, as above — or simply older than a minute. A frozen sitting knows nothing of what changed
+ * since it was composed: a question paused or removed from another tab, a note or highlight
+ * deleted (which archives its questions server-side), a family set to Less, a note edited so a
+ * rung no longer builds. Each of those left a question in the dock that the server had already
+ * dropped. The cached sitting still opens at once; the refetch only replaces what has changed.
+ *
+ * Only on the open edge, so the freeze still holds while the reader is answering.
+ */
+export function sittingNeedsRecheck(
+  fetchedAt: number | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (!fetchedAt) return false;
+  return sittingIsStale(fetchedAt, now) || now - fetchedAt >= SITTING_RECHECK_MS;
+}
+
 // ─── One more look, in the same sitting ──────────────────────────────────────
 
 /**
  * Which outcomes come back once before the sitting ends.
  *
- * Only `revealed` — the ones that ran out of goes and had to be shown. An `almost` was already
- * retried on the same card seconds earlier, and once learning steps are in it returns tomorrow
- * anyway; asking again now would be massed repetition wearing a spaced-repetition hat.
+ * **None, for now** (Oct 15 2026, Derek): "One more look" is switched off. It was `revealed` —
+ * the ones that ran out of goes and had to be shown. Putting `'revealed'` back here turns it on
+ * again; the dock, the practice route and the label are all still in place.
  *
  * A set rather than a literal so widening it later is a one-line change with a test to match.
  */
-export const REVIEW_REASK_OUTCOMES: ReadonlySet<string> = new Set(['revealed']);
+export const REVIEW_REASK_OUTCOMES: ReadonlySet<string> = new Set<string>();
 
 /**
  * Should this answer bring the item back at the tail of the sitting?

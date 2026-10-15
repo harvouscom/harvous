@@ -42,13 +42,21 @@ describe('the dock lets go of an answered question', () => {
     expect(dock()).toMatch(/if \(!open\) setSitting\(/);
   });
 
-  it('re-composes a sitting left open across hours or a midnight', () => {
+  it('re-checks a sitting as the dock opens, never while it is in use', () => {
     const text = dock();
-    expect(text).toContain('sittingIsStale');
+    expect(text).toContain('sittingNeedsRecheck');
     expect(text).toContain('sessionQuery.refetch()');
     // Only on the open edge. Refetching while the dock is in use is the reshuffle the
     // `staleTime: Infinity` on the session exists to prevent.
-    expect(text).toMatch(/opening && sittingIsStale/);
+    expect(text).toMatch(/opening && sittingNeedsRecheck/);
+  });
+
+  it('asks once more when the sitting runs dry, but not while an answer is in flight', () => {
+    const text = dock();
+    const edge = text.slice(text.indexOf('const askedAtEmpty'), text.indexOf('const askedAtEmpty') + 900);
+    expect(edge).toContain('sessionItems.length > 0');
+    expect(edge).toContain('outcome.isPending');
+    expect(edge).toContain('sessionQuery.refetch()');
   });
 });
 

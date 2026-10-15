@@ -19,6 +19,15 @@ const post = vi.fn();
 vi.mock('../../../lib/api', () => ({ api: { post: (...args: unknown[]) => post(...args) } }));
 vi.mock('@/utils/toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('../../../lib/error-copy', () => ({ toastError: vi.fn() }));
+/*
+ * "One more look" is switched off for now (`REVIEW_REASK_OUTCOMES` is empty). The cache work it
+ * does is kept, and tested here with the rule as it was, so turning it back on is one line.
+ */
+vi.mock('@/utils/review-dock-state', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/review-dock-state')>()),
+  shouldReaskInSitting: (s: { outcome: string; practice: boolean; graded: boolean; finalized: boolean }) =>
+    !s.practice && s.finalized && s.graded && s.outcome === 'revealed',
+}));
 
 const { useReviewOutcome } = await import('../useReviewMutations');
 const { reviewSessionQueryKey, reviewRevealQueryKey } = await import('../../queries/useReview');

@@ -420,6 +420,7 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
       <Card family="place" translation="ESV">
         <ExerciseStage
           task="Pick the place Luke 2:4 names."
+          fit
           scene={
             <TagSlotScene icon="location-dot" label="A place it names" fill={null}>
               {hero('And Joseph also went up from Galilee, from the town of Nazareth, to Judea, to the city of David, which is called Bethlehem.')}
@@ -439,6 +440,7 @@ const ENTRIES: { id: string; title: string; note: string; card: ReactNode }[] = 
       <Card family="theme" translation="ESV">
         <ExerciseStage
           task="Pick the theme Psalm 23:1 carries."
+          fit
           scene={
             <TagSlotScene icon="tag" label="A theme it carries" fill={{ text: 'Provision', state: 'right' }}>
               {hero(PSALM_23_1)}
