@@ -161,7 +161,7 @@
  * shown. Said here, on the band, so a dock that opens on Home — Review today, anything later —
  * replaces the prompt without having to know it exists, and the prompt comes back on its own
  * when the slot above empties. `display: none` also takes it out of the measured band height,
- * so the paper's reserve (`--proto-study-dock-band-height`) follows whichever card is showing.
+ * so the room the paper reserves for the band follows whichever card is showing.
  *
  * Same centring as the Review card: a bare card in a slot takes the carousel's offset.
  */
