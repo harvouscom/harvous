@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { markOnboardingStep } from '../../../spa/src/lib/proto-onboarding-sync';
 import { createPortal } from 'react-dom';
 // @ts-ignore — JSON resolveJsonModule
 import bibleChaptersData from '@/data/bible-chapters.json';
@@ -678,6 +679,7 @@ export default function ScripturePillChromeWeb({
         }),
       });
       if (res.ok) {
+        markOnboardingStep('highlight');
         const data = await res.json();
         const threadId: string | null = data.studyThread?.id ?? null;
         if (threadId) {

@@ -7,6 +7,7 @@
  */
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 import { toast } from '@/utils/toast';
 import { toastError } from '../../lib/error-copy';
 import {
@@ -135,6 +136,9 @@ export function useReviewOutcome() {
       toastError(error, REVIEW_OUTCOME_FAILED_TOAST, { scope: 'review-outcome' });
     },
     onSuccess: (data, input, context) => {
+      /* Answering a Review card is the checklist's "Revisit something": Harvous brought it
+         back and you looked again. The sample is left out — it is not something you studied. */
+      markOnboardingStep('recall');
       if (data.finalized === false && context?.previous) {
         queryClient.setQueryData(reviewSessionQueryKey, context.previous);
         return;

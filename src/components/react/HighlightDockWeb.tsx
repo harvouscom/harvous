@@ -126,6 +126,7 @@ async function patchStudyThread(
   }
   try {
     await api.patch(`/api/study-threads/${id}`, withStudyThreadContext(body, contextSpaceId));
+    if (body.miniNoteBody?.trim()) markOnboardingStep('note');
     notifyHighlightAnnotationSaved(contextSpaceId);
     return true;
   } catch (error) {

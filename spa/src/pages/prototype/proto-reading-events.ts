@@ -66,6 +66,10 @@ export function recordLastReadPosition(input: {
   if (!book || !translation) return;
   if (!Number.isInteger(chapter) || chapter < 1) return;
 
+  /* The checklist's "Open the Bible", latched here so it ticks while you read, not the next
+     time Home happens to mount. Same signal Home's backfill reads (a last-read position). */
+  markOnboardingStep('read');
+
   void api
     .post<{ success?: boolean }>('/api/user/update-last-read', {
       book,

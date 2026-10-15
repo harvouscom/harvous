@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 import type { StudyThreadEntryDetail } from '../queries/useNote';
 import { withStudyThreadContext } from '@/utils/study-dock-stack';
 import { invalidatePrototypeStudyThreadListQueries } from '@/utils/prototype-study-thread-list-sync';
@@ -64,6 +65,7 @@ export function useCreateHighlight() {
      * key list always drifts into.
      */
     onSuccess: (_data, variables) => {
+      markOnboardingStep('highlight');
       invalidatePrototypeStudyThreadListQueries(
         queryClient,
         variables.spaceId,
