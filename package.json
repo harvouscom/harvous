@@ -212,6 +212,8 @@
     "marked": "^17.0.0",
     "nanostores": "^1.0.1",
     "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "^5.4.296",
+    "plyr": "^3.8.4",
     "postgres": "^3.4.8",
     "posthog-js": "^1.292.0",
     "puppeteer-core": "^23.11.1",

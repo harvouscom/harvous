@@ -18,11 +18,12 @@
  * two surfaces must not move each other.
  */
 import { recordRecentOpen } from './proto-recent-opens';
+import { markPendingResourceSelection } from '../resources/pending-resource-selection';
+import type { ResourceSelection } from '../PrototypeResourceLibraryList';
 import { useCallback, useMemo } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  isPrototypeNotePath,
   matchPrototypeNoteId,
   prototypeNoteRouteTo,
   prototypeReadRouteTo,
@@ -59,7 +60,7 @@ import {
   seedNoteFromList,
   type ListNoteForSeed,
 } from '../../../hooks/queries/useNote';
-import { openLibraryFileItem, type LibraryItem } from '../../../hooks/queries/useLibrary';
+import type { LibraryItem } from '../../../hooks/queries/useLibrary';
 
 /** How many items a root-level section previews before "See all". */
 export const LIBRARY_PREVIEW_COUNT = 4;
@@ -110,8 +111,10 @@ export type LibraryPanelData = {
   openHomeNote: (row: SpaceNoteRow) => void;
   /** Opens a highlight on whichever surface can actually show it. */
   openHighlight: (row: PrototypeHighlightStudyThreadRow) => void;
-  /** Docks a resource onto the open note, or follows it when there is no note. */
+  /** Shows a personal resource in the Resources tool's viewer, which the panel becomes. */
   openResource: (item: LibraryItem) => void;
+  /** The same, for any shelf's row — church and room items included. */
+  previewResource: (selection: ResourceSelection) => void;
   /** Thread/scripture briefs carry id+title only; fill them out from the loaded list. */
   resolveDrillNoteRow: (brief: LibraryNoteBrief) => SpaceNoteRow;
 };
@@ -121,6 +124,7 @@ export function useLibraryPanelData(): LibraryPanelData {
   const queryClient = useQueryClient();
   const {
     closeLibraryPanel,
+    expandLibraryPanelInto,
     composePersistedNoteId,
     sidebarListSpaceScope,
     setSidebarListSpaceScope,
@@ -401,43 +405,22 @@ export function useLibraryPanelData(): LibraryPanelData {
     [spaceId, isScopedSharedSpace, queryClient, navigate, closeLibraryPanel],
   );
 
-  /**
-   * Where a resource opens.
-   *
-   * The study dock is per-note, so a resource chip only has somewhere to live when a
-   * note is open. Jumping to an arbitrary note just to hold the chip would be worse
-   * than following the link, so: dock it when we are on a note, open it otherwise.
+  /*
+   * A resource opens in the viewer first, wherever it was found — the panel gives way to the
+   * Resources tool with that item showing. Leaving for the source, or docking it on the open
+   * note, are one press away there; neither is what a plain click should commit you to.
    */
-  const openResource = useCallback(
-    (item: LibraryItem) => {
-      recordRecentOpen(spaceId, 'resource', item.id);
-      if (isPrototypeNotePath(pathname) && activeNoteFullId) {
-        navigate({
-          to: prototypeNoteRouteTo(),
-          params: { noteId: noteParamSlug(activeNoteFullId) },
-          search: {
-            /* The shell's context, not the panel's: this re-navigates the note already open,
-               and that note's `?space=` is a fact about it. Taking the panel's Home scope here
-               would drop it — 404ing a note reachable only through the room, or moving the
-               shell home just for docking a chip. */
-            ...prototypeNoteListNavigationSearch({
-              isScopedSharedSpace: isSharedSpace,
-              spaceId: activeSpaceId ?? '',
-            }),
-            libItem: item.id,
-            dockReq: String(Date.now()),
-          },
-        });
-        closeLibraryPanel({ preserveHistory: true });
-        return;
-      }
-      if (item.kind === 'file') {
-        void openLibraryFileItem(item.id);
-        return;
-      }
-      if (item.sourceUrl) window.open(item.sourceUrl, '_blank', 'noopener,noreferrer');
+  const previewResource = useCallback(
+    (selection: ResourceSelection) => {
+      recordRecentOpen(spaceId, 'resource', selection.id);
+      markPendingResourceSelection(selection);
+      expandLibraryPanelInto('resources');
     },
-    [pathname, activeNoteFullId, isSharedSpace, activeSpaceId, spaceId, navigate, closeLibraryPanel],
+    [spaceId, expandLibraryPanelInto],
+  );
+  const openResource = useCallback(
+    (item: LibraryItem) => previewResource({ source: 'mine', id: item.id }),
+    [previewResource],
   );
 
   const resolveDrillNoteRow = useCallback(
@@ -491,6 +474,7 @@ export function useLibraryPanelData(): LibraryPanelData {
     openHomeNote,
     openHighlight,
     openResource,
+    previewResource,
     resolveDrillNoteRow,
   };
 }

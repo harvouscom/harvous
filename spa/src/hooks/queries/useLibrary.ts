@@ -101,6 +101,57 @@ export function useUploadLibraryItem() {
 }
 
 /**
+ * A file's signed URL, for drawing it inside the viewer rather than opening it.
+ *
+ * The server mints these for ten minutes. Held for eight so a viewer left open re-mints
+ * before the URL dies under it, and never kept after the viewer closes — nothing durable
+ * to a private file should outlive the moment it was looked at.
+ */
+export function useLibraryFileUrl(itemId: string | null, options?: { enabled?: boolean }) {
+  const authReady = useAuthReady();
+  return useQuery({
+    queryKey: ['library-file-url', itemId],
+    enabled: authReady && Boolean(itemId) && (options?.enabled ?? true),
+    staleTime: 8 * 60 * 1000,
+    gcTime: 0,
+    queryFn: async () =>
+      api.get<{ url: string; fileName: string | null; fileMime: string | null }>(
+        `/api/library/items/${encodeURIComponent(itemId!)}/file`,
+      ),
+  });
+}
+
+/** Reader view of a link: the article's text, extracted server-side. */
+/** The video a saved page is for, found in its markup (server/utils/resource-video.ts). */
+export type ResourceVideo =
+  | { kind: 'file'; src: string; poster: string | null; durationSeconds: number | null }
+  | {
+      kind: 'youtube' | 'vimeo';
+      id: string;
+      hash?: string;
+      poster: string | null;
+      durationSeconds: number | null;
+    };
+
+export type ResourceReader =
+  | { readable: true; html: string; wordCount: number }
+  | { readable: false; reason: 'is_video'; video: ResourceVideo }
+  | { readable: false; reason: string; video?: undefined };
+
+export function useResourceReader(itemId: string | null, options?: { enabled?: boolean }) {
+  const authReady = useAuthReady();
+  return useQuery({
+    queryKey: ['library-reader', itemId],
+    enabled: authReady && Boolean(itemId) && (options?.enabled ?? true),
+    /* An article does not change while you read it; an hour matches the server's cache. */
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+    queryFn: async () =>
+      api.get<ResourceReader>(`/api/library/items/${encodeURIComponent(itemId!)}/reader`),
+  });
+}
+
+/**
  * Resolve a file item to a short-lived signed URL and open it.
  *
  * Minted per click on purpose — the URL expires in minutes, so nothing durable

@@ -51,12 +51,19 @@ import {
   useCreateLibraryItem,
   useUploadLibraryItem,
   useArchiveLibraryItem,
-  openLibraryFileItem,
   type LibraryItem,
 } from '../../hooks/queries/useLibrary';
+import { followResource } from './library-panel/use-open-resource';
+
+/** Which shelf a row came from — the same item id can never collide across them, but the
+ *  viewer needs to know which query to read it back from. */
+export type ResourceShelf = 'mine' | 'church' | 'space';
+export type ResourceSelection = { source: ResourceShelf; id: string };
+export const resourceSelectionKey = (sel: ResourceSelection) => `${sel.source}:${sel.id}`;
 
 function ResourceRow({
   item,
+  active = false,
   onOpen,
   onArchive,
   isArchiving,
@@ -68,6 +75,8 @@ function ResourceRow({
   onShareWithOthers,
 }: {
   item: LibraryItem;
+  /** Shown in the expanded tool's viewer right now. */
+  active?: boolean;
   onOpen: () => void;
   onArchive: () => void;
   isArchiving: boolean;
@@ -117,6 +126,7 @@ function ResourceRow({
       ]
         .filter(Boolean)
         .join(' ')}
+      data-active={active ? 'true' : undefined}
       onContextMenu={(e) => {
         e.preventDefault();
         setMenuOpen(true);
@@ -142,6 +152,7 @@ function ResourceRow({
           if (selectMode) return onToggleSelected?.();
           onOpen();
         }}
+        aria-current={active ? 'true' : undefined}
         aria-label={`Resource: ${item.title}`}
       >
         <div className="proto-note-row__title-line">
@@ -195,11 +206,7 @@ function ResourceRow({
               onClick={(e) => {
                 e.stopPropagation();
                 setMenuOpen(false);
-                if (isFile) {
-                  void openLibraryFileItem(item.id);
-                } else if (item.sourceUrl) {
-                  window.open(item.sourceUrl, '_blank', 'noopener,noreferrer');
-                }
+                followResource(item);
               }}
             >
               <span className="proto-menu-item__icon" aria-hidden>
@@ -610,10 +617,12 @@ type MergedResourceRow =
 function ChurchResourceRow({
   item,
   churchName,
+  active = false,
   onOpen,
 }: {
   item: ChurchLibraryItem;
   churchName: string | null;
+  active?: boolean;
   onOpen: () => void;
 }) {
   /* What it is, then whose shelf. The church is named here rather than in a
@@ -628,11 +637,12 @@ function ChurchResourceRow({
     .filter(Boolean)
     .join('  ·  ');
   return (
-    <li className="proto-note-row-item">
+    <li className="proto-note-row-item" data-active={active ? 'true' : undefined}>
       <button
         type="button"
         className="proto-note-row__main"
         onClick={onOpen}
+        aria-current={active ? 'true' : undefined}
         aria-label={`Church resource: ${item.title}`}
       >
         <div className="proto-note-row__title-line">
@@ -680,6 +690,8 @@ function SpaceShelfList({
   onTogglePin,
   onRenameItem,
   removingId,
+  activeId = null,
+  onOpenItem,
 }: {
   items: SpaceLibraryItem[];
   query: string;
@@ -690,6 +702,9 @@ function SpaceShelfList({
   onTogglePin: (item: SpaceLibraryItem) => void;
   onRenameItem: (item: SpaceLibraryItem, title: string) => void;
   removingId: string | null;
+  /** The item the expanded tool's viewer is showing. */
+  activeId?: string | null;
+  onOpenItem: (item: SpaceLibraryItem) => void;
 }) {
   const trimmed = query.trim().toLowerCase();
   const filtered = useMemo(() => {
@@ -732,10 +747,8 @@ function SpaceShelfList({
         <SpaceResourceRow
           key={item.id}
           item={item}
-          onOpen={() => {
-            if (item.kind === 'file') void openLibraryFileItem(item.id);
-            else if (item.sourceUrl) window.open(item.sourceUrl, '_blank', 'noopener');
-          }}
+          active={activeId === item.id}
+          onOpen={() => onOpenItem(item)}
           canManage={canManage}
           onRemove={() => onRemoveItem(item)}
           onTogglePin={() => onTogglePin(item)}
@@ -750,6 +763,7 @@ function SpaceShelfList({
 /** A space-shelf row. Same anatomy as the church one, minus the church's name. */
 function SpaceResourceRow({
   item,
+  active = false,
   onOpen,
   canManage = false,
   onRemove,
@@ -758,6 +772,7 @@ function SpaceResourceRow({
   isRemoving = false,
 }: {
   item: SpaceLibraryItem;
+  active?: boolean;
   onOpen: () => void;
   /*
     Whoever stocks this room's shelf can also tidy it. The server answers this
@@ -790,6 +805,7 @@ function SpaceResourceRow({
     <li
       ref={rowRef}
       className="proto-note-row-item"
+      data-active={active ? 'true' : undefined}
       onContextMenu={
         canManage
           ? (e) => {
@@ -832,6 +848,7 @@ function SpaceResourceRow({
         type="button"
         className="proto-note-row__main"
         onClick={onOpen}
+        aria-current={active ? 'true' : undefined}
         aria-label={`Space resource: ${item.title}`}
       >
         <div className="proto-note-row__title-line">
@@ -941,10 +958,20 @@ export default function PrototypeResourceLibraryList({
   onOpenResource,
   spaceId = null,
   shelfFilterAs = 'chips',
+  selected = null,
+  onSelectResource,
 }: {
   /** Sidebar search text — filters by title, site name, and domain. */
   query: string;
   onOpenResource: (item: LibraryItem) => void;
+  /**
+   * Set by the expanded Resources tool: a row click shows the resource in its viewer
+   * instead of leaving for it. Every shelf's rows route through this when it is set —
+   * church and room rows included, which otherwise open straight away.
+   */
+  onSelectResource?: (selection: ResourceSelection) => void;
+  /** The row the viewer is showing, marked the way the sidebar marks the open note. */
+  selected?: ResourceSelection | null;
   /**
    * How the shelf filter is drawn.
    *
@@ -974,6 +1001,8 @@ export default function PrototypeResourceLibraryList({
   const spaceActions = useSpaceLibraryActions(spaceId);
   const spaceCanManage = spaceQuery.data?.canManage ?? false;
   const archive = useArchiveLibraryItem();
+  const selectedKey = selected ? resourceSelectionKey(selected) : null;
+  const isActive = (source: ResourceShelf, id: string) => selectedKey === `${source}:${id}`;
   /*
     Selecting resources. Personal rows only — the ids here are library item ids,
     and the kind on the shell's selection is what keeps them from being read as
@@ -1368,6 +1397,10 @@ export default function PrototypeResourceLibraryList({
           isError={spaceQuery.isError}
           canManage={spaceCanManage}
           removingId={spaceRemovingId}
+          activeId={selected?.source === 'space' ? selected.id : null}
+          onOpenItem={(item) =>
+            onSelectResource ? onSelectResource({ source: 'space', id: item.id }) : followResource(item)
+          }
           onRemoveItem={(item) => {
             setSpaceRemovingId(item.id);
             void spaceActions
@@ -1442,7 +1475,12 @@ export default function PrototypeResourceLibraryList({
                   selected={selectedResourceIds.has(row.item.id)}
                   onToggleSelected={() => toggleResourceSelected(row.item.id)}
                   onSelectRangeTo={() => selectResourceRangeTo(row.item.id)}
-                  onOpen={() => onOpenResource(row.item)}
+                  active={isActive('mine', row.item.id)}
+                  onOpen={() =>
+                    onSelectResource
+                      ? onSelectResource({ source: 'mine', id: row.item.id })
+                      : onOpenResource(row.item)
+                  }
                   onShareWithOthers={() =>
                     setShareTarget({
                       kind: 'resource',
@@ -1464,14 +1502,16 @@ export default function PrototypeResourceLibraryList({
                   key={row.key}
                   item={row.item}
                   churchName={churchName}
+                  active={isActive('church', row.item.id)}
                   onOpen={() => {
+                    if (onSelectResource) {
+                      onSelectResource({ source: 'church', id: row.item.id });
+                      return;
+                    }
                     /* A church file lives in a private bucket with no sourceUrl,
                        so opening it means minting a signed URL — without this the
                        row was inert. */
-                    if (row.item.kind === 'file') void openLibraryFileItem(row.item.id);
-                    else if (row.item.sourceUrl) {
-                      window.open(row.item.sourceUrl, '_blank', 'noopener');
-                    }
+                    followResource(row.item);
                   }}
                 />
               ),

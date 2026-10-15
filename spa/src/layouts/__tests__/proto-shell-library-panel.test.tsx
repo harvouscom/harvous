@@ -157,6 +157,33 @@ describe('library panel', () => {
     expect(shell.current.libraryPanelView).toEqual({ tab: 'all', drill: null });
   });
 
+  describe('expanding it into a tool', () => {
+    // "Show me more of this": the panel goes, the tool comes, and the panel's one history
+    // entry becomes the tool's — so a single Back leaves the tool for where you started.
+    it('swaps the panel for the tool on one history entry', () => {
+      const shell = renderShell();
+      const before = window.history.length;
+      act(() => shell.current.openLibraryPanel({ tab: 'resources', drill: null }));
+      expect(window.history.length).toBe(before + 1);
+
+      act(() => shell.current.expandLibraryPanelInto('resources'));
+      flushExit();
+
+      expect(shell.current.libraryPanelView).toBeNull();
+      expect(shell.current.expandedSidebarTool).toBe('resources');
+      expect(window.history.length).toBe(before + 1);
+      const state = window.history.state as Record<string, unknown>;
+      expect(state.protoLibraryPanel).toBeFalsy();
+      expect(state.protoExpandedSidebarTool).toBe(true);
+    });
+
+    it('opens the tool on its own when the panel is already gone', () => {
+      const shell = renderShell();
+      act(() => shell.current.expandLibraryPanelInto('resources'));
+      expect(shell.current.expandedSidebarTool).toBe('resources');
+    });
+  });
+
   describe('a space switch re-scopes it instead of closing it', () => {
     it('survives the move and returns to root', () => {
       // A move made with the panel up is the reader steering this surface — closing it

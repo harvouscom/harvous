@@ -16,6 +16,7 @@
  *   GET  /api/library
  *   GET  /api/library/items/:id
  *   GET  /api/library/items/:id/file
+ *   GET  /api/library/items/:id/reader
  *   POST /api/library/items/create
  *   POST /api/library/items/upload
  *   POST /api/library/items/update
@@ -48,6 +49,7 @@ import {
   LIBRARY_FILE_MAX_BYTES,
 } from '../utils/library-file-upload';
 import { resolveVisibleItem } from '../utils/church-library-access';
+import { readResourceArticle } from '../utils/resource-reader';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import { validateResourceUrl, extractDomain } from '@/utils/validation';
@@ -381,6 +383,41 @@ app.get('/api/library/items/:id/file', requireAuth, async (c) => {
     const standardError = handleAPIError(error, {
       endpoint: '/api/library/items/[id]/file',
       action: 'sign_library_file',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * GET /api/library/items/:id/reader — the article behind a link, for reading in Harvous.
+ *
+ * Same visibility check as `/file`: a church or room resource is readable by whoever can
+ * see it. The URL fetched is the item's stored one — never a client-supplied URL — and
+ * goes through `fetchPublicText`'s private-address guard on every hop regardless.
+ *
+ * An unreadable page is a 200 with `readable: false`, not an error: it is a normal
+ * answer the viewer shows as the item's card.
+ */
+app.get('/api/library/items/:id/reader', requireAuth, rateLimit('read'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const id = requireParam(c, 'id');
+
+    const item = await resolveVisibleItem(auth.userId, id);
+    if (!item) return c.json({ error: 'Library item not found', code: 'NOT_FOUND' }, 404);
+    if (item.kind !== 'link' || !item.sourceUrl) {
+      return c.json({ error: 'Item is not a link', code: 'NOT_A_LINK' }, 400);
+    }
+
+    const result = await readResourceArticle(item.sourceUrl);
+    /* Private: the answer depends on who may see the item. An hour, because re-fetching
+       a third-party page on every open is their bandwidth and our latency. */
+    c.header('Cache-Control', 'private, max-age=3600');
+    return c.json(result);
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/library/items/[id]/reader',
+      action: 'read_library_link',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
