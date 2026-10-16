@@ -22,8 +22,8 @@ import type { VotdToday } from '../../lib/votd-today';
 import { useDailyPassageActions } from './use-daily-passage-actions';
 
 export const DAILY_PASSAGE_SECTION_TITLE = 'Today’s passage';
-/** A Catholic reader's Sundays and solemnities: the Mass readings in the passage's place. */
-export const DAILY_READINGS_SECTION_TITLE = 'Today’s readings';
+/** A Catholic reader's card: the day's Mass Gospel in the passage's place, the same card. */
+export const DAILY_GOSPEL_SECTION_TITLE = 'Today’s Gospel';
 
 /** Whether today's passage takes the card at the top (true) or the row in Suggested (false). */
 export function dailyPassageShowsCard(votd: VotdToday | null | undefined): boolean {
@@ -39,7 +39,7 @@ export default function PrototypeDailyPassageCard({
   notes: SpaceNoteRow[];
   votd: VotdToday;
 }) {
-  const { hidden, todaysNote, openInReader, openReading, takeNote, dismiss } = useDailyPassageActions({
+  const { hidden, todaysNote, openInReader, takeNote, dismiss } = useDailyPassageActions({
     homeSpaceId,
     notes,
     votd,
@@ -51,19 +51,18 @@ export default function PrototypeDailyPassageCard({
   if (!homeSpaceId || hidden) return null;
 
   const translationLabel = TRANSLATIONS[votd.translation]?.abbreviation ?? votd.translation;
-  /* A Catholic's Sunday or solemnity: the Gospel is the passage, the other readings sit under it. */
-  const readings = votd.readings?.items ?? [];
-  const gospel = readings.find((r) => r.slot === 'gospel');
-  const otherReadings = readings.filter((r) => r.slot !== 'gospel');
+  /* A Catholic's day: the Mass Gospel is the passage. The same card in every other way — the
+     other readings are a tap away in the reader, not chips crowding the words. */
+  const gospel = votd.readings?.items.find((r) => r.slot === 'gospel');
 
   return (
     /* The reminder link scrolls to this anchor, whichever shape the passage is in. */
     <div className="proto-daily-passage" id="todays-passage" data-deck-id="todays-passage">
       <div className="proto-daily-passage__head">
         <p className="proto-caption proto-daily-passage__eyebrow">
-          {gospel ? DAILY_READINGS_SECTION_TITLE : DAILY_PASSAGE_SECTION_TITLE} ·{' '}
+          {gospel ? DAILY_GOSPEL_SECTION_TITLE : DAILY_PASSAGE_SECTION_TITLE} ·{' '}
           <span className="proto-daily-passage__ref">
-            {gospel ? `Gospel · ${gospel.citation}` : votd.reference} · {translationLabel}
+            {gospel ? gospel.citation : votd.reference} · {translationLabel}
           </span>
         </p>
         <button
@@ -80,23 +79,6 @@ export default function PrototypeDailyPassageCard({
         className="proto-review-dock__verse proto-review-dock__verse--scripture"
         dangerouslySetInnerHTML={markup}
       />
-      {otherReadings.length > 0 && (
-        /* The Lectionary's own citations, as a missal prints them; each opens in the reader. */
-        <ul className="proto-daily-passage__readings" aria-label="The other readings">
-          {otherReadings.map((reading) => (
-            <li key={reading.slot}>
-              <button
-                type="button"
-                className="proto-daily-passage__reading"
-                onClick={() => openReading(reading.reference)}
-              >
-                <span className="proto-daily-passage__reading-label">{reading.label}</span>
-                <span className="proto-daily-passage__reading-citation">{reading.citation}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
       {/* Both secondary: the accent fill made the reader button the loudest thing on
           Activity, louder than the passage it serves. The words carry the card. */}
       <div className="proto-review-dock__actions">

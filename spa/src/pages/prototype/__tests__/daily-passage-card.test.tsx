@@ -86,6 +86,30 @@ describe('the card', () => {
     expect(document.getElementById('todays-passage')).toBeTruthy();
   });
 
+  it("is the same card for a Catholic reader, with the day's Gospel as the passage", () => {
+    const gospelVotd = {
+      reference: 'Luke 11:47-54',
+      translation: 'NABRE',
+      textHtml: '<sup class="verse-num">47</sup>Woe to you! You build the memorials of the prophets.',
+      actedToday: false,
+      readings: {
+        title: 'Thursday of the 28th week in Ordinary Time',
+        items: [
+          { slot: 'first', label: 'First reading', citation: 'Ephesians 1:1-10', reference: 'Ephesians 1:1-10' },
+          { slot: 'psalm', label: 'Responsorial Psalm', citation: 'Psalm 98:1, 2-3ab', reference: 'Psalms 98:1-3' },
+          { slot: 'gospel', label: 'Gospel', citation: 'Luke 11:47-54', reference: 'Luke 11:47-54' },
+        ],
+      },
+    };
+    render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={gospelVotd as never} />);
+    const eyebrow = document.querySelector('.proto-daily-passage__eyebrow');
+    expect(eyebrow?.textContent).toBe('Today’s Gospel · Luke 11:47-54 · NABRE');
+    // No reading chips: the other readings are not on the card.
+    expect(screen.queryByText('Ephesians 1:1-10')).toBeNull();
+    expect(screen.getByText('Open in Bible')).toBeTruthy();
+    expect(screen.getByText('Create note')).toBeTruthy();
+  });
+
   it('opening it in the reader folds it and tells the server', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
     fireEvent.click(screen.getByText('Open in Bible'));
