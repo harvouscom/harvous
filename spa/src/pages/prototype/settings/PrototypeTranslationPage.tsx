@@ -6,7 +6,6 @@ import { useBiblePacks } from '../../../hooks/useBiblePacks';
 import Icon from '@/components/react/Icon';
 import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 import PrototypeTranslationRow from './PrototypeTranslationRow';
-import TraditionControl from './TraditionControl';
 import { useIsCatholic } from '../../../hooks/useTradition';
 import { isCatholicEdition } from '@/utils/tradition';
 import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
@@ -132,8 +131,6 @@ export default function PrototypeTranslationPage() {
         Pick what you read in. Tap <Icon name="cloud-arrow-down" size={12} aria-label="the cloud" /> to
         keep a translation for reading offline.
       </SettingsIntro>
-
-      <TraditionControl variant="settings" />
 
       {catholic ? (
         /* A Catholic reads the Church's editions first; the rest stay one tap away, labelled for

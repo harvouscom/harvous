@@ -30,6 +30,14 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     footnote: 'Your name, email, and password.',
   },
   {
+    key: 'bible',
+    // Protestant or Catholic, on its own page so Translations is only about translations.
+    title: 'Your Bible',
+    route: prototypeHref('settings/bible'),
+    icon: 'book',
+    footnote: 'Protestant or Catholic: the books you see and what each day brings.',
+  },
+  {
     key: 'translation',
     // Named for the subject, not for one of the two things done to it: the page sets the
     // default translation *and* decides which ones are kept for offline reading.

@@ -217,6 +217,12 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: PrototypeAccountPage,
   });
 
+  const prototypeSettingsBibleRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'bible',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeYourBiblePage')),
+  });
+
   const prototypeSettingsTranslationRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'translation',
@@ -415,6 +421,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     prototypeSettingsRoute.addChildren([
       prototypeSettingsIndexRoute,
       prototypeSettingsAccountRoute,
+      prototypeSettingsBibleRoute,
       prototypeSettingsTranslationRoute,
       prototypeSettingsAppearanceRoute,
       prototypeSettingsRemindersRoute,

@@ -22104,19 +22104,15 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * asked — but it has to be legible, since the whole point is that a number beats a limit
  * taken on trust.
  */
-/* The Catholic switch (TraditionControl): one settings row above the translations it reorders. */
-.proto-tradition-control--settings {
-  margin: 4px 0 0;
-}
-
+/* Your Bible page's save error (PrototypeYourBiblePage). */
 .proto-tradition-control__error {
   margin: -8px 0 12px;
   padding: 0 4px;
   color: var(--pds-destructive);
 }
 
-/* In a "Make it yours" row: the same switch, small, with its label beside it. */
-.proto-tradition-control:not(.proto-tradition-control--settings) {
+/* In a "Make it yours" row: a small switch with its label beside it. */
+.proto-tradition-control {
   margin-top: 6px;
 }
 

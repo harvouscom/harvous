@@ -26,6 +26,7 @@ import {
   prototypeSettingsRemindersRouteTo,
 } from '@/lib/prototype-path';
 import { prototypeSettingsTranslationRouteTo } from './prototype-settings-translation-route';
+import { prototypeSettingsBibleRouteTo } from './prototype-settings-bible-route';
 import { CUSTOMIZE_STEP_COPY } from './onboarding-customize-copy';
 import type { PushSupport } from '../../lib/push-reminders';
 import {
@@ -60,7 +61,7 @@ export const ONBOARDING_STEP_COPY: readonly OnboardingStepCopy[] = [
 const TraditionControl = lazy(() => import('./settings/TraditionControl'));
 const traditionControl = (
   <Suspense fallback={null}>
-    <TraditionControl variant="onboarding" />
+    <TraditionControl />
   </Suspense>
 );
 
@@ -72,7 +73,8 @@ function customizeSettingsRoute(id: OnboardingCustomizeId) {
   if (id === 'reminders') return prototypeSettingsRemindersRouteTo();
   if (id === 'appearance') return prototypeSettingsAppearanceRouteTo();
   // The tradition row answers in place; its title still opens the page it lives on.
-  if (id === 'translation' || id === 'tradition') return prototypeSettingsTranslationRouteTo();
+  if (id === 'tradition') return prototypeSettingsBibleRouteTo();
+  if (id === 'translation') return prototypeSettingsTranslationRouteTo();
   return prototypeSettingsDataRouteTo();
 }
 
