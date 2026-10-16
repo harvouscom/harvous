@@ -22105,48 +22105,34 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * asked — but it has to be legible, since the whole point is that a number beats a limit
  * taken on trust.
  */
-/* Tradition — Protestant | Catholic, above the translation list (TraditionControl.tsx).
-   Spacing matches Appearance's segmented control: the page's own rhythm, no new card. */
-/* "Catholic editions" / "Other translations" above the two lists a Catholic reader sees. */
-.proto-translation-group-label {
-  margin: 18px 0 6px;
-  padding: 0 4px;
-}
-
+/* The Catholic switch (TraditionControl): one settings row above the translations it reorders. */
 .proto-tradition-control--settings {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 4px 0 20px;
+  margin: 4px 0 0;
 }
 
-.proto-tradition-control__label,
-.proto-tradition-control__summary,
 .proto-tradition-control__error {
-  margin: 0;
+  margin: -8px 0 12px;
   padding: 0 4px;
-}
-
-.proto-tradition-control__error {
   color: var(--pds-destructive);
 }
 
-/* The NABRE offer: a sentence and a button on one line, quieter than a row. */
-.proto-tradition-control__offer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: var(--pds-radius-row);
-  background: var(--pds-bg-control);
-  font-size: 13px;
-  color: var(--pds-text-primary);
+/* In a "Make it yours" row: the same switch, small, with its label beside it. */
+.proto-tradition-control:not(.proto-tradition-control--settings) {
+  margin-top: 6px;
 }
 
-/* Inside a "Make it yours" row: the control sits under the title, full width of the text. */
-.proto-tradition-control:not(.proto-tradition-control--settings) {
-  margin-top: 8px;
+.proto-tradition-control__switch {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pds-text-primary);
+  font: 500 13px/1.4 var(--pds-font-body);
+  cursor: pointer;
 }
 
 .proto-translation-usage {

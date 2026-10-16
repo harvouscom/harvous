@@ -64,7 +64,7 @@ export type HomeRowProps = {
   deckId?: string;
   /**
    * A control answered in the row itself, drawn under the title and beside — never inside — the
-   * row's button, which can't hold another control. The onboarding "Which Bible do you read?"
+   * row's button, which can't hold another control. The onboarding "Reading a Catholic Bible?"
    * row is the first: one tap answers it, where every other row is a link to Settings.
    */
   below?: ReactNode;

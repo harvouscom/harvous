@@ -13,8 +13,8 @@ export const CUSTOMIZE_STEP_COPY: readonly OnboardingCustomizeCopy[] = [
   {
     id: 'tradition',
     icon: 'book-open',
-    title: 'Which Bible do you read?',
-    meta: 'Catholic adds the 73 books and daily Mass readings.',
+    title: 'Reading a Catholic Bible?',
+    meta: 'Turns on the 73 books and daily Mass readings.',
   },
   {
     id: 'translation',
