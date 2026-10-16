@@ -25393,6 +25393,32 @@ button.proto-feed-sheet__stat:hover {
   border-radius: 0;
 }
 
+/* Long passages (a day's Gospel) fold to about a verse's height; Show more opens the rest. */
+.proto-daily-passage__text--folded {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+
+.proto-daily-passage__more {
+  justify-self: start;
+  margin: -2px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pds-text-secondary);
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.proto-daily-passage__more:hover {
+  color: var(--pds-text-primary);
+}
+
 /* Where a reading skips verses between chapters (Luke 1:1-4; 4:14-21): the gap, said quietly. */
 .proto-daily-passage__gap {
   color: var(--pds-text-tertiary);

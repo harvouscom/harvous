@@ -14,7 +14,7 @@
  * A bare card, not a section: it is the first card of the Up next deck, so the deck's eyebrow
  * is over it and its own caption says what it is — "Today's passage · Psalm 18:1-2 · NET".
  */
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { TRANSLATIONS } from '@/data/translations';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -48,6 +48,25 @@ export default function PrototypeDailyPassageCard({
      any text selection the reader is making in the passage. */
   const markup = useMemo(() => ({ __html: votd.textHtml ?? '' }), [votd.textHtml]);
 
+  /*
+   * A day's verse is a line or two; a Gospel can be fifteen. Long words fold to the height a
+   * verse takes, with Show more, so the card keeps its place on Home rather than becoming it.
+   * Measured, not guessed from length: only text that actually overflows gets the control.
+   */
+  const textRef = useRef<HTMLParagraphElement | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el || expanded) return;
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [markup, expanded]);
+
   if (!homeSpaceId || hidden) return null;
 
   const translationLabel = TRANSLATIONS[votd.translation]?.abbreviation ?? votd.translation;
@@ -76,9 +95,22 @@ export default function PrototypeDailyPassageCard({
         </button>
       </div>
       <p
-        className="proto-review-dock__verse proto-review-dock__verse--scripture"
+        ref={textRef}
+        className={`proto-review-dock__verse proto-review-dock__verse--scripture${
+          expanded ? '' : ' proto-daily-passage__text--folded'
+        }`}
         dangerouslySetInnerHTML={markup}
       />
+      {overflows || expanded ? (
+        <button
+          type="button"
+          className="proto-daily-passage__more"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((open) => !open)}
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      ) : null}
       {/* Both secondary: the accent fill made the reader button the loudest thing on
           Activity, louder than the passage it serves. The words carry the card. */}
       <div className="proto-review-dock__actions">
