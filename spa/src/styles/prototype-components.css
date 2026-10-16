@@ -25403,20 +25403,25 @@ button.proto-feed-sheet__stat:hover {
 }
 
 .proto-daily-passage__more {
+  /* The deck's own "Show less" (`.proto-deck__less`): same size, weight, gray and pill hover,
+     pulled left by its padding so the words line up with the passage. */
+  appearance: none;
   justify-self: start;
-  margin: -2px 0 0;
-  padding: 0;
+  margin: -4px 0 0 -10px;
+  padding: 4px 10px;
   border: 0;
-  background: none;
+  border-radius: var(--pds-radius-pill);
+  background: transparent;
   color: var(--pds-text-secondary);
-  font-family: var(--pds-font-body);
-  font-size: 13px;
-  font-weight: 600;
+  font: 500 12px/1.4 var(--pds-font-body);
   cursor: pointer;
 }
 
-.proto-daily-passage__more:hover {
-  color: var(--pds-text-primary);
+@media (hover: hover) and (pointer: fine) {
+  .proto-daily-passage__more:hover {
+    color: var(--pds-text-primary);
+    background: var(--pds-bg-control);
+  }
 }
 
 /* Where a reading skips verses between chapters (Luke 1:1-4; 4:14-21): the gap, said quietly. */
