@@ -30,9 +30,11 @@
 .proto-callout-anchor {
   position: fixed;
   right: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-right));
+  /* Stays at the bottom while a dock is open, and rises over it only when the dock card
+     actually reaches this corner (a narrow window) — see `STUDY_DOCK_CORNER_HEIGHT_VAR`. */
   bottom: calc(
     var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom) +
-      var(--proto-study-dock-band-height, 0px)
+      var(--proto-study-dock-corner-height, 0px)
   );
   z-index: var(--pds-z-toast);
   width: min(300px, calc(100vw - 32px));
@@ -103,6 +105,8 @@
 .proto-callout-art--legal { background-image: url("/images/callouts/legal.webp"); }
 /* Family wears the golden canvas (ai_bg_050). */
 .proto-callout-art--family { background-image: url("/images/callouts/family.webp"); }
+/* My Bible wears the river canvas (ai_bg_047) — a map of where you have been. */
+.proto-callout-art--my-bible { background-image: url("/images/callouts/my-bible.webp"); }
 /* The letter wears harvous.com's homepage hero sky (ai_bg_053, cropped from the site's copy). */
 .proto-callout-art--letter { background-image: url("/images/callouts/letter.webp"); }
 
@@ -285,6 +289,48 @@
   color: var(--pds-text-secondary);
   font-size: 7.5px;
   font-weight: 600;
+}
+
+/* My Bible: the Home card's shelf, a spine per book, filled from the bottom. */
+.proto-callout-art__shelf {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  height: 30px;
+  margin-top: 2px;
+}
+
+/* Sixty-six spines need more paper than the other scenes. */
+.proto-callout-art__sheet--wide {
+  width: 248px;
+}
+
+.proto-callout-art__spine {
+  position: relative;
+  flex: 1;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--pds-text-primary) 8%, transparent);
+}
+
+.proto-callout-art__spine > span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--pds-text-primary) 42%, transparent);
+}
+
+.proto-callout-art__spine--deep > span {
+  background: var(--pds-text-primary);
+}
+
+.proto-callout-art__ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -3px;
+  color: var(--pds-text-secondary);
+  font-size: 7px;
 }
 
 /* Body copy as soft bars. */

@@ -247,6 +247,7 @@ export function syncStudyDockBandHeight(): number {
   const layer = document.querySelector('.proto-shell__study-dock-layer');
   if (!(layer instanceof HTMLElement)) {
     root.style.removeProperty(STUDY_DOCK_BAND_HEIGHT_VAR);
+    root.style.removeProperty(STUDY_DOCK_CORNER_HEIGHT_VAR);
     return 0;
   }
 
@@ -275,14 +276,56 @@ export function syncStudyDockBandHeight(): number {
   const rounded = Math.round(height);
   if (rounded <= 0) {
     root.style.removeProperty(STUDY_DOCK_BAND_HEIGHT_VAR);
+    root.style.removeProperty(STUDY_DOCK_CORNER_HEIGHT_VAR);
     return 0;
   }
   // Written only on a change: this runs from a ResizeObserver, and setting a custom property
   // on the root invalidates style for the whole document.
-  if (root.style.getPropertyValue(STUDY_DOCK_BAND_HEIGHT_VAR) !== `${rounded}px`) {
-    root.style.setProperty(STUDY_DOCK_BAND_HEIGHT_VAR, `${rounded}px`);
-  }
+  writeVar(root, STUDY_DOCK_BAND_HEIGHT_VAR, rounded);
+  writeVar(root, STUDY_DOCK_CORNER_HEIGHT_VAR, dockReachesCorner(layer) ? rounded : 0);
   return rounded;
+}
+
+function writeVar(root: HTMLElement, name: string, px: number): void {
+  if (px <= 0) {
+    root.style.removeProperty(name);
+    return;
+  }
+  if (root.style.getPropertyValue(name) !== `${px}px`) root.style.setProperty(name, `${px}px`);
+}
+
+/**
+ * The band height again, but only while a dock card actually reaches into the window's
+ * bottom-right corner — where the feature callout floats.
+ *
+ * On a wide window the dock sits on the paper, well left of the corner, and lifting the callout
+ * by the band height left it hanging mid-window over nothing. It only needs to rise when the
+ * two would overlap: a narrow window, where the centred card runs out to the right edge.
+ */
+export const STUDY_DOCK_CORNER_HEIGHT_VAR = '--proto-study-dock-corner-height';
+
+/**
+ * How far in from the window's right edge the corner callout reaches: the shell inset, its
+ * 16px offset and 300px width (`.proto-callout-anchor`), plus a little air.
+ */
+export const STUDY_DOCK_CORNER_WIDTH = 14 + 16 + 300 + 12;
+
+function dockReachesCorner(layer: HTMLElement): boolean {
+  const edge = window.innerWidth - STUDY_DOCK_CORNER_WIDTH;
+  for (const slot of layer.children) {
+    if (!(slot instanceof HTMLElement) || slot.getBoundingClientRect().height <= 0) continue;
+    /* The cards themselves, not the slot: the slot spans the whole main cell, the card is
+       centred in it at its own max width. A slot with no card to measure counts as reaching. */
+    const cards = slot.querySelectorAll('.study-dock-card__outer');
+    if (cards.length === 0) return slot.getBoundingClientRect().right > edge;
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect();
+      /* Carousel neighbours parked off-screen to the right are not covering anything. */
+      if (rect.height <= 0 || rect.left >= window.innerWidth) continue;
+      if (rect.right > edge) return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -316,6 +359,7 @@ export function observeStudyDockBandHeight(layer: HTMLElement | null): () => voi
     observer.disconnect();
     mutations.disconnect();
     document.documentElement.style.removeProperty(STUDY_DOCK_BAND_HEIGHT_VAR);
+    document.documentElement.style.removeProperty(STUDY_DOCK_CORNER_HEIGHT_VAR);
   };
 }
 

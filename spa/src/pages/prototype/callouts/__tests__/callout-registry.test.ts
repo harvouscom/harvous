@@ -103,6 +103,34 @@ describe('who it is news to', () => {
     expect(pickCallout(CALLOUTS, {}, ctx({ now: Date.parse('2026-10-16T12:00:00Z') }))?.id).toBe('family-2026-10');
   });
 
+  it('Family and My Bible share the stack instead of one retiring the other', () => {
+    const pick = pickCalloutWithSuperseded(CALLOUTS, {}, ctx({ now: Date.parse('2026-10-16T12:00:00Z') }));
+    expect(pick.callout?.id).toBe('family-2026-10');
+    expect(pick.companion?.id).toBe('my-bible-2026-10');
+    // A week and more older than Family, Today, tidied is still retired.
+    expect(pick.superseded.map((c) => c.id)).toEqual(['today-tabs-2026-10']);
+  });
+
+  it('pairs only callouts shipped within a week of each other', () => {
+    const a = callout('a', { shippedAt: '2026-10-01' });
+    const b = callout('b', { shippedAt: '2026-10-05' });
+    const c = callout('c', { shippedAt: '2026-09-20' });
+    const pick = pickCalloutWithSuperseded([a, b, c], {}, ctx());
+    expect([pick.callout?.id, pick.companion?.id]).toEqual(['b', 'a']);
+    expect(pick.superseded.map((x) => x.id)).toEqual(['c']);
+    // Never three: a third close one is retired rather than queued.
+    const d = callout('d', { shippedAt: '2026-10-03' });
+    expect(pickCalloutWithSuperseded([a, b, d], {}, ctx()).superseded.map((x) => x.id)).toEqual(['a']);
+  });
+
+  it('keeps the other card of a pair on screen when one is put away', () => {
+    const a = callout('a', { shippedAt: '2026-10-01' });
+    const b = callout('b', { shippedAt: '2026-10-05' });
+    const justNow = new Date(NOW - 60_000).toISOString();
+    expect(pickCallout([a, b], { b: justNow }, ctx())).toBeNull();
+    expect(pickCalloutWithSuperseded([a, b], { b: justNow }, ctx(), [], new Set(['a', 'b'])).callout?.id).toBe('a');
+  });
+
   it('goes stale six weeks after shipping unless it says otherwise', () => {
     const a = callout('a', { shippedAt: shipped });
     const stale = Date.parse(shipped) + CALLOUT_SHELF_MS;

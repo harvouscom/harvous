@@ -19,7 +19,7 @@ import Icon from '@/components/react/Icon';
 import Harvous3Numeral from '../Harvous3Numeral';
 import ImportSourceFan from '../import/ImportSourceFan';
 
-export type CalloutIllustrationKey = 'today-tabs' | 'legal' | 'whats-new' | 'import' | 'letter' | 'family';
+export type CalloutIllustrationKey = 'today-tabs' | 'legal' | 'whats-new' | 'import' | 'letter' | 'family' | 'my-bible';
 
 /** A line of body copy: a rounded bar. */
 function Bar({ w, strong = false }: { w: number; strong?: boolean }) {
@@ -144,6 +144,41 @@ function Family() {
   );
 }
 
+/**
+ * My Bible: the Home card's shelf — a spine per book, Genesis to Revelation, filled by how much
+ * of each you have been in. Heights are fixed and made up; no one's real map.
+ */
+const SHELF = [
+  2, 7, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 1, 2, 1, 3, 1, 8, 2, 3, 5, 2, 0, 0, 6, 0, 2, 1, 3, 3, 3, 0, 0, 0,
+  0, 1,
+];
+
+function MyBible() {
+  return (
+    <div className="proto-callout-art__sheet proto-callout-art__sheet--wide">
+      <div className="proto-callout-art__head">
+        <b>My Bible</b>
+      </div>
+      <div className="proto-callout-art__meta">You’ve been in 34 books.</div>
+      <div className="proto-callout-art__shelf proto-callout-art__front">
+        {SHELF.map((fill, i) => (
+          <span
+            key={i}
+            className={fill >= 6 ? 'proto-callout-art__spine proto-callout-art__spine--deep' : 'proto-callout-art__spine'}
+          >
+            {fill > 0 ? <span style={{ height: `${Math.min(100, fill * 16)}%` }} /> : null}
+          </span>
+        ))}
+      </div>
+      <div className="proto-callout-art__ends">
+        <span>Genesis</span>
+        <span>Revelation</span>
+      </div>
+    </div>
+  );
+}
+
 export default function CalloutIllustration({ name }: { name: CalloutIllustrationKey }) {
   return (
     <div className={`proto-callout-art proto-callout-art--${name}`} aria-hidden="true">
@@ -157,6 +192,8 @@ export default function CalloutIllustration({ name }: { name: CalloutIllustratio
         <Letter />
       ) : name === 'family' ? (
         <Family />
+      ) : name === 'my-bible' ? (
+        <MyBible />
       ) : (
         <TodayTabs />
       )}

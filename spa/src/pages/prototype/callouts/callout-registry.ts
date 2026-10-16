@@ -7,7 +7,9 @@
  *
  * The rules that keep this from becoming a stream of interruptions live in `pickCallout`, not at
  * the mount sites:
- * 1. **One at a time.** Never two cards, never a queue on screen.
+ * 1. **One at a time** — or two, when two shipped within a week of each other
+ *    (`CALLOUT_COMPANION_MS`): they share the stack rather than the newer retiring the older
+ *    unseen on its launch week. Never three, never a queue on screen.
  * 2. **Never twice.** Seen is recorded on the account (`OnboardingState.calloutsSeen`), so a card
  *    put away on the laptop does not come back on the phone.
  * 3. **Not back to back.** After one is put away, nothing for a day — a second card appearing
@@ -55,6 +57,8 @@ export interface CalloutActionContext {
   openHomeTabs: () => void;
   /** Open an in-app settings page (`settings/family`), in this tab. `href` is for the web. */
   openSettings: (path: string) => void;
+  /** Open the My Bible map, over whatever page is showing. */
+  openBibleMap: () => void;
 }
 
 export type CalloutAction =
@@ -98,6 +102,12 @@ export const CALLOUT_SHELF_MS = 42 * DAY_MS;
 export const CALLOUT_FOLD_MS = 14 * DAY_MS;
 
 /**
+ * Two callouts shipped this close together show side by side in the stack (the newer in front),
+ * instead of the newer retiring the older. Anything older than that is still retired.
+ */
+export const CALLOUT_COMPANION_MS = 7 * DAY_MS;
+
+/**
  * The time recorded for a callout retired unseen because a newer one superseded it. Far in the
  * past so it can never start the quiet period (`lastSeenAt` takes the latest time), and the
  * account merge keeps the earliest time, so a real "seen" never overwrites it — either way the
@@ -124,6 +134,17 @@ export const CALLOUTS: readonly Callout[] = [
     illustration: 'family',
     action: { label: 'Take a look', run: (ctx) => ctx.openSettings('settings/family') },
     shippedAt: '2026-10-16',
+    audience: 'members',
+  },
+  {
+    /* Shipped Oct 15 (#257), a day before Family's date, so the two share the stack as
+       companions instead of one retiring the other. */
+    id: 'my-bible-2026-10',
+    title: 'Where you’ve been in Scripture',
+    body: 'My Bible maps every book you’ve read, written on or highlighted, from Genesis to Revelation.',
+    illustration: 'my-bible',
+    action: { label: 'Open My Bible', run: (ctx) => ctx.openBibleMap() },
+    shippedAt: '2026-10-15',
     audience: 'members',
   },
 ];
@@ -183,6 +204,8 @@ export function lastSeenAt(seen: Record<string, string> | undefined): number {
 export interface CalloutPick {
   /** The one to show now, or null. */
   callout: Callout | null;
+  /** A second registry callout, shipped within `CALLOUT_COMPANION_MS` of the first, or null. */
+  companion: Callout | null;
   /**
    * Older callouts the shown one makes redundant. The caller records them as retired
    * (`CALLOUT_RETIRED_AT`) so they do not trickle out one a day after it.
@@ -202,23 +225,35 @@ export function pickCalloutWithSuperseded(
   seen: Record<string, string> | undefined,
   ctx: CalloutContext,
   extra: readonly Callout[] = [],
+  /**
+   * Callouts already on screen on this device. They keep their place through the quiet period,
+   * as the stack's other cards do, so putting one of a pair away does not take the other too.
+   */
+  onScreen: ReadonlySet<string> = new Set(),
 ): CalloutPick {
   const record = seen ?? {};
   const due = registry
     .filter((callout) => !record[callout.id] && forThisAccount(callout, ctx))
     .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0) || shippedMs(b) - shippedMs(a));
   const newest = due[0] ?? null;
-  const superseded = newest ? due.slice(1) : [];
+  const next = due[1];
+  const companion =
+    newest && next && shippedMs(newest) - shippedMs(next) <= CALLOUT_COMPANION_MS ? next : null;
+  const superseded = newest ? due.slice(companion ? 2 : 1) : [];
 
   const urgent = [...extra].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))[0];
   if (urgent && (!newest || (urgent.priority ?? 0) >= (newest.priority ?? 0))) {
     /* Due by its own rule, so not held back by the quiet period. Nothing is retired while it
        shows: the feature callout is still waiting its turn behind it. */
-    return { callout: urgent, superseded: [] };
+    return { callout: urgent, companion: null, superseded: [] };
   }
-  if (!newest) return { callout: null, superseded: [] };
-  if (ctx.now - lastSeenAt(record) < CALLOUT_QUIET_MS) return { callout: null, superseded: [] };
-  return { callout: newest, superseded };
+  const none = { callout: null, companion: null, superseded: [] };
+  if (!newest) return none;
+  if (ctx.now - lastSeenAt(record) < CALLOUT_QUIET_MS) {
+    const kept = due.filter((callout) => onScreen.has(callout.id));
+    return { callout: kept[0] ?? null, companion: kept[1] ?? null, superseded: [] };
+  }
+  return { callout: newest, companion, superseded };
 }
 
 /** The one callout to show now, or null. See `pickCalloutWithSuperseded`. */
