@@ -25,8 +25,15 @@ enum FolderSubjectEnrichment {
         allowPrimaryUpdate: Bool
     ) -> (primary: String?, secondaries: [String]) {
         let text = "\(title)\n\(body)".trimmingCharacters(in: .whitespacesAndNewlines)
+        // God / Jesus / Holy Spirit are never folders — same exclusion the keyword path applies.
         let contentSubs = SubjectTagCandidates.folderSubjectNames(title: title, body: body)
-        let passageSubs = Array(passageSubjectNames(for: text).prefix(maxPassageSubjects))
+            .filter { !BibleStudyTagSuggester.isAutoFolderExcluded($0) }
+        let passageSubs = Array(
+            passageSubjectNames(for: text)
+                .filter { !BibleStudyTagSuggester.isAutoFolderExcluded($0) }
+                .prefix(maxPassageSubjects)
+        )
+        let strongContentSubs = SubjectTagCandidates.strongFolderSubjectNames(title: title, body: body)
         guard !contentSubs.isEmpty || !passageSubs.isEmpty else {
             return (primary, secondaries)
         }
@@ -59,7 +66,9 @@ enum FolderSubjectEnrichment {
 
         for s in passageSubs { add(s) }
         for s in secondaries { add(s) }
-        for s in contentSubs { add(s) }
+        // A content subject can still become the primary on a single mention (above), but as a
+        // secondary it needs the same evidence the keyword path asks for: title presence or a repeat.
+        for s in contentSubs where strongContentSubs.contains(s) { add(s) }
 
         return (nextPrimary, Array(result.prefix(maxSecondaries)))
     }

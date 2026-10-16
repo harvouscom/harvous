@@ -185,6 +185,26 @@ enum SubjectTagCandidates {
         return found.sorted { $0.value > $1.value }.map(\.key)
     }
 
+    /// Vocabulary subjects the note mentions strongly enough to be a *secondary* folder: named in the
+    /// title, or repeated in the body (twice, or three times for everyday `life` subjects). Mirrors
+    /// `BibleStudyTagSuggester.isEligibleSecondaryFolder`, so one passing "prayer" or a couple of
+    /// "my family" asides in a testimony stay out of the folders.
+    static func strongFolderSubjectNames(title: String, body: String) -> Set<String> {
+        let paddedTitle = padded(title)
+        let paddedBody = padded(body)
+        var out = Set<String>()
+        for row in rows {
+            let phrases = ([row.name] + row.synonyms).map(normalize).filter { $0.count >= 3 }
+            if phrases.contains(where: { paddedTitle.contains(" \($0) ") }) {
+                out.insert(row.name)
+                continue
+            }
+            let bodyHits = phrases.reduce(0) { $0 + paddedBody.components(separatedBy: " \($1) ").count - 1 }
+            if bodyHits >= (row.category == .life ? 3 : 2) { out.insert(row.name) }
+        }
+        return out
+    }
+
     private static func tagCategory(for category: SubjectCategory) -> String {
         switch category {
         case .spiritual: return "spiritual"
