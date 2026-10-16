@@ -25393,35 +25393,17 @@ button.proto-feed-sheet__stat:hover {
   border-radius: 0;
 }
 
-/* Long passages (a day's Gospel) fold to about a verse's height; Show more opens the rest. */
+/* Long passages (a day's Gospel) fold to four lines and fade out; the faded text is the way in,
+   so the card gains no row and no words. Short passages never fold. */
 .proto-daily-passage__text--folded {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  line-clamp: 4;
+  max-height: 4lh;
   overflow: hidden;
 }
 
-.proto-daily-passage__more {
-  /* The deck's own "Show less" (`.proto-deck__less`): same size, weight, gray and pill hover,
-     pulled left by its padding so the words line up with the passage. */
-  appearance: none;
-  justify-self: start;
-  margin: -4px 0 0 -10px;
-  padding: 4px 10px;
-  border: 0;
-  border-radius: var(--pds-radius-pill);
-  background: transparent;
-  color: var(--pds-text-secondary);
-  font: 500 12px/1.4 var(--pds-font-body);
+.proto-daily-passage__text--folded[data-overflows='true'] {
   cursor: pointer;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .proto-daily-passage__more:hover {
-    color: var(--pds-text-primary);
-    background: var(--pds-bg-control);
-  }
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6lh), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6lh), transparent);
 }
 
 /* Where a reading skips verses between chapters (Luke 1:1-4; 4:14-21): the gap, said quietly. */
