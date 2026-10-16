@@ -41,6 +41,7 @@ import {
 } from '../db';
 import { nowISO } from '../db/dates';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
+import { FAMILY_BIBLE_SHARED, FAMILY_BIBLE_UNSHARED } from '../utils/family-bible-books';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle } from '@/utils/validation';
@@ -1063,6 +1064,42 @@ app.post('/api/family/role-requests/:requestId/escalate', requireAuth, rateLimit
     return c.json({ success: true, ticketNumber: ticket.ticketNumber });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/family/role-requests/[requestId]/escalate', action: 'family_request_escalate' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── POST /api/family/bible-books ───────────────────────────────────────────
+
+/**
+ * Add or take back your books from the family's Bible (`family-bible-books.ts`). Yours alone to
+ * decide: no role can do it for someone else. Taking them back is never blocked, the way
+ * leaving never is; adding them waits while support has the family paused.
+ */
+app.post('/api/family/bible-books', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const mine = await loadMyFamily(auth.userId);
+    if (!mine) return c.json({ error: 'You’re not in a family.', code: 'NOT_IN_FAMILY' }, 404);
+    const body = (await c.req.json().catch(() => ({}))) as { share?: unknown };
+    if (typeof body.share !== 'boolean') return c.json({ error: 'Say whether to share.', code: 'BAD_REQUEST' }, 400);
+    if (body.share && mine.family.frozenAt) return c.json(FAMILY_FROZEN_REFUSAL, 423);
+
+    await recordFamilyEvent(db, {
+      familyId: mine.family.id,
+      actorUserId: auth.userId,
+      actorKind: 'member',
+      kind: body.share ? FAMILY_BIBLE_SHARED : FAMILY_BIBLE_UNSHARED,
+      targetUserId: auth.userId,
+      now: nowISO(),
+    });
+    const members = await db
+      .select({ userId: FamilyMembers.userId })
+      .from(FamilyMembers)
+      .where(eq(FamilyMembers.familyId, mine.family.id));
+    broadcastSpace(members.map((m) => m.userId), mine.family.spaceId);
+    return c.json({ success: true, sharing: body.share });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/family/bible-books', action: 'family_bible_books' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

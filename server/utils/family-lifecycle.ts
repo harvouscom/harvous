@@ -155,7 +155,9 @@ export type FamilyEventKind =
   | 'request_escalated'
   | 'frozen'
   | 'unfrozen'
-  | 'ownership_transferred';
+  | 'ownership_transferred'
+  | 'bible_books_shared'
+  | 'bible_books_unshared';
 
 /**
  * Append to a family's history. Support reads this before overriding anything, and members

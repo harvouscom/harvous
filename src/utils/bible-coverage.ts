@@ -193,3 +193,20 @@ export function levelsForBook(coverage: BibleCoverage | undefined, book: string)
   if (found) return found.levels;
   return Array.from({ length: bookChapterCount(book) ?? 0 }, () => 0 as CoverageLevel);
 }
+
+/**
+ * A map drawn from book names alone — the family's Bible, which never carries chapters. Every
+ * chapter of a book the household has been in reads as "been in", so a spine is simply full or
+ * empty and the section dots still count books. Unknown names are dropped.
+ */
+export function coverageFromBooks(books: readonly string[]): BibleCoverage {
+  const wanted = new Set(books.map((b) => canonicalCoverageBook(b)).filter((b): b is string => !!b));
+  return {
+    books: orderedCanonBooks()
+      .filter((book) => wanted.has(book))
+      .map((book) => {
+        const chapterCount = bookChapterCount(book) ?? 0;
+        return { book, chapterCount, levels: Array.from({ length: chapterCount }, () => 1 as CoverageLevel) };
+      }),
+  };
+}

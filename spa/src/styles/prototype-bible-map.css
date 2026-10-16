@@ -102,6 +102,29 @@ button.proto-chapter-strip__cell:focus-visible {
   color: var(--pds-text-tertiary);
 }
 
+/* The family's map: add your books, or take them back. One line, one button. */
+.proto-bible-map__share {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.proto-bible-map__share-text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-bible-map__share .proto-settings-btn {
+  flex: none;
+  /* The settings button is full-width by default; here it sits beside its sentence. */
+  width: auto;
+  padding-inline: 16px;
+}
+
 .proto-bible-map__sections {
   margin: 0;
   padding: 0;
