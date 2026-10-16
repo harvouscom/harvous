@@ -5829,6 +5829,9 @@ html.harvous-prototype-route
 /* The tile brings its own fill and colour (e.g. a Shared Space icon), so the
    generic chip surface underneath would only box it in. */
 .proto-settings-list-row__leading--bare {
+  /* Flush left, not centred: a 30px space tile centred in the 40px slot sat 5px further in
+     than every tiled row's icon. The slot keeps its width so titles still line up. */
+  justify-content: flex-start;
   background: none;
   border: none;
 }

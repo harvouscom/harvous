@@ -317,7 +317,8 @@ export function SettingsGroup({ children }: { children: ReactNode }) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        border: '0.5px solid var(--pds-border)',
+        // The paper border: `--pds-border` is near-white and vanished on the settings sheet.
+        border: '0.5px solid var(--pds-border-on-paper)',
         borderRadius: 'var(--pds-radius-menu)',
         overflow: 'hidden',
         marginBottom: 16,
