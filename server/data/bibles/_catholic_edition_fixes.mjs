@@ -235,7 +235,10 @@ const SPLITS = {
     'EST 8:12': ['EST 8:12', ...range('EST', 16, 1, 24)],
     'EST 8:13': range('EST', 8, 13, 17),
     'EST 10:13': ['EST 10:13', 'EST 11:1'],
-    'DAN 3:23': ['DAN 3:23', ...range('S3Y', 1, 1, 67)],
+    // The RSV prints five of the Song's "Bless the Lord" lines in another order from the Greek and
+    // the Vulgate (dews, nights, light, ice, frosts; the Vulgate has dews, ice, frosts, nights,
+    // light). Harvous keeps the Vulgate's addresses, so each goes to the verse it translates.
+    'DAN 3:23': ['DAN 3:23', ...range('S3Y', 1, 1, 45), 'S3Y 1:48', 'S3Y 1:49', 'S3Y 1:46', 'S3Y 1:47', ...range('S3Y', 1, 50, 67)],
     '2CH 20:21': ['2CH 20:21', '2CH 20:22'],
   },
   NRSVCE: {
@@ -249,21 +252,30 @@ const SPLITS = {
 };
 
 /**
- * Verse starts the alignment can't see, read off the NABRE's verses where the two editions cut
- * a sentence somewhere the clause marks don't decide (Esther 15:12 opens "and said to her, ‘What
- * is it, Esther?’", mid-sentence). Each phrase begins a verse.
+ * Verse starts the alignment can't see, where the editions cut a sentence somewhere the clause
+ * marks don't decide. Read off the printed RSV-CE and NRSV-CE (as Bible Gateway numbers them),
+ * which `segment` was checked against verse by verse. Each phrase begins a verse.
  */
 const FORCED_CUTS = {
   RSV2CE: {
-    'EST 4:17': ['to abolish what'],
-    'EST 5:2': ['Lifting his face', 'and said to her, “What is it'],
-    'EST 8:12': ['so far enjoyed'],
+    'EST 1:1': ['Behold, noise and confusion'],
+    'EST 3:13': ['so that those who have long'],
+    'EST 4:17': ['“O Lord, Lord, King who rulest', 'to abolish what'],
+    'EST 5:2': ['Lifting his face', '“What is it', 'Then he raised the golden', 'and he embraced her', 'And she said to him, “I'],
+    'EST 8:12': ['so far enjoyed', 'and are sons of the Most'],
   },
   NRSVCE: {
-    'EST 3:13': ['pointed out to us'],
-    'EST 5:1': ['because we glorified', 'to abolish what', 'Lifting his face', 'and said to her, “What is it'],
-    'EST 8:12': ['enjoyed so fully'],
+    'EST 1:1': ['Noises and confusion'],
+    'EST 3:13': ['pointed out to us', 'so that those who have long'],
+    'EST 5:1': ['because we glorified', 'to abolish what', 'Lifting his face', '“What is it', 'Then he raised the golden', 'he embraced her', 'She said to him, “I'],
+    'EST 8:12': ['enjoyed so fully', 'and are children of the living'],
   },
+};
+
+/** Phrases a verse never starts with, though a clause mark comes before them. */
+const NO_CUT_BEFORE = {
+  RSV2CE: { 'EST 5:2': ['for our law', 'Come near'] },
+  NRSVCE: { 'EST 5:1': ['for our law', 'Come near'] },
 };
 
 /** Text before this marker in Sirach 1:1 is the Prologue. */
@@ -380,8 +392,10 @@ async function main() {
       if (text.split(` ${phrase}`).length !== 2) throw new Error(`${id} ${at}: forced cut "${phrase}" must occur once`);
       text = text.replace(` ${phrase}`, ` ¶ ${phrase}`);
     }
+    // A word joiner in place of the space, so the clause split can't fall there.
+    for (const phrase of NO_CUT_BEFORE[id][at] ?? []) text = text.replace(` ${phrase}`, `\u2060${phrase}`);
     const refs = targets.map((t) => refText(t) ?? '');
-    const pieces = segment(text, refs);
+    const pieces = segment(text, refs).map((p) => p.replace(/\u2060/g, ' '));
     splits[at] = targets.map((t, i) => {
       const [, book, chapter, verse] = /^(\S+) (\d+):(\d+)$/.exec(t);
       return { book, chapter: Number(chapter), verse: Number(verse), text: pieces[i] };
