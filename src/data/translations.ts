@@ -163,6 +163,30 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
     sortOrder: 12,
     deuterocanon: true,
   },
+  RSV2CE: {
+    id: 'RSV2CE',
+    name: 'Revised Standard Version, Second Catholic Edition',
+    abbreviation: 'RSV-2CE',
+    publisher: 'Ignatius Press',
+    copyright:
+      'Scripture quotations are from the Revised Standard Version of the Bible, Second Catholic Edition, copyright © 1946, 1952, 1957, 1965, 1966, 2006 National Council of the Churches of Christ in the United States of America. Published by Ignatius Press. All rights reserved.',
+    website: 'https://www.ignatius.com',
+    isPublicDomain: false,
+    sortOrder: 13,
+    deuterocanon: true,
+  },
+  NRSVCE: {
+    id: 'NRSVCE',
+    name: 'New Revised Standard Version, Catholic Edition',
+    abbreviation: 'NRSV-CE',
+    publisher: 'National Council of Churches',
+    copyright:
+      'Scripture quotations are from the New Revised Standard Version Bible: Catholic Edition, copyright © 1989, 1993 National Council of the Churches of Christ in the United States of America. All rights reserved.',
+    website: 'https://nationalcouncilofchurches.us',
+    isPublicDomain: false,
+    sortOrder: 14,
+    deuterocanon: true,
+  },
 };
 
 /** Ordered list of translation IDs for UI dropdowns */
@@ -180,7 +204,7 @@ export function getTranslationAbbreviationDisplay(id: string): string {
   return getTranslation(id)?.abbreviation ?? id;
 }
 
-/** True when this translation carries the deuterocanonical books (NABRE, DRB). */
+/** True when this translation carries the deuterocanonical books (NABRE, DRB, RSV-2CE, NRSV-CE). */
 export function translationHasDeuterocanon(id: string | null | undefined): boolean {
   return Boolean(id && TRANSLATIONS[id]?.deuterocanon);
 }

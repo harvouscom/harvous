@@ -21,6 +21,8 @@ struct HarvousTranslationChoice: Identifiable, Hashable {
         HarvousTranslationChoice(id: "MSG", name: "The Message"),
         HarvousTranslationChoice(id: "NABRE", name: "New American Bible, Revised Edition"),
         HarvousTranslationChoice(id: "DRB", name: "Douay-Rheims Bible"),
+        HarvousTranslationChoice(id: "RSV2CE", name: "Revised Standard Version, Second Catholic Edition"),
+        HarvousTranslationChoice(id: "NRSVCE", name: "New Revised Standard Version, Catholic Edition"),
     ]
 }
 

@@ -21,7 +21,7 @@ enum ScriptureCanonicalBooks {
     static let sharedBookCount = 66
 
     /// Translations that carry the deuterocanon (mirrors `deuterocanon: true` in `src/data/translations.ts`).
-    static let deuterocanonTranslations: Set<String> = ["NABRE", "DRB"]
+    static let deuterocanonTranslations: Set<String> = ["NABRE", "DRB", "RSV2CE", "NRSVCE"]
 
     /// Where each deuterocanonical book sits in a Catholic Bible: after this book.
     private static let catholicPlacement: [String: [String]] = [

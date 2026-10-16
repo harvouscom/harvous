@@ -6,27 +6,39 @@ import { allChapterRecords } from './bible-book-chapters';
 import { TRANSLATION_ORDER } from '../data/translations';
 
 /**
- * Regex alternation for inline translation suffix — NASB 1995 before NASB; then longest ids first
- * (e.g. NKJV before KJV) so alternation matches correctly. DRA is the Douay-Rheims' other common
- * abbreviation (Bible Gateway's) and resolves to DRB.
+ * Other ways a translation is written after a reference, and the id each resolves to. DRA is the
+ * Douay-Rheims' other common abbreviation (Bible Gateway's). The Catholic RSV and NRSV ids have no
+ * hyphen, but their printed abbreviations (and pill labels) do: "John 3:16 RSV-2CE".
+ */
+const TRANSLATION_ALIASES: Record<string, string> = {
+  DRA: 'DRB',
+  'RSV-2CE': 'RSV2CE',
+  'RSV-CE': 'RSV2CE',
+  'NRSV-CE': 'NRSVCE',
+};
+
+/**
+ * Regex alternation for inline translation suffix — NASB 1995 before NASB; then longest ids and
+ * aliases first (e.g. NKJV before KJV, NRSV-CE before NRSVCE) so alternation matches correctly.
  */
 function buildInlineTranslationAlternation(): string {
-  const sorted = [...TRANSLATION_ORDER].sort((a, b) => b.length - a.length || a.localeCompare(b));
+  const sorted = [...TRANSLATION_ORDER, ...Object.keys(TRANSLATION_ALIASES)].sort(
+    (a, b) => b.length - a.length || a.localeCompare(b),
+  );
   const ids = sorted.map((id) => `(?:${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`);
-  return ['(?:NASB\\s+1995)', ...ids, '(?:DRA)'].join('|');
+  return ['(?:NASB\\s+1995)', ...ids].join('|');
 }
 
 const INLINE_TRANSLATION_ALT = buildInlineTranslationAlternation();
 
 /**
  * Normalize a matched inline translation token to the canonical id stored on pills / API.
- * e.g. "NASB 1995", "nasb  1995" → "NASB"; "DRA" → "DRB"
+ * e.g. "NASB 1995", "nasb  1995" → "NASB"; "DRA" → "DRB"; "RSV-2CE" → "RSV2CE"
  */
 export function normalizeInlineTranslationAbbreviation(raw: string): string {
   const t = raw.trim().replace(/\s+/g, ' ');
   if (/^NASB\s+1995$/i.test(t)) return 'NASB';
-  if (/^DRA$/i.test(t)) return 'DRB';
-  return t.toUpperCase();
+  return TRANSLATION_ALIASES[t.toUpperCase()] ?? t.toUpperCase();
 }
 
 /**
@@ -42,8 +54,10 @@ export function matchTrailingTranslationAbbreviation(text: string): { canonicalI
 
 /** Translation codes longest-first for anchored suffix matching (NKJV before KJV). */
 const ANCHORED_TRANSLATION_CODES = (() => {
-  const sorted = [...TRANSLATION_ORDER].sort((a, b) => b.length - a.length || a.localeCompare(b));
-  return ['NASB 1995', ...sorted, 'DRA'];
+  const sorted = [...TRANSLATION_ORDER, ...Object.keys(TRANSLATION_ALIASES)].sort(
+    (a, b) => b.length - a.length || a.localeCompare(b),
+  );
+  return ['NASB 1995', ...sorted];
 })();
 
 /**
