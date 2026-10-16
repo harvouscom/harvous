@@ -94,7 +94,7 @@ export default function PrototypeCreateThreadSheet({
         title,
         userOverride: true,
       });
-      playSound('organize.filed');
+      playSound('organize.created');
       onOpenChange(false);
       onCreated(first);
       // The checklist's "connect two notes" step. Reported from here rather than derived on

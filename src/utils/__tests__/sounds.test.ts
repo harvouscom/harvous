@@ -70,6 +70,12 @@ describe('the palette', () => {
     ]);
   });
 
+  it('keeps setting up quieter than finishing', () => {
+    expect(SOUND_CUES['space.created'].emphasis).toBe('subtle');
+    expect(SOUND_CUES['organize.created']).toMatchObject({ class: 'moment', sound: 'select', emphasis: 'subtle' });
+    expect(SOUND_CUES['study.finished'].emphasis).toBe('normal');
+  });
+
   it('plays a try-again quieter than the miss it resembles', () => {
     playSound('review.tryAgain');
     expect(heard()[0]).toEqual(['error', expect.objectContaining({ emphasis: 'subtle', volume: 0.6 })]);
