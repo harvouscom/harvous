@@ -1,5 +1,5 @@
 /**
- * Bridge "open Your Bible at this book" across the expand that follows.
+ * Bridge "open My Bible at this book" across the expand that follows.
  *
  * The reader's title line and the foot of a chapter hand off to the expanded map, which mounts
  * after `openExpandedSidebar('bible-map')` — so the opener cannot scroll it directly. Same shape

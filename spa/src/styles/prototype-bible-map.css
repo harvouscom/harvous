@@ -1,5 +1,5 @@
 /*
- * Your Bible — the expanded map: section lines, book rows and chapter strips.
+ * My Bible — the expanded map: section lines, book rows and chapter strips.
  *
  * Its own sheet, imported by the lazily loaded `PrototypeExpandedBibleMap`, so none of it rides
  * on the initial payload; only someone who opens the map pays for it. The shelf, the Home card

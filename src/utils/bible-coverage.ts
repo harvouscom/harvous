@@ -1,5 +1,5 @@
 /**
- * Where a person has been in the Bible, chapter by chapter — the shape behind "Your Bible".
+ * Where a person has been in the Bible, chapter by chapter — the shape behind "My Bible".
  *
  * A map of study, not a reading tracker. The North Star rules out plans and streaks
  * (docs/future/HARVOUS_NORTH_STAR.md), so nothing here knows about dates, targets or a

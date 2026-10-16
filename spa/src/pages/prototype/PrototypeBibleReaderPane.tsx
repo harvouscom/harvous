@@ -680,7 +680,7 @@ export default function PrototypeBibleReaderPane({
    */
   const { studyDockCarouselHostEl, paperStack, openExpandedSidebar } = useProtoShell();
   /*
-   * "Your Bible", from inside the reader — only inside the book picker. The hairlines show how
+   * "My Bible", from inside the reader — only inside the book picker. The hairlines show how
    * much of each book you have been in, and a link at the picker's foot opens the map at this
    * book. Nothing on the page itself: a line under the title was tried and read as a running
    * score over every chapter. Reads Home's cache; a guest has none, and neither draws.
@@ -701,7 +701,7 @@ export default function PrototypeBibleReaderPane({
                   openExpandedSidebar('bible-map');
                 }}
               >
-                <span className="proto-menu-item__label">Your Bible</span>
+                <span className="proto-menu-item__label">My Bible</span>
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="up-right-and-down-left-from-center" size={11} />
                 </span>

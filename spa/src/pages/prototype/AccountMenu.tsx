@@ -1,11 +1,11 @@
 /**
  * Account menu — toolbar dropdown. Shows the signed-in name + email (like native
- * Mac's account screen), Your Bible, Settings, and Log out.
+ * Mac's account screen), My Bible, Settings, and Log out.
  * Mirrors SpaceSwitcherMenu / ListViewMenu (proto-menu popover, right-anchored).
  *
  * For a guest it becomes a second way to make an account, and the one that survives a narrow
  * window — the standing row's label truncates on a phone, but this control is always the same
- * size. Your Bible, Settings and Log out are absent rather than disabled: there is no session to end,
+ * size. My Bible, Settings and Log out are absent rather than disabled: there is no session to end,
  * and a row that cannot do anything is worse than no row.
  */
 import { useClerk, useUser } from '@clerk/clerk-react';
@@ -157,7 +157,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
             </div>
           ) : (
           <div className="proto-menu-section" role="group">
-            {/* Your Bible sits with you rather than with the Scripture: it is a picture of your
+            {/* My Bible sits with you rather than with the Scripture: it is a picture of your
                 own study, the way an account screen is a picture of your account. */}
             <button
               type="button"
@@ -171,7 +171,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               <span className="proto-menu-item__icon" aria-hidden>
                 <Icon name="book-open" size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
-              <span style={{ flex: 1, minWidth: 0 }}>Your Bible</span>
+              <span style={{ flex: 1, minWidth: 0 }}>My Bible</span>
             </button>
             <button
               type="button"

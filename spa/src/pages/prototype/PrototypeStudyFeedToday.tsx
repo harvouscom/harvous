@@ -357,7 +357,7 @@ export default function PrototypeStudyFeedToday({
         </div>
       </div>
 
-      {/* Your Bible — a standing picture, not an offer, so it sits under the decks rather than
+      {/* My Bible — a standing picture, not an offer, so it sits under the decks rather than
           in one. Renders nothing until there is something on the shelf. */}
       <PrototypeHomeBibleShelfCard coverage={home.bibleCoverage} />
     </div>
