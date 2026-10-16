@@ -4,7 +4,6 @@ import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { useSettingsCategories } from './settingsCategories';
-import { useTradition } from '../../../hooks/useTradition';
 import { SettingsShell, SettingsGroup, SettingsRow } from './SettingsShell';
 import SettingsAdminShortcut from './SettingsAdminShortcut';
 import { playSound } from '@/utils/sounds';
@@ -28,7 +27,6 @@ export default function PrototypeSettingsIndex() {
     return <Navigate to={prototypeSettingsAccountRouteTo()} replace />;
   }
 
-  const tradition = useTradition();
   const translationLabel = profile?.defaultTranslation
     ? getTranslationAbbreviationDisplay(profile.defaultTranslation)
     : undefined;
@@ -46,10 +44,6 @@ export default function PrototypeSettingsIndex() {
             sublabel={cat.footnote}
             value={
               cat.key === 'bible'
-                ? tradition === 'catholic'
-                  ? 'Catholic'
-                  : 'Protestant'
-                : cat.key === 'translation'
                 ? translationLabel
                 : cat.key === 'lockPin'
                   ? lockPinLabel

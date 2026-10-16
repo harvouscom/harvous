@@ -24,7 +24,6 @@ export function prefetchSettingsCategoryChunks(): void {
   };
   const load = () => {
     void import('./PrototypeYourBiblePage').catch(swallow);
-    void import('./PrototypeTranslationPage').catch(swallow);
     void import('./PrototypeAppearancePage').catch(swallow);
     void import('./PrototypeRemindersPage').catch(swallow);
     void import('./PrototypeReviewExercisesPage').catch(swallow);

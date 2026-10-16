@@ -22130,20 +22130,6 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   cursor: pointer;
 }
 
-p.proto-translation-usage {
-  margin: -6px 0 0;
-  padding: 0 4px;
-}
-
-.proto-translation-usage {
-  color: var(--pds-text-muted);
-  font-variant-numeric: tabular-nums;
-  /* Wraps as one unit or not at all. Without this, "3 saved · 14 MB." breaks wherever the
-     paragraph happens to run out of room — often between the dot and the number, which reads
-     as two unrelated fragments rather than one fact. */
-  white-space: nowrap;
-}
-
 .proto-translation-row__meta {
   display: block;
   min-width: 0;
@@ -22211,8 +22197,8 @@ p.proto-translation-usage {
 }
 
 /* The offline control as a glyph (PrototypeTranslationRow): muted until it matters. A hairline
-   circle says it's a button without filling it. A full pixel: the 0.5px control edges vanish
-   around a 30px glyph. */
+   circle says it's a button without filling it. The paper border, not a control one: the
+   control edges are near-white and vanish on the sheet. */
 .proto-translation-row__icon {
   appearance: none;
   display: inline-flex;
@@ -22220,7 +22206,7 @@ p.proto-translation-usage {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border: 1px solid var(--pds-border-control-strong);
+  border: 0.5px solid var(--pds-border-on-paper);
   border-radius: var(--pds-radius-pill);
   background: transparent;
   color: var(--pds-text-tertiary);
@@ -22259,6 +22245,71 @@ html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon
   html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon:hover:not(:disabled) * {
     color: var(--pds-text-primary) !important;
   }
+}
+
+/* ── Settings › My Bible (PrototypeYourBiblePage) ──────────────────────────────
+   The translation card, Books, and Kept offline. Compact rows inside hairline groups (the
+   paper border — `--pds-border` is near-white and disappears on the sheet): the
+   page shows three short lists, and full-height settings rows made it scroll before it said
+   anything. Row padding drops from 11px to 8px and the offline glyphs from 30px to 26px. */
+.proto-my-bible__card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 12px;
+  border: 0.5px solid var(--pds-border-on-paper);
+  border-radius: var(--pds-radius-menu);
+}
+
+.proto-my-bible__card-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-my-bible__card-meta {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-my-bible__group {
+  display: flex;
+  flex-direction: column;
+  border: 0.5px solid var(--pds-border-on-paper);
+  border-radius: var(--pds-radius-menu);
+  overflow: hidden;
+}
+
+.proto-my-bible__card + .proto-my-bible__group {
+  margin-top: 8px;
+}
+
+p.proto-my-bible__label {
+  margin: 18px 4px 6px;
+  color: var(--pds-text-tertiary);
+}
+
+p.proto-my-bible__usage {
+  margin: 6px 4px 0;
+  color: var(--pds-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-wrap: pretty;
+}
+
+.proto-my-bible .proto-translation-row__choose {
+  padding: 8px 12px;
+}
+
+.proto-my-bible .proto-translation-row__icon {
+  width: 26px;
+  height: 26px;
+}
+
+.proto-my-bible .proto-translation-row__offline {
+  padding-right: 6px;
 }
 
 /* A small button, not a text link — bordered and filled like every other row-scoped control

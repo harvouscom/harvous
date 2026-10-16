@@ -22,6 +22,7 @@ import {
 } from './pages/prototype/proto-route-slugs';
 import { toPrototypeSpaceSearchParam } from './utils/prototype-space-api-id';
 import { requestFreezeMainForSettings } from './lib/prototype-settings-main-keepalive';
+import { prototypeSettingsBibleRouteTo } from './pages/prototype/prototype-settings-bible-route';
 import { markPendingComposeSession } from './lib/pending-compose-session';
 import { sanitizeReadSearch } from './utils/reader-nav';
 import {
@@ -223,10 +224,13 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeYourBiblePage')),
   });
 
+  // Translations folded into My Bible (Oct 2026); old links land there.
   const prototypeSettingsTranslationRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'translation',
-    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeTranslationPage')),
+    beforeLoad: () => {
+      throw redirect({ to: prototypeSettingsBibleRouteTo(), replace: true });
+    },
   });
 
   const prototypeSettingsAppearanceRoute = createRoute({

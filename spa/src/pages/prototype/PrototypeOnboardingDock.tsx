@@ -25,7 +25,6 @@ import {
   prototypeSettingsDataRouteTo,
   prototypeSettingsRemindersRouteTo,
 } from '@/lib/prototype-path';
-import { prototypeSettingsTranslationRouteTo } from './prototype-settings-translation-route';
 import { prototypeSettingsBibleRouteTo } from './prototype-settings-bible-route';
 import { CUSTOMIZE_STEP_COPY } from './onboarding-customize-copy';
 import type { PushSupport } from '../../lib/push-reminders';
@@ -74,7 +73,7 @@ function customizeSettingsRoute(id: OnboardingCustomizeId) {
   if (id === 'appearance') return prototypeSettingsAppearanceRouteTo();
   // The tradition row answers in place; its title still opens the page it lives on.
   if (id === 'tradition') return prototypeSettingsBibleRouteTo();
-  if (id === 'translation') return prototypeSettingsTranslationRouteTo();
+  if (id === 'translation') return prototypeSettingsBibleRouteTo();
   return prototypeSettingsDataRouteTo();
 }
 

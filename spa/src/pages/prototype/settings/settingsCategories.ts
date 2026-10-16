@@ -3,9 +3,13 @@
  * Used by both the wide two-pane sidebar (PrototypeSettingsLayout) and the
  * narrow drilldown list (PrototypeSettingsIndex) so the two never drift.
  *
- * Order: Account, then the "My" pages together (My Bible, My Church, My Family, My Notes),
- * then everything about how the app behaves. Native's `allSettingsRows()` in
- * HarvousSettingsRoute.swift has not caught up to this grouping yet.
+ * Order, in runs that read as groups without dividers:
+ * - Account, then the "My" pages (My Bible, My Church, My Family, My Notes) — what's yours.
+ * - Review exercises, Reminders — how Harvous helps you study.
+ * - Appearance, Sounds, Keyboard shortcuts — how it looks, sounds and handles.
+ * - Lock PIN, Sharing, Connector — privacy, and who and what else can reach your notes.
+ * - Plan, Get Support — the account's business end, last.
+ * Native's `allSettingsRows()` in HarvousSettingsRoute.swift has not caught up to this yet.
  */
 import type { IconName } from '@/components/react/Icon';
 import { prototypeHref } from '@/lib/prototype-path';
@@ -32,11 +36,12 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'bible',
-    // Protestant or Catholic, on its own page so Translations is only about translations.
+    // The translation you read in, Protestant or Catholic, and what's kept offline. Absorbed
+    // the old Translations page (Oct 2026); /settings/translation redirects here.
     title: 'My Bible',
     route: prototypeHref('settings/bible'),
     icon: 'book',
-    footnote: 'Protestant or Catholic: the books you see and what each day brings.',
+    footnote: 'Your translation, the books you see, and what you keep offline.',
   },
   {
     key: 'church',
@@ -64,33 +69,6 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: 'cloud',
     footnote: 'Export, import, or delete your data.',
   },
-  {
-    key: 'translation',
-    // Named for the subject, not for one of the two things done to it: the page sets the
-    // default translation *and* decides which ones are kept for offline reading.
-    title: 'Translations',
-    route: prototypeHref('settings/translation'),
-    // Scroll, matching how scripture is marked everywhere else in the app.
-    icon: 'scroll',
-    footnote: 'The translation used across the app, and which ones you keep offline.',
-  },
-  {
-    key: 'appearance',
-    title: 'Appearance',
-    route: prototypeHref('settings/appearance'),
-    icon: 'paintbrush',
-    footnote: 'Background color or image behind the app.',
-  },
-  // Web-only for now: the native apps have no push plumbing (that is APNs, a separate
-  // build), so `HarvousSettingsRoute.swift` deliberately has no matching row and the two
-  // lists are allowed to differ by exactly this one entry until native catches up.
-  {
-    key: 'reminders',
-    title: 'Reminders',
-    route: prototypeHref('settings/reminders'),
-    icon: 'bell',
-    footnote: 'A Sunday and midweek nudge to come back.',
-  },
   /*
    * Also web-only, and for a different reason: Review itself is. The row is listed for everyone
    * rather than gated on the subscription, because a settings list that changes shape with what
@@ -104,6 +82,23 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: 'arrows-rotate',
     footnote: 'Which kinds of question Review asks you.',
   },
+  // Web-only for now: the native apps have no push plumbing (that is APNs, a separate
+  // build), so `HarvousSettingsRoute.swift` deliberately has no matching row and the two
+  // lists are allowed to differ by exactly this one entry until native catches up.
+  {
+    key: 'reminders',
+    title: 'Reminders',
+    route: prototypeHref('settings/reminders'),
+    icon: 'bell',
+    footnote: 'A Sunday and midweek nudge to come back.',
+  },
+  {
+    key: 'appearance',
+    title: 'Appearance',
+    route: prototypeHref('settings/appearance'),
+    icon: 'paintbrush',
+    footnote: 'Background color or image behind the app.',
+  },
   /*
    * Web-only as well: the sounds are synthesized in the browser (`src/utils/sounds.ts`), and the
    * native apps have none. A third entry the native list does not carry until they do.
@@ -114,6 +109,13 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     route: prototypeHref('settings/sounds'),
     icon: 'volume-low',
     footnote: 'When the app plays a sound, on this device.',
+  },
+  {
+    key: 'keyboardShortcuts',
+    title: 'Keyboard shortcuts',
+    route: prototypeHref('settings/keyboard-shortcuts'),
+    icon: 'keyboard',
+    footnote: 'On Mac and iPad.',
   },
   /*
    * Web-only for now. Native shows a locked note's title but can't open it yet — no
@@ -134,13 +136,6 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: 'share',
     footnote: 'Public links, shared spaces, and what you have offered to Discover.',
   },
-  {
-    key: 'addons',
-    title: 'Plan',
-    route: prototypeHref('settings/addons'),
-    icon: 'id-card',
-    footnote: 'Your plan and what it includes.',
-  },
   /*
    * Web-only, like Reminders. Listed for everyone once launched (the page describes the
    * feature to someone without Plus). While `connector` is withheld it is listed only for
@@ -154,18 +149,18 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     footnote: 'Use your study in Claude, ChatGPT, and other AI apps.',
   },
   {
+    key: 'addons',
+    title: 'Plan',
+    route: prototypeHref('settings/addons'),
+    icon: 'id-card',
+    footnote: 'Your plan and what it includes.',
+  },
+  {
     key: 'support',
     title: 'Get Support',
     route: prototypeHref('settings/support'),
     icon: 'circle-info',
     footnote: 'Reach Derek directly.',
-  },
-  {
-    key: 'keyboardShortcuts',
-    title: 'Keyboard shortcuts',
-    route: prototypeHref('settings/keyboard-shortcuts'),
-    icon: 'keyboard',
-    footnote: 'On Mac and iPad.',
   },
 ];
 
