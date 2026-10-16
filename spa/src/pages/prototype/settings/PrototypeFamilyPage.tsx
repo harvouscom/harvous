@@ -20,6 +20,7 @@ import {
   FAMILY_INVITE_LABEL_MAX,
   FAMILY_ROLE_FOR_INVITER,
   FAMILY_ROLE_LABEL,
+  familyMemberRoleLabel,
   canChangeFamilyRole,
   canRemoveFamilyMember,
   type FamilyRole,
@@ -427,13 +428,13 @@ function MemberScreen({ data, member, onDone }: { data: InFamily; member: Family
   const actions = [
     roleMove(
       'adult',
-      'Make an adult member',
+      'Make an adult',
       member.role === 'child'
         ? `Parents will stop seeing ${member.displayName}’s progress.`
         : `${member.displayName} will no longer see the children’s progress.`,
       member.role === 'child' ? 'Parents stop seeing their progress.' : undefined,
     ),
-    roleMove('parent', 'Make a parent', `${member.displayName} will be able to invite people and see the children’s progress.`),
+    roleMove('parent', 'Make a parent or guardian', `${member.displayName} will be able to invite people and see the children’s progress.`),
     canRemoveFamilyMember({ actor, ownerUserId: owner, targetUserId: member.userId, targetRole: member.role }).ok
       ? {
           key: 'remove',
@@ -448,8 +449,8 @@ function MemberScreen({ data, member, onDone }: { data: InFamily; member: Family
   return (
     <SettingsSubScreen title={member.displayName} onBack={onDone}>
       <SettingsIntro>
-        {FAMILY_ROLE_LABEL[member.role]}
-        {member.isOwner ? ' · started this family' : ''}
+        {familyMemberRoleLabel(member.role, member.isOwner)}
+        {member.isOwner ? ' · pays for Plus' : ''}
         {!member.isOwner ? (member.covered ? ' · covered by the family plan' : ' · not covered right now') : ''}
       </SettingsIntro>
       <div ref={anchorRef}>
@@ -720,6 +721,7 @@ export function FamilyView({ data }: { data: InFamily }) {
   const [view, setView] = useState<View>({ kind: 'main' });
   const [confirmLeave, setConfirmLeave] = useState(false);
   const leaveAnchorRef = useRef<HTMLDivElement | null>(null);
+  const hasChild = family.members.some((m) => m.role === 'child');
   const frozen = Boolean(family.frozen);
   const requests = family.requests ?? [];
 
@@ -783,7 +785,7 @@ export function FamilyView({ data }: { data: InFamily }) {
           <SettingsRow
             key={member.userId}
             label={member.isMe ? `${member.displayName} (you)` : member.displayName}
-            sublabel={`${FAMILY_ROLE_LABEL[member.role]}${member.isOwner ? ' · pays for Plus' : member.covered ? ' · covered' : ''}${member.changedBySupport ? ' · changed by Harvous support' : ''}`}
+            sublabel={`${familyMemberRoleLabel(member.role, member.isOwner)}${member.isOwner ? ' · pays for Plus' : member.covered ? ' · covered' : ''}${member.changedBySupport ? ' · changed by Harvous support' : ''}`}
             leadingNode={
               <SharedSpaceMemberAvatar
                 userId={member.userId}
@@ -873,7 +875,7 @@ export function FamilyView({ data }: { data: InFamily }) {
           title={me.isOwner ? 'Stop family sharing?' : 'Leave the family?'}
           description={
             me.isOwner
-              ? 'Your Plus stops covering everyone, and parents stop seeing progress. The Family Space stays, with everyone in it.'
+              ? `Your Plus stops covering everyone${hasChild ? ', and parents stop seeing progress' : ''}. The Family Space stays, with everyone in it.`
               : me.role === 'child'
                 ? 'Your parents stop seeing your progress right away. Your notes in the Family Space leave with you, and the family plan stops covering you.'
                 : 'Your notes in the Family Space leave with you, and the family plan stops covering you.'

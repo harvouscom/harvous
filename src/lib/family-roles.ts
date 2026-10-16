@@ -24,11 +24,22 @@ export function spaceRoleForFamilyRole(role: FamilyRole, isOwner: boolean): 'own
   return role === 'parent' ? 'leader' : 'member';
 }
 
+/**
+ * Apple's Family Sharing words (Oct 2026): Adult, Parent/Guardian, Child, and Organizer for
+ * whoever started it. A couple with no children is a family too, and calling its organizer
+ * "Parent" said something untrue about them. The stored role is unchanged — the owner is still
+ * `parent` underneath, for the permissions — only what people are called moved.
+ */
 export const FAMILY_ROLE_LABEL: Record<FamilyRole, string> = {
-  parent: 'Parent',
+  parent: 'Parent/Guardian',
   child: 'Child',
-  adult: 'Adult member',
+  adult: 'Adult',
 };
+
+/** What a member is called in the family's lists: the owner is the Organizer, whatever the role. */
+export function familyMemberRoleLabel(role: FamilyRole, isOwner: boolean): string {
+  return isOwner ? 'Organizer' : FAMILY_ROLE_LABEL[role];
+}
 
 /**
  * What each role shares, said the way the invitee reads it before joining. The server makes
@@ -107,7 +118,7 @@ export function canChangeFamilyRole(input: {
   const { actor, ownerUserId, targetUserId, from, to } = input;
   if (actor.role === null) return refuse('NOT_IN_FAMILY', 'You are not in this family.');
   if (from === to) return refuse('ROLE_UNCHANGED', 'They already have that role.');
-  if (targetUserId === ownerUserId) return refuse('FAMILY_OWNER_ROLE_FIXED', 'The family’s owner is always a parent.');
+  if (targetUserId === ownerUserId) return refuse('FAMILY_OWNER_ROLE_FIXED', 'The organizer’s role can’t be changed.');
   if (to === 'child') {
     return refuse('ROLE_CHANGE_NEEDS_CONSENT', 'Someone can only become a child by accepting a child invite.');
   }
@@ -118,10 +129,10 @@ export function canChangeFamilyRole(input: {
     if (isSelf) {
       return refuse('NEEDS_PARENT_APPROVAL', 'Ask a parent to approve this, or ask Harvous to review it.');
     }
-    return refuse('FAMILY_PARENTS_ONLY', 'Only a parent can make this change.');
+    return refuse('FAMILY_PARENTS_ONLY', 'Only a parent or guardian can make this change.');
   }
   // → parent, parent → adult
-  return isOwner ? OK : refuse('FAMILY_OWNER_ONLY', 'Only the family’s owner can change who is a parent.');
+  return isOwner ? OK : refuse('FAMILY_OWNER_ONLY', 'Only the organizer can change who is a parent or guardian.');
 }
 
 /**
@@ -143,7 +154,7 @@ export function canRemoveFamilyMember(input: {
   if (targetRole === 'parent') {
     return actor.userId === ownerUserId
       ? OK
-      : refuse('FAMILY_OWNER_ONLY', 'Only the family’s owner can remove a parent.');
+      : refuse('FAMILY_OWNER_ONLY', 'Only the organizer can remove a parent or guardian.');
   }
   return actor.role === 'parent' ? OK : refuse('FAMILY_PARENTS_ONLY', 'Only parents can remove people.');
 }
