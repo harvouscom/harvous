@@ -5723,13 +5723,21 @@ html.harvous-prototype-route
   border-top: 0.5px solid var(--pds-border);
 }
 
+/* Where one run of categories ends and the next begins (settingsCategories `group`): a
+   gap instead of a heading, so the sidebar has shape without more words in it. The items
+   lost a pixel of padding top and bottom to pay for the five gaps: at the modal's 720px the
+   whole list still fits, Get Support included, without scrolling. */
+.proto-settings__nav-item[data-group-start='true'] {
+  margin-top: 6px;
+}
+
 .proto-settings__nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
   text-align: left;
-  padding: 10px 12px;
+  padding: 9px 12px;
   border: none;
   background: transparent;
   border-radius: var(--pds-radius-row);

@@ -3,12 +3,13 @@
  * Used by both the wide two-pane sidebar (PrototypeSettingsLayout) and the
  * narrow drilldown list (PrototypeSettingsIndex) so the two never drift.
  *
- * Order, in runs that read as groups without dividers:
- * - Account, then the "My" pages (My Bible, My Church, My Family, My Notes) — what's yours.
+ * Order, in runs (`group`) that the nav separates with a small gap, no headings:
+ * - Account, Harvous Plus — who you are here, and what you pay for.
+ * - The "My" pages (My Bible, My Church, My Family, My Notes) — what's yours.
  * - Review exercises, Reminders — how Harvous helps you study.
  * - Appearance, Sounds, Keyboard shortcuts — how it looks, sounds and handles.
  * - Lock PIN, Sharing, Connector — privacy, and who and what else can reach your notes.
- * - Plan, Get Support — the account's business end, last.
+ * - Get Support, last.
  * Native's `allSettingsRows()` in HarvousSettingsRoute.swift has not caught up to this yet.
  */
 import type { IconName } from '@/components/react/Icon';
@@ -24,18 +25,35 @@ export interface SettingsCategory {
   icon: IconName;
   /** One-line description for narrow drilldown rows (mobile settings list). */
   footnote: string;
+  /**
+   * Which run this belongs to. The nav leaves a small gap where the run changes, and the
+   * mobile list starts a new group — structure without headings.
+   */
+  group: 'you' | 'mine' | 'study' | 'feel' | 'privacy' | 'help';
 }
 
 export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   {
     key: 'account',
+    group: 'you',
     title: 'Account',
     route: prototypeHref('settings/account'),
     icon: 'circle-user',
     footnote: 'Your name, email, and password.',
   },
   {
+    key: 'addons',
+    group: 'you',
+    // Named for what it is. "Plan" sat second to last, an afterthought, though Family and
+    // Connector both hang off it; beside Account it reads as part of who you are here.
+    title: 'Harvous Plus',
+    route: prototypeHref('settings/addons'),
+    icon: 'id-card',
+    footnote: 'Your plan, what it includes, and billing.',
+  },
+  {
     key: 'bible',
+    group: 'mine',
     // The translation you read in, Protestant or Catholic, and what's kept offline. Absorbed
     // the old Translations page (Oct 2026); /settings/translation redirects here.
     title: 'My Bible',
@@ -45,6 +63,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'church',
+    group: 'mine',
     title: 'My Church',
     route: prototypeHref('settings/church'),
     icon: 'church',
@@ -55,6 +74,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   // space). Listed only for accounts the server says may see it; see `familyAvailable`.
   {
     key: 'family',
+    group: 'mine',
     title: 'My Family',
     route: prototypeHref('settings/family'),
     icon: 'user-group',
@@ -62,6 +82,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'data',
+    group: 'mine',
     title: 'My Notes',
     route: prototypeHref('settings/data'),
     // Plain cloud, not cloud-arrow-up: the pane is import *and* export, so an
@@ -77,6 +98,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
    */
   {
     key: 'reviewExercises',
+    group: 'study',
     title: 'Review exercises',
     route: prototypeHref('settings/review-exercises'),
     icon: 'arrows-rotate',
@@ -87,6 +109,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   // lists are allowed to differ by exactly this one entry until native catches up.
   {
     key: 'reminders',
+    group: 'study',
     title: 'Reminders',
     route: prototypeHref('settings/reminders'),
     icon: 'bell',
@@ -94,6 +117,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'appearance',
+    group: 'feel',
     title: 'Appearance',
     route: prototypeHref('settings/appearance'),
     icon: 'paintbrush',
@@ -105,6 +129,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
    */
   {
     key: 'sounds',
+    group: 'feel',
     title: 'Sounds',
     route: prototypeHref('settings/sounds'),
     icon: 'volume-low',
@@ -112,6 +137,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'keyboardShortcuts',
+    group: 'feel',
     title: 'Keyboard shortcuts',
     route: prototypeHref('settings/keyboard-shortcuts'),
     icon: 'keyboard',
@@ -124,6 +150,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
    */
   {
     key: 'lockPin',
+    group: 'privacy',
     title: 'Lock PIN',
     route: prototypeHref('settings/lock-pin'),
     icon: 'lock',
@@ -131,6 +158,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'sharing',
+    group: 'privacy',
     title: 'Sharing',
     route: prototypeHref('settings/sharing'),
     icon: 'share',
@@ -143,20 +171,15 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
    */
   {
     key: 'connector',
+    group: 'privacy',
     title: 'Connector',
     route: prototypeHref('settings/connector'),
     icon: 'puzzle-piece',
     footnote: 'Use your study in Claude, ChatGPT, and other AI apps.',
   },
   {
-    key: 'addons',
-    title: 'Plan',
-    route: prototypeHref('settings/addons'),
-    icon: 'id-card',
-    footnote: 'Your plan and what it includes.',
-  },
-  {
     key: 'support',
+    group: 'help',
     title: 'Get Support',
     route: prototypeHref('settings/support'),
     icon: 'circle-info',
