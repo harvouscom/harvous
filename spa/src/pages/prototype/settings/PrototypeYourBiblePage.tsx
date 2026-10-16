@@ -14,7 +14,7 @@ const CHOICES: { value: Tradition; label: string; detail: string }[] = [
 ];
 
 /**
- * Settings › Your Bible — Protestant or Catholic (src/utils/tradition.ts).
+ * Settings › My Bible — Protestant or Catholic (src/utils/tradition.ts).
  *
  * Its own page so Translations stays about translations: a Catholic switch at the top of that
  * list singled one tradition out on a page everyone opens. Here the two are peers, each saying

@@ -4735,7 +4735,7 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   padding: 5px 8px 5px 11px;
   border-radius: 999px;
   background: var(--pds-bg-chip-hover);
-  border: 0.5px solid var(--pds-border-control-medium);
+  border: 1px solid var(--pds-border-control-strong);
   font-family: var(--pds-font-body);
   font-size: 13px;
   font-weight: 500;
@@ -6408,7 +6408,7 @@ button.proto-sharing-card__main:focus-visible {
   font-size: 9px;
   font-weight: 600;
   border-radius: 4px;
-  border: 0.5px solid var(--pds-border-control-medium);
+  border: 1px solid var(--pds-border-control-strong);
   background-color: var(--pds-bg-page);
   background-image: none;
   box-shadow: 0 0 0 1.5px var(--pds-bg-page);
@@ -9086,7 +9086,7 @@ button.proto-appearance-hero__card {
   width: 22px;
   height: 22px;
   border-radius: var(--pds-radius-pill);
-  border: 0.5px solid var(--pds-border-control-medium);
+  border: 1px solid var(--pds-border-control-strong);
   background: var(--pds-bg-page);
   color: var(--pds-text-primary);
   display: inline-flex;
@@ -9309,7 +9309,7 @@ button.proto-appearance-hero__card {
   width: 22px;
   height: 22px;
   border-radius: var(--pds-radius-pill);
-  border: 0.5px solid var(--pds-border-control-medium);
+  border: 1px solid var(--pds-border-control-strong);
   background: var(--pds-bg-page);
   color: var(--pds-text-primary);
   box-shadow: var(--pds-shadow-shell);
@@ -22210,9 +22210,9 @@ p.proto-translation-usage {
   padding-left: 2px;
 }
 
-/* A small button, not a text link — bordered and filled like every other row-scoped control
-   in the app, rather than the bare underline-on-hover treatment this used to have. */
-/* The offline control as a glyph (PrototypeTranslationRow): muted until it matters. */
+/* The offline control as a glyph (PrototypeTranslationRow): muted until it matters. A hairline
+   circle says it's a button without filling it. A full pixel: the 0.5px control edges vanish
+   around a 30px glyph. */
 .proto-translation-row__icon {
   appearance: none;
   display: inline-flex;
@@ -22220,12 +22220,12 @@ p.proto-translation-usage {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border: 0;
+  border: 1px solid var(--pds-border-control-strong);
   border-radius: var(--pds-radius-pill);
   background: transparent;
   color: var(--pds-text-tertiary);
   cursor: pointer;
-  transition: background-color 0.1s, color 0.1s;
+  transition: background-color 0.1s, color 0.1s, border-color 0.1s;
 }
 
 .proto-translation-row__icon[data-state='saved'] {
@@ -22261,6 +22261,8 @@ html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon
   }
 }
 
+/* A small button, not a text link — bordered and filled like every other row-scoped control
+   in the app, rather than the bare underline-on-hover treatment this used to have. */
 .proto-translation-row__action {
   appearance: none;
   display: inline-flex;

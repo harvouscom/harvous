@@ -3,8 +3,9 @@
  * Used by both the wide two-pane sidebar (PrototypeSettingsLayout) and the
  * narrow drilldown list (PrototypeSettingsIndex) so the two never drift.
  *
- * Order aligns with native `HarvousSettingsSidebarItem.allSettingsRows()` in
- * HarvousSettingsRoute.swift (Account, Study, Appearance, Sharing, …).
+ * Order: Account, then the "My" pages together (My Bible, My Church, My Family, My Notes),
+ * then everything about how the app behaves. Native's `allSettingsRows()` in
+ * HarvousSettingsRoute.swift has not caught up to this grouping yet.
  */
 import type { IconName } from '@/components/react/Icon';
 import { prototypeHref } from '@/lib/prototype-path';
@@ -32,20 +33,10 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   {
     key: 'bible',
     // Protestant or Catholic, on its own page so Translations is only about translations.
-    title: 'Your Bible',
+    title: 'My Bible',
     route: prototypeHref('settings/bible'),
     icon: 'book',
     footnote: 'Protestant or Catholic: the books you see and what each day brings.',
-  },
-  {
-    key: 'translation',
-    // Named for the subject, not for one of the two things done to it: the page sets the
-    // default translation *and* decides which ones are kept for offline reading.
-    title: 'Translations',
-    route: prototypeHref('settings/translation'),
-    // Scroll, matching how scripture is marked everywhere else in the app.
-    icon: 'scroll',
-    footnote: 'The translation used across the app, and which ones you keep offline.',
   },
   {
     key: 'church',
@@ -59,10 +50,29 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   // space). Listed only for accounts the server says may see it; see `familyAvailable`.
   {
     key: 'family',
-    title: 'Family',
+    title: 'My Family',
     route: prototypeHref('settings/family'),
     icon: 'user-group',
     footnote: 'A Family Space, your Plus for the household, and how the kids are doing.',
+  },
+  {
+    key: 'data',
+    title: 'My Notes',
+    route: prototypeHref('settings/data'),
+    // Plain cloud, not cloud-arrow-up: the pane is import *and* export, so an
+    // upload arrow only tells half of it.
+    icon: 'cloud',
+    footnote: 'Export, import, or delete your data.',
+  },
+  {
+    key: 'translation',
+    // Named for the subject, not for one of the two things done to it: the page sets the
+    // default translation *and* decides which ones are kept for offline reading.
+    title: 'Translations',
+    route: prototypeHref('settings/translation'),
+    // Scroll, matching how scripture is marked everywhere else in the app.
+    icon: 'scroll',
+    footnote: 'The translation used across the app, and which ones you keep offline.',
   },
   {
     key: 'appearance',
@@ -142,15 +152,6 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     route: prototypeHref('settings/connector'),
     icon: 'puzzle-piece',
     footnote: 'Use your study in Claude, ChatGPT, and other AI apps.',
-  },
-  {
-    key: 'data',
-    title: 'My Notes',
-    route: prototypeHref('settings/data'),
-    // Plain cloud, not cloud-arrow-up: the pane is import *and* export, so an
-    // upload arrow only tells half of it.
-    icon: 'cloud',
-    footnote: 'Export, import, or delete your data.',
   },
   {
     key: 'support',

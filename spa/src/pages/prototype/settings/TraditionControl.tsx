@@ -6,7 +6,7 @@ import { playSound } from '@/utils/sounds';
 /**
  * The onboarding "Reading a Catholic Bible?" row's switch (src/utils/tradition.ts).
  *
- * Settings has the full choice on its own page, Settings › Your Bible
+ * Settings has the full choice on its own page, Settings › My Bible
  * (PrototypeYourBiblePage), so Translations stays about translations. Here it is one switch,
  * answered in the row; the row's title opens that page.
  */
