@@ -22190,31 +22190,6 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * selected, downloaded, or verified, and this list already has a check orb meaning
  * "reading this one". Spelling it out costs a few pixels and removes the guess.
  */
-/*
- * One neutral chip for both states — "ready" and "partial" tell themselves apart by icon and
- * label (a checkmark + "Offline" vs. plain "Part-saved" text), not by color. Was green for
- * "ready": that read as a success/completion toast rather than a fact about a download, and
- * sat apart from every other small pill in the app (`.proto-chip-scripture`,
- * `.proto-menu-item__badge`), which all reach for these same neutral chip tokens.
- */
-.proto-offline-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex: 0 0 auto;
-  padding: 1.5px 6px;
-  border-radius: var(--pds-radius-pill);
-  border: 0.5px solid var(--pds-border-control-soft);
-  background: var(--pds-bg-chip);
-  color: var(--pds-text-secondary);
-  font-family: var(--pds-font-body);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
 /* The trailing control(s). Sits on the row's edge beside the check orb, so the column of
    controls reads down the right-hand side the way every other settings list does. */
 .proto-translation-row__offline {

@@ -58,24 +58,6 @@ html.harvous-prototype-route button.proto-welcome3__cta * {
   color: #fff !important;
 }
 
-/*
- * Offline badge — one neutral chip, both states.
- *
- * It sits inside the translation row's button, so the blanket rule above would otherwise
- * flatten it to primary; this restates the chip colour rather than letting that happen. The
- * `*` is for the check icon, whose SVG fills with `currentColor`.
- *
- * "Ready" used to be green here, which is what kept the badge green long after
- * `.proto-offline-badge` in prototype-components.css was restyled neutral — this file is
- * imported later and shouts `!important`, so it simply won. The states tell themselves apart
- * by icon and label (a checkmark + "Offline" vs. plain "Part-saved"); green read as a success
- * toast rather than a fact about a download, and matched no other pill in the app.
- */
-html.harvous-prototype-route .proto-offline-badge,
-html.harvous-prototype-route .proto-offline-badge * {
-  color: var(--pds-text-secondary) !important;
-}
-
 /* Search clear (circle-xmark) — tertiary like select chevrons; beat blanket button * primary */
 html.harvous-prototype-route button.hmc-church-picker__clear,
 html.harvous-prototype-route button.hmc-church-picker__clear *,
