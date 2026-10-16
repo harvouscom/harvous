@@ -43,7 +43,15 @@ struct ScriptureReference: Equatable, Sendable {
     let range: NSRange           // location in the text storage
 
     /// Canonical order matches current web app `TRANSLATION_ORDER`.
-    static let availableTranslations = ["BSB", "CSB", "ESV", "KJV", "NKJV", "NASB", "NET", "NIV", "NLT", "AMP", "MSG", "NABRE", "DRB"]
+    static let availableTranslations = ["BSB", "CSB", "ESV", "KJV", "NKJV", "NASB", "NET", "NIV", "NLT", "AMP", "MSG", "NABRE", "DRB", "RSV2CE", "NRSVCE"]
+    /// Printed abbreviations typed after a reference that aren't ids ("John 3:16 RSV-2CE"), mirroring
+    /// `TRANSLATION_ALIASES` in `src/utils/scripture-detector.ts`.
+    static let translationAliases: [String: String] = [
+        "DRA": "DRB",
+        "RSV-2CE": "RSV2CE",
+        "RSV-CE": "RSV2CE",
+        "NRSV-CE": "NRSVCE",
+    ]
     struct TranslationAttribution: Equatable, Sendable {
         let copyright: String
         let website: String
@@ -62,6 +70,8 @@ struct ScriptureReference: Equatable, Sendable {
         "MSG": "MSG",
         "NABRE": "NABRE",
         "DRB": "DRB",
+        "RSV2CE": "RSV-2CE",
+        "NRSVCE": "NRSV-CE",
     ]
     private static let translationAttributions: [String: TranslationAttribution] = [
         "KJV": TranslationAttribution(
@@ -115,6 +125,14 @@ struct ScriptureReference: Equatable, Sendable {
         "DRB": TranslationAttribution(
             copyright: "The Douay-Rheims Bible (Challoner revision, 1899 American edition) is in the public domain.",
             website: "https://ebible.org/find/details.php?id=engDRA"
+        ),
+        "RSV2CE": TranslationAttribution(
+            copyright: "Scripture quotations are from the Revised Standard Version of the Bible, Second Catholic Edition, copyright © 1946, 1952, 1957, 1965, 1966, 2006 National Council of the Churches of Christ in the United States of America. Published by Ignatius Press. All rights reserved.",
+            website: "https://www.ignatius.com"
+        ),
+        "NRSVCE": TranslationAttribution(
+            copyright: "Scripture quotations are from the New Revised Standard Version Bible: Catholic Edition, copyright © 1989, 1993 National Council of the Churches of Christ in the United States of America. All rights reserved.",
+            website: "https://nationalcouncilofchurches.us"
         ),
     ]
     static func displayTranslationLabel(_ id: String) -> String { translationLabels[id] ?? id }

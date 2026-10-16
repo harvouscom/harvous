@@ -16973,6 +16973,17 @@ html.harvous-prototype-route
     justify-content: flex-start;
   }
 
+  /* A tool with no switcher (Your Bible) still had the toolbar's row: empty, 0px tall, but with
+     the 8px row gap above it — so the title sat 8px higher than centre between the panel's top
+     and the divider. No toolbar, no second row. */
+  .proto-sidebar-expanded-panel__header:has(> .proto-sidebar-expanded-panel__toolbar:empty) {
+    grid-template-areas: 'lead actions';
+  }
+
+  .proto-sidebar-expanded-panel__toolbar:empty {
+    display: none;
+  }
+
   /* Once it has a row to itself, it takes the row. Left-clustered chips under a
      full-width header read as leftovers from the line above; stretched, the
      second row looks deliberate — and the targets get bigger for free, which is
@@ -20415,39 +20426,35 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   margin-bottom: 0;
 }
 
-/* The Prayer of Azariah inside Daniel 3 (NABRE, DRB): a passage the page prints but does not
-   number, so it sits in the text track under a hairline rule rather than as more verses. */
+/* The Prayer of Azariah inside Daniel 3 (NABRE, DRB): one quiet line in the text track that
+   opens the passage as a sheet over the chapter. The chevron points the way it goes — on, not
+   down — because nothing unfolds here. */
 .pds-reader-inset {
   margin: 0 var(--pds-reader-text-inset) var(--pds-reader-paragraph-gap)
     calc(var(--pds-reader-gutter) + var(--pds-space-2));
-  padding-inline-start: var(--pds-space-3);
-  border-inline-start: 1px solid var(--pds-border-on-paper);
 }
 
-.pds-reader-inset__header {
-  margin-bottom: var(--pds-space-2);
-}
-
-.pds-reader-inset__title {
-  margin: 0;
-  font-family: var(--pds-font-body);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--pds-text-primary);
-}
-
-.pds-reader-inset__caption {
-  margin: 0;
+.pds-reader-inset__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: 0.8125rem;
   color: var(--pds-text-secondary);
 }
 
-.pds-reader-inset__text {
-  margin: 0;
+button.pds-reader-inset__toggle {
+  cursor: pointer;
 }
 
-.pds-reader-inset__open {
-  margin-top: var(--pds-space-3);
+/* Colours live in prototype-route-overrides-2.css, past the blanket proto-button rule. */
+
+.pds-reader-inset__chevron {
+  display: inline-flex;
+  transform: rotate(-90deg);
 }
 
 /* ── Verse: the unit of selection ──
@@ -26393,4 +26400,144 @@ button.proto-feed-sheet__stat:hover {
   font-family: var(--pds-font-body);
   font-size: 12px;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* ── Your Bible: the shelf, the Home card, the reader's picker link ──
+ *
+ * The parts that show without opening the map. The map's own styles are lazy, in
+ * prototype-bible-map.css. Shading is ink mixed from the text colour, never a blue tint.
+ */
+/* The shelf: sixty-six equal spines, filled from the foot. */
+.proto-canon-shelf {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  height: 44px;
+}
+
+.proto-canon-shelf__spine {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: 1px;
+  background: var(--pds-bg-control);
+  overflow: hidden;
+}
+
+.proto-canon-shelf__fill {
+  position: absolute;
+  inset: auto 0 0;
+  height: calc(var(--proto-spine-fill, 0) * 100%);
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--pds-text-primary) 20%, transparent);
+}
+
+.proto-canon-shelf__fill[data-level='2'] {
+  background: color-mix(in srgb, var(--pds-text-primary) 45%, transparent);
+}
+
+.proto-canon-shelf__fill[data-level='3'] {
+  background: var(--pds-text-primary);
+}
+
+/* The Home card. */
+.proto-bible-shelf-card {
+  margin: 0;
+  padding: 0;
+}
+
+.proto-bible-shelf-card__button {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 14px 16px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+  border-radius: inherit;
+}
+
+.proto-bible-shelf-card__button:hover {
+  background: var(--pds-bg-control);
+}
+
+.proto-bible-shelf-card__button:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: -2px;
+}
+
+.proto-bible-shelf-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.proto-bible-shelf-card__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-bible-shelf-card__expand {
+  display: inline-flex;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-bible-shelf-card__sentence {
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+  margin-bottom: 4px;
+}
+
+.proto-bible-shelf-card__ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--pds-text-tertiary);
+}
+
+/* The book picker's hairline: how much of each book you have been in. Pinned to the cell's
+   foot rather than stacked under the code, so a cell with a bar and one without keep their
+   codes on the same line and centred. */
+.pds-reader__book-menu .proto-menu-item {
+  position: relative;
+}
+
+.pds-reader__book-menu .proto-menu-item__accessory {
+  position: absolute;
+  inset: auto 9px 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--pds-bg-control-strong);
+  overflow: hidden;
+}
+
+.pds-reader__book-menu .proto-menu-item__fill {
+  display: block;
+  height: 100%;
+  width: calc(var(--proto-book-fill, 0) * 100%);
+  background: color-mix(in srgb, var(--pds-text-primary) 55%, transparent);
+}
+
+/* The picker's way into the map: one row under the grid, not a cell in it. */
+.pds-reader__book-menu .pds-reader__book-menu-footer {
+  display: block;
+  margin-top: 4px;
+  padding: 4px 4px 0;
+  border-top: 1px solid var(--pds-border-soft);
+}
+
+.pds-reader__book-menu .pds-reader__book-menu-footer .proto-menu-item {
+  width: 100%;
+  justify-content: space-between;
+  padding: 8px;
+  font-size: 13px;
+}
+
+.pds-reader__book-menu .pds-reader__book-menu-footer .proto-menu-item__icon {
+  color: var(--pds-text-tertiary);
 }

@@ -19,6 +19,8 @@ const PrototypeExpandedChurchContent = lazy(() => import('./PrototypeExpandedChu
 /* Lazy for the same reason: its viewer carries reader view and the player embeds, and only
    someone who presses Expand on the Resources tab needs them. */
 const PrototypeExpandedResources = lazy(() => import('./resources/PrototypeExpandedResources'));
+/* Lazy: sixty-six rows of chapter strips that only someone who opens the map needs. */
+const PrototypeExpandedBibleMap = lazy(() => import('./bible-map/PrototypeExpandedBibleMap'));
 
 export type ExpandedSidebarToolProps = {
   exiting: boolean;
@@ -54,6 +56,12 @@ export default function PrototypeExpandedSidebarHost({
       return (
         <Suspense fallback={null}>
           <PrototypeExpandedMinistries exiting={exiting} origin={origin} onClose={onClose} />
+        </Suspense>
+      );
+    case 'bible-map':
+      return (
+        <Suspense fallback={null}>
+          <PrototypeExpandedBibleMap exiting={exiting} origin={origin} onClose={onClose} />
         </Suspense>
       );
     case 'resources':

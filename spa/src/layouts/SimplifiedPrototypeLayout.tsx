@@ -500,6 +500,7 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     paperStack,
     setStackSheetOpen,
     adoptStackNoteId,
+    markStackSheetLanded,
     retargetStackOrigin,
     clearPaperStack,
     openDrawer,
@@ -617,8 +618,9 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
       isHomePath: isPrototypeHomePath,
     });
     if (verdict === 'clear') clearPaperStack();
+    else if (verdict === 'landSheet') markStackSheetLanded();
     else if (verdict !== 'keep') adoptStackNoteId(verdict.adoptNoteId);
-  }, [paperStack, pathname, clearPaperStack, adoptStackNoteId]);
+  }, [paperStack, pathname, clearPaperStack, adoptStackNoteId, markStackSheetLanded]);
 
   /*
    * A parked stack follows the reading.
@@ -736,6 +738,21 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
       }, morphFromIfStillPlaced(origin.morphFrom, readPaperStackDockPlacement())
         ? PROTO_PAPER_STACK_EXIT_MS
         : PROTO_RESOURCE_MORPH_MS);
+      return;
+    }
+
+    /*
+     * A chapter sheet is not parked: it is a passage of the page underneath, so going back to
+     * that page is the end of it. The base was the chapter all along, so the route simply
+     * returns there, at the verse the sheet was opened from.
+     */
+    if (stack.sheet) {
+      clearPaperStack();
+      void chromeRouter.navigate({
+        to: origin.returnTo.to,
+        params: origin.returnTo.params ?? {},
+        search: origin.returnTo.search ?? {},
+      });
       return;
     }
 

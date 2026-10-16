@@ -25,7 +25,7 @@
  * - Two source verses that land on one English verse are joined in order.
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -117,8 +117,68 @@ export function cleanNabreText(text, book) {
 }
 
 /**
+ * Apply an edition's fixes file (`server/data/bibles/fixes/<ID>.json`): verses Bolls flattened
+ * together are replaced by their split-out verses, and section headings are cut from the verses
+ * they head.
+ */
+export function applyEditionFixes(raw, translationId) {
+  const path = join(ROOT, 'server/data/bibles/fixes', `${translationId}.json`);
+  if (!existsSync(path)) throw new Error(`No fixes file for ${translationId}; run _catholic_edition_fixes.mjs first`);
+  const { headings, splits } = JSON.parse(readFileSync(path, 'utf-8'));
+  return raw.flatMap((v) => {
+    const k = key(v.book, v.chapter, v.verse);
+    if (splits[k]) return splits[k];
+    let text = v.text;
+    for (const heading of headings[k] ?? []) {
+      const cut = text.startsWith(`${heading} `) ? text.slice(heading.length + 1) : text.replace(` ${heading} `, ' ');
+      if (cut === text) throw new Error(`${translationId} ${k}: heading "${heading}" not in the verse`);
+      text = cut;
+    }
+    // Bolls leaves the chapter number in front of some first verses ("28 Then Isaac called Jacob").
+    if (v.verse === 1) text = text.replace(new RegExp(`^${v.chapter} (?=[“‘"A-Za-z])`), '');
+    return [{ ...v, text: text.trim() }];
+  });
+}
+
+let dictionary;
+/** Every word the KJV, ESV and NABRE spell, lower-cased: how a de-accented name should read. */
+function knownWords() {
+  if (!dictionary) {
+    dictionary = new Set();
+    for (const id of ['ESV', 'KJV', 'NABRE']) {
+      for (const v of JSON.parse(readFileSync(join(ROOT, 'server/data/bibles', `${id}.json`), 'utf-8'))) {
+        for (const w of v.text.match(/[A-Za-z]+(?:-[A-Za-z]+)*/g) ?? []) dictionary.add(w.toLowerCase());
+      }
+    }
+  }
+  return dictionary;
+}
+
+/**
+ * The RSV prints pronunciation marks in proper names: a stress accent and a hyphen between
+ * vowels sounded apart ("Ahasu-e′rus", "Shim′e-i", "Mehu′ja-el"). Both go, so the names read and
+ * search as every other translation spells them. A hyphen that is part of the name stays
+ * ("Beer-la′hai-roi" → "Beer-lahai-roi"): the hyphenated form wins when the KJV, ESV or NABRE
+ * spells it, the joined form when they spell that, and otherwise only a hyphen between two
+ * vowels goes. Bolls also glues "Selah" to the line before it ("people!Selah").
+ */
+export function cleanRsvText(text) {
+  const words = knownWords();
+  return text
+    .replace(/[A-Za-z′-]*′[A-Za-z′-]*/g, (token) => {
+      const name = token.replace(/′/g, '');
+      if (!name.includes('-') || words.has(name.toLowerCase())) return name;
+      if (words.has(name.replace(/-/g, '').toLowerCase())) return name.replace(/-/g, '');
+      return name.replace(/(?<=[aeiouAEIOU])-(?=[aeiou])/g, '');
+    })
+    .replace(/(?<=[.,;:!?])Selah\b/g, ' Selah')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * How each translation's raw file is numbered.
- * - `versification`: the source numbering ('org' Hebrew, 'vul' Vulgate).
+ * - `versification`: the source numbering ('org' Hebrew, 'vul' Vulgate, 'eng' already English).
  * - `books`: per-book or per-chapter exceptions. The NABRE's Daniel 3 and 13–14 are the Greek
  *   Daniel (3:24–90 is the Song of the Three), which is the Vulgate's layout; the rest of its
  *   Daniel is Hebrew.
@@ -127,9 +187,15 @@ export function cleanNabreText(text, book) {
  *   and 147 are the second halves of Hebrew 116 and 147 and run 10–19 and 12–20; the Challoner
  *   Douay-Rheims restarts both at 1. The NABRE prints John 7:53 as 8:1, so its John 8 runs one
  *   ahead; a shift below verse 1 lands at the end of the chapter before.
+ * - `prepare`: a pass over the whole raw file before renumbering (splitting flattened verses,
+ *   cutting headings).
  * - `cleanText`: source-specific marks to remove from the text.
  * - `alignWith`: the corpus whose wording checks the tables' addresses (see `align`). The nearest
  *   in style: the KJV for the Douay-Rheims, the ESV for the NABRE.
+ * - `alignPrior`: how far a source's own addresses are trusted over the wording (default
+ *   `PRIOR`). The RSV-family editions are printed in English numbering already, so their addresses
+ *   are trusted more: at the default a short, freely worded verse (NRSV Ruth 3:5, "She said to
+ *   her, ‘All that you tell me I will do’") is pulled onto its neighbour.
  */
 export const SOURCES = {
   NABRE: {
@@ -146,6 +212,26 @@ export const SOURCES = {
     chapterMaps: { EST: DRB_ESTHER },
     verseShifts: { 'PSA 115': 9, 'PSA 147': 11 },
     alignWith: 'KJV',
+  },
+  // RSV-family Catholic editions, printed in English numbering. Their headings, Esther additions,
+  // flattened Daniel 3:24–90 and Sirach Prologue are handled by the fixes file
+  // (`server/data/bibles/_catholic_edition_fixes.mjs`) before renumbering.
+  RSV2CE: {
+    versification: 'eng',
+    books: {},
+    chapterMaps: {},
+    prepare: (raw) => applyEditionFixes(raw, 'RSV2CE'),
+    cleanText: cleanRsvText,
+    alignWith: 'ESV',
+    alignPrior: 0.7,
+  },
+  NRSVCE: {
+    versification: 'eng',
+    books: { 'DAN 3': 'vul' }, // the Greek Daniel 3, 97 verses: 24–90 are the Prayer of Azariah
+    chapterMaps: {},
+    prepare: (raw) => applyEditionFixes(raw, 'NRSVCE'),
+    alignWith: 'ESV',
+    alignPrior: 0.7,
   },
 };
 
@@ -221,6 +307,7 @@ function loadTables() {
 export function englishCandidates(book, chapter, verse, versification) {
   const { vulToOrg, orgToEng } = loadTables();
   const source = key(book, chapter, verse);
+  if (versification === 'eng') return [harvousAddress({ book, chapter, verse })];
   let orgs = [source];
   if (versification === 'vul') {
     orgs = vulToOrg.get(source);
@@ -301,7 +388,7 @@ const BAND = 6;
  * (an English verse the source folds into its neighbour). It moves only where the wording
  * outweighs the prior.
  */
-function align(units, targets, refStems) {
+function align(units, targets, refStems, prior = PRIOR) {
   const index = new Map(targets.map((t, i) => [t, i]));
   const m = units.length;
   const n = targets.length;
@@ -309,7 +396,7 @@ function align(units, targets, refStems) {
   const lo = (i) => Math.max(0, index.get(units[i].proposed) - BAND);
   const hi = (i) => Math.min(n - 1, index.get(units[i].proposed) + BAND);
   const score = (i, j) =>
-    similarity(sims[i], refStems.get(targets[j]) ?? new Set()) + (targets[j] === units[i].proposed ? PRIOR : 0);
+    similarity(sims[i], refStems.get(targets[j]) ?? new Set()) + (targets[j] === units[i].proposed ? prior : 0);
 
   const best = [];
   const from = [];
@@ -368,7 +455,7 @@ export function remapVerses(raw, translationId, { reference } = {}) {
   const report = { titlesDropped: 0, outsideCanon: [], moved: [], joined: [], missing: [] };
   const unitsByBook = new Map(); // USFM code → [{ proposed: eng key, text, order, printed }]
 
-  raw.forEach((v, order) => {
+  (source.prepare ? source.prepare(raw) : raw).forEach((v, order) => {
     let { chapter, verse } = v;
     const chapterMap = source.chapterMaps[v.book];
     if (chapterMap) {
@@ -435,7 +522,7 @@ export function remapVerses(raw, translationId, { reference } = {}) {
     const printed = (k) => refChapters.has(k.replace(/:\d+$/, ''));
     const aligned = reference ? units.filter((u) => printed(u.proposed)) : [];
     const alignedAt = new Map(
-      aligned.length ? align(aligned, targets.filter(printed), refStems).map((t, i) => [aligned[i], t]) : [],
+      aligned.length ? align(aligned, targets.filter(printed), refStems, source.alignPrior).map((t, i) => [aligned[i], t]) : [],
     );
     const placed = units.map((u) => alignedAt.get(u) ?? u.proposed);
     units.forEach((unit, i) => {

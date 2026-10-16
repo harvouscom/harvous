@@ -405,6 +405,13 @@ describe('normalizeInlineTranslationAbbreviation', () => {
     expect(normalizeInlineTranslationAbbreviation('DRA')).toBe('DRB');
     expect(normalizeInlineTranslationAbbreviation('drb')).toBe('DRB');
   });
+
+  it('maps the printed Catholic RSV and NRSV abbreviations to their ids', () => {
+    expect(normalizeInlineTranslationAbbreviation('RSV-2CE')).toBe('RSV2CE');
+    expect(normalizeInlineTranslationAbbreviation('rsv-ce')).toBe('RSV2CE');
+    expect(normalizeInlineTranslationAbbreviation('NRSV-CE')).toBe('NRSVCE');
+    expect(normalizeInlineTranslationAbbreviation('nrsvce')).toBe('NRSVCE');
+  });
 });
 
 describe('matchTrailingTranslationAbbreviation', () => {
@@ -447,6 +454,9 @@ describe('matchAnchoredTrailingTranslationAbbreviation', () => {
   it('matches the Catholic translations, NABRE ahead of NASB', () => {
     expect(matchAnchoredTrailingTranslationAbbreviation(' NABRE, and')!.canonicalId).toBe('NABRE');
     expect(matchAnchoredTrailingTranslationAbbreviation(' DRA here')!.canonicalId).toBe('DRB');
+    expect(matchAnchoredTrailingTranslationAbbreviation(' RSV-2CE, and')!.canonicalId).toBe('RSV2CE');
+    expect(matchAnchoredTrailingTranslationAbbreviation(' NRSV-CE here')!.canonicalId).toBe('NRSVCE');
+    expect(matchAnchoredTrailingTranslationAbbreviation(' NRSVCE')!.canonicalId).toBe('NRSVCE');
   });
 
   it('still matches block-end abbrev (parity with matchTrailingTranslationAbbreviation)', () => {
@@ -461,6 +471,12 @@ describe('detectScriptureReferencesWithTranslation', () => {
     const refs = detectScriptureReferencesWithTranslation('John 3:16 NASB 1995');
     expect(refs).toHaveLength(1);
     expect(refs[0].translation).toBe('NASB');
+  });
+
+  it('parses the Catholic RSV and NRSV as printed, hyphen and all', () => {
+    expect(detectScriptureReferencesWithTranslation('Sirach 2:1 RSV-2CE')[0].translation).toBe('RSV2CE');
+    expect(detectScriptureReferencesWithTranslation('John 3:16 NRSV-CE')[0].translation).toBe('NRSVCE');
+    expect(detectScriptureReferencesWithTranslation('Tobit 1:1 RSV2CE')[0].translation).toBe('RSV2CE');
   });
 
   it('parses trailing ESV', () => {

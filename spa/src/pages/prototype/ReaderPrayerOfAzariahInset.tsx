@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import Icon from '@/components/react/Icon';
 import { usePrototypeBibleChapter } from '../../hooks/queries/usePrototypeBibleChapter';
 import { PRAYER_OF_AZARIAH } from '@/utils/bible-book-chapters';
 import { translationHasDeuterocanon } from '@/data/translations';
@@ -12,12 +12,17 @@ export function showsPrayerOfAzariahInset(book: string, chapter: number, transla
 }
 
 /**
- * Daniel 3:24–90 where a Catholic Bible prints it, between verses 23 and 24.
+ * Daniel 3:24–90 where a Catholic Bible prints it, between verses 23 and 24: one quiet line
+ * that opens the passage as a sheet over the chapter.
  *
  * Harvous keeps one numbering, and English Daniel 3:24–30 is already the fourth man in the
- * fire, so the Greek passage is stored as its own book, "Prayer of Azariah" 1:1–67 (verse n is
- * Daniel 3:n+23 in print). Here it reads in place, as text: selection, highlights and notes are
- * keyed to this page's verses, so they live on the passage's own page, one press away.
+ * fire, so the Greek passage is filed as its own chapter, "Prayer of Azariah 1" (verse n is
+ * Daniel 3:n+23 in print). Printed in full here it took over the chapter, and opened in place
+ * its verses could not be selected, highlighted or noted. As a sheet it is the real reader for
+ * that chapter, laid over the page it belongs to, and the edge is the way back to verse 23.
+ *
+ * The text is fetched with Daniel 3, not on the tap, so the sheet opens with its words already
+ * there — the same query key the sheet's reader asks for.
  */
 export default function ReaderPrayerOfAzariahInset({
   book,
@@ -28,6 +33,7 @@ export default function ReaderPrayerOfAzariahInset({
   book: string;
   chapter: number;
   translation: string;
+  /** Absent on the paper-stack base, where the line is scenery. */
   onOpen?: (book: string, chapter: number) => void;
 }) {
   const shows = showsPrayerOfAzariahInset(book, chapter, translation);
@@ -35,36 +41,25 @@ export default function ReaderPrayerOfAzariahInset({
   const { data } = usePrototypeBibleChapter(shows ? PRAYER_OF_AZARIAH : undefined, 1, translation);
   if (!shows || !data?.verses.length) return null;
 
+  const line = (
+    <>
+      <span>Prayer of Azariah and Song of the Three</span>
+      <span className="pds-reader-inset__range">3:24–90</span>
+      <span className="pds-reader-inset__chevron" aria-hidden="true">
+        <Icon name="chevron-down" size={10} />
+      </span>
+    </>
+  );
+
   return (
-    <aside className="pds-reader-inset" aria-label="Prayer of Azariah and Song of the Three">
-      <header className="pds-reader-inset__header">
-        <h3 className="pds-reader-inset__title">Prayer of Azariah and Song of the Three</h3>
-        <p className="pds-reader-inset__caption">Daniel 3:24–90 in Catholic Bibles</p>
-      </header>
-      <p className="pds-reader-text pds-reader-inset__text">
-        {data.verses.map((verse, i) => (
-          <Fragment key={verse.number}>
-            {i > 0 ? ' ' : null}
-            <sup className="pds-reader-verse-num">{verse.number}</sup>
-            {/* The printed Daniel 3 number, as the reader shows NABRE/DRB numbers elsewhere. */}
-            <sup className="pds-reader-verse-num pds-reader-verse-num--printed">
-              <span aria-hidden>·</span>
-              <span className="sr-only">, Daniel 3:</span>
-              {verse.number + AZARIAH_AFTER_VERSE}
-            </sup>
-            {verse.text}
-          </Fragment>
-        ))}
-      </p>
+    <div className="pds-reader-inset">
       {onOpen ? (
-        <button
-          type="button"
-          className="proto-settings-btn proto-settings-btn--secondary pds-reader-inset__open"
-          onClick={() => onOpen(PRAYER_OF_AZARIAH, 1)}
-        >
-          Highlight or take notes
+        <button type="button" className="pds-reader-inset__toggle" onClick={() => onOpen(PRAYER_OF_AZARIAH, 1)}>
+          {line}
         </button>
-      ) : null}
-    </aside>
+      ) : (
+        <span className="pds-reader-inset__toggle">{line}</span>
+      )}
+    </div>
   );
 }

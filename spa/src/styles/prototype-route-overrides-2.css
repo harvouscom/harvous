@@ -111,3 +111,22 @@ html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover spa
 html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover * {
   color: var(--pds-text-primary) !important;
 }
+
+/* Prayer of Azariah disclosure in Daniel 3 (NABRE, DRB) — one muted line, like the paper-stack
+   edge above, and for the same reason: the blanket rule at the top of overrides-1 paints every
+   button and descendant inside proto chrome primary. The range reads a step quieter still, and
+   hover lifts the whole line to primary. */
+html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle,
+html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle * {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle .pds-reader-inset__range {
+  color: var(--pds-text-tertiary) !important;
+}
+
+html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle:hover,
+html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle:hover * {
+  color: var(--pds-text-primary) !important;
+}
+

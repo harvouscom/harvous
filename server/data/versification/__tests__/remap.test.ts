@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { cleanNabreText, englishCandidates, parseVrsMappings, remapVerses } from '../remap.mjs';
+import {
+  applyEditionFixes,
+  cleanNabreText,
+  cleanRsvText,
+  englishCandidates,
+  parseVrsMappings,
+  remapVerses,
+} from '../remap.mjs';
+import { segment } from '../../bibles/_catholic_edition_fixes.mjs';
 
 const first = (book: string, chapter: number, verse: number, versification: 'org' | 'vul') =>
   englishCandidates(book, chapter, verse, versification).find((c) => c.verse > 0);
@@ -138,5 +146,53 @@ describe('cleanNabreText', () => {
     );
     expect(cleanNabreText('I will bless you', 'PSA')).toBe('I will bless you');
     expect(cleanNabreText('I Have it', 'GEN')).toBe('I Have it');
+  });
+});
+
+describe('cleanRsvText', () => {
+  it('drops the RSV pronunciation marks and keeps the hyphens that belong to a name', () => {
+    expect(cleanRsvText('King Ahasu-e′rus and Shim′e-i')).toBe('King Ahasuerus and Shimei');
+    expect(cleanRsvText('by the well of Beer-la′hai-roi')).toBe('by the well of Beer-lahai-roi');
+    expect(cleanRsvText('Eu-er′getes')).toBe('Euergetes');
+    expect(cleanRsvText('thy blessing be upon thy people!Selah')).toBe('thy blessing be upon thy people! Selah');
+    expect(cleanRsvText('his father-in-law, twenty-two')).toBe('his father-in-law, twenty-two');
+  });
+});
+
+describe('applyEditionFixes', () => {
+  it('cuts the headings Bolls fuses into verses and the chapter number left on a verse 1', () => {
+    const [psalm, genesis] = applyEditionFixes(
+      [
+        { book: 'PSA', chapter: 3, verse: 1, text: 'Trust in God under Adversity A Psalm of David, when he fled.' },
+        { book: 'GEN', chapter: 28, verse: 1, text: '28 Then Isaac called Jacob' },
+      ],
+      'RSV2CE',
+    );
+    expect(psalm.text).toBe('A Psalm of David, when he fled.');
+    expect(genesis.text).toBe('Then Isaac called Jacob');
+  });
+
+  it('replaces a flattened verse with the verses split out of it', () => {
+    const out = applyEditionFixes([{ book: 'DAN', chapter: 3, verse: 23, text: 'flattened' }], 'RSV2CE');
+    expect(out).toHaveLength(68);
+    expect(out[1]).toMatchObject({ book: 'S3Y', chapter: 1, verse: 1 });
+  });
+});
+
+describe('segment', () => {
+  it('cuts a run of text where each piece reads most like its reference verse', () => {
+    const pieces = segment('The king slept. He dreamed of seven cows, fat and sleek. Then seven thin cows came.', [
+      'The king fell asleep.',
+      'In his dream seven fat cows came up.',
+      'After them seven thin cows.',
+    ]);
+    expect(pieces).toEqual(['The king slept.', 'He dreamed of seven cows, fat and sleek.', 'Then seven thin cows came.']);
+  });
+
+  it('always cuts at a removed heading and drops an inline verse number', () => {
+    expect(segment('He said this. ¶ 22 And they sang praise.', ['They sang.', 'He said it.'])).toEqual([
+      'He said this.',
+      'And they sang praise.',
+    ]);
   });
 });

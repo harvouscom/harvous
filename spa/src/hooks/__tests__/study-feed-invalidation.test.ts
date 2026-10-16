@@ -16,7 +16,11 @@ import { readFileSync } from 'node:fs';
 import { QueryClient } from '@tanstack/react-query';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { invalidateStudyFeed, STUDY_FEED_QUERY_KEY } from '@/utils/study-feed-invalidation';
+import {
+  BIBLE_COVERAGE_QUERY_KEY,
+  invalidateStudyFeed,
+  STUDY_FEED_QUERY_KEY,
+} from '@/utils/study-feed-invalidation';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../../../..');
@@ -57,7 +61,7 @@ describe('invalidateStudyFeed', () => {
 
     invalidateStudyFeed(queryClient);
 
-    expect(seen).toEqual([STUDY_FEED_QUERY_KEY]);
+    expect(seen).toEqual([STUDY_FEED_QUERY_KEY, BIBLE_COVERAGE_QUERY_KEY]);
     // The scope is deliberately absent: a write does not know which feed is on screen.
     expect(STUDY_FEED_QUERY_KEY).toHaveLength(1);
   });

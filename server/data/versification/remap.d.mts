@@ -1,6 +1,6 @@
 /** Types for remap.mjs (plain JS so the import scripts run under bare `node`). */
 
-export type Versification = 'org' | 'vul';
+export type Versification = 'org' | 'vul' | 'eng';
 
 export interface VerseRef {
   book: string;
@@ -26,8 +26,10 @@ export interface VersificationSource {
   /** Source chapter → [chapter, verse offset], or runs of [first source verse, chapter, offset]. */
   chapterMaps: Record<string, Record<number, [number, number] | Array<[number, number, number]>>>;
   verseShifts?: Record<string, number>;
+  prepare?: (raw: SourceVerse[]) => SourceVerse[];
   cleanText?: (text: string, book: string) => string;
   alignWith?: string;
+  alignPrior?: number;
 }
 
 export const USFM_BOOKS: string[];
@@ -39,6 +41,8 @@ export const SOURCES: Record<string, VersificationSource>;
 export function parseVrsMappings(text: string): Map<string, string[]>;
 export function englishCandidates(book: string, chapter: number, verse: number, versification: Versification): VerseRef[];
 export function cleanNabreText(text: string, book: string): string;
+export function cleanRsvText(text: string): string;
+export function applyEditionFixes(raw: SourceVerse[], translationId: string): SourceVerse[];
 export function stems(text: string): Set<string>;
 export function remapVerses(
   raw: SourceVerse[],

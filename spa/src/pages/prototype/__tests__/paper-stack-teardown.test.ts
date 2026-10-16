@@ -183,3 +183,33 @@ describe('resolvePaperStackAfterNavigation', () => {
   });
 });
 
+
+describe('a chapter as the sheet (the Prayer of Azariah over Daniel 3)', () => {
+  const danielOrigin: PaperStackOrigin = {
+    kind: 'reader',
+    label: 'Daniel 3:23',
+    icon: 'scroll',
+    returnTo: { to: '/read', params: { book: 'daniel', chapter: '3' }, search: { v: '23', t: 'DRB' } },
+    base: { type: 'reader', book: 'Daniel', chapter: 3, translation: 'DRB', fromVerse: 23 },
+  };
+  const sheet = (landed: boolean): PaperStackState => ({
+    origin: danielOrigin,
+    sheet: { type: 'reader', book: 'Prayer of Azariah', chapter: 1, translation: 'DRB', landed },
+    open: true,
+  });
+
+  it('keeps the base chapter for the frame before the sheet lands, then marks the landing', () => {
+    expect(resolvePaperStackAfterNavigation(sheet(false), '/read/Daniel/3', helpers)).toBe('keep');
+    expect(resolvePaperStackAfterNavigation(sheet(false), '/read/Prayer of Azariah/1', helpers)).toBe(
+      'landSheet',
+    );
+    expect(resolvePaperStackAfterNavigation(sheet(true), '/read/Prayer of Azariah/1', helpers)).toBe('keep');
+  });
+
+  it('ends once you are back on the base chapter, or anywhere else', () => {
+    expect(resolvePaperStackAfterNavigation(sheet(true), '/read/Daniel/3', helpers)).toBe('clear');
+    expect(resolvePaperStackAfterNavigation(sheet(true), '/read/Daniel/4', helpers)).toBe('clear');
+    expect(resolvePaperStackAfterNavigation(sheet(true), '/', helpers)).toBe('clear');
+    expect(resolvePaperStackAfterNavigation(sheet(false), '/note-abc', helpers)).toBe('clear');
+  });
+});
