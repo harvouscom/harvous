@@ -27,6 +27,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import { prototypeNoteRouteTo, prototypeReadRouteTo, prototypeReadTodayRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
+import { buildWeekStrip, weekStripNeedsOlder } from '@/utils/home-week-strip';
 import {
   buildStudyFeedDays,
   parseStudyFeedScope,
@@ -323,6 +324,24 @@ export default function PrototypeStudyFeedPage() {
   // `now` is read once per render pass, not per item: day labels have to agree with each
   // other, and "Today" computed twice across a midnight boundary would disagree.
   const days = useMemo(() => buildStudyFeedDays(items, new Date()), [items]);
+
+  /*
+   * The greeting's week. The feed loads by page, not by week, so for a busy reader the first
+   * page can stop short of seven days back; until it reaches, those days are unknown rather than
+   * rest days, and a couple more pages are fetched to cover them (bounded, so a sparse history
+   * never pages forever).
+   */
+  const weekStrip = useMemo(
+    () => buildWeekStrip(days, new Date(), { hasOlder: Boolean(hasNextPage) }),
+    [days, hasNextPage],
+  );
+  const weekPagesFetched = useRef(0);
+  useEffect(() => {
+    if (!weekStripNeedsOlder(weekStrip) || !hasNextPage || isFetchingNextPage) return;
+    if (weekPagesFetched.current >= 3) return;
+    weekPagesFetched.current += 1;
+    void fetchNextPage();
+  }, [weekStrip, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   /*
    * What the reader came back to, bucketed the same way the days are. Local, because the server
@@ -899,14 +918,13 @@ export default function PrototypeStudyFeedPage() {
                 countForLogic={home.countForLogic}
                 hasMoreForLogic={home.hasMoreForLogic}
                 lead={home.lead}
-                /* The clause that closes the sentence — "lately returning to Romans". It was
-                   the sidebar's alone while this surface re-derived only the lead. */
-                trend={home.recallTrendGreeting}
                 /* A chip on a day sheet opens the Library panel at the thing it names.
                    This used to summon the sidebar instead, and the scripture chip could
                    only reach the list rather than the book — see `useLibraryPanelNav`. */
                 nav={libraryNav}
-                trailing={summarySentence}
+                /* The week replaces today's tally in the greeting: the bars show the day
+                   beside the six before it, which the sentence used to count out in chips. */
+                week={weekStrip}
                 onOpenTodaysPassage={openTodaysPassage}
               />
             ) : (

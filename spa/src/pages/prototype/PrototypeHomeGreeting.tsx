@@ -10,25 +10,19 @@
  * sidebar lists; the same chips on a day sheet have to do something the sheet can do. One
  * component, two sets of destinations, and neither surface has to know about the other's.
  */
-import { Fragment, useMemo, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { useProfile } from '../../hooks/queries/useProfile';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import {
-  computeActivityRhythm,
-  computeLastActivityTime,
-  countWeeklyActivityDays,
-  formatHomeActivityLeadSuffix,
-  formatHomeNoteCount,
   greetingForHour,
   homeLeadCopyLayout,
   type HomeLeadTheme,
   type RecallTrendGreetingParts,
 } from '@/utils/prototype-home-trends';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
-import { protoRelativeCaption } from './proto-time';
-import { recallKindIcon } from './recall-kind-icons';
+import { weekStripLabel, weekStripLine, type WeekStripDay } from '@/utils/home-week-strip';
 
 /**
  * A glyph inside a greeting chip, sized against the chip's own text rather than in pixels.
@@ -41,7 +35,6 @@ function ChipIcon({ name, size }: { name: IconName; size: number }) {
   const em = `${size / 12}em`;
   return <Icon name={name} size={size} className="proto-home-greeting__chip-icon" style={{ width: em, height: em }} aria-hidden />;
 }
-import ProtoDaypartMark, { isDaypart, type Daypart } from './ProtoDaypartMark';
 import { HOME_INTRO_LIST_MODES, type SidebarListModeEntry } from './proto-sidebar-list-modes';
 import type { SidebarListMode } from '../../layouts/proto-shell-context';
 
@@ -76,21 +69,19 @@ export default function PrototypeHomeGreeting({
   countForLogic,
   hasMoreForLogic,
   lead,
-  trend,
-  trailing,
   nav,
   onOpenTodaysPassage,
+  week,
 }: {
   notes: SpaceNoteRow[];
   countForLogic: number;
   hasMoreForLogic: boolean;
   lead: HomeLeadTheme;
-  trend?: HomeGreetingTrend;
-  /** A further sentence about the same moment, joined to the greeting's paragraph. */
-  trailing?: ReactNode;
   nav: HomeGreetingNav;
   /** The welcome sentence's "Today's Passage" — a chip when the surface can open the reader. */
   onOpenTodaysPassage?: () => void;
+  /** The last seven days, for the line and the bars beside the hello (src/utils/home-week-strip). */
+  week?: WeekStripDay[];
 }) {
   const { user } = useUser();
   const { data: profile } = useProfile();
@@ -100,108 +91,7 @@ export default function PrototypeHomeGreeting({
     [user, profile],
   );
 
-  const rhythm = useMemo(() => computeActivityRhythm(notes), [notes]);
-  const weeklyDays = useMemo(() => countWeeklyActivityDays(notes, new Date()), [notes]);
-  const lastActivityMs = useMemo(() => computeLastActivityTime(notes), [notes]);
-
   const hello = `${greetingForHour(new Date().getHours())}${firstName ? `, ${firstName}` : ''}.`;
-  const activityTail = useMemo(
-    () =>
-      formatHomeActivityLeadSuffix({
-        rhythm,
-        weeklyDays,
-        lastActivityMs,
-        now: new Date(),
-        totalNoteCount: countForLogic,
-      }),
-    [rhythm, weeklyDays, lastActivityMs, countForLogic],
-  );
-  /*
-   * "often on Friday nights" gets the hour drawn beside it (`ProtoDaypartMark`). Matched on the
-   * rhythm phrase's own shape, so every other tail — "twice this week", "here yesterday" — stays
-   * plain words.
-   */
-  const rhythmMatch = activityTail ? /^often on (\S+) (\S+)$/.exec(activityTail) : null;
-  const activityClause = activityTail ? (
-    rhythmMatch && isDaypart(rhythmMatch[2]!) ? (
-      <>
-        , often on <ProtoDaypartMark day={rhythmMatch[1]!} daypart={rhythmMatch[2] as Daypart} />
-      </>
-    ) : (
-      <>, {activityTail}</>
-    )
-  ) : null;
-
-  const trendClause = trend ? (
-    <>
-      {trend.parts.prefix}
-      {trend.parts.labels.map((label, i) => {
-        /* A crossref's two labels each open their passage, so they dress as passages. */
-        const isPassage = trend.kind === 'passage' || trend.kind === 'crossref';
-        /*
-         * The Thread class and Thread glyph belong to a Thread that already exists (the lead
-         * chip). "lately returning to X" is a theme, so it wears the return glyph and the
-         * default chip — same words, not the same thing.
-         */
-        const chipClass = isPassage
-          ? 'proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage'
-          : 'proto-glass-surface proto-home-greeting__chip';
-        const iconName: IconName = isPassage ? 'book' : recallKindIcon(trend.kind);
-        const iconSize = isPassage ? 11 : 10;
-        return (
-          <Fragment key={`${label}-${i}`}>
-            {i > 0 ? ' and ' : null}
-            {trend.openable === false ? (
-              /* Same words, same glass, no press — the chip styling's hover and cursor are
-                 keyed on `button`, so a span is the honest version of it. */
-              <span className={chipClass}>
-                <ChipIcon name={iconName} size={iconSize} />
-                <span>{label}</span>
-              </span>
-            ) : (
-              <button
-                type="button"
-                className={chipClass}
-                aria-label={`Open ${label}`}
-                onClick={() => trend.onOpen(i)}
-              >
-                <ChipIcon name={iconName} size={iconSize} />
-                <span>{label}</span>
-              </button>
-            )}
-          </Fragment>
-        );
-      })}
-      {trend.parts.suffix}
-    </>
-  ) : null;
-
-  const sentenceEnd = (
-    <>
-      {activityClause}
-      {trendClause}.
-    </>
-  );
-
-  const singleNoteAddedRel = useMemo(() => {
-    if (countForLogic !== 1 || hasMoreForLogic || notes.length === 0) return '';
-    const note = notes[0];
-    return protoRelativeCaption(note.updatedAt ?? note.createdAt ?? null);
-  }, [notes, countForLogic, hasMoreForLogic]);
-
-  const countChip = (
-    <button
-      type="button"
-      className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--count"
-      aria-label="View notes list"
-      onClick={() => {
-        nav.openList('notes');
-      }}
-    >
-      <span>{formatHomeNoteCount(countForLogic, hasMoreForLogic)}</span>
-    </button>
-  );
-
   // Brand new space — keep it warm, the empty-state card below carries the CTA.
   if (countForLogic === 0) {
     const introModeByKey = Object.fromEntries(
@@ -340,60 +230,60 @@ export default function PrototypeHomeGreeting({
     );
   };
 
-  const leadSentence = (() => {
-    if (lead.kind === 'book' && lead.tone === 'single-note') {
-      return (
-        <>
-          {layout.beforeChip}
-          {bookChip}
-          {singleNoteAddedRel ? <> {singleNoteAddedRel}</> : null}.
-          {layout.showCount ? (
-            <>
-              {' '}
-              {countChip} saved so far{sentenceEnd}
-            </>
-          ) : (
-            sentenceEnd
-          )}
-        </>
-      );
-    }
-    if (lead.kind === 'none') {
-      return (
-        <>
-          {layout.beforeChip}
-          {withTrailingPunctuation(countChip, layout.afterChip)}
-          {sentenceEnd}
-        </>
-      );
-    }
-    return (
+  /*
+   * What you're working on, as one short clause after the week: "Advent, four weeks keeps
+   * filling up." The copy is the lead's own (homeLeadCopyLayout) with its count clause cut —
+   * the week says how much, so the sentence no longer needs to.
+   */
+  const subjectTail = layout.afterChip.replace(/,?\s*with\s*$/, '').replace(/\s*saved so far\s*$/, '');
+  const subjectClause =
+    lead.kind === 'none' || !subjectChip ? null : (
       <>
         {layout.beforeChip}
-        {withTrailingPunctuation(subjectChip, layout.afterChip)}
-        {layout.showCount ? (
-          <>
-            {countChip} saved so far{sentenceEnd}
-          </>
-        ) : (
-          sentenceEnd
-        )}
+        {withTrailingPunctuation(subjectChip, `${subjectTail}.`)}
       </>
     );
-  })();
 
+  /*
+   * Hello and the week, side by side: the words on the left say it, the bars on the right
+   * show it. The line counts days in the Word, never the days missed.
+   */
   return (
-    <>
-      <p className="proto-home-greeting">
-        <span className="proto-home-greeting__hello">{hello}</span>{' '}
-        {leadSentence}
-        {/* Inside the paragraph, not after it. A caller with another sentence about the
-            same moment — the day sheet's tally of what happened today — is continuing this
-            one, and two stacked paragraphs read as two separate claims. A `<p>` cannot
-            nest, so the slot has to live here rather than wrapping from outside. */}
-        {trailing ? <> {trailing}</> : null}
-      </p>
-    </>
+    <div className="proto-home-greeting proto-home-greeting--week">
+      <div className="proto-home-greeting__words">
+        <p className="proto-home-greeting__hello-line">
+          <span className="proto-home-greeting__hello">{hello}</span>
+        </p>
+        <p className="proto-home-greeting__week-line">
+          {week ? weekStripLine(week) : null}
+          {week && subjectClause ? ' ' : null}
+          {subjectClause}
+        </p>
+      </div>
+      {week ? <HomeWeekStrip days={week} /> : null}
+    </div>
+  );
+}
+
+/** Seven quiet bars, oldest first; today in the accent fill. Unknown days draw nothing yet. */
+function HomeWeekStrip({ days }: { days: WeekStripDay[] }) {
+  const max = Math.max(1, ...days.map((d) => d.count));
+  return (
+    <div className="proto-home-week" role="img" aria-label={weekStripLabel(days)}>
+      {days.map((day) => (
+        <div key={day.dayKey} className="proto-home-week__day" data-today={day.isToday ? 'true' : undefined}>
+          <span
+            className="proto-home-week__bar"
+            data-empty={day.count === 0 ? 'true' : undefined}
+            data-unknown={day.known ? undefined : 'true'}
+            style={{ height: day.count === 0 ? undefined : `${Math.max(5, Math.round((day.count / max) * 24))}px` }}
+          />
+          <span className="proto-home-week__initial" aria-hidden>
+            {day.initial}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 

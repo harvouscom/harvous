@@ -8425,6 +8425,99 @@ button.proto-home-greeting__chip--passage {
 /* Liturgical season — a chip that opens the greeting's sentence ("It's the 28th week in
    Ordinary Time"), with the calendar glyph like the other chips. No rule of its own. */
 
+/*
+ * The greeting with its week (PrototypeHomeGreeting): the hello and one line on the left, seven
+ * bars on the right, bottoms aligned. Carries `.proto-home-greeting` for the sheet's entrance and
+ * type scale; this undoes the centred, balanced prose that class gives a sentence, because this
+ * is a block with two columns rather than a paragraph.
+ */
+.proto-home-greeting.proto-home-greeting--week,
+.proto-feed-sheet .proto-home-greeting.proto-home-greeting--week {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 24px;
+  text-align: start;
+  text-wrap: wrap;
+  padding-block: 10px 8px;
+}
+
+.proto-home-greeting__words {
+  min-width: 0;
+}
+
+.proto-home-greeting__hello-line {
+  margin: 0;
+  font-size: 1.3em;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.proto-home-greeting__week-line {
+  margin: 4px 0 0;
+  font-size: 0.85em;
+  line-height: 1.6;
+  color: var(--pds-text-secondary);
+  text-wrap: pretty;
+}
+
+.proto-home-week {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding-bottom: 2px;
+}
+
+.proto-home-week__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 46px;
+}
+
+.proto-home-week__bar {
+  display: block;
+  width: 10px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--pds-border-control-strong);
+}
+
+.proto-home-week__bar[data-empty='true'] {
+  background: var(--pds-border-control);
+}
+
+.proto-home-week__bar[data-unknown='true'] {
+  background: transparent;
+}
+
+.proto-home-week__day[data-today='true'] .proto-home-week__bar:not([data-empty='true']) {
+  background: var(--pds-bg-accent-button);
+}
+
+.proto-home-week__initial {
+  font-family: var(--pds-font-body);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-home-week__day[data-today='true'] .proto-home-week__initial {
+  color: var(--pds-text-primary);
+}
+
+/* A phone has no room beside the words: the week sits under them. */
+@media (max-width: 600px) {
+  .proto-home-greeting.proto-home-greeting--week,
+  .proto-feed-sheet .proto-home-greeting.proto-home-greeting--week {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
 /* ─── Migration pill (Classic → 2.0 sidebar notice) ──────────────────────── */
 /* Shares daily-passage pill layout + glass; compact card with detail in sheet. */
 
