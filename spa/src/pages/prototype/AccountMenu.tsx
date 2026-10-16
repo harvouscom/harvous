@@ -1,11 +1,11 @@
 /**
  * Account menu — toolbar dropdown. Shows the signed-in name + email (like native
- * Mac's account screen), Settings, and Log out.
+ * Mac's account screen), Your Bible, Settings, and Log out.
  * Mirrors SpaceSwitcherMenu / ListViewMenu (proto-menu popover, right-anchored).
  *
  * For a guest it becomes a second way to make an account, and the one that survives a narrow
  * window — the standing row's label truncates on a phone, but this control is always the same
- * size. Settings and Log out are both absent rather than disabled: there is no session to end,
+ * size. Your Bible, Settings and Log out are absent rather than disabled: there is no session to end,
  * and a row that cannot do anything is worse than no row.
  */
 import { useClerk, useUser } from '@clerk/clerk-react';
@@ -36,7 +36,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.searchStr });
-  const { isMobileSidebar } = useProtoShell();
+  const { isMobileSidebar, openExpandedSidebar } = useProtoShell();
   const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
@@ -157,6 +157,22 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
             </div>
           ) : (
           <div className="proto-menu-section" role="group">
+            {/* Your Bible sits with you rather than with the Scripture: it is a picture of your
+                own study, the way an account screen is a picture of your account. */}
+            <button
+              type="button"
+              role="menuitem"
+              className="proto-menu-item"
+              onClick={() => {
+                setOpen(false);
+                openExpandedSidebar('bible-map');
+              }}
+            >
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="book-open" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>Your Bible</span>
+            </button>
             <button
               type="button"
               role="menuitem"

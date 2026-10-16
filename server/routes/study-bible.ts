@@ -2,6 +2,7 @@
  * The reader's own Study Bible layer, read.
  *
  * GET /api/study-bible/nodes — what a person has actually been studying, by node.
+ * GET /api/study-bible/coverage — where in the Bible they have been, chapter by chapter.
  *
  * Not feature-gated. Review is a Plus feature; the layer underneath it is a fact about the
  * account, and Home's themes and trends read it for everyone. Gating it would mean a free
@@ -15,6 +16,7 @@ import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import { isNodeKind, type NodeKind } from '@/utils/study-bible-nodes';
 import { isUserNodeStatesTableMissing } from '../utils/pg-undefined-relation';
+import { loadBibleCoverage } from '../utils/bible-coverage';
 
 const route = new Hono();
 
@@ -79,6 +81,27 @@ route.get('/api/study-bible/nodes', requireAuth, rateLimit('read'), async (c) =>
     const standardError = handleAPIError(error, {
       endpoint: '/api/study-bible/nodes',
       action: 'study_bible_nodes',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * GET /api/study-bible/coverage — "Your Bible": every chapter you have read, written on or
+ * highlighted, as a level per chapter.
+ *
+ * `no-store` overrides app.ts's blanket 30-second private cache. Reading a chapter and coming
+ * back to Home asks this same URL, and a cached answer would show the chapter unread.
+ */
+route.get('/api/study-bible/coverage', requireAuth, rateLimit('read'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const coverage = await loadBibleCoverage(auth.userId);
+    return c.json({ success: true, ...coverage }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/study-bible/coverage',
+      action: 'study_bible_coverage',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
