@@ -299,7 +299,7 @@ export function useHomeSurfaceData({
   const studyBibleNodesQuery = useStudyBibleNodes(STUDY_ARC_NODE_KINDS);
   const recallHistoryQuery = useRecallEventHistory();
   const readingHistoryQuery = useReadingHistory();
-  // "Your Bible". Loaded with Home so the map opens on data already here, and deliberately left
+  // "My Bible". Loaded with Home so the map opens on data already here, and deliberately left
   // out of the presentation gate: the card is a standing picture, and it can arrive a beat late
   // without moving anything the reader is looking at.
   const bibleCoverageQuery = useBibleCoverage();
@@ -1904,7 +1904,7 @@ export function useHomeSurfaceData({
     looseCount,
     votd,
 
-    /* Your Bible — the shelf card and the map it opens. */
+    /* My Bible — the shelf card and the map it opens. */
     bibleCoverage: bibleCoverageQuery.data,
   };
 }

@@ -23,7 +23,7 @@ import type { QueryClient } from '@tanstack/react-query';
 export const STUDY_FEED_QUERY_KEY = ['study-feed'] as const;
 
 /**
- * "Your Bible" is built from three of the same sources — reading, notes and highlights — so the
+ * "My Bible" is built from three of the same sources — reading, notes and highlights — so the
  * writes that refresh Activity are exactly the writes that move the map. Riding on this verb is
  * what keeps the two from drifting the way the feed's own call sites once did.
  */

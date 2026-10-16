@@ -1,5 +1,5 @@
 /**
- * The words "Your Bible" says, in one place so the card and the map agree.
+ * The words "My Bible" says, in one place so the card and the map agree.
  *
  * Counts per book and nothing larger. No whole-Bible percentage, no "keep going" — this
  * describes where you have been, it does not set you somewhere to get to.

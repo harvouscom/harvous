@@ -60,13 +60,13 @@ type ProtoSidebarExpandedPanelProps = {
   centered?: boolean;
   /**
    * The widest the panel grows, in px, when its content has a natural width of its own. Unset
-   * keeps the 1040px every board-like tool wants; a reading-column tool (Your Bible) asks for
+   * keeps the 1040px every board-like tool wants; a reading-column tool (My Bible) asks for
    * less, so it isn't a narrow column floating in an empty sheet.
    */
   maxWidth?: number;
   /**
    * As tall as the content, up to the room below the toolbar, instead of always running to the
-   * window's foot. For a tool whose content is usually short (Your Bible's ten section lines):
+   * window's foot. For a tool whose content is usually short (My Bible's ten section lines):
    * a full-height sheet left most of itself empty. Past the cap the body scrolls as it does now.
    */
   fitContent?: boolean;

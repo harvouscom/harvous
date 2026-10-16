@@ -1,5 +1,5 @@
 /**
- * "Your Bible" with room to look — where you have been, a section at a time.
+ * "My Bible" with room to look — where you have been, a section at a time.
  *
  * Ten lines, one per canon section: Law, History, Wisdom, the prophets, the Gospels and on.
  * Each line carries a dot per book, shaded by the deepest study anywhere in it, and a quiet
@@ -107,8 +107,8 @@ export default function PrototypeExpandedBibleMap({ exiting, origin, onClose }: 
 
   return (
     <ProtoSidebarExpandedPanel
-      label="Your Bible"
-      title="Your Bible"
+      label="My Bible"
+      title="My Bible"
       exiting={exiting}
       origin={origin}
       centered

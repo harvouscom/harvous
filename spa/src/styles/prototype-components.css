@@ -16973,7 +16973,7 @@ html.harvous-prototype-route
     justify-content: flex-start;
   }
 
-  /* A tool with no switcher (Your Bible) still had the toolbar's row: empty, 0px tall, but with
+  /* A tool with no switcher (My Bible) still had the toolbar's row: empty, 0px tall, but with
      the 8px row gap above it — so the title sat 8px higher than centre between the panel's top
      and the divider. No toolbar, no second row. */
   .proto-sidebar-expanded-panel__header:has(> .proto-sidebar-expanded-panel__toolbar:empty) {
@@ -22134,7 +22134,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * asked — but it has to be legible, since the whole point is that a number beats a limit
  * taken on trust.
  */
-/* Your Bible page's save error (PrototypeYourBiblePage). */
+/* My Bible page's save error (PrototypeYourBiblePage). */
 .proto-tradition-control__error {
   margin: -8px 0 12px;
   padding: 0 4px;
@@ -26377,7 +26377,7 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
-/* ── Your Bible: the shelf, the Home card, the reader's picker link ──
+/* ── My Bible: the shelf, the Home card, the reader's picker link ──
  *
  * The parts that show without opening the map. The map's own styles are lazy, in
  * prototype-bible-map.css. Shading is ink mixed from the text colour, never a blue tint.

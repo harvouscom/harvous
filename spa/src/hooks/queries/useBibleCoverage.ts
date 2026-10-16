@@ -1,5 +1,5 @@
 /**
- * "Your Bible" — every chapter you have read, written on or highlighted.
+ * "My Bible" — every chapter you have read, written on or highlighted.
  *
  * Mounted by Home (inside `useHomeSurfaceData`) so the map opens on data that is already here,
  * and by the reader, which reads the same cache. Refreshed through `invalidateStudyFeed`: the
