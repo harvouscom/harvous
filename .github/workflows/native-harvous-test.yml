@@ -45,7 +45,10 @@ jobs:
             -project Harvous.xcodeproj \
             -scheme Harvous_macOS \
             -destination 'platform=macOS,arch=arm64' \
-            -only-testing:HarvousTests_macOS
+            -only-testing:HarvousTests_macOS \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
 
   ios-tests:
     name: iOS Simulator (unit + UI smoke)
@@ -64,11 +67,32 @@ jobs:
             exit 1
           fi
 
+      # Runner images rotate their simulators (iPhone 16 vanished in Xcode 26), so pick an
+      # available iPhone on the newest installed iOS runtime instead of pinning a name.
+      - name: Pick iOS Simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          def version(runtime):
+              return [int(p) for p in runtime.rsplit(".iOS-", 1)[1].split("-")]
+          runtimes = sorted((r for r in devices if ".iOS-" in r), key=version, reverse=True)
+          for r in runtimes:
+              phones = [d for d in devices[r] if d["name"].startswith("iPhone")]
+              if phones:
+                  print(phones[0]["udid"]); sys.exit(0)
+          sys.exit("No available iPhone simulator")
+          ')
+          xcrun simctl list devices available | grep "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
       - name: Harvous_iOS test plan
         working-directory: native/Harvous
         run: |
           xcodebuild test \
             -project Harvous.xcodeproj \
             -scheme Harvous_iOS \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination 'platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}' \
             -testPlan Harvous_iOS
