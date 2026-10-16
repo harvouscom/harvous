@@ -99,6 +99,13 @@ struct SignInGate<Content: View>: View {
 /// silently breaking the build.
 private struct SignInPlaceholder: View {
     var body: some View {
+        content
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(HarvousAccessibilityID.signIn)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         #if canImport(ClerkKit)
         MacSignInView()
         #else
