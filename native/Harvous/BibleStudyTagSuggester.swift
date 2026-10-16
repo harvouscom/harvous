@@ -234,7 +234,7 @@ enum BibleStudyTagSuggester {
     private static let openingSegmentMaxWords = 120
     private static let openingNarrativeFolderBoost: Double = 0.1
 
-    private static func isAutoFolderExcluded(_ name: String) -> Bool {
+    static func isAutoFolderExcluded(_ name: String) -> Bool {
         autoFolderExcludedNames.contains(name.lowercased())
     }
 
