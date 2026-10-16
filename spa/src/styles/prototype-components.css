@@ -8422,28 +8422,8 @@ button.proto-home-greeting__chip--passage {
   color: var(--pds-scripture-fg);
 }
 
-/* Liturgical season — quiet line under the greeting, calendar glyph + label. */
-.proto-home-greeting__season {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 6px 0 0;
-  padding: 3px 10px;
-  border: 0.5px solid var(--pds-border-control);
-  border-radius: 999px;
-  color: var(--pds-text-secondary);
-  font-family: var(--pds-font-body);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.5;
-  white-space: nowrap;
-}
-
-.proto-home-greeting__season svg {
-  display: block;
-  flex-shrink: 0;
-  color: var(--pds-accent);
-}
+/* Liturgical season — a chip that opens the greeting's sentence ("It's the 28th week in
+   Ordinary Time"), with the calendar glyph like the other chips. No rule of its own. */
 
 /* ─── Migration pill (Classic → 2.0 sidebar notice) ──────────────────────── */
 /* Shares daily-passage pill layout + glass; compact card with detail in sheet. */
@@ -22034,6 +22014,12 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  */
 /* Tradition — Protestant | Catholic, above the translation list (TraditionControl.tsx).
    Spacing matches Appearance's segmented control: the page's own rhythm, no new card. */
+/* "Catholic editions" / "Other translations" above the two lists a Catholic reader sees. */
+.proto-translation-group-label {
+  margin: 18px 0 6px;
+  padding: 0 4px;
+}
+
 .proto-tradition-control--settings {
   display: flex;
   flex-direction: column;

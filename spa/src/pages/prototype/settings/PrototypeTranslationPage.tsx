@@ -6,6 +6,8 @@ import { useBiblePacks } from '../../../hooks/useBiblePacks';
 import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 import PrototypeTranslationRow from './PrototypeTranslationRow';
 import TraditionControl from './TraditionControl';
+import { useIsCatholic } from '../../../hooks/useTradition';
+import { isCatholicEdition } from '@/utils/tradition';
 import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
 
 /**
@@ -68,28 +70,11 @@ export default function PrototypeTranslationPage() {
     }
   }, [loading, selected, packs, downloading, atLimit, download]);
 
-  /* Complete copies only. A pack halfway through is not yet something you can read on a
-     plane, and counting it here would promise otherwise. */
-  const savedCount = packs.filter((p) => p.complete).length;
+  const catholic = useIsCatholic();
+  const catholicEditions = TRANSLATION_ORDER.filter(isCatholicEdition);
+  const otherTranslations = TRANSLATION_ORDER.filter((id) => !isCatholicEdition(id));
 
-  return (
-    <SettingsShell>
-      <SettingsIntro>
-        Pick what you read in, and keep up to {maxPacks} offline.
-        {savedCount > 0 ? (
-          <>
-            {' '}
-            <span className="proto-translation-usage">
-              {savedCount} saved · {formatPackStorage(storageBytes)}.
-            </span>
-          </>
-        ) : null}
-      </SettingsIntro>
-
-      <TraditionControl variant="settings" />
-
-      <SettingsGroup>
-        {TRANSLATION_ORDER.map((id) => {
+  const renderRow = (id: string) => {
           const t = getTranslation(id);
           const isSelected = id === selected;
           const pack = packs.find((p) => p.translationId === id);
@@ -134,8 +119,40 @@ export default function PrototypeTranslationPage() {
               onRemove={() => void remove(id)}
             />
           );
-        })}
-      </SettingsGroup>
+  };
+
+  /* Complete copies only. A pack halfway through is not yet something you can read on a
+     plane, and counting it here would promise otherwise. */
+  const savedCount = packs.filter((p) => p.complete).length;
+
+  return (
+    <SettingsShell>
+      <SettingsIntro>
+        Pick what you read in, and keep up to {maxPacks} offline.
+        {savedCount > 0 ? (
+          <>
+            {' '}
+            <span className="proto-translation-usage">
+              {savedCount} saved · {formatPackStorage(storageBytes)}.
+            </span>
+          </>
+        ) : null}
+      </SettingsIntro>
+
+      <TraditionControl variant="settings" />
+
+      {catholic ? (
+        /* A Catholic reads the Church's editions first; the rest stay one tap away, labelled for
+           what they are rather than hidden. */
+        <>
+          <p className="proto-caption proto-translation-group-label">Catholic editions</p>
+          <SettingsGroup>{catholicEditions.map(renderRow)}</SettingsGroup>
+          <p className="proto-caption proto-translation-group-label">Other translations</p>
+          <SettingsGroup>{otherTranslations.map(renderRow)}</SettingsGroup>
+        </>
+      ) : (
+        <SettingsGroup>{TRANSLATION_ORDER.map(renderRow)}</SettingsGroup>
+      )}
 
       {updateTranslation.isError ? (
         <p style={{ color: 'var(--pds-destructive)', fontSize: '0.8125rem', padding: '0 12px' }}>

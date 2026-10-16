@@ -2,21 +2,25 @@ import { useTradition } from '../../../hooks/useTradition';
 import { useUpdateTradition } from '../../../hooks/mutations/useUpdateTradition';
 import { useUpdateTranslation } from '../../../hooks/mutations/useUpdateTranslation';
 import { useProfile } from '../../../hooks/queries/useProfile';
-import { DEUTEROCANON_TRANSLATIONS } from '@/data/translations';
+import { isCatholicEdition } from '@/utils/tradition';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import type { Tradition } from '@/utils/tradition';
 import { SegmentedControl } from './SettingsShell';
 import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
 
+/*
+ * Asked by canon, not by label: "66 books" names the Bible someone reads without asking a
+ * non-denominational reader to call themselves Protestant. The values stay the tradition.
+ */
 const OPTIONS: { value: Tradition; label: string }[] = [
-  { value: 'protestant', label: 'Protestant' },
-  { value: 'catholic', label: 'Catholic' },
+  { value: 'protestant', label: '66 books' },
+  { value: 'catholic', label: '73 books (Catholic)' },
 ];
 
 /** What each side turns on, said under the control so nobody has to switch to find out. */
 const SUMMARY: Record<Tradition, string> = {
-  protestant: '66 books, and a verse each day.',
-  catholic: '73 books, daily Mass readings, Catholic book names and numbering.',
+  protestant: 'The Protestant canon, and a verse each day.',
+  catholic: 'Catholic editions first, daily Mass readings, Catholic book names and numbering.',
 };
 
 type Props = {
@@ -45,7 +49,7 @@ export default function TraditionControl({ variant }: Props) {
     profile?.defaultTranslation ??
     getEffectiveDefaultTranslation();
   const offerNabre =
-    variant === 'settings' && shown === 'catholic' && !DEUTEROCANON_TRANSLATIONS.includes(translation);
+    variant === 'settings' && shown === 'catholic' && !isCatholicEdition(translation);
 
   const control = (
     <SegmentedControl
@@ -64,7 +68,7 @@ export default function TraditionControl({ variant }: Props) {
 
   return (
     <div className="proto-tradition-control proto-tradition-control--settings">
-      <p className="proto-caption proto-tradition-control__label">Tradition</p>
+      <p className="proto-caption proto-tradition-control__label">Which Bible do you read?</p>
       {control}
       <p className="proto-caption proto-tradition-control__summary">{SUMMARY[shown]}</p>
       {offerNabre ? (

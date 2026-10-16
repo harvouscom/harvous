@@ -24,3 +24,14 @@ export function normalizeTradition(value: unknown): Tradition {
 export function isTradition(value: unknown): value is Tradition {
   return value === 'protestant' || value === 'catholic';
 }
+
+/**
+ * Translations published as Catholic editions — approved by the Church, with the 73 books.
+ * Catholic readers see these first, under "Catholic editions". Ids not registered yet (the RSV-2CE
+ * and NRSV-CE are being added) are simply skipped by anything that walks TRANSLATION_ORDER.
+ */
+export const CATHOLIC_EDITION_IDS: readonly string[] = ['NABRE', 'DRB', 'RSV2CE', 'NRSVCE'];
+
+export function isCatholicEdition(translationId: string | null | undefined): boolean {
+  return Boolean(translationId && CATHOLIC_EDITION_IDS.includes(translationId));
+}

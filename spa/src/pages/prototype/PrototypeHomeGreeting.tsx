@@ -28,6 +28,7 @@ import {
 } from '@/utils/prototype-home-trends';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
 import { useIsCatholic } from '../../hooks/useTradition';
+import { useVotdToday } from '../../hooks/queries/useVotdToday';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import { protoRelativeCaption } from './proto-time';
 import { recallKindIcon } from './recall-kind-icons';
@@ -107,6 +108,8 @@ export default function PrototypeHomeGreeting({
   const lastActivityMs = useMemo(() => computeLastActivityTime(notes), [notes]);
   const catholic = useIsCatholic();
   const season = useMemo(() => currentLiturgicalSeason(new Date(), { catholic }), [catholic]);
+  // Today's readings, for the Gospel chip; shared with the card, so this costs no request.
+  const { data: votd } = useVotdToday({ enabled: catholic });
 
   const hello = `${greetingForHour(new Date().getHours())}${firstName ? `, ${firstName}` : ''}.`;
   const activityTail = useMemo(
@@ -206,13 +209,52 @@ export default function PrototypeHomeGreeting({
     </button>
   );
 
-  /* A label, not a button. A future recall pass may resurface notes from this season, and
-     until it does a pill that presses and does nothing is worse than one that does not press. */
-  const seasonLine = season ? (
-    <span className="proto-glass-surface proto-home-greeting__season">
-      <ChipIcon name="calendar" size={11} />
+  /*
+   * The season opens the sentence: "It's the 28th week in Ordinary Time — today's Gospel is
+   * Luke 11:47-54." For a Catholic both chips open today's readings, which is what the folded
+   * Today's readings row hides; the Gospel clause is said only when there are readings. For a
+   * Protestant on a seasonal day it is the season's name alone, a label with nothing to press.
+   */
+  const gospel = votd?.readings?.items.find((r) => r.slot === 'gospel');
+  const opensReadings = catholic && Boolean(gospel) && Boolean(onOpenTodaysPassage);
+  const seasonChipBody = season ? (
+    <>
+      <ChipIcon name="calendar" size={10} />
       <span>{season.label}</span>
-    </span>
+    </>
+  ) : null;
+  const seasonClause = season ? (
+    <>
+      It&apos;s {seasonArticle(season.label)}
+      {opensReadings ? (
+        <button
+          type="button"
+          className="proto-glass-surface proto-home-greeting__chip"
+          aria-label={`${season.label}: open today's readings`}
+          onClick={onOpenTodaysPassage}
+        >
+          {seasonChipBody}
+        </button>
+      ) : (
+        <span className="proto-glass-surface proto-home-greeting__chip">{seasonChipBody}</span>
+      )}
+      {opensReadings && gospel ? (
+        <>
+          {' '}
+          — today&apos;s Gospel is{' '}
+          <button
+            type="button"
+            className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage"
+            aria-label={`Open today's Gospel, ${gospel.citation}`}
+            onClick={onOpenTodaysPassage}
+          >
+            <ChipIcon name="book" size={11} />
+            <span>{gospel.citation}</span>
+          </button>
+        </>
+      ) : null}
+      .{' '}
+    </>
   ) : null;
 
   // Brand new space — keep it warm, the empty-state card below carries the CTA.
@@ -263,11 +305,11 @@ export default function PrototypeHomeGreeting({
       <>
         <p className="proto-home-greeting">
           <span className="proto-home-greeting__hello">{hello}</span>{' '}
+          {seasonClause}
           Welcome to Harvous. Write {introListChip('notes')} as you add{' '}
           {introListChip('scripture')}, open {todaysPassageChip}, and create{' '}
           {introListChip('highlights')} and {introListChip('threads')}.
         </p>
-        {seasonLine}
       </>
     );
   }
@@ -400,6 +442,7 @@ export default function PrototypeHomeGreeting({
     <>
       <p className="proto-home-greeting">
         <span className="proto-home-greeting__hello">{hello}</span>{' '}
+        {seasonClause}
         {leadSentence}
         {/* Inside the paragraph, not after it. A caller with another sentence about the
             same moment — the day sheet's tally of what happened today — is continuing this
@@ -407,7 +450,13 @@ export default function PrototypeHomeGreeting({
             nest, so the slot has to live here rather than wrapping from outside. */}
         {trailing ? <> {trailing}</> : null}
       </p>
-      {seasonLine}
     </>
   );
+}
+
+/** "It's the 28th week…", "It's Lent", "It's the Assumption", "It's the Christmas season". */
+function seasonArticle(label: string): string {
+  if (/^The /.test(label)) return '';
+  if (/^\d/.test(label) || /season$/.test(label)) return 'the ';
+  return '';
 }
