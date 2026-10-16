@@ -870,6 +870,21 @@ export default function PrototypeStudyFeedPage() {
                 * flipped back through, and a control that skipped the whole way would lose
                 * the days between. Absent at index 0, where there is nowhere newer to go.
                 */}
+              {/*
+                * Straight back to today once you're two or more days back (Oct 2026). The arrow
+                * still steps one day for flipping through; this is the way home from deep in
+                * the pile, which used to be a tap per day. At one day back the arrow already
+                * is the way to today, so this would only be a second button saying the same.
+                */}
+              {safeIndex > 1 ? (
+                <button
+                  type="button"
+                  className="proto-sidebar-back-tile proto-feed-sheet__today"
+                  onClick={() => jumpTo(0)}
+                >
+                  Today
+                </button>
+              ) : null}
               {safeIndex > 0 ? (
                 <button
                   type="button"

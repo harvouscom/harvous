@@ -265,13 +265,19 @@ export default function PrototypeHomeGreeting({
   );
 }
 
-/** Seven quiet bars, oldest first; today in the accent fill. Unknown days draw nothing yet. */
+/** This week's seven bars, Sunday first; today in the accent fill. Unknown days draw nothing yet,
+ *  and days still ahead are an empty slot under a faint initial. */
 function HomeWeekStrip({ days }: { days: WeekStripDay[] }) {
   const max = Math.max(1, ...days.map((d) => d.count));
   return (
     <div className="proto-home-week" role="img" aria-label={weekStripLabel(days)}>
       {days.map((day) => (
-        <div key={day.dayKey} className="proto-home-week__day" data-today={day.isToday ? 'true' : undefined}>
+        <div
+          key={day.dayKey}
+          className="proto-home-week__day"
+          data-today={day.isToday ? 'true' : undefined}
+          data-future={day.future ? 'true' : undefined}
+        >
           <span
             className="proto-home-week__bar"
             data-empty={day.count === 0 ? 'true' : undefined}

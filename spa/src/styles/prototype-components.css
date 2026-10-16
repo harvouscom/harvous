@@ -8488,16 +8488,28 @@ button.proto-home-greeting__chip--passage {
   height: 46px;
 }
 
+/* Mixed from the text colour, not the control borders: those are near-white and the past
+   days' bars disappeared on the paper, leaving today looking like the only day there was. */
 .proto-home-week__bar {
   display: block;
   width: 10px;
   height: 3px;
   border-radius: 3px;
-  background: var(--pds-border-control-strong);
+  background: color-mix(in oklab, var(--pds-text-secondary) 45%, transparent);
 }
 
 .proto-home-week__bar[data-empty='true'] {
-  background: var(--pds-border-control);
+  background: var(--pds-border-on-paper);
+}
+
+/* Later this week: a slot, not a rest day. */
+.proto-home-week__day[data-future='true'] .proto-home-week__bar {
+  background: transparent;
+  box-shadow: inset 0 0 0 0.5px var(--pds-border-on-paper);
+}
+
+.proto-home-week__day[data-future='true'] .proto-home-week__initial {
+  opacity: 0.5;
 }
 
 .proto-home-week__bar[data-unknown='true'] {
@@ -23350,6 +23362,16 @@ p.proto-my-bible__usage {
  */
 .proto-feed-sheet__forward {
   flex: 0 0 auto;
+}
+
+/* "Today", beside the forward arrow: the same tile, widened for a word. */
+.proto-sidebar-back-tile.proto-feed-sheet__today {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 0 10px;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 /* The date gives way before the controls do — a scope trigger pushed off the sheet's edge
