@@ -55,6 +55,12 @@ export type ProtoSelectOption<T extends string | number> = {
    * they have read its name. Omit it and rows are label-only exactly as before.
    */
   icon?: ReactNode;
+  /**
+   * Something drawn after the label inside the row — the reader's book grid puts a hairline
+   * here showing how much of the book you have been in. Decorative; the row's name is still
+   * its label. Omit it and rows render exactly as before.
+   */
+  accessory?: ReactNode;
 };
 
 /**
@@ -501,6 +507,11 @@ export default function ProtoSelectMenu<T extends string | number>(
                           </span>
                         ) : null}
                         <span className="proto-menu-item__label">{option.label}</span>
+                        {option.accessory ? (
+                          <span className="proto-menu-item__accessory" aria-hidden>
+                            {option.accessory}
+                          </span>
+                        ) : null}
                         <span className="proto-menu-item__check" aria-hidden>
                           {checked ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
                         </span>

@@ -44,6 +44,7 @@ import { chapterKeyPartsFromReference } from '@/utils/study-bible-nodes';
 import { parseReaderQuery } from '@/utils/parse-reader-query';
 import { buildRevisitCardStackOrigin } from './paper-stack-origins';
 import { useReadingHistory } from '../../hooks/queries/useReadingHistory';
+import { useBibleCoverage } from '../../hooks/queries/useBibleCoverage';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
@@ -297,6 +298,10 @@ export function useHomeSurfaceData({
   const studyBibleNodesQuery = useStudyBibleNodes(STUDY_ARC_NODE_KINDS);
   const recallHistoryQuery = useRecallEventHistory();
   const readingHistoryQuery = useReadingHistory();
+  // "Your Bible". Loaded with Home so the map opens on data already here, and deliberately left
+  // out of the presentation gate: the card is a standing picture, and it can arrive a beat late
+  // without moving anything the reader is looking at.
+  const bibleCoverageQuery = useBibleCoverage();
   // Declared up here, above the presentation gate, because the gate reads their settled state.
   // They used to sit further down beside the recall memo that consumes them, which put them
   // out of the gate's reach — so each one landed after Home had already painted and inserted a
@@ -1896,5 +1901,8 @@ export function useHomeSurfaceData({
     hasMoreForLogic,
     looseCount,
     votd,
+
+    /* Your Bible — the shelf card and the map it opens. */
+    bibleCoverage: bibleCoverageQuery.data,
   };
 }

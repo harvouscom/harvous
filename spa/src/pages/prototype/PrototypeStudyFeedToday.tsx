@@ -38,6 +38,7 @@ import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import PrototypeHomeReadingPlan from './PrototypeHomeReadingPlan';
 import PrototypeHomeChurchFeed from './PrototypeHomeChurchFeed';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
+import PrototypeHomeBibleShelfCard from './bible-map/PrototypeHomeBibleShelfCard';
 import PrototypeDailyPassageCard, { dailyPassageShowsCard } from './PrototypeDailyPassageCard';
 import PrototypeRecallCarousel from './PrototypeRecallCarousel';
 import PrototypeReviewSection from './PrototypeReviewSection';
@@ -355,6 +356,10 @@ export default function PrototypeStudyFeedToday({
           </div>
         </div>
       </div>
+
+      {/* Your Bible — a standing picture, not an offer, so it sits under the decks rather than
+          in one. Renders nothing until there is something on the shelf. */}
+      <PrototypeHomeBibleShelfCard coverage={home.bibleCoverage} />
     </div>
   );
 }

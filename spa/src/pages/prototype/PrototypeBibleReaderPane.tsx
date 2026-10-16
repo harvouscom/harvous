@@ -35,6 +35,9 @@ import { swipeDirection } from './reader-version-swipe';
 // same chip the dock does, so it borrows the chip rather than growing a second one.
 import '@/styles/scripture-pill-chrome.css';
 import ProtoSelectMenu from './ProtoSelectMenu';
+import { useBibleCoverage } from '../../hooks/queries/useBibleCoverage';
+import { markPendingBibleMapBook } from '../../lib/pending-bible-map-book';
+import { chaptersBeenIn, levelsForBook } from '@/utils/bible-coverage';
 import {
   adjacentChapter,
   bookChapterCount,
@@ -572,6 +575,19 @@ export interface PrototypeBibleReaderPaneProps {
   landRequestKey?: string;
 }
 
+/** The book grid's hairline: the share of a book's chapters you have been in, or nothing. */
+function bookFillAccessory(levels: ReturnType<typeof levelsForBook> | null) {
+  if (!levels || levels.length === 0) return undefined;
+  const been = chaptersBeenIn(levels);
+  if (been === 0) return undefined;
+  return (
+    <span
+      className="proto-menu-item__fill"
+      style={{ '--proto-book-fill': been / levels.length } as React.CSSProperties}
+    />
+  );
+}
+
 export default function PrototypeBibleReaderPane({
   book,
   chapter,
@@ -620,7 +636,39 @@ export default function PrototypeBibleReaderPane({
    * leaves nothing for the modes worth putting there (review, challenges). Actions belong
    * where the thing they act on is.
    */
-  const { studyDockCarouselHostEl, paperStack } = useProtoShell();
+  const { studyDockCarouselHostEl, paperStack, openExpandedSidebar } = useProtoShell();
+  /*
+   * "Your Bible", from inside the reader — only inside the book picker. The hairlines show how
+   * much of each book you have been in, and a link at the picker's foot opens the map at this
+   * book. Nothing on the page itself: a line under the title was tried and read as a running
+   * score over every chapter. Reads Home's cache; a guest has none, and neither draws.
+   */
+  const { data: bibleCoverage } = useBibleCoverage();
+  const bookMenuFooter = useMemo(
+    () =>
+      bibleCoverage && bibleCoverage.books.length > 0
+        ? (close: () => void) => (
+            <div className="proto-menu-section pds-reader__book-menu-footer" role="group">
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                onClick={() => {
+                  close();
+                  markPendingBibleMapBook(book);
+                  openExpandedSidebar('bible-map');
+                }}
+              >
+                <span className="proto-menu-item__label">Your Bible</span>
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="up-right-and-down-left-from-center" size={11} />
+                </span>
+              </button>
+            </div>
+          )
+        : undefined,
+    [bibleCoverage, book, openExpandedSidebar],
+  );
 
 
   /* Warm the neighbours so paging never shows a loading line — across books, too. */
@@ -652,8 +700,9 @@ export default function PrototypeBibleReaderPane({
         // The grid abbreviates; the chapter's own title must not.
         triggerLabel: b,
         group: canonGroupForBook(b)?.testament === 'nt' ? 'New Testament' : 'Old Testament',
+        accessory: bookFillAccessory(bibleCoverage ? levelsForBook(bibleCoverage, b) : null),
       })),
-    [],
+    [bibleCoverage],
   );
   const chapterOptions = useMemo(() => {
     const count = bookChapterCount(book) ?? data?.chapterCount ?? 1;
@@ -2120,6 +2169,7 @@ export default function PrototypeBibleReaderPane({
                     className="pds-reader__picker-trigger"
                     groupsAsTabs
                     menuClassName="pds-reader__book-menu"
+                    footer={bookMenuFooter}
                     menuWidth={292}
                     // A book you have just chosen has no meaningful chapter yet, so start at
                     // its first rather than keeping a number that belonged to another book.

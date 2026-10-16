@@ -15,7 +15,7 @@
  * live, and the surface is a `region` you tab into and out of. Escape closes,
  * but only when nothing inside claimed the key first.
  */
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
 import type { ProtoExpandRect } from '../../layouts/proto-shell-context';
 
@@ -58,6 +58,18 @@ type ProtoSidebarExpandedPanelProps = {
    * can omit this — but as of Sept 2026 nothing does.
    */
   centered?: boolean;
+  /**
+   * The widest the panel grows, in px, when its content has a natural width of its own. Unset
+   * keeps the 1040px every board-like tool wants; a reading-column tool (Your Bible) asks for
+   * less, so it isn't a narrow column floating in an empty sheet.
+   */
+  maxWidth?: number;
+  /**
+   * As tall as the content, up to the room below the toolbar, instead of always running to the
+   * window's foot. For a tool whose content is usually short (Your Bible's ten section lines):
+   * a full-height sheet left most of itself empty. Past the cap the body scrolls as it does now.
+   */
+  fitContent?: boolean;
   onClose: () => void;
   children: ReactNode;
 };
@@ -71,6 +83,8 @@ export default function ProtoSidebarExpandedPanel({
   exiting,
   origin,
   centered,
+  maxWidth,
+  fitContent,
   onClose,
   children,
 }: ProtoSidebarExpandedPanelProps) {
@@ -183,10 +197,11 @@ export default function ProtoSidebarExpandedPanel({
   return (
     <div
       ref={panelRef}
-      className={`proto-sidebar-expanded-panel${centered ? ' proto-sidebar-expanded-panel--centered' : ''}${exiting ? ' proto-sidebar-expanded-panel--exiting' : ''}`}
+      className={`proto-sidebar-expanded-panel${centered ? ' proto-sidebar-expanded-panel--centered' : ''}${fitContent ? ' proto-sidebar-expanded-panel--fit' : ''}${exiting ? ' proto-sidebar-expanded-panel--exiting' : ''}`}
       role="region"
       aria-label={label}
       tabIndex={-1}
+      style={maxWidth ? ({ '--proto-expanded-panel-max-w': `${maxWidth}px` } as CSSProperties) : undefined}
     >
       <div className="proto-sidebar-expanded-panel__header">
         <div className="proto-sidebar-expanded-panel__header-lead">
