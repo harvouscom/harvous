@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   STUDY_DOCK_BAND_HEIGHT_VAR,
+  STUDY_DOCK_CORNER_HEIGHT_VAR,
   observeStudyDockBandHeight,
   syncStudyDockBandHeight,
 } from '../study-dock-layout';
@@ -53,6 +54,7 @@ const readVar = () => document.documentElement.style.getPropertyValue(STUDY_DOCK
 
 afterEach(() => {
   document.documentElement.style.removeProperty(STUDY_DOCK_BAND_HEIGHT_VAR);
+  document.documentElement.style.removeProperty(STUDY_DOCK_CORNER_HEIGHT_VAR);
   document.body.innerHTML = '';
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -99,6 +101,61 @@ describe('syncStudyDockBandHeight', () => {
     for (const slot of layer.children) mockRect(slot as HTMLElement, 0);
     expect(syncStudyDockBandHeight()).toBe(0);
     expect(readVar()).toBe('');
+  });
+});
+
+describe('the corner the feature callout floats in', () => {
+  const readCorner = () => document.documentElement.style.getPropertyValue(STUDY_DOCK_CORNER_HEIGHT_VAR);
+
+  /** Put a dock card in the first slot, spanning `left`..`right` in a 1440px window. */
+  function placeCard(layer: HTMLElement, left: number, right: number) {
+    vi.stubGlobal('innerWidth', 1440);
+    const card = document.createElement('div');
+    card.className = 'study-dock-card__outer';
+    card.getBoundingClientRect = () =>
+      ({ left, right, width: right - left, height: 120, top: 0, bottom: 120, x: left, y: 0, toJSON: () => ({}) }) as DOMRect;
+    layer.children[0]!.appendChild(card);
+  }
+
+  it('stays at the bottom when the dock sits on the paper, clear of the corner', () => {
+    /* The reported case: a wide window, the dock centred on the sheet, the callout off to the
+       right lifted over nothing. */
+    const layer = buildBand([120, 0]);
+    placeCard(layer, 300, 1000);
+    expect(syncStudyDockBandHeight()).toBe(136);
+    expect(readCorner()).toBe('');
+  });
+
+  it('rises over the dock when the card runs into the corner', () => {
+    const layer = buildBand([120, 0]);
+    placeCard(layer, 200, 1300);
+    syncStudyDockBandHeight();
+    expect(readCorner()).toBe('136px');
+  });
+
+  it('ignores a carousel neighbour parked off-screen', () => {
+    const layer = buildBand([120, 0]);
+    placeCard(layer, 300, 1000);
+    placeCard(layer, 1500, 2200);
+    syncStudyDockBandHeight();
+    expect(readCorner()).toBe('');
+  });
+
+  it('falls back to the slot when there is no card to measure', () => {
+    // The mocked slot spans 0..800; a 1000px window puts its corner column at 658.
+    buildBand([120, 0]);
+    vi.stubGlobal('innerWidth', 1000);
+    syncStudyDockBandHeight();
+    expect(readCorner()).toBe('136px');
+  });
+
+  it('clears when the dock closes', () => {
+    const layer = buildBand([120, 0]);
+    placeCard(layer, 200, 1300);
+    syncStudyDockBandHeight();
+    for (const slot of layer.children) mockRect(slot as HTMLElement, 0);
+    syncStudyDockBandHeight();
+    expect(readCorner()).toBe('');
   });
 });
 

@@ -1,5 +1,5 @@
 /**
- * The feature callout card — one at a time, picked by `pickCallout`, put away for good on the
+ * The feature callout card — one at a time (or a pair shipped together), picked by `pickCallout`, put away for good on the
  * account when it is dismissed or acted on.
  *
  * Two placements of the same card:
@@ -94,16 +94,18 @@ function scrollToTodayTabs(): void {
  * Renders nothing until the account's onboarding record has answered (`ready`), so a card put
  * away on another device does not flash here before the record arrives.
  */
-export function useActiveCallout(): {
-  callout: Callout | null;
-  dismiss: () => void;
-  act: () => void;
+export function useActiveCallouts(): {
+  /** The one to show, then its companion if it has one — at most two. */
+  callouts: Callout[];
+  dismiss: (callout: Callout) => void;
+  act: (callout: Callout) => void;
 } {
   const { state, ready } = useOnboardingState();
   const { isGuest } = useHarvousIdentity();
   const plus = useHasFeature('review');
   const account = useAccountCreatedAt();
   const navigate = useNavigate();
+  const { openExpandedSidebar } = useProtoShell();
 
   const legal = useLegalStatus();
   const acknowledge = useAcknowledgeLegal();
@@ -112,7 +114,7 @@ export function useActiveCallout(): {
 
   /* Waits for both answers — the account's seen record and its legal standing — so neither a
      put-away card nor a feature card the notice should outrank flashes up first. */
-  const { callout, superseded } =
+  const { callout, companion, superseded } =
     ready && account.ready && (isGuest || legal.isFetched)
       ? pickCalloutWithSuperseded(
           CALLOUTS,
@@ -125,8 +127,9 @@ export function useActiveCallout(): {
             accountCreatedAt: account.createdAt,
           },
           legalNotice ? [legalNotice] : [],
+          readShownIds(),
         )
-      : { callout: null, superseded: [] };
+      : { callout: null, companion: null, superseded: [] };
 
   /* Older callouts the shown one makes redundant are retired unseen, so they do not trickle out
      one a day after it. Recorded at the epoch, which never starts the quiet period. */
@@ -151,49 +154,49 @@ export function useActiveCallout(): {
     [acknowledge.mutate, legalDue.join(',')],
   );
 
-  const dismiss = useCallback(() => {
-    if (callout) markSeen(callout.id);
-  }, [callout, markSeen]);
+  const dismiss = useCallback((callout: Callout) => markSeen(callout.id), [markSeen]);
 
-  const act = useCallback(() => {
-    if (!callout) return;
-    markSeen(callout.id);
-    const ctx: CalloutActionContext = {
-      openHomeTabs: () => {
-        void navigate({ to: prototypeHomeRouteTo() });
-        scrollToTodayTabs();
-      },
-      openSettings: (path) => void navigate({ to: prototypeHref(path) as never }),
-    };
-    if ('href' in callout.action) {
-      window.open(callout.action.href, '_blank', 'noopener,noreferrer');
-    } else {
-      callout.action.run(ctx);
-    }
-  }, [callout, markSeen, navigate]);
+  const act = useCallback(
+    (callout: Callout) => {
+      markSeen(callout.id);
+      const ctx: CalloutActionContext = {
+        openHomeTabs: () => {
+          void navigate({ to: prototypeHomeRouteTo() });
+          scrollToTodayTabs();
+        },
+        openSettings: (path) => void navigate({ to: prototypeHref(path) as never }),
+        openBibleMap: () => openExpandedSidebar('bible-map'),
+      };
+      if ('href' in callout.action) {
+        window.open(callout.action.href, '_blank', 'noopener,noreferrer');
+      } else {
+        callout.action.run(ctx);
+      }
+    },
+    [markSeen, navigate, openExpandedSidebar],
+  );
 
-  return { callout, dismiss, act };
+  const callouts = [callout, companion].filter((entry): entry is Callout => entry !== null);
+  return { callouts, dismiss, act };
 }
 
 /**
- * Everything the stack holds right now, in order: the legal notice, the one feature callout,
- * then Harvous's own notices. The founder's letter opens from here, so the host renders its sheet.
+ * Everything the stack holds right now, in order: the legal notice or the feature callouts (two
+ * at most, when two shipped close together), then Harvous's own notices. The founder's letter
+ * opens from here, so the host renders its sheet.
  */
 function useCalloutStack() {
-  const { callout, dismiss, act } = useActiveCallout();
+  const { callouts, dismiss, act } = useActiveCallouts();
   const notices = useNoticeItems();
-  const items: CalloutStackItem[] = [];
-  if (callout) {
-    items.push({
-      id: callout.id,
-      title: callout.title,
-      body: callout.body,
-      illustration: callout.illustration,
-      actionLabel: callout.action.label,
-      act,
-      dismiss,
-    });
-  }
+  const items: CalloutStackItem[] = callouts.map((callout) => ({
+    id: callout.id,
+    title: callout.title,
+    body: callout.body,
+    illustration: callout.illustration,
+    actionLabel: callout.action.label,
+    act: () => act(callout),
+    dismiss: () => dismiss(callout),
+  }));
   items.push(...notices.items);
   /* Two cards at most, and no refilling within a day of putting one away. */
   const { state } = useOnboardingState();
