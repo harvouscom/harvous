@@ -3,6 +3,7 @@ import { TRANSLATION_ORDER, getTranslation } from '@/data/translations';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { useUpdateTranslation } from '../../../hooks/mutations/useUpdateTranslation';
 import { useBiblePacks } from '../../../hooks/useBiblePacks';
+import Icon from '@/components/react/Icon';
 import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 import PrototypeTranslationRow from './PrototypeTranslationRow';
 import TraditionControl from './TraditionControl';
@@ -128,15 +129,8 @@ export default function PrototypeTranslationPage() {
   return (
     <SettingsShell>
       <SettingsIntro>
-        Pick what you read in, and keep up to {maxPacks} offline.
-        {savedCount > 0 ? (
-          <>
-            {' '}
-            <span className="proto-translation-usage">
-              {savedCount} saved · {formatPackStorage(storageBytes)}.
-            </span>
-          </>
-        ) : null}
+        Pick what you read in. Tap <Icon name="cloud-arrow-down" size={12} aria-label="the cloud" /> to
+        keep a translation for reading offline.
       </SettingsIntro>
 
       <TraditionControl variant="settings" />
@@ -153,6 +147,11 @@ export default function PrototypeTranslationPage() {
       ) : (
         <SettingsGroup>{TRANSLATION_ORDER.map(renderRow)}</SettingsGroup>
       )}
+
+      {/* What's on the device, under the list it describes. */}
+      <p className="proto-caption proto-translation-usage">
+        {savedCount} of {maxPacks} saved offline{savedCount > 0 ? ` · ${formatPackStorage(storageBytes)}` : ''}
+      </p>
 
       {updateTranslation.isError ? (
         <p style={{ color: 'var(--pds-destructive)', fontSize: '0.8125rem', padding: '0 12px' }}>

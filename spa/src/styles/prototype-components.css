@@ -22031,9 +22031,8 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 /* The whole row carries the selection — title line, meta and trailing control together. */
-.proto-translation-row[data-active='true'] {
-  background: var(--pds-bg-row-hover);
-}
+/* No band for the selected row: the check says it, and a grey fill competed with the offline
+   clouds for "this one is different". */
 
 /* Body and trailing control on one line; the body takes the slack. */
 .proto-translation-row__main {
@@ -22135,6 +22134,11 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   cursor: pointer;
 }
 
+p.proto-translation-usage {
+  margin: -6px 0 0;
+  padding: 0 4px;
+}
+
 .proto-translation-usage {
   color: var(--pds-text-muted);
   font-variant-numeric: tabular-nums;
@@ -22204,14 +22208,63 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 .proto-translation-row__offline {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 2px;
   flex: 0 0 auto;
-  padding-right: 14px;
-  padding-left: 4px;
+  padding-right: 8px;
+  padding-left: 2px;
 }
 
 /* A small button, not a text link — bordered and filled like every other row-scoped control
    in the app, rather than the bare underline-on-hover treatment this used to have. */
+/* The offline control as a glyph (PrototypeTranslationRow): muted until it matters. */
+.proto-translation-row__icon {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--pds-radius-pill);
+  background: transparent;
+  color: var(--pds-text-tertiary);
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s;
+}
+
+.proto-translation-row__icon[data-state='saved'] {
+  color: var(--pds-text-secondary);
+}
+
+/* The route-wide rule (prototype-route-overrides-1.css) pins every prototype button and its
+   descendants to primary ink with !important. These are quiet on purpose, so they answer it the
+   way its own escapes do: (0,3,1) and !important, on the button and the glyph inside. */
+html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon,
+html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon * {
+  color: var(--pds-text-tertiary) !important;
+}
+
+html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon[data-state='saved'],
+html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon[data-state='saved'] * {
+  color: var(--pds-text-secondary) !important;
+}
+
+.proto-translation-row__icon:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon:hover:not(:disabled) {
+    background: var(--pds-bg-control);
+  }
+
+  html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon:hover:not(:disabled),
+  html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon:hover:not(:disabled) * {
+    color: var(--pds-text-primary) !important;
+  }
+}
+
 .proto-translation-row__action {
   appearance: none;
   display: inline-flex;

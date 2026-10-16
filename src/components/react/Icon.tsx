@@ -141,6 +141,8 @@ import arrowsRotateSvg from '@fortawesome/fontawesome-free/svgs/solid/arrows-rot
 import spinnerSvg from '@fortawesome/fontawesome-free/svgs/solid/spinner.svg?raw';
 import cloudSvg from '@fortawesome/fontawesome-free/svgs/solid/cloud.svg?raw';
 import cloudArrowUpSvg from '@fortawesome/fontawesome-free/svgs/solid/cloud-arrow-up.svg?raw';
+import cloudArrowDownSvg from '@fortawesome/fontawesome-free/svgs/solid/cloud-arrow-down.svg?raw';
+import circleStopSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-stop.svg?raw';
 import copySvg from '@fortawesome/fontawesome-free/svgs/solid/copy.svg?raw';
 import globeSvg from '@fortawesome/fontawesome-free/svgs/solid/globe.svg?raw';
 import starSvg from '@fortawesome/fontawesome-free/svgs/solid/star.svg?raw';
@@ -306,6 +308,8 @@ const icons = {
   spinner: svgRootCurrentColor(spinnerSvg),
   cloud: svgRootCurrentColor(cloudSvg),
   'cloud-arrow-up': svgRootCurrentColor(cloudArrowUpSvg),
+  'cloud-arrow-down': svgRootCurrentColor(cloudArrowDownSvg),
+  'circle-stop': svgRootCurrentColor(circleStopSvg),
   // Share icons
   copy: svgRootCurrentColor(copySvg),
   globe: svgRootCurrentColor(globeSvg),

@@ -14,10 +14,17 @@
  * Progress is a 2px rule along the foot rather than a sentence, and it is absolutely
  * positioned so a row starting or finishing a download never reflows the list.
  *
+ * **Offline is a glyph, not a button on every row (Oct 2026).** A dozen "Save offline" pills
+ * down the page made the list read as a store, and "Remove" beside the checkmark read as removing
+ * your translation. Now: a muted download cloud, a filled cloud once saved (press it once to
+ * reveal Remove, so a stray tap never deletes), a stop while saving. The selection is the check
+ * alone — no grey band, which competed with the clouds for "this one is different".
+ *
  * Presentational on purpose — every piece of state arrives as a prop. That is what lets the
  * design gallery render all six states side by side without a profile, a network or a
  * pack store, and it is why this row can be looked at rather than only reasoned about.
  */
+import { useEffect, useId, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { MAX_OFFLINE_TRANSLATIONS } from '@/utils/bible-pack-store';
 
@@ -70,6 +77,28 @@ function fraction(state: TranslationRowState): number | null {
   return Math.min(1, Math.max(0, state.booksSaved / state.booksTotal));
 }
 
+const CLOUD_PATH =
+  'M0 336c0 79.5 64.5 144 144 144l304 0c70.7 0 128-57.3 128-128 0-51.6-30.5-96.1-74.5-116.3 6.7-13.1 10.5-28 10.5-43.7 0-53-43-96-96-96-17.7 0-34.2 4.8-48.4 13.1-24.1-45.8-72.2-77.1-127.6-77.1-79.5 0-144 64.5-144 144 0 8 .7 15.9 1.9 23.5-56.9 19.2-97.9 73.1-97.9 136.5z';
+
+/**
+ * Saved offline: the cloud with a check cut through it, so it reads apart from the download
+ * cloud at a glance. Cut with a mask rather than drawn in a colour, because the list sits on
+ * whatever paper or hover tint is behind it. The mask id is `useId`'s: a page draws a dozen of
+ * these, and a shared id lets one row's mask hide every other row's cloud.
+ */
+function CloudCheckIcon({ size }: { size: number }) {
+  const mask = `cloud-check-${useId().replace(/:/g, '')}`;
+  return (
+    <svg width={size} height={size} viewBox="0 0 576 512" aria-hidden style={{ display: 'block' }}>
+      <mask id={mask}>
+        <rect width="576" height="512" fill="#fff" />
+        <path d="M190 318l66 62 132-136" fill="none" stroke="#000" strokeWidth="44" strokeLinecap="round" strokeLinejoin="round" />
+      </mask>
+      <path d={CLOUD_PATH} fill="currentColor" mask={`url(#${mask})`} />
+    </svg>
+  );
+}
+
 export default function PrototypeTranslationRow({
   abbreviation,
   name,
@@ -83,6 +112,18 @@ export default function PrototypeTranslationRow({
   const status = statusLabel(state);
   const progress = fraction(state);
   const percent = progress === null ? null : Math.floor(progress * 100);
+
+  /* Remove is two presses: the saved cloud arms it, the revealed word does it. Disarms after
+     a few seconds, so a row left armed does not wait for an accidental second tap. */
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = window.setTimeout(() => setArmed(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [armed]);
+  useEffect(() => {
+    if (state.kind !== 'offline') setArmed(false);
+  }, [state.kind]);
 
   return (
     <div
@@ -110,16 +151,6 @@ export default function PrototypeTranslationRow({
             */}
             <span className="proto-translation-row__name">
               <span className="pds-list-title">{abbreviation}</span>
-              {state.kind === 'offline' ? (
-                <span className="proto-offline-badge" data-state="ready">
-                  <Icon name="check" size={9} aria-hidden />
-                  Offline
-                </span>
-              ) : state.kind === 'partial' ? (
-                <span className="proto-offline-badge" data-state="partial">
-                  Part-saved
-                </span>
-              ) : null}
             </span>
             {/*
               The name, and — while there is one — how far the copy has got. On the meta
@@ -153,56 +184,83 @@ export default function PrototypeTranslationRow({
 
         <div className="proto-translation-row__offline">
           {state.kind === 'saving' || state.kind === 'queued' ? (
-            /* One word for both: leaving the queue and stopping the transfer are the same
-               intent, and the row should not rename its button when its turn comes up. */
-            <button type="button" className="proto-translation-row__action" onClick={onStop}>
-              Stop
+            /* One control for both: leaving the queue and stopping the transfer are the same
+               intent. The meta line says which ("Saving 12 of 66", "Waiting to save"). */
+            <button
+              type="button"
+              className="proto-translation-row__icon"
+              onClick={onStop}
+              aria-label={`Stop saving ${abbreviation}`}
+              title="Stop saving"
+            >
+              <Icon name="circle-stop" size={15} aria-hidden />
             </button>
           ) : state.kind === 'offline' ? (
-            <button type="button" className="proto-translation-row__action" onClick={onRemove}>
-              Remove
-            </button>
-          ) : state.kind === 'partial' ? (
-            /* Finish leads: a half-saved pack is one someone meant to have. Remove is the
-               quieter neighbour rather than an equal. */
-            <>
-              <button type="button" className="proto-translation-row__action" onClick={onSave}>
-                Finish
-              </button>
+            armed ? (
               <button
                 type="button"
                 className="proto-translation-row__action proto-translation-row__action--quiet"
-                onClick={onRemove}
+                onClick={() => {
+                  setArmed(false);
+                  onRemove();
+                }}
+                onBlur={() => setArmed(false)}
+                autoFocus
               >
                 Remove
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="proto-translation-row__icon"
+                data-state="saved"
+                onClick={() => setArmed(true)}
+                aria-label={`${abbreviation} is saved offline. Remove the offline copy`}
+                title="Saved offline"
+              >
+                <CloudCheckIcon size={16} />
+              </button>
+            )
+          ) : state.kind === 'partial' ? (
+            /* Finish leads; removing a half-saved copy is the quieter neighbour. */
+            <>
+              <button
+                type="button"
+                className="proto-translation-row__icon"
+                onClick={onSave}
+                aria-label={`Finish saving ${abbreviation} offline`}
+                title="Finish saving"
+              >
+                <Icon name="cloud-arrow-down" size={15} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="proto-translation-row__icon"
+                onClick={onRemove}
+                aria-label={`Remove the part-saved ${abbreviation}`}
+                title="Remove"
+              >
+                <Icon name="xmark" size={12} aria-hidden />
               </button>
             </>
           ) : (
             /*
-             * The same button either way — blocked only disables it.
-             *
-             * Blocked used to render the sentence "Remove one first" in place of the button,
-             * which meant starting one download rewrote every other row on the page: eight
-             * buttons vanished and eight sentences appeared, at a different width, because of
-             * a press on a ninth. One action should not restyle the list it was taken in.
-             *
-             * The reason is not lost, it moves to the button's `title` — where a disabled
-             * control's explanation belongs, and where it does not cost the row a layout.
+             * The same control either way — blocked only disables it, and the reason moves to
+             * its title, so one download never restyles every other row.
              */
             <button
               type="button"
-              className="proto-translation-row__action"
+              className="proto-translation-row__icon"
               onClick={onSave}
               disabled={state.kind === 'blocked'}
+              aria-label={`Save ${abbreviation} offline`}
               title={
                 state.kind === 'blocked'
-                  ? /* Interpolated, not spelled out: this line said "three" for a release after
-                       the limit stopped being three. */
-                    `Remove another translation first — ${MAX_OFFLINE_TRANSLATIONS} can be kept offline at once`
-                  : undefined
+                  ? `Remove another translation first — ${MAX_OFFLINE_TRANSLATIONS} can be kept offline at once`
+                  : 'Save offline'
               }
             >
-              Save offline
+              <Icon name="cloud-arrow-down" size={15} aria-hidden />
             </button>
           )}
         </div>
