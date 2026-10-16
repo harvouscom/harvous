@@ -23,7 +23,7 @@ export function prefetchSettingsCategoryChunks(): void {
     /* prefetch is best-effort — see above */
   };
   const load = () => {
-    void import('./PrototypeTranslationPage').catch(swallow);
+    void import('./PrototypeYourBiblePage').catch(swallow);
     void import('./PrototypeAppearancePage').catch(swallow);
     void import('./PrototypeRemindersPage').catch(swallow);
     void import('./PrototypeReviewExercisesPage').catch(swallow);

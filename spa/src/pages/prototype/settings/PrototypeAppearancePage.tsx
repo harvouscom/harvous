@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import Icon from '@/components/react/Icon';
 import {
   BG_PRESETS,
@@ -26,7 +26,7 @@ import {
 } from '../../../lib/prototype-background';
 import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
 import { AppearancePreviewTile } from './AppearancePreviewTile';
-import { SettingsGroup, SettingsShell } from './SettingsShell';
+import { SegmentedControl, SettingsGroup, SettingsShell } from './SettingsShell';
 import {
   FONT_CHOICES,
   getFontPrefsServerSnapshot,
@@ -35,7 +35,6 @@ import {
   writeFontPrefs,
   type FontPrefs,
 } from '../../../lib/proto-font-prefs';
-import { playSound } from '@/utils/sounds';
 
 /**
  * What the carousel below the toggle is showing.
@@ -213,48 +212,6 @@ function TypefaceCarousel() {
           sampleFont={choice.id}
           onClick={() => writeFontPrefs({ reading: choice.id })}
         />
-      ))}
-    </div>
-  );
-}
-
-// ─── Segmented control ──────────────────────────────────────────────────────
-
-type SegmentedControlProps<T extends string> = {
-  options: { value: T; label: string }[];
-  value: T;
-  onChange: (value: T) => void;
-};
-
-function SegmentedControl<T extends string>({ options, value, onChange }: SegmentedControlProps<T>) {
-  /* -1 while `value` matches nothing yet (a preference still loading) would park the
-     thumb one step left of the track, so an unmatched value holds it at the first slot. */
-  const activeIndex = Math.max(0, options.findIndex((opt) => opt.value === value));
-  return (
-    <div
-      className="proto-appearance-segmented proto-seg-track"
-      role="radiogroup"
-      style={
-        {
-          '--proto-seg-count': options.length,
-          '--proto-seg-index': activeIndex,
-        } as CSSProperties
-      }
-    >
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          role="radio"
-          aria-checked={value === opt.value}
-          className={`proto-appearance-segmented__btn${value === opt.value ? ' proto-appearance-segmented__btn--active' : ''}`}
-          onClick={() => {
-            if (value !== opt.value) playSound('nav.select');
-            onChange(opt.value);
-          }}
-        >
-          {opt.label}
-        </button>
       ))}
     </div>
   );

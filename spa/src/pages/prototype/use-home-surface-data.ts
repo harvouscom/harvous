@@ -118,6 +118,7 @@ import {
 } from '@/utils/prototype-home-trends';
 import chapterSubjectsData from '@/data/chapter-subjects.json';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
+import { useIsCatholic } from '../../hooks/useTradition';
 
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { protoRelativeCaptionAbbrev } from './proto-time';
@@ -1043,7 +1044,8 @@ export function useHomeSurfaceData({
   }, [activeArc, activeArcIsSection, sectionArc, studyArc, notes, proposeThread, searchLibraryFor]);
 
   // ── Generative recall: seed a draft note + derive prompts (Phase 1, client-side) ──
-  const season = useMemo(() => currentLiturgicalSeason(new Date()), []);
+  const catholic = useIsCatholic();
+  const season = useMemo(() => currentLiturgicalSeason(new Date(), { catholic }), [catholic]);
 
   /**
    * Open a seeded note (title + optional scripture pill) immediately.

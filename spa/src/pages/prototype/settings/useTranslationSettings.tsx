@@ -1,0 +1,129 @@
+import { useEffect, useRef } from 'react';
+import { getTranslation } from '@/data/translations';
+import { useProfile } from '../../../hooks/queries/useProfile';
+import { useUpdateTranslation } from '../../../hooks/mutations/useUpdateTranslation';
+import { useBiblePacks } from '../../../hooks/useBiblePacks';
+import PrototypeTranslationRow, { type TranslationRowState } from './PrototypeTranslationRow';
+import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
+
+/**
+ * Bytes as something a person can picture.
+ *
+ * Whole megabytes above 10 and one decimal below, because "4.6 MB" is the difference between
+ * two translations and "14 MB" versus "14.2 MB" is not — precision where it changes a
+ * decision, and none where it is only noise.
+ */
+export function formatPackStorage(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  if (mb < 0.1) return 'under 0.1 MB';
+  return `${mb >= 10 ? Math.round(mb) : mb.toFixed(1)} MB`;
+}
+
+/**
+ * Which translation you read in, and which ones you keep — the state behind Settings › My Bible.
+ *
+ * This used to be the whole Translations page. It moved into a hook when that page folded into
+ * My Bible (Oct 2026), which shows the same rows in two places: the full list behind Change,
+ * and the "Kept offline" group. One hook so the auto-save below runs once, not once per list.
+ */
+export function useTranslationSettings({ onChosen }: { onChosen?: () => void } = {}) {
+  const { data: profile } = useProfile();
+  const updateTranslation = useUpdateTranslation();
+  const { packs, storageBytes, loading, downloading, queue, download, cancel, remove, atLimit, maxPacks } =
+    useBiblePacks();
+
+  // Optimistic selection: pending value if mutating, else server value, else NET.
+  const selected: string =
+    (updateTranslation.isPending ? updateTranslation.variables : undefined) ??
+    profile?.defaultTranslation ??
+    'NET';
+
+  /*
+   * The translation someone reads in is offline-ready without being asked. It is the one they
+   * will want on a plane, and making them find a second control to say so would mean the
+   * default answer to "is my Bible available offline" is no.
+   *
+   * Fires once per default, not once per render, and never while another download is running —
+   * a background pack must not interrupt one the reader started themselves.
+   *
+   * Gated on `loading`: `packs` starts as `[]` and only becomes real once `useBiblePacks`'s own
+   * `listPacks()` read resolves. Checking against it before then made every guard below pass
+   * vacuously — `packs.some(...)` is always false and `!packs.length` is always true on an
+   * empty array — so this fired `download()` on every single mount of this page, even for a
+   * translation already fully saved, replaying the whole "Saving X of 66" progress UI for
+   * nothing. Worse, `autoStartedRef` was set from that first, wrong pass, so the effect's
+   * later re-run against the real `packs` never got a chance to correct it.
+   */
+  const autoStartedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (loading || !selected || downloading) return;
+    if (autoStartedRef.current === selected) return;
+    if (packs.some((p) => p.translationId === selected)) return;
+    if (!packs.length || !atLimit) {
+      autoStartedRef.current = selected;
+      void download(selected);
+    }
+  }, [loading, selected, packs, downloading, atLimit, download]);
+
+  const stateOf = (id: string): TranslationRowState => {
+    const pack = packs.find((p) => p.translationId === id);
+    const isDownloading = downloading?.translationId === id;
+    const isQueued = !isDownloading && queue.includes(id);
+    const canDownload = !pack?.complete && !isDownloading && (!atLimit || !!pack);
+    if (isDownloading) {
+      return { kind: 'saving', booksSaved: downloading.booksSaved, booksTotal: downloading.booksTotal };
+    }
+    if (isQueued) return { kind: 'queued' };
+    if (pack?.complete) return { kind: 'offline' };
+    if (pack) return { kind: 'partial', booksSaved: pack.booksSaved, booksTotal: pack.booksTotal };
+    return canDownload ? { kind: 'available' } : { kind: 'blocked' };
+  };
+
+  const renderRow = (id: string, { showSelected = true }: { showSelected?: boolean } = {}) => {
+    const t = getTranslation(id);
+    const isSelected = id === selected;
+    return (
+      <PrototypeTranslationRow
+        key={id}
+        abbreviation={t?.abbreviation ?? id}
+        name={t?.name ?? null}
+        selected={showSelected && isSelected}
+        state={stateOf(id)}
+        onChoose={() => {
+          if (!updateTranslation.isPending && !isSelected) {
+            updateTranslation.mutate(id);
+            markOnboardingStep('translation');
+          }
+          onChosen?.();
+        }}
+        onSave={() => void download(id)}
+        onStop={() => cancel(id)}
+        onRemove={() => void remove(id)}
+      />
+    );
+  };
+
+  /* Anything on the device or on its way: complete, half-done, saving or queued. */
+  const keptIds = [
+    ...new Set([
+      ...packs.map((p) => p.translationId),
+      ...(downloading ? [downloading.translationId] : []),
+      ...queue,
+    ]),
+  ];
+
+  /* Complete copies only. A pack halfway through is not yet something you can read on a
+     plane, and counting it here would promise otherwise. */
+  const savedCount = packs.filter((p) => p.complete).length;
+
+  return {
+    selected,
+    selectedState: stateOf(selected),
+    renderRow,
+    keptIds,
+    savedCount,
+    maxPacks,
+    storageBytes,
+    saveError: updateTranslation.isError,
+  };
+}

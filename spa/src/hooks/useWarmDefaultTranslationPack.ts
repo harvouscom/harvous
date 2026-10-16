@@ -26,7 +26,7 @@ const QUIET_DEADLINE_MS = 15_000;
  * Silently completes the account's default translation's offline pack once per app session, so
  * a phone with no signal already has the Bible it reads in — without ever needing to visit
  * Settings > Translation first, which used to be the only place a pack download could start
- * (`PrototypeTranslationPage.tsx`'s own auto-start effect only runs while that page is open).
+ * (`useTranslationSettings.tsx`'s own auto-start effect only runs while that page is open).
  *
  * `useProfile()` is already `useAuthReady()`-gated internally, so `profile` staying undefined
  * is enough of a wait condition here — no separate auth check needed.

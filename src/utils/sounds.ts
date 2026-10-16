@@ -51,6 +51,7 @@ export type SoundMoment =
   | 'review.sittingDone'
   | 'space.created'
   | 'organize.filed'
+  | 'organize.created'
   | 'highlight.created'
   | 'challenge.step'
   | 'challenge.finished'
@@ -108,8 +109,13 @@ export const SOUND_CUES: Record<SoundMoment, Cue> = {
   /* Replaces `review.right` on the answer that moves an item into holding — never both. */
   'review.holding': { class: 'moment', sound: 'success', emphasis: 'normal' },
   'review.sittingDone': { class: 'moment', sound: 'success', emphasis: 'strong' },
-  'space.created': { class: 'moment', sound: 'success', emphasis: 'normal' },
+  /* Subtle, not normal (Oct 2026): making a space is setting up, not finishing something, and it
+     was as loud as completing a whole study plan. */
+  'space.created': { class: 'moment', sound: 'success', emphasis: 'subtle' },
   'organize.filed': { class: 'moment', sound: 'ready', emphasis: 'subtle' },
+  /* A new folder or thread: a detent, like a highlight. The glass note stays for filing notes
+     into one — that is the outcome; making the empty container is just the first step. */
+  'organize.created': { class: 'moment', sound: 'select', emphasis: 'subtle' },
   /* A detent, not a chord: reading is the quietest part of the app. */
   'highlight.created': { class: 'moment', sound: 'select', emphasis: 'subtle' },
   'challenge.step': { class: 'moment', sound: 'ready', emphasis: 'subtle' },

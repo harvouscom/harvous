@@ -167,6 +167,7 @@ import {
 import { buildImportItemPreview } from '../utils/import-preview';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { broadcastInvalidation } from '../utils/realtime';
+import { DEFAULT_TRADITION, isTradition, normalizeTradition, type Tradition } from '../../src/utils/tradition';
 import { deleteNotesCascadeForUser } from '../utils/delete-note-cascade';
 import {
   runPrototypeUserMigration,
@@ -1000,6 +1001,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       connectedChurchAt: null as string | null,
     };
     let defaultTranslation = 'NET';
+    let tradition: Tradition = DEFAULT_TRADITION;
     let appearanceSettings: string | null = null;
     let lastReadPosition: string | null = null;
     let onboardingState: string | null = null;
@@ -1021,6 +1023,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
           connectedChurchAt: um.connectedChurchAt ?? null,
         };
         defaultTranslation = um.defaultTranslation ?? 'NET';
+        tradition = normalizeTradition(um.tradition);
         appearanceSettings = um.appearanceSettings ?? null;
         lastReadPosition = um.lastReadPosition ?? null;
         onboardingState = um.onboardingState ?? null;
@@ -1097,6 +1100,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       isHomeChurchStaff,
       connectedChurchInactive,
       defaultTranslation,
+      tradition,
       appearanceSettings,
       lastReadPosition,
       onboardingState,
@@ -1667,6 +1671,43 @@ app.post('/api/user/update-translation', requireAuth, rateLimit('write'), async 
     return c.json({ success: true, defaultTranslation });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/update-translation', action: 'update_default_translation' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── POST /api/user/update-tradition ─────────────────────────────────────────
+
+/**
+ * Protestant or Catholic (src/utils/tradition.ts). Never touches the default translation: the
+ * settings page offers the NABRE, it doesn't impose it. Broadcast like appearance, because the
+ * book lists and Home on the user's other devices change with it.
+ */
+app.post('/api/user/update-tradition', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const { tradition } = await c.req.json();
+    if (!isTradition(tradition)) {
+      return c.json({ error: 'tradition must be "protestant" or "catholic"' }, 400);
+    }
+
+    const existing = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    if (existing) {
+      await db.update(UserMetadata)
+        .set({ tradition, updatedAt: nowISO() })
+        .where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        tradition,
+        createdAt: nowISO(),
+      });
+    }
+
+    broadcastInvalidation(auth.userId, { type: 'userMetadata:updated' });
+    return c.json({ success: true, tradition });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/update-tradition', action: 'update_tradition' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

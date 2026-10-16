@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 import { playSound } from '@/utils/sounds';
@@ -317,7 +317,8 @@ export function SettingsGroup({ children }: { children: ReactNode }) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        border: '0.5px solid var(--pds-border)',
+        // The paper border: `--pds-border` is near-white and vanished on the settings sheet.
+        border: '0.5px solid var(--pds-border-on-paper)',
         borderRadius: 'var(--pds-radius-menu)',
         overflow: 'hidden',
         marginBottom: 16,
@@ -423,6 +424,52 @@ export function SettingsConfirmRow({
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+// ─── Segmented control ──────────────────────────────────────────────────────
+
+type SegmentedControlProps<T extends string> = {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  /** Names the group for a screen reader when no visible heading does. */
+  ariaLabel?: string;
+};
+
+/** The settings segmented control (Appearance, Translations, the onboarding tradition row). */
+export function SegmentedControl<T extends string>({ options, value, onChange, ariaLabel }: SegmentedControlProps<T>) {
+  /* -1 while `value` matches nothing yet (a preference still loading) would park the
+     thumb one step left of the track, so an unmatched value holds it at the first slot. */
+  const activeIndex = Math.max(0, options.findIndex((opt) => opt.value === value));
+  return (
+    <div
+      className="proto-appearance-segmented proto-seg-track"
+      role="radiogroup"
+      aria-label={ariaLabel}
+      style={
+        {
+          '--proto-seg-count': options.length,
+          '--proto-seg-index': activeIndex,
+        } as CSSProperties
+      }
+    >
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          role="radio"
+          aria-checked={value === opt.value}
+          className={`proto-appearance-segmented__btn${value === opt.value ? ' proto-appearance-segmented__btn--active' : ''}`}
+          onClick={() => {
+            if (value !== opt.value) playSound('nav.select');
+            onChange(opt.value);
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 }

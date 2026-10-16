@@ -400,6 +400,18 @@ describe('normalizeInlineTranslationAbbreviation', () => {
     expect(normalizeInlineTranslationAbbreviation('esv')).toBe('ESV');
     expect(normalizeInlineTranslationAbbreviation('MSG')).toBe('MSG');
   });
+
+  it('maps the Douay-Rheims abbreviation DRA to DRB', () => {
+    expect(normalizeInlineTranslationAbbreviation('DRA')).toBe('DRB');
+    expect(normalizeInlineTranslationAbbreviation('drb')).toBe('DRB');
+  });
+
+  it('maps the printed Catholic RSV and NRSV abbreviations to their ids', () => {
+    expect(normalizeInlineTranslationAbbreviation('RSV-2CE')).toBe('RSV2CE');
+    expect(normalizeInlineTranslationAbbreviation('rsv-ce')).toBe('RSV2CE');
+    expect(normalizeInlineTranslationAbbreviation('NRSV-CE')).toBe('NRSVCE');
+    expect(normalizeInlineTranslationAbbreviation('nrsvce')).toBe('NRSVCE');
+  });
 });
 
 describe('matchTrailingTranslationAbbreviation', () => {
@@ -439,6 +451,14 @@ describe('matchAnchoredTrailingTranslationAbbreviation', () => {
     expect(matchAnchoredTrailingTranslationAbbreviation(' NLTish')).toBeNull();
   });
 
+  it('matches the Catholic translations, NABRE ahead of NASB', () => {
+    expect(matchAnchoredTrailingTranslationAbbreviation(' NABRE, and')!.canonicalId).toBe('NABRE');
+    expect(matchAnchoredTrailingTranslationAbbreviation(' DRA here')!.canonicalId).toBe('DRB');
+    expect(matchAnchoredTrailingTranslationAbbreviation(' RSV-2CE, and')!.canonicalId).toBe('RSV2CE');
+    expect(matchAnchoredTrailingTranslationAbbreviation(' NRSV-CE here')!.canonicalId).toBe('NRSVCE');
+    expect(matchAnchoredTrailingTranslationAbbreviation(' NRSVCE')!.canonicalId).toBe('NRSVCE');
+  });
+
   it('still matches block-end abbrev (parity with matchTrailingTranslationAbbreviation)', () => {
     const m = matchAnchoredTrailingTranslationAbbreviation('  NASB 1995  ');
     expect(m).not.toBeNull();
@@ -451,6 +471,12 @@ describe('detectScriptureReferencesWithTranslation', () => {
     const refs = detectScriptureReferencesWithTranslation('John 3:16 NASB 1995');
     expect(refs).toHaveLength(1);
     expect(refs[0].translation).toBe('NASB');
+  });
+
+  it('parses the Catholic RSV and NRSV as printed, hyphen and all', () => {
+    expect(detectScriptureReferencesWithTranslation('Sirach 2:1 RSV-2CE')[0].translation).toBe('RSV2CE');
+    expect(detectScriptureReferencesWithTranslation('John 3:16 NRSV-CE')[0].translation).toBe('NRSVCE');
+    expect(detectScriptureReferencesWithTranslation('Tobit 1:1 RSV2CE')[0].translation).toBe('RSV2CE');
   });
 
   it('parses trailing ESV', () => {
@@ -695,5 +721,30 @@ describe('unresolvable references are rejected, not just warned about', () => {
     // This is exactly why the resolvability gate exists: a `.length === 0` check
     // on detection passes here and let the broken pill through.
     expect(detectScriptureReferences('Exodus 16:1620').length).toBeGreaterThan(0);
+  });
+});
+
+describe('deuterocanonical references', () => {
+  it('detects the seven books, their common abbreviations and the Greek chapters', () => {
+    const books = (text: string) => detectScriptureReferences(text).map((r) => `${r.book} ${r.chapter}`);
+    expect(books('Read Sirach 2:1 today')).toEqual(['Sirach 2']);
+    expect(books('Ecclesiasticus 2:1')).toEqual(['Sirach 2']);
+    expect(books('Ecclesiastes 3:1')).toEqual(['Ecclesiastes 3']);
+    expect(books('Tobias 1:1')).toEqual(['Tobit 1']);
+    expect(books('1 Macc 2:3 and I Maccabees 4:1')).toEqual(['1 Maccabees 2', '1 Maccabees 4']);
+    expect(books('Bar 3:9')).toEqual(['Baruch 3']);
+    expect(books('Daniel 13:1')).toEqual(['Daniel 13']);
+    expect(books('Esther 12:1')).toEqual(['Esther 12']);
+    expect(books('Song of the Three 1:30')).toEqual(['Prayer of Azariah 1']);
+  });
+
+  it('leaves the theme word alone when it is not a reference', () => {
+    expect(detectScriptureReferences('Wisdom is good 3 times over')).toEqual([]);
+  });
+
+  it('rejects verses past the Catholic chapter ends', () => {
+    expect(isResolvableScriptureReference('Esther 16:24')).toBe(true);
+    expect(isResolvableScriptureReference('Esther 16:25')).toBe(false);
+    expect(isResolvableScriptureReference('Prayer of Azariah 1:68')).toBe(false);
   });
 });

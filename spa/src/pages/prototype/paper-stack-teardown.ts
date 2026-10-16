@@ -14,7 +14,7 @@
 import type { PaperStackState } from '../../layouts/proto-shell-context';
 import { READER_DESTINED_CARD_KINDS } from './paper-stack-origins';
 
-export type PaperStackVerdict = 'keep' | 'clear' | { adoptNoteId: string };
+export type PaperStackVerdict = 'keep' | 'clear' | 'landSheet' | { adoptNoteId: string };
 
 export type PaperStackPathHelpers = {
   isNotePath: (pathname: string) => boolean;
@@ -67,6 +67,20 @@ export function resolvePaperStackAfterNavigation(
 ): PaperStackVerdict {
   if (!stack) return 'keep';
   const { origin, noteId, open } = stack;
+
+  /*
+   * A chapter as the sheet (the Prayer of Azariah over Daniel 3). It lives exactly as long as
+   * the route is that chapter. The base chapter keeps it only until the sheet has landed — the
+   * frame between stacking and navigating — and ends it afterwards, because arriving back
+   * there any other way (browser back, the sheet's own prev) means you have left the sheet.
+   */
+  if (stack.sheet) {
+    const at = helpers.readTargetAt(pathname);
+    if (sameReaderChapter(at, stack.sheet)) return stack.sheet.landed ? 'keep' : 'landSheet';
+    const base = origin.base.type === 'reader' ? origin.base : null;
+    if (!stack.sheet.landed && sameReaderChapter(at, base)) return 'keep';
+    return 'clear';
+  }
 
   if (origin.kind === 'noteDock') {
     return helpers.isReadPath(pathname) ? 'keep' : 'clear';

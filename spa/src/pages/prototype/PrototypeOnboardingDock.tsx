@@ -5,7 +5,7 @@
  * chrome as "This evening" (eyebrow outside the card, own panel).
  * Each customize row opens the matching Settings page.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
@@ -25,7 +25,7 @@ import {
   prototypeSettingsDataRouteTo,
   prototypeSettingsRemindersRouteTo,
 } from '@/lib/prototype-path';
-import { prototypeSettingsTranslationRouteTo } from './prototype-settings-translation-route';
+import { prototypeSettingsBibleRouteTo } from './prototype-settings-bible-route';
 import { CUSTOMIZE_STEP_COPY } from './onboarding-customize-copy';
 import type { PushSupport } from '../../lib/push-reminders';
 import {
@@ -55,6 +55,15 @@ export const ONBOARDING_STEP_COPY: readonly OnboardingStepCopy[] = [
   { id: 'recall', icon: 'arrow-rotate-left', title: 'Revisit something', meta: 'Harvous brings back what you studied.' },
 ];
 
+/* Lazy: only a new account's checklist ever shows this row, and the entry bundle is at its
+   budget. The row draws without the control for the moment it takes to arrive. */
+const TraditionControl = lazy(() => import('./settings/TraditionControl'));
+const traditionControl = (
+  <Suspense fallback={null}>
+    <TraditionControl />
+  </Suspense>
+);
+
 const COPY_BY_ID = new Map(
   [...ONBOARDING_STEP_COPY, ...CUSTOMIZE_STEP_COPY].map((step) => [step.id, step]),
 );
@@ -62,7 +71,9 @@ const COPY_BY_ID = new Map(
 function customizeSettingsRoute(id: OnboardingCustomizeId) {
   if (id === 'reminders') return prototypeSettingsRemindersRouteTo();
   if (id === 'appearance') return prototypeSettingsAppearanceRouteTo();
-  if (id === 'translation') return prototypeSettingsTranslationRouteTo();
+  // The tradition row answers in place; its title still opens the page it lives on.
+  if (id === 'tradition') return prototypeSettingsBibleRouteTo();
+  if (id === 'translation') return prototypeSettingsBibleRouteTo();
   return prototypeSettingsDataRouteTo();
 }
 
@@ -176,6 +187,7 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
     disabled: boolean,
   ) => {
     const done = exiting.includes(step.id);
+    const below = step.id === 'tradition' && !done ? traditionControl : undefined;
     return (
       <div
         key={step.id}
@@ -189,6 +201,7 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
             meta={[step.meta]}
             onClick={done ? undefined : onClick}
             disabled={done || disabled}
+            below={below}
             trailing={
               done ? (
                 <span className="proto-onboarding-dock__check" aria-hidden>
@@ -287,6 +300,7 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
               title={step.title}
               meta={['Make it yours', step.meta]}
               onClick={() => pressCustomizeRow(step.id as OnboardingCustomizeId)}
+              below={step.id === 'tradition' ? traditionControl : undefined}
               trailing={
                 <button
                   type="button"

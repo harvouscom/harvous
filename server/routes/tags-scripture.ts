@@ -458,7 +458,7 @@ app.get('/api/scripture/chapter', async (c) => {
     // spelling too, so skipping it reported a real book as having no chapters.
     const book = bibleVersesBookName(parsed.book);
 
-    const knownChapters = bookChapterCount(book);
+    const knownChapters = bookChapterCount(book, translation);
     if (knownChapters != null && chapter > knownChapters) {
       return c.json(
         {
@@ -483,7 +483,7 @@ app.get('/api/scripture/chapter', async (c) => {
       return c.json({ error: 'No verses found for this chapter', code: 'CHAPTER_NOT_FOUND' }, 404);
     }
 
-    const chapterCount = bookChapterCount(book);
+    const chapterCount = bookChapterCount(book, translation);
 
     // Scripture text is immutable and identical for every reader, so it overrides the API's
     // default `private, max-age=30`. Paging back a chapter should not re-hit the database.

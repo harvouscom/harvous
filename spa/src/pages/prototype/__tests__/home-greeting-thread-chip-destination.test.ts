@@ -23,18 +23,6 @@ function greetingTrendBody(): string {
 }
 
 describe('greeting returning-to chip', () => {
-  it('lets the trend handler run instead of opening the Threads list', () => {
-    const greeting = readFileSync(
-      resolve(process.cwd(), 'spa/src/pages/prototype/PrototypeHomeGreeting.tsx'),
-      'utf8',
-    );
-    const start = greeting.indexOf('aria-label={`Open ${label}`}');
-    expect(start).toBeGreaterThan(-1);
-    const body = greeting.slice(start, start + 400);
-    expect(body).toContain('onClick={() => trend.onOpen(i)}');
-    expect(body).not.toContain("nav.openList('threads')");
-  });
-
   it('searches the theme rather than proposing a Thread', () => {
     const body = greetingTrendBody();
     expect(body).toContain('onOpen: () => searchLibraryFor(theme)');

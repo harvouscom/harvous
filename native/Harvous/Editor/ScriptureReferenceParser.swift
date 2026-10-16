@@ -11,8 +11,47 @@ enum ScriptureCanonicalBooks {
         "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians",
         "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians",
         "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews", "James", "1 Peter", "2 Peter",
-        "1 John", "2 John", "3 John", "Jude", "Revelation"
+        "1 John", "2 John", "3 John", "Jude", "Revelation",
+        // The deuterocanon (NABRE, DRB), appended so no stored index for the 66 moves.
+        // "Prayer of Azariah" is Daniel 3:24–90, which collides with English Daniel 3:24–30.
+        "Tobit", "Judith", "Wisdom", "Sirach", "Baruch", "1 Maccabees", "2 Maccabees", "Prayer of Azariah"
     ]
+
+    /// The 66 books every translation carries; indices past it are the deuterocanon.
+    static let sharedBookCount = 66
+
+    /// Translations that carry the deuterocanon (mirrors `deuterocanon: true` in `src/data/translations.ts`).
+    static let deuterocanonTranslations: Set<String> = ["NABRE", "DRB", "RSV2CE", "NRSVCE"]
+
+    /// Where each deuterocanonical book sits in a Catholic Bible: after this book.
+    private static let catholicPlacement: [String: [String]] = [
+        "Nehemiah": ["Tobit", "Judith"],
+        "Esther": ["1 Maccabees", "2 Maccabees"],
+        "Song of Solomon": ["Wisdom", "Sirach"],
+        "Lamentations": ["Baruch"],
+    ]
+
+    /// Book indices for a picker, in reading order. The 66 for most translations; in the NABRE and
+    /// the Douay-Rheims, the Catholic order of 73 plus the Prayer of Azariah. A book already picked
+    /// is always offered, so a pill naming Sirach in the ESV still shows its own book.
+    static func pickerBookIndices(translation: String?, including current: Int) -> [Int] {
+        let shared = Array(0..<sharedBookCount)
+        var out: [Int]
+        if let t = translation, deuterocanonTranslations.contains(t.uppercased()) {
+            out = []
+            for i in shared {
+                out.append(i)
+                for name in catholicPlacement[titles[i]] ?? [] {
+                    if let j = titles.firstIndex(of: name) { out.append(j) }
+                }
+            }
+            if let azariah = titles.firstIndex(of: "Prayer of Azariah") { out.append(azariah) }
+        } else {
+            out = shared
+        }
+        if current >= 0, current < titles.count, !out.contains(current) { out.append(current) }
+        return out
+    }
 
     /// Lowercased abbreviations and short forms → canonical title (subset covering detector regex aliases).
     private static let aliasToCanonical: [String: String] = {
@@ -78,6 +117,15 @@ enum ScriptureCanonicalBooks {
         add(["2 jn", "2jn"], "2 John")
         add(["3 jn", "3jn"], "3 John")
         add(["rev", "rv"], "Revelation")
+        add(["tob", "tobias"], "Tobit")
+        add(["jdt", "jdth"], "Judith")
+        add(["wis", "wisdom of solomon"], "Wisdom")
+        // Exact aliases, so they never fall through to Ecclesiastes' prefix match below.
+        add(["sir", "ecclesiasticus", "ecclus", "ben sira"], "Sirach")
+        add(["bar"], "Baruch")
+        add(["1 macc", "1macc", "1 mac", "i maccabees"], "1 Maccabees")
+        add(["2 macc", "2macc", "2 mac", "ii maccabees"], "2 Maccabees")
+        add(["pr azar", "song of the three", "song of the three young men", "song of the three jews"], "Prayer of Azariah")
         return m
     }()
 

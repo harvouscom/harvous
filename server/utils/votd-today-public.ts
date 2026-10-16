@@ -12,9 +12,11 @@ import { now } from '../db/dates';
 import { VotdPublishHistory } from '../db/schema';
 import { getAuth } from '../middleware/auth';
 import { getLocalCalendarDateString, isValidIanaTimeZone } from './votd-local-date';
-import { getUserDefaultTranslation } from './votd-user-translation';
+import { getUserReadingPrefs } from './votd-user-translation';
 import { fetchVerseText } from './fetch-verse-text';
 import { votdActedOnToday } from './votd-record-engagement';
+import { normalizeTradition } from '@/utils/tradition';
+import { dateForCalendarDay, todaysReadingsFor, type TodaysReadings } from '@/utils/lectionary';
 
 export interface ResolvedVotd {
   reference: string;
@@ -80,6 +82,29 @@ export async function resolveVotdForLocalDate(
   };
 }
 
+/**
+ * The words of a reading that skips between chapters (Luke 1:1-4; 4:14-21): each part, in order,
+ * with the gap marked — never the chapters in between. Empty if any part fails, so the card
+ * falls back to its row rather than showing half a reading.
+ */
+async function passageText(segments: string[], translation: string): Promise<string> {
+  try {
+    const parts = await Promise.all(segments.map((segment) => fetchVerseText(segment, translation)));
+    if (parts.some((part) => !part.trim())) return '';
+    return parts.join(' <span class="proto-daily-passage__gap" aria-hidden="true">…</span> ');
+  } catch {
+    return '';
+  }
+}
+
+/** What the card needs of the day's readings: its name and each reading, Gospel last. */
+function readingsPayload(readings: TodaysReadings) {
+  return {
+    title: readings.title,
+    items: readings.readings.map(({ slot, label, citation, reference }) => ({ slot, label, citation, reference })),
+  };
+}
+
 export async function votdTodayPublicHandler(c: Context) {
   try {
     const tzHeader = (c.req.query('tz') ?? c.req.header('X-Votd-Timezone') ?? '').trim();
@@ -90,16 +115,31 @@ export async function votdTodayPublicHandler(c: Context) {
 
     const auth = getAuth(c);
     let translation = row?.translation?.trim() || 'NET';
+    // A member's tradition is the account's; a guest's lives on the device, so it is asked for.
+    let tradition = normalizeTradition(c.req.query('tradition'));
     if (auth.userId) {
-      translation = await getUserDefaultTranslation(auth.userId);
+      ({ translation, tradition } = await getUserReadingPrefs(auth.userId));
       c.res.headers.set('Cache-Control', 'private, max-age=3600, stale-while-revalidate=300');
       c.res.headers.append('Vary', 'Authorization, Cookie');
     } else {
       c.res.headers.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300');
     }
 
-    if (!row) return c.json({ reference: null });
-    if (!auth.userId) return c.json({ reference: row.reference, translation });
+    /*
+     * Today's readings, for a Catholic: the Gospel takes the passage's place, so every client that
+     * reads only `reference` (native, reminders) still opens the right chapter, and `readings`
+     * carries the rest for the card. Weekdays without a solemnity have none, and the passage
+     * stands. `actedToday` still keys on the day's verse row, which is where the card's
+     * engagement is recorded either way.
+     */
+    const lectionaryDate = tradition === 'catholic' ? dateForCalendarDay(localCalendarDate) : null;
+    const readings = lectionaryDate ? todaysReadingsFor(lectionaryDate) : null;
+    const gospel = readings?.readings[readings.readings.length - 1];
+    const reference = gospel?.reference ?? row?.reference;
+    const readingsBody = readings ? { readings: readingsPayload(readings) } : {};
+
+    if (!reference) return c.json({ reference: null });
+    if (!auth.userId) return c.json({ reference, translation, ...readingsBody });
 
     /*
      * A member's Activity shows the passage itself, not just its name, so the words come with
@@ -111,16 +151,19 @@ export async function votdTodayPublicHandler(c: Context) {
      * the row, as it did before there was a card.
      */
     const [textHtml, actedToday] = await Promise.all([
-      fetchVerseText(row.reference, translation).catch(() => ''),
-      row.featuredItemId
+      gospel && gospel.segments.length > 1
+        ? passageText(gospel.segments, translation)
+        : fetchVerseText(reference, translation).catch(() => ''),
+      row?.featuredItemId
         ? votdActedOnToday(auth.userId, row.featuredItemId).catch(() => false)
         : Promise.resolve(false),
     ]);
     return c.json({
-      reference: row.reference,
+      reference,
       translation,
       ...(textHtml.trim() ? { textHtml } : {}),
       actedToday,
+      ...readingsBody,
     });
   } catch {
     /*

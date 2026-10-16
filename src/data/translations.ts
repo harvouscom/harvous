@@ -12,6 +12,11 @@ export interface TranslationInfo {
   website: string;
   isPublicDomain: boolean;
   sortOrder: number;
+  /**
+   * Carries the deuterocanonical books (Tobit, Judith, Wisdom, Sirach, Baruch, 1–2 Maccabees),
+   * Daniel 13–14, Esther 10:4–16:24 and the Prayer of Azariah. See `src/data/deuterocanon-chapters.json`.
+   */
+  deuterocanon?: boolean;
 }
 
 export const TRANSLATIONS: Record<string, TranslationInfo> = {
@@ -135,6 +140,53 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
     isPublicDomain: false,
     sortOrder: 10,
   },
+  NABRE: {
+    id: 'NABRE',
+    name: 'New American Bible, Revised Edition',
+    abbreviation: 'NABRE',
+    publisher: 'Confraternity of Christian Doctrine',
+    copyright:
+      'Scripture texts are taken from the New American Bible, revised edition © 2010, 1991, 1986, 1970 Confraternity of Christian Doctrine, Washington, D.C. All Rights Reserved.',
+    website: 'https://bible.usccb.org',
+    isPublicDomain: false,
+    sortOrder: 11,
+    deuterocanon: true,
+  },
+  DRB: {
+    id: 'DRB',
+    name: 'Douay-Rheims Bible',
+    abbreviation: 'DRB',
+    publisher: 'Public Domain',
+    copyright: 'The Douay-Rheims Bible (Challoner revision, 1899 American edition) is in the public domain.',
+    website: 'https://ebible.org/find/details.php?id=engDRA',
+    isPublicDomain: true,
+    sortOrder: 12,
+    deuterocanon: true,
+  },
+  RSV2CE: {
+    id: 'RSV2CE',
+    name: 'Revised Standard Version, Second Catholic Edition',
+    abbreviation: 'RSV-2CE',
+    publisher: 'Ignatius Press',
+    copyright:
+      'Scripture quotations are from the Revised Standard Version of the Bible, Second Catholic Edition, copyright © 1946, 1952, 1957, 1965, 1966, 2006 National Council of the Churches of Christ in the United States of America. Published by Ignatius Press. All rights reserved.',
+    website: 'https://www.ignatius.com',
+    isPublicDomain: false,
+    sortOrder: 13,
+    deuterocanon: true,
+  },
+  NRSVCE: {
+    id: 'NRSVCE',
+    name: 'New Revised Standard Version, Catholic Edition',
+    abbreviation: 'NRSV-CE',
+    publisher: 'National Council of Churches',
+    copyright:
+      'Scripture quotations are from the New Revised Standard Version Bible: Catholic Edition, copyright © 1989, 1993 National Council of the Churches of Christ in the United States of America. All rights reserved.',
+    website: 'https://nationalcouncilofchurches.us',
+    isPublicDomain: false,
+    sortOrder: 14,
+    deuterocanon: true,
+  },
 };
 
 /** Ordered list of translation IDs for UI dropdowns */
@@ -151,3 +203,11 @@ export function getTranslation(id: string): TranslationInfo | undefined {
 export function getTranslationAbbreviationDisplay(id: string): string {
   return getTranslation(id)?.abbreviation ?? id;
 }
+
+/** True when this translation carries the deuterocanonical books (NABRE, DRB, RSV-2CE, NRSV-CE). */
+export function translationHasDeuterocanon(id: string | null | undefined): boolean {
+  return Boolean(id && TRANSLATIONS[id]?.deuterocanon);
+}
+
+/** The translations that carry the deuterocanon, in picker order. */
+export const DEUTEROCANON_TRANSLATIONS = TRANSLATION_ORDER.filter(translationHasDeuterocanon);

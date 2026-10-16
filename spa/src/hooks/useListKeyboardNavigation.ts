@@ -4,7 +4,6 @@
  * Covers note/highlight rows (`button.proto-note-row__main`), folder drill rows
  * (`button.proto-note-row`), and 2-up collection grids (`button.proto-collection-card`).
  */
-import { playSound } from '@/utils/sounds';
 
 export const SIDEBAR_LIST_ROW_SELECTOR =
   'button.proto-note-row__main, button.proto-note-row, button.proto-collection-card';
@@ -101,9 +100,9 @@ export function moveListRowFocus(
   const next = rows[nextIndex];
   if (!next) return false;
 
-  // A tick per row actually moved to — nothing at the end of the list. A held key is throttled
-  // by the sound layer.
-  if (next !== active) playSound('nav.select');
+  // Silent (Oct 2026). Arrowing through a list ticked once per row — eight a second on a held
+  // key — which was the one place the interface sounds got busy. What you open from the list
+  // is heard; moving through it is not.
   focusListControl(next, container, nextIndex, rows.length);
   return true;
 }

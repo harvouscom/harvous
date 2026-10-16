@@ -91,7 +91,7 @@ export default function PrototypeCreateSharedThreadSheet({
       await setCurrent.mutateAsync({ spaceId, threadId: thread.id });
       setCreatedThread(null);
       setTitle('');
-      playSound('organize.filed');
+      playSound('organize.created');
       onOpenChange(false);
       onCreated({ ...thread, isPinned: true });
       try {

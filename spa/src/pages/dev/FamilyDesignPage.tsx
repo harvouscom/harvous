@@ -168,7 +168,7 @@ export default function FamilyDesignPage() {
           frozen={frozen}
         />
         <Panel
-          title="Adult member — Ruth"
+          title="Adult — Ruth"
           note="Shares the Family Space and the plan. Sees no one’s progress, and no one sees hers."
           me="u_ruth"
           state={state}

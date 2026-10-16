@@ -1,0 +1,685 @@
+{
+  "headings": {
+    "GEN 2:4": [
+      "Another Account of the Creation"
+    ],
+    "EXO 19:9": [
+      "The People Consecrated"
+    ],
+    "1SA 4:1": [
+      "The Ark of God Captured"
+    ],
+    "1SA 13:15": [
+      "Preparations for Battle"
+    ],
+    "2SA 12:15": [
+      "Bathsheba’s Child Dies"
+    ],
+    "2SA 19:8": [
+      "David Recalled to Jerusalem"
+    ],
+    "2KI 5:19": [
+      "Gehazi’s Greed"
+    ],
+    "2KI 24:20": [
+      "The Fall and Captivity of Judah"
+    ],
+    "1CH 29:22": [
+      "Solomon Anointed King"
+    ],
+    "NEH 7:73": [
+      "Ezra Summons the People to Obey the Law"
+    ],
+    "HOS 4:11": [
+      "The Idolatry of Israel"
+    ],
+    "MRK 3:19": [
+      "Jesus and Beelzebul"
+    ],
+    "MRK 6:6": [
+      "The Mission of the Twelve"
+    ],
+    "MRK 16:8": [
+      "THE SHORTER ENDING OF MARK"
+    ],
+    "LUK 9:43": [
+      "Jesus Again Foretells His Death"
+    ],
+    "JHN 12:36": [
+      "The Unbelief of the People"
+    ],
+    "JHN 16:4": [
+      "The Work of the Spirit"
+    ],
+    "JHN 18:38": [
+      "Jesus Sentenced to Death"
+    ],
+    "JHN 19:16": [
+      "The Crucifixion of Jesus"
+    ],
+    "ACT 8:1": [
+      "Saul Persecutes the Church"
+    ],
+    "ACT 9:19": [
+      "Saul Preaches in Damascus"
+    ],
+    "PHP 3:1": [
+      "Breaking with the Past"
+    ],
+    "1TI 6:2": [
+      "False Teaching and True Riches"
+    ],
+    "TOB 6:1": [
+      "Journey to Rages"
+    ],
+    "SIR 1:1": [
+      "Many great teachings have been given to us through the Law and the Prophets and the others that followed them, and for these we should praise Israel for instruction and wisdom. Now, those who read the scriptures must not only themselves understand them, but must also as lovers of learning be able through the spoken and written word to help the outsiders. So my grandfather Jesus, who had devoted himself especially to the reading of the Law and the Prophets and the other books of our ancestors, and had acquired considerable proficiency in them, was himself also led to write something pertaining to instruction and wisdom, so that by becoming familiar also with his book those who love learning might make even greater progress in living according to the law. You are invited therefore to read it with goodwill and attention, and to be indulgent in cases where, despite our diligent labor in translating, we may seem to have rendered some phrases imperfectly. For what was originally expressed in Hebrew does not have exactly the same sense when translated into another language. Not only this book, but even the Law itself, the Prophecies, and the rest of the books differ not a little when read in the original. When I came to Egypt in the thirty-eighth year of the reign of Euergetes and stayed for some time, I found opportunity for no little instruction. It seemed highly necessary that I should myself devote some diligence and labor to the translation of this book. During that time I have applied my skill day and night to complete and publish the book for those living abroad who wished to gain learning and are disposed to live according to the law. In Praise of Wisdom"
+    ]
+  },
+  "splits": {
+    "EST 1:1": [
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 2,
+        "text": "In the second year of the reign of Ahasuerus the Great, on the first day of Nisan, Mordecai son of Jair son of Shimei son of Kish, of the tribe of Benjamin, had a dream."
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 3,
+        "text": "He was a Jew living in the city of Susa, a great man, serving in the court of the king."
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 4,
+        "text": "He was one of the captives whom King Nebuchadnezzar of Babylon had brought from Jerusalem with King Jeconiah of Judah. And this was his dream:"
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 5,
+        "text": "Noises and confusion, thunders and earthquake, tumult on the earth!"
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 6,
+        "text": "Then two great dragons came forward, both ready to fight, and they roared terribly."
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 7,
+        "text": "At their roaring every nation prepared for war, to fight against the righteous nation."
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 8,
+        "text": "It was a day of darkness and gloom, of tribulation and distress, affliction and great tumult on the earth!"
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 9,
+        "text": "And the whole righteous nation was troubled; they feared the evils that threatened them, and were ready to perish."
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 10,
+        "text": "Then they cried out to God; and at their outcry, as though from a tiny spring, there came a great river, with abundant water;"
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 11,
+        "text": "light came, and the sun rose, and the lowly were exalted and devoured those held in honor."
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 12,
+        "text": "Mordecai saw in this dream what God had determined to do, and after he awoke he had it on his mind, seeking all day to understand it in every detail."
+      },
+      {
+        "book": "EST",
+        "chapter": 12,
+        "verse": 1,
+        "text": "Now Mordecai took his rest in the courtyard with Bigthan and Teresh, the two eunuchs of the king who kept watch in the courtyard."
+      },
+      {
+        "book": "EST",
+        "chapter": 12,
+        "verse": 2,
+        "text": "He overheard their conversation and inquired into their purposes, and learned that they were preparing to lay hands on King Ahasuerus; and he informed the king concerning them."
+      },
+      {
+        "book": "EST",
+        "chapter": 12,
+        "verse": 3,
+        "text": "Then the king examined the two eunuchs, and after they had confessed it, they were led away to execution."
+      },
+      {
+        "book": "EST",
+        "chapter": 12,
+        "verse": 4,
+        "text": "The king made a permanent record of these things, and Mordecai wrote an account of them."
+      },
+      {
+        "book": "EST",
+        "chapter": 12,
+        "verse": 5,
+        "text": "And the king ordered Mordecai to serve in the court, and rewarded him for these things."
+      },
+      {
+        "book": "EST",
+        "chapter": 12,
+        "verse": 6,
+        "text": "But Haman son of Hammedatha, the Agagite, who was in great honor with the king, determined to injure Mordecai and his people because of the two eunuchs of the king."
+      },
+      {
+        "book": "EST",
+        "chapter": 1,
+        "verse": 1,
+        "text": "This happened in the days of Ahasuerus, the same Ahasuerus who ruled over one hundred twenty-seven provinces from India to Ethiopia."
+      }
+    ],
+    "EST 3:13": [
+      {
+        "book": "EST",
+        "chapter": 3,
+        "verse": 13,
+        "text": "Letters were sent by couriers to all the king’s provinces, giving orders to destroy, to kill, and to annihilate all Jews, young and old, women and children, in one day, the thirteenth day of the twelfth month, which is the month of Adar, and to plunder their goods."
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 1,
+        "text": "This is a copy of the letter: “The Great King, Ahasuerus, writes the following to the governors of the hundred twenty-seven provinces from India to Ethiopia and to the officials under them:"
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 2,
+        "text": "“Having become ruler of many nations and master of the whole world (not elated with presumption of authority but always acting reasonably and with kindness), I have determined to settle the lives of my subjects in lasting tranquility and, in order to make my kingdom peaceable and open to travel throughout all its extent, to restore the peace desired by all people."
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 3,
+        "text": "“When I asked my counselors how this might be accomplished, Haman — who excels among us in sound judgment, and is distinguished for his unchanging goodwill and steadfast fidelity, and has attained the second place in the kingdom —"
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 4,
+        "text": "pointed out to us that among all the nations in the world there is scattered a certain hostile people, who have laws contrary to those of every nation and continually disregard the ordinances of kings, so that the unifying of the kingdom that we honorably intend cannot be brought about."
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 5,
+        "text": "We understand that this people, and it alone, stands constantly in opposition to every nation, perversely following a strange manner of life and laws, and is ill-disposed to our government, doing all the harm they can so that our kingdom may not attain stability."
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 6,
+        "text": "“Therefore we have decreed that those indicated to you in the letters written by Haman, who is in charge of affairs and is our second father, shall all — wives and children included — be utterly destroyed by the swords of their enemies, without pity or restraint, on the fourteenth day of the twelfth month, Adar, of this present year,"
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 7,
+        "text": "so that those who have long been hostile and remain so may in a single day go down in violence to Hades, and leave our government completely secure and untroubled hereafter.”"
+      }
+    ],
+    "EST 5:1": [
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 8,
+        "text": "Then Mordecai prayed to the Lord, calling to remembrance all the works of the Lord."
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 9,
+        "text": "He said, “O Lord, Lord, you rule as King over all things, for the universe is in your power and there is no one who can oppose you when it is your will to save Israel,"
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 10,
+        "text": "for you have made heaven and earth and every wonderful thing under heaven."
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 11,
+        "text": "You are Lord of all, and there is no one who can resist you, the Lord."
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 12,
+        "text": "You know all things; you know, O Lord, that it was not in insolence or pride or for any love of glory that I did this, and refused to bow down to this proud Haman;"
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 13,
+        "text": "for I would have been willing to kiss the soles of his feet to save Israel!"
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 14,
+        "text": "But I did this so that I might not set human glory above the glory of God, and I will not bow down to anyone but you, who are my Lord; and I will not do these things in pride."
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 15,
+        "text": "And now, O Lord God and King, God of Abraham, spare your people; for the eyes of our foes are upon us to annihilate us, and they desire to destroy the inheritance that has been yours from the beginning."
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 16,
+        "text": "Do not neglect your portion, which you redeemed for yourself out of the land of Egypt."
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 17,
+        "text": "Hear my prayer, and have mercy upon your inheritance; turn our mourning into feasting that we may live and sing praise to your name, O Lord; do not destroy the lips of those who praise you.”"
+      },
+      {
+        "book": "EST",
+        "chapter": 13,
+        "verse": 18,
+        "text": "And all Israel cried out mightily, for their death was before their eyes."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 1,
+        "text": "Then Queen Esther, seized with deadly anxiety, fled to the Lord."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 2,
+        "text": "She took off her splendid apparel and put on the garments of distress and mourning, and instead of costly perfumes she covered her head with ashes and dung, and she utterly humbled her body; every part that she loved to adorn she covered with her tangled hair."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 3,
+        "text": "She prayed to the Lord God of Israel, and said: “O my Lord, you only are our king; help me, who am alone and have no helper but you,"
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 4,
+        "text": "for my danger is in my hand."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 5,
+        "text": "Ever since I was born I have heard in the tribe of my family that you, O Lord, took Israel out of all the nations, and our ancestors from among all their forebears, for an everlasting inheritance, and that you did for them all that you promised."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 6,
+        "text": "And now we have sinned before you, and you have handed us over to our enemies"
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 7,
+        "text": "because we glorified their gods. You are righteous, O Lord!"
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 8,
+        "text": "And now they are not satisfied that we are in bitter slavery, but they have covenanted with their idols"
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 9,
+        "text": "to abolish what your mouth has ordained, and to destroy your inheritance, to stop the mouths of those who praise you and to quench your altar and the glory of your house,"
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 10,
+        "text": "to open the mouths of the nations for the praise of vain idols, and to magnify forever a mortal king."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 11,
+        "text": "“O Lord, do not surrender your scepter to what has no being; and do not let them laugh at our downfall; but turn their plan against them, and make an example of him who began this against us."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 12,
+        "text": "Remember, O Lord; make yourself known in this time of our affliction, and give me courage, O King of the gods and Master of all dominion!"
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 13,
+        "text": "Put eloquent speech in my mouth before the lion, and turn his heart to hate the man who is fighting against us, so that there may be an end of him and those who agree with him."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 14,
+        "text": "But save us by your hand, and help me, who am alone and have no helper but you, O Lord."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 15,
+        "text": "You have knowledge of all things, and you know that I hate the splendor of the wicked and abhor the bed of the uncircumcised and of any alien."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 16,
+        "text": "You know my necessity — that I abhor the sign of my proud position, which is upon my head on days when I appear in public. I abhor it like a filthy rag, and I do not wear it on the days when I am at leisure."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 17,
+        "text": "And your servant has not eaten at Haman’s table, and I have not honored the king’s feast or drunk the wine of libations."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 18,
+        "text": "Your servant has had no joy since the day that I was brought here until now, except in you, O Lord God of Abraham."
+      },
+      {
+        "book": "EST",
+        "chapter": 14,
+        "verse": 19,
+        "text": "O God, whose might is over all, hear the voice of the despairing, and save us from the hands of evildoers. And save me from my fear!”"
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 4,
+        "text": "On the third day, when she ended her prayer, she took off the garments in which she had worshiped, and arrayed herself in splendid attire."
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 5,
+        "text": "Then, majestically adorned, after invoking the aid of the all-seeing God and Savior, she took two maids with her;"
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 6,
+        "text": "on one she leaned gently for support,"
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 7,
+        "text": "while the other followed, carrying her train."
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 8,
+        "text": "She was radiant with perfect beauty, and she looked happy, as if beloved, but her heart was frozen with fear."
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 9,
+        "text": "When she had gone through all the doors, she stood before the king. He was seated on his royal throne, clothed in the full array of his majesty, all covered with gold and precious stones. He was most terrifying."
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 10,
+        "text": "Lifting his face, flushed with splendor, he looked at her in fierce anger. The queen faltered, and turned pale and faint, and collapsed on the head of the maid who went in front of her."
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 11,
+        "text": "Then God changed the spirit of the king to gentleness, and in alarm he sprang from his throne and took her in his arms until she came to herself. He comforted her with soothing words, and said to her,"
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 12,
+        "text": "“What is it, Esther? I am your husband. Take courage;"
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 13,
+        "text": "You shall not die, for our law applies only to our subjects. Come near.”"
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 14,
+        "text": "Then he raised the golden scepter and touched her neck with it;"
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 15,
+        "text": "he embraced her, and said, “Speak to me.”"
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 16,
+        "text": "She said to him, “I saw you, my lord, like an angel of God, and my heart was shaken with fear at your glory."
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 17,
+        "text": "For you are wonderful, my lord, and your countenance is full of grace.”"
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 18,
+        "text": "And while she was speaking, she fainted and fell."
+      },
+      {
+        "book": "EST",
+        "chapter": 15,
+        "verse": 19,
+        "text": "Then the king was agitated, and all his servants tried to comfort her."
+      }
+    ],
+    "EST 8:12": [
+      {
+        "book": "EST",
+        "chapter": 8,
+        "verse": 12,
+        "text": "on a single day throughout all the provinces of King Ahasuerus, on the thirteenth day of the twelfth month, which is the month of Adar."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 1,
+        "text": "The following is a copy of this letter: “The Great King, Ahasuerus, to the governors of the provinces from India to Ethiopia, one hundred twenty-seven provinces, and to those who are loyal to our government, greetings."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 2,
+        "text": "“Many people, the more they are honored with the most generous kindness of their benefactors, the more proud do they become,"
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 3,
+        "text": "and not only seek to injure our subjects, but in their inability to stand prosperity, they even undertake to scheme against their own benefactors."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 4,
+        "text": "They not only take away thankfulness from others, but, carried away by the boasts of those who know nothing of goodness, they even assume that they will escape the evil-hating justice of God, who always sees everything."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 5,
+        "text": "And often many of those who are set in places of authority have been made in part responsible for the shedding of innocent blood, and have been involved in irremediable calamities, by the persuasion of friends who have been entrusted with the administration of public affairs,"
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 6,
+        "text": "when these persons by the false trickery of their evil natures beguile the sincere goodwill of their sovereigns."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 7,
+        "text": "“What has been wickedly accomplished through the pestilent behavior of those who exercise authority unworthily can be seen, not so much from the more ancient records that we hand on, as from investigation of matters close at hand."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 8,
+        "text": "In the future we will take care to render our kingdom quiet and peaceable for all,"
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 9,
+        "text": "by changing our methods and always judging what comes before our eyes with more equitable consideration."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 10,
+        "text": "For Haman son of Hammedatha, a Macedonian (really an alien to the Persian blood, and quite devoid of our kindliness), having become our guest,"
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 11,
+        "text": "enjoyed so fully the goodwill that we have for every nation that he was called our father and was continually bowed down to by all as the person second to the royal throne."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 12,
+        "text": "But, unable to restrain his arrogance, he undertook to deprive us of our kingdom and our life,"
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 13,
+        "text": "and with intricate craft and deceit asked for the destruction of Mordecai, our savior and perpetual benefactor, and of Esther, the blameless partner of our kingdom, together with their whole nation."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 14,
+        "text": "He thought that by these methods he would catch us undefended and would transfer the kingdom of the Persians to the Macedonians."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 15,
+        "text": "“But we find that the Jews, who were consigned to annihilation by this thrice-accursed man, are not evildoers, but are governed by most righteous laws"
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 16,
+        "text": "and are children of the living God, most high, most mighty, who has directed the kingdom both for us and for our ancestors in the most excellent order."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 17,
+        "text": "“You will therefore do well not to put in execution the letters sent by Haman son of Hammedatha,"
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 18,
+        "text": "since he, the one who did these things, has been hanged at the gate of Susa with all his household — for God, who rules over all things, has speedily inflicted on him the punishment that he deserved."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 19,
+        "text": "“Therefore post a copy of this letter publicly in every place, and permit the Jews to live under their own laws."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 20,
+        "text": "And give them reinforcements, so that on the thirteenth day of the twelfth month, Adar, on that very day, they may defend themselves against those who attack them at the time of oppression."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 21,
+        "text": "For God, who rules over all things, has made this day to be a joy for his chosen people instead of a day of destruction for them."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 22,
+        "text": "“Therefore you shall observe this with all good cheer as a notable day among your commemorative festivals,"
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 23,
+        "text": "so that both now and hereafter it may represent deliverance for you and the loyal Persians, but that it may be a reminder of destruction for those who plot against us."
+      },
+      {
+        "book": "EST",
+        "chapter": 16,
+        "verse": 24,
+        "text": "“Every city and country, without exception, that does not act accordingly shall be destroyed in wrath with spear and fire. It shall be made not only impassable for human beings, but also most hateful to wild animals and birds for all time."
+      }
+    ],
+    "EST 10:13": [
+      {
+        "book": "EST",
+        "chapter": 10,
+        "verse": 13,
+        "text": "So they will observe these days in the month of Adar, on the fourteenth and fifteenth of that month, with an assembly and joy and gladness before God, from generation to generation forever among his people Israel.”"
+      },
+      {
+        "book": "EST",
+        "chapter": 11,
+        "verse": 1,
+        "text": "In the fourth year of the reign of Ptolemy and Cleopatra, Dositheus, who said that he was a priest and a Levite, and his son Ptolemy brought to Egypt the preceding Letter about Purim, which they said was authentic and had been translated by Lysimachus son of Ptolemy, one of the residents of Jerusalem."
+      }
+    ]
+  }
+}

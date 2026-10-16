@@ -12,6 +12,7 @@
  */
 
 import bibleChaptersData from '../data/bible-chapters.json';
+import deuterocanonChaptersData from '../data/deuterocanon-chapters.json';
 
 /** OSIS book code → canonical Harvous book name (matches src/data/bible-chapters.json). */
 export const OSIS_TO_CANONICAL: Record<string, string> = {
@@ -29,6 +30,10 @@ export const OSIS_TO_CANONICAL: Record<string, string> = {
   '2Tim': '2 Timothy', Titus: 'Titus', Phlm: 'Philemon', Heb: 'Hebrews', Jas: 'James',
   '1Pet': '1 Peter', '2Pet': '2 Peter', '1John': '1 John', '2John': '2 John', '3John': '3 John',
   Jude: 'Jude', Rev: 'Revelation',
+  // The deuterocanon (NABRE and DRB only). OSIS keeps Susanna and Bel as books of their own;
+  // Harvous files them as Daniel 13–14, so they aren't codes here.
+  Tob: 'Tobit', Jdt: 'Judith', Wis: 'Wisdom', Sir: 'Sirach', Bar: 'Baruch',
+  '1Macc': '1 Maccabees', '2Macc': '2 Maccabees', PrAzar: 'Prayer of Azariah',
 };
 
 interface BibleChapterRow {
@@ -39,18 +44,21 @@ interface BibleChapterRow {
   endVerse: number;
 }
 
-// Built once: book → chapter → endVerse, and book → canonical order (1–66).
+// Built once: book → chapter → endVerse, and book → canonical order (1–66, then the
+// deuterocanon at 67–74). A verse is valid when any translation carries it.
 const chapterEndVerse = new Map<string, Map<number, number>>();
 const bookOrder = new Map<string, number>();
-for (const row of bibleChaptersData as BibleChapterRow[]) {
+for (const row of [...bibleChaptersData, ...deuterocanonChaptersData] as BibleChapterRow[]) {
   if (!chapterEndVerse.has(row.book)) chapterEndVerse.set(row.book, new Map());
-  chapterEndVerse.get(row.book)!.set(row.chapter, row.endVerse);
+  const chapters = chapterEndVerse.get(row.book)!;
+  chapters.set(row.chapter, Math.max(chapters.get(row.chapter) ?? 0, row.endVerse));
   if (!bookOrder.has(row.book)) bookOrder.set(row.book, row.bookOrder);
 }
 
-// Inverse: canonical order (1–66) → book name.
+// Inverse: canonical order → book name. Only the 66: OpenBible's `bb` ids stop at 66, and
+// past it they wouldn't mean Harvous's appended order anyway.
 const orderToBook = new Map<number, string>();
-for (const [book, order] of bookOrder) orderToBook.set(order, book);
+for (const [book, order] of bookOrder) if (order <= 66) orderToBook.set(order, book);
 
 /** Canonical Harvous book name for an OSIS code, or null if unknown. */
 export function osisBookToCanonical(code: string): string | null {

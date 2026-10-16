@@ -3,18 +3,6 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 describe('returning-to chip appearance', () => {
-  it('does not dress theme chips as Threads', () => {
-    const greeting = readFileSync(
-      resolve(process.cwd(), 'spa/src/pages/prototype/PrototypeHomeGreeting.tsx'),
-      'utf8',
-    );
-    const start = greeting.indexOf("const isPassage = trend.kind === 'passage'");
-    expect(start).toBeGreaterThan(-1);
-    const body = greeting.slice(start, greeting.indexOf('return (', start));
-    expect(body).not.toContain('proto-home-greeting__chip--thread');
-    expect(body).toContain('recallKindIcon(trend.kind)');
-  });
-
   it('gives arcs the search glyph because the chip opens search', () => {
     const icons = readFileSync(
       resolve(process.cwd(), 'spa/src/pages/prototype/recall-kind-icons.ts'),

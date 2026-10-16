@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   OSIS_TO_CANONICAL,
   osisBookToCanonical,
+  bookByOrder,
   canonicalBookOrder,
   isValidVerse,
   parseOsisVerse,
@@ -23,12 +24,30 @@ describe('osisBookToCanonical', () => {
     expect(osisBookToCanonical('')).toBeNull();
   });
 
-  it('covers all 66 books, each resolving to a real verse in the canon', () => {
-    expect(Object.keys(OSIS_TO_CANONICAL)).toHaveLength(66);
+  it('covers the 66 books and the deuterocanon, each resolving to a real verse', () => {
+    expect(Object.keys(OSIS_TO_CANONICAL)).toHaveLength(74);
     for (const canonical of Object.values(OSIS_TO_CANONICAL)) {
-      // Every canonical name must exist in bible-chapters.json (1:1 is always valid).
+      // Every canonical name must exist in a chapter table (1:1 is always valid).
       expect(isValidVerse(canonical, 1, 1)).toBe(true);
     }
+  });
+});
+
+describe('the deuterocanon', () => {
+  it('validates the Catholic-only chapters and verses', () => {
+    expect(osisBookToCanonical('Sir')).toBe('Sirach');
+    expect(isValidVerse('Esther', 10, 13)).toBe(true);
+    expect(isValidVerse('Esther', 16, 24)).toBe(true);
+    expect(isValidVerse('Esther', 16, 25)).toBe(false);
+    expect(isValidVerse('Daniel', 14, 42)).toBe(true);
+    expect(isValidVerse('Prayer of Azariah', 1, 67)).toBe(true);
+    expect(isValidVerse('Prayer of Azariah', 1, 68)).toBe(false);
+  });
+
+  it('sorts after Revelation and never decodes from an OpenBible id', () => {
+    expect(canonicalBookOrder('Tobit')).toBe(67);
+    expect(canonicalBookOrder('Prayer of Azariah')).toBe(74);
+    expect(bookByOrder(67)).toBeNull();
   });
 });
 

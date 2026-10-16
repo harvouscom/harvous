@@ -11,6 +11,12 @@ export interface OnboardingCustomizeCopy {
 /** "Make it yours" rows under Getting started. */
 export const CUSTOMIZE_STEP_COPY: readonly OnboardingCustomizeCopy[] = [
   {
+    id: 'tradition',
+    icon: 'book-open',
+    title: 'Reading a Catholic Bible?',
+    meta: 'Turns on the 73 books and daily Mass readings.',
+  },
+  {
     id: 'translation',
     icon: 'scroll',
     title: 'Choose a translation',

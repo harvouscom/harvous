@@ -25,7 +25,8 @@
  */
 
 import { offlineDB, type OfflineBiblePack } from './offline-db';
-import { orderedCanonBooks } from './bible-book-chapters';
+import { PRAYER_OF_AZARIAH, orderedCanonBooks } from './bible-book-chapters';
+import { translationHasDeuterocanon } from '../data/translations';
 import { isCurrentBibleTextVersion } from './bible-text-revision';
 
 /**
@@ -37,7 +38,7 @@ import { isCurrentBibleTextVersion } from './bible-text-revision';
  *
  * **The reasoning behind the number is weaker than it looks, and the measurements are here so
  * the next person does not have to take it on trust.** Measured Aug 2026 in Chrome: a
- * translation is 4.6MB stored (6.3MB as raw JSON), so all eleven would be ~51MB against a
+ * translation is 4.6MB stored (6.3MB as raw JSON), so all eleven of the time would be ~51MB against a
  * 4.28GB origin quota — 1.2%. The app's own service-worker asset cache was 37.8MB at the time,
  * uncapped, which is 2.75× everything this limit governs.
  *
@@ -50,7 +51,7 @@ import { isCurrentBibleTextVersion } from './bible-text-revision';
  * This was three, held there on one stated condition: "persistence is not yet granted… raise it
  * when it is." `usePersistentStorage` now asks at boot, so the condition is met and this is the
  * raise it named — not a re-argument of the number, which was never the part doing the work.
- * Five rather than eleven only because a cap that has never been reached costs nothing to keep,
+ * Five rather than all of them only because a cap that has never been reached costs nothing to keep,
  * and the honest lever remains showing the reader the megabytes (which the settings page does)
  * over rationing on their behalf.
  */
@@ -75,6 +76,16 @@ type ChapterPayload = { chapter: number; verses: { number: number; text: string 
 export type BookPayload = { book: string; translation: string; version: string; chapters: ChapterPayload[] };
 
 /** A book's text, or null when this translation has no offline copy of it. */
+/**
+ * The books a whole pack of this translation holds: the 66, or for the NABRE and the
+ * Douay-Rheims the 73 of a Catholic Bible plus the Prayer of Azariah, which the reader shows
+ * inside Daniel 3 and so must be offline with it.
+ */
+export function packBooks(translationId: string): string[] {
+  const books = orderedCanonBooks(translationId);
+  return translationHasDeuterocanon(translationId) ? [...books, PRAYER_OF_AZARIAH] : books;
+}
+
 export async function readPackedBook(
   translationId: string,
   book: string,
@@ -197,10 +208,9 @@ export async function translationsWithOutdatedBooks(): Promise<Set<string>> {
  */
 async function adoptLegacyCompletePacks(
   stored: Map<string, { count: number; savedAt: number }>,
-  booksTotal: number,
 ): Promise<string[]> {
   const complete = [...stored.entries()]
-    .filter(([, { count }]) => count >= booksTotal)
+    .filter(([translationId, { count }]) => count >= packBooks(translationId).length)
     .map(([translationId]) => translationId);
   if (complete.length === 0) return [];
   await offlineDB.biblePackRequests.bulkPut(
@@ -221,14 +231,14 @@ async function adoptLegacyCompletePacks(
  * about to start or one that failed, and either way the page has to be able to say so.
  */
 export async function listPacks(): Promise<PackSummary[]> {
-  const booksTotal = orderedCanonBooks().length;
   try {
     const stored = await countStoredBooks();
     let requested = (await offlineDB.biblePackRequests.toArray()).map((r) => r.translationId);
-    if (requested.length === 0) requested = await adoptLegacyCompletePacks(stored, booksTotal);
+    if (requested.length === 0) requested = await adoptLegacyCompletePacks(stored);
 
     return requested
       .map((translationId) => {
+        const booksTotal = packBooks(translationId).length;
         const found = stored.get(translationId);
         const count = found?.count ?? 0;
         return {
@@ -324,7 +334,7 @@ export async function downloadPack(
    */
   await requestPack(translationId);
 
-  const books = orderedCanonBooks();
+  const books = packBooks(translationId);
   let saved = 0;
 
   for (const book of books) {

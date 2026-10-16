@@ -1526,6 +1526,13 @@ export const UserMetadata = pgTable('UserMetadata', {
   lockPinHash: text('lockPinHash'),
   defaultTranslation: text('defaultTranslation').notNull().default('NET'),
   /**
+   * `'protestant' | 'catholic'` (src/utils/tradition.ts). Null = never chosen, read as
+   * Protestant. Catholic turns on the 73-book canon, Today's readings and Catholic season names.
+   * Added by `npm run tradition:schema:apply`, which must run BEFORE a deploy: `select()` with no
+   * column list names this column, so an unmigrated database fails every profile read.
+   */
+  tradition: text('tradition'),
+  /**
    * Device-synced appearance preferences (prototype canvas). JSON string:
    * `{ colorScheme: 'system'|'light'|'dark', bgLight: ProtoBg, bgDark: ProtoBg }`.
    * `null` = never set (triggers a one-time seed from the device's localStorage).

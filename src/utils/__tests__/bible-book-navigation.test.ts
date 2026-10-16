@@ -4,6 +4,7 @@ import {
   bookChapterCount,
   bookFromSlug,
   bookSlug,
+  isDeuterocanonPassage,
   orderedCanonBooks,
 } from '../bible-book-chapters';
 
@@ -94,5 +95,78 @@ describe('bookSlug / bookFromSlug', () => {
   it('returns null for a segment that names no book', () => {
     expect(bookFromSlug('hezekiah')).toBeNull();
     expect(bookFromSlug('')).toBeNull();
+  });
+});
+
+describe('the deuterocanon', () => {
+  it('is in the book list only for the translations that carry it', () => {
+    expect(orderedCanonBooks('ESV')).toHaveLength(66);
+    const catholic = orderedCanonBooks('NABRE');
+    expect(catholic).toHaveLength(73);
+    expect(catholic.slice(15, 21)).toEqual(['Nehemiah', 'Tobit', 'Judith', 'Esther', '1 Maccabees', '2 Maccabees']);
+    expect(catholic.indexOf('Baruch')).toBe(catholic.indexOf('Lamentations') + 1);
+    expect(catholic).not.toContain('Prayer of Azariah');
+  });
+
+  it('counts Esther and Daniel by the translation', () => {
+    expect(bookChapterCount('Esther', 'ESV')).toBe(10);
+    expect(bookChapterCount('Esther', 'DRB')).toBe(16);
+    expect(bookChapterCount('Daniel', 'NABRE')).toBe(14);
+    expect(bookChapterCount('Tobit', 'ESV')).toBeNull();
+    expect(bookChapterCount('Tobit', 'NABRE')).toBe(14);
+  });
+
+  it('walks the canon the translation reads', () => {
+    expect(adjacentChapter('Nehemiah', 13, 1, 'ESV')).toEqual({ book: 'Esther', chapter: 1 });
+    expect(adjacentChapter('Nehemiah', 13, 1, 'NABRE')).toEqual({ book: 'Tobit', chapter: 1 });
+    expect(adjacentChapter('Esther', 10, 1, 'ESV')).toEqual({ book: 'Job', chapter: 1 });
+    expect(adjacentChapter('Esther', 16, 1, 'DRB')).toEqual({ book: '1 Maccabees', chapter: 1 });
+    expect(adjacentChapter('Hosea', 1, -1, 'NABRE')).toEqual({ book: 'Daniel', chapter: 14 });
+    expect(adjacentChapter('Prayer of Azariah', 1, 1, 'NABRE')).toEqual({ book: 'Daniel', chapter: 4 });
+  });
+
+  it('opens a shared link to a deuterocanonical book', () => {
+    expect(bookFromSlug('1-maccabees')).toBe('1 Maccabees');
+    expect(bookFromSlug('prayer-of-azariah')).toBe('Prayer of Azariah');
+  });
+
+  it('knows which passages only the Catholic translations carry', () => {
+    expect(isDeuterocanonPassage('Sirach', 2)).toBe(true);
+    expect(isDeuterocanonPassage('Esther', 10)).toBe(false);
+    expect(isDeuterocanonPassage('Esther', 10, 4)).toBe(true);
+    expect(isDeuterocanonPassage('Esther', 11)).toBe(true);
+    expect(isDeuterocanonPassage('Daniel', 12)).toBe(false);
+    expect(isDeuterocanonPassage('Daniel', 13)).toBe(true);
+    expect(isDeuterocanonPassage('John', 3, 16)).toBe(false);
+  });
+});
+
+describe('the Catholic canon by tradition', () => {
+  it('lists the 73 books for a Catholic reader in any translation, and only then', () => {
+    const esv = orderedCanonBooks('ESV');
+    const catholicEsv = orderedCanonBooks('ESV', { catholic: true });
+    expect(esv).toHaveLength(66);
+    expect(catholicEsv).toHaveLength(73);
+    expect(catholicEsv.slice(catholicEsv.indexOf('Nehemiah'), catholicEsv.indexOf('Nehemiah') + 3)).toEqual([
+      'Nehemiah',
+      'Tobit',
+      'Judith',
+    ]);
+    // A Protestant reading the NABRE still sees the books the NABRE carries.
+    expect(orderedCanonBooks('NABRE')).toHaveLength(73);
+    expect(orderedCanonBooks('NABRE', { catholic: false })).toHaveLength(73);
+  });
+
+  it('walks a Catholic reader from Nehemiah into Tobit, even in the ESV', () => {
+    expect(adjacentChapter('Nehemiah', 13, 1, 'ESV')).toEqual({ book: 'Esther', chapter: 1 });
+    expect(adjacentChapter('Nehemiah', 13, 1, 'ESV', { catholic: true })).toEqual({ book: 'Tobit', chapter: 1 });
+    expect(adjacentChapter('Tobit', 1, -1, 'ESV', { catholic: true })).toEqual({ book: 'Nehemiah', chapter: 13 });
+  });
+
+  it("counts a Catholic reader's chapters in the Catholic canon, and leaves text checks to the translation", () => {
+    expect(bookChapterCount('Esther', 'ESV')).toBe(10);
+    expect(bookChapterCount('Esther', 'ESV', { catholic: true })).toBe(16);
+    expect(bookChapterCount('Tobit', 'ESV')).toBeNull();
+    expect(bookChapterCount('Tobit', 'ESV', { catholic: true })).toBe(14);
   });
 });

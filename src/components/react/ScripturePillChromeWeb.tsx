@@ -5,13 +5,13 @@ import { markOnboardingStep } from '../../../spa/src/lib/proto-onboarding-sync';
 import { createPortal } from 'react-dom';
 // @ts-ignore — JSON resolveJsonModule
 import bibleChaptersData from '@/data/bible-chapters.json';
-import { orderedCanonBooks } from '@/utils/bible-book-chapters';
+import { isDeuterocanonPassage, orderedCanonBooks } from '@/utils/bible-book-chapters';
 import {
   getChapterVerseRange,
   normalizeScriptureReference,
   parseScriptureReference,
 } from '@/utils/scripture-detector';
-import { TRANSLATIONS } from '@/data/translations';
+import { DEUTEROCANON_TRANSLATIONS, TRANSLATIONS, translationHasDeuterocanon } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { fetchVerseHtmlResult, getCachedVerseHtml } from '@/utils/fetch-verse-html';
@@ -37,6 +37,7 @@ import {
   type ReferenceProvider,
 } from '@/utils/reference-suggestion-text';
 import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
+import { useIsCatholic } from '../../../spa/src/hooks/useTradition';
 import { deriveReferenceFromPassageSelection } from '@/utils/derive-passage-selection-reference';
 import { useCoarsePointer } from '../../../spa/src/lib/use-coarse-pointer';
 import { isGuestLocalNote } from '../../../spa/src/lib/guest-store';
@@ -178,7 +179,6 @@ export default function ScripturePillChromeWeb({
   initialShowCrossRefs = false,
   highlightCrossRef = null,
 }: ScripturePillChromeWebProps) {
-  const books = useMemo(() => orderedCanonBooks(), []);
   const { data: eastonsIndex } = useEastonsSlugIndex();
   const referenceProviders = useMemo<ReferenceProvider[]>(
     () => [createDictionaryReferenceProvider(() => eastonsIndex)],
@@ -207,6 +207,18 @@ export default function ScripturePillChromeWeb({
     return crossChapter || verseRange;
   });
   const [trans, setTrans] = useState(translation || getCachedProfileData()?.defaultTranslation || 'NET');
+  /*
+   * The book picker lists the canon being read: 73 books in the NABRE and the Douay-Rheims, for
+   * a Catholic reader in any translation, and for a pill that already names one of the
+   * deuterocanonical books, whatever its translation, so the picker can show where it is.
+   */
+  const pillIsDeuterocanon =
+    initialParsed != null && isDeuterocanonPassage(initialParsed.book, initialParsed.chapter);
+  const catholic = useIsCatholic();
+  const books = useMemo(
+    () => orderedCanonBooks(trans, { catholic: catholic || pillIsDeuterocanon }),
+    [trans, catholic, pillIsDeuterocanon],
+  );
   // Reactive, unlike the `isMobileDevice()` UA sniff this replaced — that was read once during
   // render and never re-evaluated, so the footer-vs-floating-capsule choice could not respond to
   // a resize or to an iPad picking up a trackpad.
@@ -929,10 +941,21 @@ export default function ScripturePillChromeWeb({
           ) : passageHtml ? (
             // 'loaded' and 'unavailable' both render body content — "not in this translation" is
             // legitimate copy from the server, not a failure, so it gets no retry affordance.
-            <div
-              className="scripture-pill-chrome__passage-html"
-              dangerouslySetInnerHTML={passageHtmlMarkup}
-            />
+            <>
+              <div
+                className="scripture-pill-chrome__passage-html"
+                dangerouslySetInnerHTML={passageHtmlMarkup}
+              />
+              {passageState.kind === 'unavailable' && pillIsDeuterocanon && !translationHasDeuterocanon(trans) ? (
+                <button
+                  type="button"
+                  className="scripture-pill-chrome__passage-retry"
+                  onClick={() => setTrans(DEUTEROCANON_TRANSLATIONS[0])}
+                >
+                  Read in {TRANSLATIONS[DEUTEROCANON_TRANSLATIONS[0]]?.abbreviation}
+                </button>
+              ) : null}
+            </>
           ) : (
             <div className="scripture-pill-chrome__passage-status scripture-pill-chrome__passage-status--error">
               <p>{passageErrorMessage(passageState) ?? "Couldn't load this passage."}</p>

@@ -867,8 +867,8 @@ struct ActiveScripturePillDock: View {
                     ScriptureReferenceMenuPill(
                         accessibilityLabel: "Book",
                         selection: $bookIndex,
-                        options: Array(ScriptureCanonicalBooks.titles.enumerated()).map {
-                            (value: $0.offset, label: $0.element)
+                        options: ScriptureCanonicalBooks.pickerBookIndices(translation: translation, including: bookIndex).map {
+                            (value: $0, label: ScriptureCanonicalBooks.titles[$0])
                         },
                         displayText: { ScriptureCanonicalBooks.titles[$0] },
                         maxWidth: ScriptureDockReferenceBarMetrics.bookMaxWidth

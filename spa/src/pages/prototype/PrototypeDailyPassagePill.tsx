@@ -33,8 +33,8 @@ export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: 
       <PrototypeHomeRow
         icon="scroll"
         title={votd.reference}
-        meta={['Today\u2019s passage']}
-        aria-label="Read today's passage"
+        meta={[votd.readings ? 'Today\u2019s Gospel' : 'Today\u2019s passage']}
+        aria-label={votd.readings ? "Read today's Gospel" : "Read today's passage"}
         onClick={openInReader}
         trailing={
           <>

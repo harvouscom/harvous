@@ -17,6 +17,12 @@ import {
 import { db, first, VerseTextCache, BibleVerses, eq, and, gte, lte, warmPostgresConnection } from '../db';
 import { nowISO } from '../db/dates';
 import { repairGluedVerseText } from '@/utils/repair-glued-verse-text';
+import { isDeuterocanonPassage } from '@/utils/bible-book-chapters';
+import {
+  DEUTEROCANON_TRANSLATIONS,
+  getTranslationAbbreviationDisplay,
+  translationHasDeuterocanon,
+} from '@/data/translations';
 
 interface DbVerse {
   verse: number;
@@ -146,6 +152,14 @@ async function fetchVerseTextUncached(reference: string, translation: string): P
   };
 
   // Cross-chapter range (e.g. "Exodus 6:28-7:7"): fetch verses across multiple chapters.
+  // Tobit in the ESV, Esther 12 in the NIV: known absent, and the reader is told where it is.
+  // Still the "not included" sentence `passage-load-state` reads as unavailable, not a failure.
+  const firstVerse = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  if (!translationHasDeuterocanon(translation) && isDeuterocanonPassage(parsed.book, parsed.chapter, firstVerse)) {
+    const carriers = DEUTEROCANON_TRANSLATIONS.map(getTranslationAbbreviationDisplay).join(' and the ');
+    return `<p><em>This passage is not included in the ${translation} translation.</em> It is in the ${carriers}.</p>`;
+  }
+
   if (parsed.endChapter != null && Array.isArray(parsed.verse)) {
     const startCh = parsed.chapter;
     const endCh = parsed.endChapter;

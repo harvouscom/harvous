@@ -41,6 +41,7 @@ import { chaptersBeenIn, levelsForBook } from '@/utils/bible-coverage';
 import {
   adjacentChapter,
   bookChapterCount,
+  isDeuterocanonPassage,
   orderedCanonBooks,
 } from '@/utils/bible-book-chapters';
 import { canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
@@ -104,8 +105,19 @@ import {
   type StudyDockStack,
 } from '@/utils/study-dock-stack';
 import { useSettledFlag } from '../../hooks/useSettledFlag';
+import { useIsCatholic } from '../../hooks/useTradition';
+import { usePrintedVerseLabels } from '../../hooks/usePrintedVerseLabels';
 import PrototypeReaderChapterStack from './PrototypeReaderChapterStack';
-import { TRANSLATION_ORDER, getTranslationAbbreviationDisplay } from '@/data/translations';
+import {
+  DEUTEROCANON_TRANSLATIONS,
+  TRANSLATION_ORDER,
+  getTranslationAbbreviationDisplay,
+  translationHasDeuterocanon,
+} from '@/data/translations';
+import ReaderPrayerOfAzariahInset, {
+  AZARIAH_AFTER_VERSE,
+  showsPrayerOfAzariahInset,
+} from './ReaderPrayerOfAzariahInset';
 import { alignChapterVerses } from '@/utils/compare-chapter-alignment';
 
 /**
@@ -221,11 +233,21 @@ const VerseSpan = memo(function VerseSpan({
   roving,
   noteCount,
   html,
+  printedLabel,
+  printedTranslation,
   onFocusVerse,
   onActivate,
   onKeys,
 }: {
   verse: { number: number; text: string };
+  /**
+   * What the printed edition calls this verse, where it differs ("12" beside our 10 in the NABRE's
+   * Psalm 51, "50:12" in the Douay-Rheims). Drawn small and gray after our number, so a reader
+   * with a missal open at 51:12 can still find the verse. See usePrintedVerseLabels.
+   */
+  printedLabel?: string;
+  /** Names the edition in the printed number's tooltip ("12 in the NABRE"). */
+  printedTranslation?: string;
   /**
    * Which of the two texts this verse is in.
    *
@@ -269,6 +291,16 @@ const VerseSpan = memo(function VerseSpan({
       onKeyDown={(e) => onKeys(verse.number, e, column)}
     >
       <sup className="pds-reader-verse-num">{verse.number}</sup>
+      {printedLabel ? (
+        <sup
+          className="pds-reader-verse-num pds-reader-verse-num--printed"
+          title={printedTranslation ? `${printedLabel} in the ${printedTranslation}` : undefined}
+        >
+          <span aria-hidden>·</span>
+          <span className="sr-only">, printed as </span>
+          {printedLabel}
+        </sup>
+      ) : null}
       <span className="pds-reader__verse-text" dangerouslySetInnerHTML={html} />
       {/*
         The margin's signal, for anyone not looking at it.
@@ -396,6 +428,12 @@ export interface PrototypeBibleReaderPaneProps {
    * book's end, and prev/next that could not name a book dead-ended at every one of them.
    */
   onNavigateTo?: (book: string, chapter: number) => void;
+  /**
+   * Open a chapter as a sheet over this one: a passage this chapter prints that Harvous files
+   * as its own chapter (the Prayer of Azariah inside Daniel 3). Absent on the paper-stack base,
+   * which is scenery.
+   */
+  onOpenSheet?: (book: string, chapter: number, fromVerse?: number) => void;
   /**
    * Choose the translation to read in — from the stack's edges or the heading chip.
    *
@@ -595,6 +633,7 @@ export default function PrototypeBibleReaderPane({
   focusVerse,
   focusVerseEnd,
   onNavigateTo,
+  onOpenSheet,
   onChangeTranslation,
   compare,
   onChangeCompare,
@@ -617,6 +656,9 @@ export default function PrototypeBibleReaderPane({
   landRequestKey,
 }: PrototypeBibleReaderPaneProps) {
   const { data, isLoading, isError, error } = usePrototypeBibleChapter(book, chapter, translation);
+  const catholic = useIsCatholic();
+  const printedLabels = usePrintedVerseLabels(book, chapter, translation);
+  const comparePrintedLabels = usePrintedVerseLabels(book, chapter, compare?.translation);
   const { verseLayout, showMarginNotes } = useSyncExternalStore(
     subscribeReadingPrefs,
     getReadingPrefsSnapshot,
@@ -694,7 +736,14 @@ export default function PrototypeBibleReaderPane({
    */
   const bookOptions = useMemo(
     () =>
-      orderedCanonBooks().map((b) => ({
+      // The canon this translation reads: 73 books in the NABRE and the Douay-Rheims, 66 elsewhere
+      // — and 73 everywhere for a Catholic reader, whose Tobit in the ESV says "Not in ESV".
+      // Plus the book on the page when the list has no place for it (the Prayer of Azariah,
+      // opened as a sheet from Daniel 3), or the heading would name the first book instead.
+      (orderedCanonBooks(translation, { catholic }).includes(book)
+        ? orderedCanonBooks(translation, { catholic })
+        : [...orderedCanonBooks(translation, { catholic }), book]
+      ).map((b) => ({
         value: b,
         label: bookAbbreviation(b),
         // The grid abbreviates; the chapter's own title must not.
@@ -702,14 +751,14 @@ export default function PrototypeBibleReaderPane({
         group: canonGroupForBook(b)?.testament === 'nt' ? 'New Testament' : 'Old Testament',
         accessory: bookFillAccessory(bibleCoverage ? levelsForBook(bibleCoverage, b) : null),
       })),
-    [bibleCoverage],
+    [translation, catholic, book, bibleCoverage],
   );
   const chapterOptions = useMemo(() => {
-    const count = bookChapterCount(book) ?? data?.chapterCount ?? 1;
+    const count = bookChapterCount(book, translation, { catholic }) ?? data?.chapterCount ?? 1;
     return Array.from({ length: count }, (_, i) => ({ value: i + 1, label: String(i + 1) }));
-  }, [book, data?.chapterCount]);
+  }, [book, translation, catholic, data?.chapterCount]);
   /*
-    All eleven, in canon order — the reader's whole set, not the two the stack peeks. Labels go
+    Every translation, in canon order — the reader's whole set, not the two the stack peeks. Labels go
     through `getTranslationAbbreviationDisplay` because one of them is not its own id: NASB
     shows as "NASB 1995", and a menu that said "NASB" beside a chip that said "NASB 1995" would
     be two names for one translation.
@@ -741,8 +790,22 @@ export default function PrototypeBibleReaderPane({
     [data?.translation],
   );
 
-  const prevChapter = useMemo(() => adjacentChapter(book, chapter, -1), [book, chapter]);
-  const nextChapter = useMemo(() => adjacentChapter(book, chapter, 1), [book, chapter]);
+  const prevChapter = useMemo(
+    () => adjacentChapter(book, chapter, -1, translation, { catholic }),
+    [book, chapter, translation, catholic],
+  );
+  const nextChapter = useMemo(
+    () => adjacentChapter(book, chapter, 1, translation, { catholic }),
+    [book, chapter, translation, catholic],
+  );
+  const azariahInset = showsPrayerOfAzariahInset(book, chapter, translation) ? (
+    <ReaderPrayerOfAzariahInset
+      book={book}
+      chapter={chapter}
+      translation={translation}
+      onOpen={onOpenSheet ? (b, c) => onOpenSheet(b, c, AZARIAH_AFTER_VERSE) : undefined}
+    />
+  ) : null;
 
   /**
    * Dictionary suggestions inside the Scripture itself — the dotted underlines a note body and
@@ -1686,6 +1749,32 @@ export default function PrototypeBibleReaderPane({
   );
 
 
+  /*
+   * A passage only the Catholic translations carry, asked for in one that doesn't (Tobit in the
+   * ESV, Esther 12 in the NIV). Said before the fetch can fail, and with the way to it.
+   */
+  if (isDeuterocanonPassage(book, chapter) && !translationHasDeuterocanon(translation)) {
+    const carriers = DEUTEROCANON_TRANSLATIONS.map(getTranslationAbbreviationDisplay);
+    const passage = book === 'Esther' || book === 'Daniel' ? `${book} ${chapter}` : book;
+    return (
+      <div className="pds-reader">
+        <PrototypePaneEmptyState
+          icon="scroll"
+          title={`Not in ${getTranslationAbbreviationDisplay(translation)}`}
+          description={`${passage} is in the ${carriers.join(' and the ')}, which include the deuterocanonical books.`}
+          action={
+            onChangeTranslation
+              ? {
+                  label: `Read in ${carriers[0]}`,
+                  onClick: () => onChangeTranslation(DEUTEROCANON_TRANSLATIONS[0]),
+                }
+              : undefined
+          }
+        />
+      </div>
+    );
+  }
+
   if (isLoading) {
     // Below the grace threshold the reader shows nothing rather than a line that would be
     // gone before it could be read — a 40ms "Loading…" is a flicker, not information.
@@ -2197,7 +2286,7 @@ export default function PrototypeBibleReaderPane({
               It was a bare `<span>` — the one fact this heading named that it could not act on,
               which is the observation the date jump made about Activity's header: "a label that
               names exactly the thing you would want to change". The stack behind reaches the two
-              you last read in; this reaches all eleven, the same division the day sheet draws
+              you last read in; this reaches all of them, the same division the day sheet draws
               between flipping an edge and jumping from the date.
 
               `ProtoSelectMenu`, not a hand-rolled popover, because this app has a settled answer
@@ -2496,6 +2585,8 @@ export default function PrototypeBibleReaderPane({
                         }
                         roving={rovingVerse('primary') === row.verse}
                         html={verseHtml.get(row.verse) ?? EMPTY_VERSE_HTML}
+                        printedLabel={printedLabels.get(row.verse)}
+                        printedTranslation={getTranslationAbbreviationDisplay(data.translation)}
                         onFocusVerse={handleVerseFocus}
                         onActivate={handleVerseActivate}
                         onKeys={handleVerseKeys}
@@ -2538,6 +2629,8 @@ export default function PrototypeBibleReaderPane({
                         }
                         roving={rovingVerse('compare') === row.verse}
                         html={compareVerseHtml.get(row.verse) ?? EMPTY_VERSE_HTML}
+                        printedLabel={comparePrintedLabels.get(row.verse)}
+                        printedTranslation={getTranslationAbbreviationDisplay(compare.translation)}
                         onFocusVerse={handleVerseFocus}
                         onActivate={handleVerseActivate}
                         onKeys={handleVerseKeys}
@@ -2547,9 +2640,18 @@ export default function PrototypeBibleReaderPane({
                 </div>
               ))
             ) : verseLayout === 'prose' ? (
+              (azariahInset
+                ? [
+                    verses.filter((v) => v.number <= AZARIAH_AFTER_VERSE),
+                    verses.filter((v) => v.number > AZARIAH_AFTER_VERSE),
+                  ]
+                : [verses]
+              ).map((run, runIndex) => (
+              <Fragment key={runIndex}>
+              {runIndex > 0 ? azariahInset : null}
               <div className="pds-reader__block" role="none">
                 <p className="pds-reader-text" role="none">
-                  {verses.map((verse, i) => (
+                  {run.map((verse, i) => (
                     <Fragment key={verse.number}>
                       {/* A real space, outside the verse span: it separates verses the way
                           prose does and collapses at a line break, where a CSS margin
@@ -2573,6 +2675,8 @@ export default function PrototypeBibleReaderPane({
                         }
                         roving={rovingVerse('primary') === verse.number}
                         html={verseHtml.get(verse.number) ?? EMPTY_VERSE_HTML}
+                        printedLabel={printedLabels.get(verse.number)}
+                        printedTranslation={getTranslationAbbreviationDisplay(translation)}
                         onFocusVerse={handleVerseFocus}
                         onActivate={handleVerseActivate}
                         onKeys={handleVerseKeys}
@@ -2581,9 +2685,13 @@ export default function PrototypeBibleReaderPane({
                   ))}
                 </p>
               </div>
+              </Fragment>
+              ))
             ) : (
               verses.map((verse) => (
-                <div className="pds-reader__block" role="none" key={verse.number}>
+                <Fragment key={verse.number}>
+                {verse.number === AZARIAH_AFTER_VERSE + 1 ? azariahInset : null}
+                <div className="pds-reader__block" role="none">
                   <p className="pds-reader-text" role="none">
                     <VerseSpan
                       verse={verse}
@@ -2603,12 +2711,15 @@ export default function PrototypeBibleReaderPane({
                       }
                       roving={rovingVerse('primary') === verse.number}
                       html={verseHtml.get(verse.number) ?? EMPTY_VERSE_HTML}
+                        printedLabel={printedLabels.get(verse.number)}
+                        printedTranslation={getTranslationAbbreviationDisplay(translation)}
                       onFocusVerse={handleVerseFocus}
                       onActivate={handleVerseActivate}
                       onKeys={handleVerseKeys}
                     />
                   </p>
                 </div>
+                </Fragment>
               ))
             )}
           </div>

@@ -1,8 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { api } from '../../lib/api';
-import { adjacentChapter } from '@/utils/bible-book-chapters';
+import { adjacentChapter, isDeuterocanonPassage } from '@/utils/bible-book-chapters';
+import { translationHasDeuterocanon } from '@/data/translations';
 import { BIBLE_TEXT_REVISION, scriptureBookUrl } from '@/utils/bible-text-revision';
+import { useIsCatholic } from '../useTradition';
 
 export interface BibleChapterVerse {
   number: number;
@@ -55,7 +57,12 @@ export function bibleChapterQueryOptions(
 ) {
   return {
     queryKey: ['prototype', 'bible-chapter', book, chapter, translation] as const,
-    enabled: Boolean(book) && Number.isInteger(chapter) && (chapter ?? 0) > 0,
+    enabled:
+      Boolean(book) &&
+      Number.isInteger(chapter) &&
+      (chapter ?? 0) > 0 &&
+      // Tobit in the ESV is known to be absent; the reader says so without asking.
+      (translationHasDeuterocanon(translation) || !isDeuterocanonPassage(book!, chapter!)),
     staleTime: Infinity,
     gcTime: 60 * 60 * 1000,
     retry: (failureCount: number, error: unknown) => {
@@ -119,7 +126,7 @@ async function readOfflineChapter(
   const verses = await readPackedChapter(translation, book, chapter);
   if (!verses || verses.length === 0) return null;
 
-  const chapterCount = bookChapterCount(book);
+  const chapterCount = bookChapterCount(book, translation);
   return {
     book,
     chapter,
@@ -180,6 +187,7 @@ export function usePrefetchAdjacentChapters(
   translation: string,
 ) {
   const queryClient = useQueryClient();
+  const catholic = useIsCatholic();
   useEffect(() => {
     if (!book || !Number.isInteger(chapter)) return;
     /*
@@ -188,8 +196,10 @@ export function usePrefetchAdjacentChapters(
      * reader is most likely to hesitate.
      */
     for (const dir of [1, -1] as const) {
-      const target = adjacentChapter(book, chapter as number, dir);
+      const target = adjacentChapter(book, chapter as number, dir, translation, { catholic });
       if (!target) continue;
+      // A Catholic reader's walk passes Tobit in the ESV; there is no text to warm there.
+      if (!translationHasDeuterocanon(translation) && isDeuterocanonPassage(target.book, target.chapter)) continue;
       /*
        * `retry: false` is the one option a prefetch may differ on. Nobody is waiting for a
        * neighbour, so its failure has no consequence worth three attempts — and with the
@@ -202,5 +212,5 @@ export function usePrefetchAdjacentChapters(
         retry: false,
       });
     }
-  }, [queryClient, book, chapter, translation]);
+  }, [queryClient, book, chapter, translation, catholic]);
 }

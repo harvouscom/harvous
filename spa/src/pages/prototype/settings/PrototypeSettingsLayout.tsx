@@ -67,14 +67,17 @@ export default function PrototypeSettingsLayout() {
   const categoryNav = (
     <nav className="proto-settings__nav" aria-label="Settings categories">
       <div className="proto-settings__nav-list">
-        {categories.map((cat) => {
+        {categories.map((cat, i) => {
           const active = pathname === cat.route;
+          // A small gap where one run ends and the next begins (settingsCategories `group`).
+          const startsGroup = i > 0 && categories[i - 1]!.group !== cat.group;
           return (
             <button
               key={cat.key}
               type="button"
               className="proto-settings__nav-item"
               data-active={active ? 'true' : 'false'}
+              data-group-start={startsGroup ? 'true' : undefined}
               aria-current={active ? 'page' : undefined}
               onClick={() => {
                 if (!active) playSound('nav.select');

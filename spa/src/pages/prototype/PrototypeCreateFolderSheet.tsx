@@ -130,7 +130,7 @@ export default function PrototypeCreateFolderSheet({
           });
         }
       }
-      playSound('organize.filed');
+      playSound('organize.created');
       onOpenChange(false);
       onCreated(name);
       try {

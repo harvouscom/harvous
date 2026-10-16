@@ -203,8 +203,14 @@ struct ScripturePillToolbarLane: View {
                         .accessibilityLabel("Translation")
 
                         Picker("Book", selection: bookIndexBinding) {
-                            ForEach(Array(ScriptureCanonicalBooks.titles.enumerated()), id: \.offset) { pair in
-                                Text(pair.element).tag(pair.offset)
+                            ForEach(
+                                ScriptureCanonicalBooks.pickerBookIndices(
+                                    translation: coordinator.translation,
+                                    including: bookIndexBinding.wrappedValue
+                                ),
+                                id: \.self
+                            ) { index in
+                                Text(ScriptureCanonicalBooks.titles[index]).tag(index)
                             }
                         }
                         .pickerStyle(.menu)

@@ -74,14 +74,20 @@ export function useDailyPassageActions({
     );
   }, [queryClient]);
 
-  const openInReader = useCallback(() => {
-    const route = readerRouteForReference(votd.reference, getEffectiveDefaultTranslation());
-    if (!route) return;
-    recordVotdEngagement('open_reader');
-    markActed();
-    afterNav();
-    navigate(landAgain(route));
-  }, [afterNav, markActed, navigate, votd.reference]);
+  /** Any of the day's readings in the reader; the passage itself, or the Gospel, by default. */
+  const openReading = useCallback(
+    (reference: string) => {
+      const route = readerRouteForReference(reference, getEffectiveDefaultTranslation());
+      if (!route) return;
+      recordVotdEngagement('open_reader');
+      markActed();
+      afterNav();
+      navigate(landAgain(route));
+    },
+    [afterNav, markActed, navigate],
+  );
+
+  const openInReader = useCallback(() => openReading(votd.reference), [openReading, votd.reference]);
 
   const takeNote = useCallback(() => {
     if (!homeSpaceId) return;
@@ -141,6 +147,7 @@ export function useDailyPassageActions({
     hidden: dismissedToday && !forceShow,
     todaysNote,
     openInReader,
+    openReading,
     takeNote,
     dismiss,
   };

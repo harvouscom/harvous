@@ -88,7 +88,8 @@ func scriptureTrailingTranslationAfterReference(
     }
     guard foundWhitespace, pos < len else { return nil }
     let tail = ns.substring(from: pos)
-    for code in ScriptureReference.availableTranslations.sorted(by: { $0.utf16.count > $1.utf16.count }) {
+    let written = ScriptureReference.availableTranslations + Array(ScriptureReference.translationAliases.keys)
+    for code in written.sorted(by: { $0.utf16.count > $1.utf16.count }) {
         let opts: NSString.CompareOptions = [.anchored, .caseInsensitive]
         let r = (tail as NSString).range(of: code, options: opts)
         guard r.location == 0, r.length == (code as NSString).length else { continue }
@@ -99,7 +100,7 @@ func scriptureTrailingTranslationAfterReference(
             if let s = UnicodeScalar(nextU), CharacterSet.letters.contains(s) { continue }
         }
         let suffixLen = idxAfter - matchEnd
-        return (code, suffixLen)
+        return (ScriptureReference.translationAliases[code] ?? code, suffixLen)
     }
     return nil
 }

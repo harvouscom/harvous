@@ -1,6 +1,7 @@
 import type { SpaceNoteRow } from '../hooks/queries/useSpace';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY } from '@/utils/user-cache-keys';
+import type { Tradition } from '@/utils/tradition';
 
 export { VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY };
 
@@ -11,7 +12,25 @@ export type VotdToday = {
   textHtml?: string;
   /** Opened or written about today, on any device — folds the card down to its row. */
   actedToday?: boolean;
+  /**
+   * A Catholic reader's Sunday or solemnity: the Lectionary's readings, Gospel last. `reference`
+   * and `textHtml` are then the Gospel's. Absent on other days and for everyone else.
+   */
+  readings?: TodaysReadingsSummary;
 };
+
+export interface TodaysReadingsSummary {
+  /** "29th Sunday in Ordinary Time". */
+  title: string;
+  items: Array<{
+    slot: 'first' | 'psalm' | 'second' | 'gospel';
+    label: string;
+    /** As the Lectionary prints it ("Psalm 96:1, 3"). */
+    citation: string;
+    /** Harvous's numbering, for the reader ("Psalms 96:1, 3"). */
+    reference: string;
+  }>;
+}
 
 export function browserIanaTimeZone(): string {
   try {
@@ -173,9 +192,11 @@ export function isVotdPassageCardDismissedToday(userId?: string | null): boolean
  * `staleTime` — so one blip while the tab was loading meant no passage row until the reader
  * reloaded, with `retry` given nothing to retry because a resolved promise is a success.
  */
-export async function fetchVotdToday(): Promise<VotdToday | null> {
+export async function fetchVotdToday(tradition: Tradition = 'protestant'): Promise<VotdToday | null> {
   const tz = browserIanaTimeZone();
-  const res = await fetch(`/api/votd/today?tz=${encodeURIComponent(tz)}`, {
+  /* The server reads a member's tradition from the account; a guest's is only on the device. */
+  const traditionParam = tradition === 'catholic' ? '&tradition=catholic' : '';
+  const res = await fetch(`/api/votd/today?tz=${encodeURIComponent(tz)}${traditionParam}`, {
     credentials: 'include',
     headers: { 'X-Votd-Timezone': tz },
   });
@@ -185,6 +206,7 @@ export async function fetchVotdToday(): Promise<VotdToday | null> {
     translation?: string | null;
     textHtml?: string | null;
     actedToday?: boolean;
+    readings?: TodaysReadingsSummary | null;
   };
   const reference = (data.reference ?? '').trim();
   if (!reference) return null;
@@ -194,6 +216,7 @@ export async function fetchVotdToday(): Promise<VotdToday | null> {
     translation,
     ...(data.textHtml?.trim() ? { textHtml: data.textHtml } : {}),
     actedToday: data.actedToday === true,
+    ...(data.readings?.items?.length ? { readings: data.readings } : {}),
   };
 }
 

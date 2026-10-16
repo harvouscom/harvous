@@ -20,6 +20,7 @@ import {
   FAMILY_INVITE_LABEL_MAX,
   FAMILY_ROLE_FOR_INVITER,
   FAMILY_ROLE_LABEL,
+  familyMemberRoleLabel,
   canChangeFamilyRole,
   canRemoveFamilyMember,
   type FamilyRole,
@@ -427,13 +428,13 @@ function MemberScreen({ data, member, onDone }: { data: InFamily; member: Family
   const actions = [
     roleMove(
       'adult',
-      'Make an adult member',
+      'Make an adult',
       member.role === 'child'
         ? `Parents will stop seeing ${member.displayName}’s progress.`
         : `${member.displayName} will no longer see the children’s progress.`,
       member.role === 'child' ? 'Parents stop seeing their progress.' : undefined,
     ),
-    roleMove('parent', 'Make a parent', `${member.displayName} will be able to invite people and see the children’s progress.`),
+    roleMove('parent', 'Make a parent or guardian', `${member.displayName} will be able to invite people and see the children’s progress.`),
     canRemoveFamilyMember({ actor, ownerUserId: owner, targetUserId: member.userId, targetRole: member.role }).ok
       ? {
           key: 'remove',
@@ -448,8 +449,8 @@ function MemberScreen({ data, member, onDone }: { data: InFamily; member: Family
   return (
     <SettingsSubScreen title={member.displayName} onBack={onDone}>
       <SettingsIntro>
-        {FAMILY_ROLE_LABEL[member.role]}
-        {member.isOwner ? ' · started this family' : ''}
+        {familyMemberRoleLabel(member.role, member.isOwner)}
+        {member.isOwner ? ' · pays for Plus' : ''}
         {!member.isOwner ? (member.covered ? ' · covered by the family plan' : ' · not covered right now') : ''}
       </SettingsIntro>
       <div ref={anchorRef}>
@@ -719,6 +720,8 @@ export function FamilyView({ data }: { data: InFamily }) {
   const dissolve = useDissolveFamily();
   const [view, setView] = useState<View>({ kind: 'main' });
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const leaveAnchorRef = useRef<HTMLDivElement | null>(null);
+  const hasChild = family.members.some((m) => m.role === 'child');
   const frozen = Boolean(family.frozen);
   const requests = family.requests ?? [];
 
@@ -782,7 +785,7 @@ export function FamilyView({ data }: { data: InFamily }) {
           <SettingsRow
             key={member.userId}
             label={member.isMe ? `${member.displayName} (you)` : member.displayName}
-            sublabel={`${FAMILY_ROLE_LABEL[member.role]}${member.isOwner ? ' · pays for Plus' : member.covered ? ' · covered' : ''}${member.changedBySupport ? ' · changed by Harvous support' : ''}`}
+            sublabel={`${familyMemberRoleLabel(member.role, member.isOwner)}${member.isOwner ? ' · pays for Plus' : member.covered ? ' · covered' : ''}${member.changedBySupport ? ' · changed by Harvous support' : ''}`}
             leadingNode={
               <SharedSpaceMemberAvatar
                 userId={member.userId}
@@ -846,44 +849,50 @@ export function FamilyView({ data }: { data: InFamily }) {
         </>
       ) : null}
 
-      {/* My Notes' danger strip: a hairline and one quiet word, red only when you reach for
-          it, with the confirm replacing it in place. Stopping family sharing isn't something to browse
-          past in a card of its own. */}
-      <section className="proto-settings-danger">
-        {confirmLeave ? (
-          <SettingsConfirmRow
-            prompt={
+      {/* One red row in its own group, confirmed in a popover — the same shape as "Turn off
+          this invite". It used to be My Notes' danger strip, a lone word floating right under a
+          hairline, which read as unfinished on a page with no "Danger zone" label to pair it. */}
+      <div ref={leaveAnchorRef} style={{ marginTop: 16 }}>
+        <SettingsGroup>
+          <SettingsRow
+            label={me.isOwner ? 'Stop family sharing' : 'Leave the family'}
+            sublabel={
               me.isOwner
-                ? 'Stop family sharing? Your Plus stops covering everyone, and parents stop seeing progress. The Family Space stays, with everyone in it.'
-                : me.role === 'child'
-                  ? 'Leave the family? Your parents stop seeing your progress right away. Your notes in the Family Space leave with you, and the family plan stops covering you.'
-                  : 'Leave the family? Your notes in the Family Space leave with you, and the family plan stops covering you.'
+                ? 'Your Plus stops covering everyone. The Family Space stays.'
+                : 'Your notes in the Family Space leave with you.'
             }
-            confirmLabel={me.isOwner ? 'Stop sharing' : 'Leave'}
-            busy={dissolve.isPending || remove.isPending}
-            onConfirm={() => {
-              const done = {
-                onSettled: () => setConfirmLeave(false),
-                onError: (e: unknown) => toast.error(errorMessage(e, 'Could not do that')),
-              };
-              if (me.isOwner) dissolve.mutate(undefined, done);
-              else remove.mutate(me.userId, done);
-            }}
-            onCancel={() => setConfirmLeave(false)}
+            destructive
+            trailing="none"
+            disabled={me.isOwner && frozen}
+            onClick={() => setConfirmLeave(true)}
           />
-        ) : (
-          <div className="proto-settings-danger__actions">
-            <button
-              type="button"
-              className="proto-settings-danger__btn"
-              disabled={me.isOwner && frozen}
-              onClick={() => setConfirmLeave(true)}
-            >
-              {me.isOwner ? 'Stop family sharing' : 'Leave the family'}
-            </button>
-          </div>
-        )}
-      </section>
+        </SettingsGroup>
+      </div>
+      {confirmLeave ? (
+        <ProtoConfirmDialog
+          anchorEl={leaveAnchorRef.current}
+          preferAbove
+          title={me.isOwner ? 'Stop family sharing?' : 'Leave the family?'}
+          description={
+            me.isOwner
+              ? `Your Plus stops covering everyone${hasChild ? ', and parents stop seeing progress' : ''}. The Family Space stays, with everyone in it.`
+              : me.role === 'child'
+                ? 'Your parents stop seeing your progress right away. Your notes in the Family Space leave with you, and the family plan stops covering you.'
+                : 'Your notes in the Family Space leave with you, and the family plan stops covering you.'
+          }
+          confirmLabel={me.isOwner ? 'Stop sharing' : 'Leave'}
+          busy={dissolve.isPending || remove.isPending}
+          onConfirm={() => {
+            const done = {
+              onSettled: () => setConfirmLeave(false),
+              onError: (e: unknown) => toast.error(errorMessage(e, 'Could not do that')),
+            };
+            if (me.isOwner) dissolve.mutate(undefined, done);
+            else remove.mutate(me.userId, done);
+          }}
+          onCancel={() => setConfirmLeave(false)}
+        />
+      ) : null}
       <PreviewNote />
     </SettingsShell>
   );

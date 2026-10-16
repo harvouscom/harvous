@@ -1696,6 +1696,15 @@ html.harvous-prototype-route ::selection {
   user-select: none;
 }
 
+/* The printed edition's own number, where it isn't ours (NABRE Psalm 51:12 beside our 51:10).
+   Quieter than ours and tucked against it: a cross-reference for a missal, not a second count. */
+.pds-reader-verse-num--printed {
+  font-weight: 500;
+  font-variation-settings: "ROND" 0, "wght" 500;
+  opacity: 0.7;
+  margin-inline-start: -0.15em;
+}
+
 /* HarvousTypography.readerChapterTitle — 28pt / 600 rounded */
 .pds-reader-chapter-title {
   font-family: var(--pds-font-display);

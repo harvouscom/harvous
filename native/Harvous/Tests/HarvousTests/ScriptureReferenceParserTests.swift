@@ -185,4 +185,43 @@ final class ScriptureReferenceParserTests: XCTestCase {
     XCTAssertFalse(cursorIntersectsScripturePill(in: storage, cursorUTF16: 2))
     XCTAssertFalse(cursorIntersectsScripturePill(in: storage, cursorUTF16: storage.length))
   }
+
+  func testDeuterocanonBooksResolveAfterRevelation() {
+    XCTAssertEqual(ScriptureCanonicalBooks.titles.firstIndex(of: "Revelation"), 65)
+    XCTAssertEqual(ScriptureCanonicalBooks.titles.firstIndex(of: "Tobit"), 66)
+    XCTAssertEqual(ScriptureCanonicalBooks.bookIndex(matchingRaw: "Sir"), ScriptureCanonicalBooks.titles.firstIndex(of: "Sirach"))
+    // Exact alias, so not Ecclesiastes by prefix.
+    XCTAssertEqual(ScriptureCanonicalBooks.bookIndex(matchingRaw: "Ecclesiasticus"), ScriptureCanonicalBooks.titles.firstIndex(of: "Sirach"))
+    XCTAssertEqual(ScriptureCanonicalBooks.bookIndex(matchingRaw: "Ecclesiastes"), ScriptureCanonicalBooks.titles.firstIndex(of: "Ecclesiastes"))
+    XCTAssertEqual(ScriptureCanonicalBooks.bookIndex(matchingRaw: "1 Macc"), ScriptureCanonicalBooks.titles.firstIndex(of: "1 Maccabees"))
+  }
+
+  func testDeuterocanonChaptersAreNotClamped() {
+    guard let esther = ScriptureCanonicalBooks.titles.firstIndex(of: "Esther"),
+      let daniel = ScriptureCanonicalBooks.titles.firstIndex(of: "Daniel"),
+      let azariah = ScriptureCanonicalBooks.titles.firstIndex(of: "Prayer of Azariah")
+    else { return XCTFail("books missing") }
+    XCTAssertEqual(ScriptureCanon.clampChapter(13, bookIndex: daniel), 13)
+    XCTAssertEqual(ScriptureCanon.clampChapter(12, bookIndex: esther), 12)
+    XCTAssertEqual(ScriptureCanon.verseCount(bookIndex: esther, chapter: 16), 24)
+    XCTAssertEqual(ScriptureCanon.verseCount(bookIndex: azariah, chapter: 1), 67)
+    XCTAssertEqual(ScriptureCanon.chapterCount(bookIndex: ScriptureCanonicalBooks.titles.firstIndex(of: "Sirach")!), 51)
+  }
+
+  func testDetectsDeuterocanonReferences() {
+    XCTAssertEqual(ScriptureDetector.detect(in: "Read Sirach 2:1 today").first?.displayText, "Sirach 2:1")
+    XCTAssertEqual(ScriptureDetector.detect(in: "See Daniel 13:1").first?.displayText, "Daniel 13:1")
+    XCTAssertNotNil(ScriptureDetector.detect(in: "Wisdom 3:1").first)
+    XCTAssertTrue(ScriptureDetector.detect(in: "Wisdom is good").isEmpty)
+  }
+
+  func testPickerListsTheCanonOfTheTranslation() {
+    let tobit = ScriptureCanonicalBooks.titles.firstIndex(of: "Tobit")!
+    XCTAssertEqual(ScriptureCanonicalBooks.pickerBookIndices(translation: "ESV", including: 0).count, 66)
+    let nabre = ScriptureCanonicalBooks.pickerBookIndices(translation: "NABRE", including: 0)
+    XCTAssertEqual(nabre.count, 74)
+    XCTAssertEqual(nabre[16], tobit) // after Nehemiah
+    // A pill already naming Tobit keeps its book in the ESV picker.
+    XCTAssertTrue(ScriptureCanonicalBooks.pickerBookIndices(translation: "ESV", including: tobit).contains(tobit))
+  }
 }

@@ -14,7 +14,7 @@
  * A bare card, not a section: it is the first card of the Up next deck, so the deck's eyebrow
  * is over it and its own caption says what it is — "Today's passage · Psalm 18:1-2 · NET".
  */
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import Icon from '@/components/react/Icon';
 import { TRANSLATIONS } from '@/data/translations';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -22,6 +22,8 @@ import type { VotdToday } from '../../lib/votd-today';
 import { useDailyPassageActions } from './use-daily-passage-actions';
 
 export const DAILY_PASSAGE_SECTION_TITLE = 'Today’s passage';
+/** A Catholic reader's card: the day's Mass Gospel in the passage's place, the same card. */
+export const DAILY_GOSPEL_SECTION_TITLE = 'Today’s Gospel';
 
 /** Whether today's passage takes the card at the top (true) or the row in Suggested (false). */
 export function dailyPassageShowsCard(votd: VotdToday | null | undefined): boolean {
@@ -46,18 +48,41 @@ export default function PrototypeDailyPassageCard({
      any text selection the reader is making in the passage. */
   const markup = useMemo(() => ({ __html: votd.textHtml ?? '' }), [votd.textHtml]);
 
+  /*
+   * A day's verse is a line or two; a Gospel can be fifteen. Long words fold to the height a
+   * verse takes and fade out, and tapping them opens the rest — no extra row, no extra words.
+   * Measured, not guessed from length: only text that actually overflows folds and presses.
+   * Once open it stays open, so selecting a phrase in it never folds it back.
+   */
+  const textRef = useRef<HTMLParagraphElement | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el || expanded) return;
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [markup, expanded]);
+
   if (!homeSpaceId || hidden) return null;
 
   const translationLabel = TRANSLATIONS[votd.translation]?.abbreviation ?? votd.translation;
+  /* A Catholic's day: the Mass Gospel is the passage. The same card in every other way — the
+     other readings are a tap away in the reader, not chips crowding the words. */
+  const gospel = votd.readings?.items.find((r) => r.slot === 'gospel');
 
   return (
     /* The reminder link scrolls to this anchor, whichever shape the passage is in. */
     <div className="proto-daily-passage" id="todays-passage" data-deck-id="todays-passage">
       <div className="proto-daily-passage__head">
         <p className="proto-caption proto-daily-passage__eyebrow">
-          {DAILY_PASSAGE_SECTION_TITLE} ·{' '}
+          {gospel ? DAILY_GOSPEL_SECTION_TITLE : DAILY_PASSAGE_SECTION_TITLE} ·{' '}
           <span className="proto-daily-passage__ref">
-            {votd.reference} · {translationLabel}
+            {gospel ? gospel.citation : votd.reference} · {translationLabel}
           </span>
         </p>
         <button
@@ -71,7 +96,26 @@ export default function PrototypeDailyPassageCard({
         </button>
       </div>
       <p
-        className="proto-review-dock__verse proto-review-dock__verse--scripture"
+        ref={textRef}
+        className={`proto-review-dock__verse proto-review-dock__verse--scripture${
+          expanded ? '' : ' proto-daily-passage__text--folded'
+        }`}
+        data-overflows={!expanded && overflows ? 'true' : undefined}
+        {...(!expanded && overflows
+          ? {
+              role: 'button',
+              tabIndex: 0,
+              'aria-expanded': false,
+              'aria-label': 'Show the whole passage',
+              onClick: () => setExpanded(true),
+              onKeyDown: (e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setExpanded(true);
+                }
+              },
+            }
+          : {})}
         dangerouslySetInnerHTML={markup}
       />
       {/* Both secondary: the accent fill made the reader button the loudest thing on

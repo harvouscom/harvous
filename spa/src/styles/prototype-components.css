@@ -4735,7 +4735,7 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   padding: 5px 8px 5px 11px;
   border-radius: 999px;
   background: var(--pds-bg-chip-hover);
-  border: 0.5px solid var(--pds-border-control-medium);
+  border: 1px solid var(--pds-border-control-strong);
   font-family: var(--pds-font-body);
   font-size: 13px;
   font-weight: 500;
@@ -5723,13 +5723,21 @@ html.harvous-prototype-route
   border-top: 0.5px solid var(--pds-border);
 }
 
+/* Where one run of categories ends and the next begins (settingsCategories `group`): a
+   gap instead of a heading, so the sidebar has shape without more words in it. The items
+   lost a pixel of padding top and bottom to pay for the five gaps: at the modal's 720px the
+   whole list still fits, Get Support included, without scrolling. */
+.proto-settings__nav-item[data-group-start='true'] {
+  margin-top: 6px;
+}
+
 .proto-settings__nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
   text-align: left;
-  padding: 10px 12px;
+  padding: 9px 12px;
   border: none;
   background: transparent;
   border-radius: var(--pds-radius-row);
@@ -5829,6 +5837,9 @@ html.harvous-prototype-route
 /* The tile brings its own fill and colour (e.g. a Shared Space icon), so the
    generic chip surface underneath would only box it in. */
 .proto-settings-list-row__leading--bare {
+  /* Flush left, not centred: a 30px space tile centred in the 40px slot sat 5px further in
+     than every tiled row's icon. The slot keeps its width so titles still line up. */
+  justify-content: flex-start;
   background: none;
   border: none;
 }
@@ -6408,7 +6419,7 @@ button.proto-sharing-card__main:focus-visible {
   font-size: 9px;
   font-weight: 600;
   border-radius: 4px;
-  border: 0.5px solid var(--pds-border-control-medium);
+  border: 1px solid var(--pds-border-control-strong);
   background-color: var(--pds-bg-page);
   background-image: none;
   box-shadow: 0 0 0 1.5px var(--pds-bg-page);
@@ -8422,27 +8433,112 @@ button.proto-home-greeting__chip--passage {
   color: var(--pds-scripture-fg);
 }
 
-/* Liturgical season — quiet line under the greeting, calendar glyph + label. */
-.proto-home-greeting__season {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 6px 0 0;
-  padding: 3px 10px;
-  border: 0.5px solid var(--pds-border-control);
-  border-radius: 999px;
-  color: var(--pds-text-secondary);
-  font-family: var(--pds-font-body);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.5;
-  white-space: nowrap;
+/* Liturgical season — a chip that opens the greeting's sentence ("It's the 28th week in
+   Ordinary Time"), with the calendar glyph like the other chips. No rule of its own. */
+
+/*
+ * The greeting with its week (PrototypeHomeGreeting): the hello and one line on the left, seven
+ * bars on the right, bottoms aligned. Carries `.proto-home-greeting` for the sheet's entrance and
+ * type scale; this undoes the centred, balanced prose that class gives a sentence, because this
+ * is a block with two columns rather than a paragraph.
+ */
+.proto-home-greeting.proto-home-greeting--week,
+.proto-feed-sheet .proto-home-greeting.proto-home-greeting--week {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 24px;
+  text-align: start;
+  text-wrap: wrap;
+  padding-block: 10px 8px;
 }
 
-.proto-home-greeting__season svg {
+.proto-home-greeting__words {
+  min-width: 0;
+}
+
+.proto-home-greeting__hello-line {
+  margin: 0;
+  font-size: 1.3em;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.proto-home-greeting__week-line {
+  margin: 4px 0 0;
+  font-size: 0.85em;
+  line-height: 1.6;
+  color: var(--pds-text-secondary);
+  text-wrap: pretty;
+}
+
+.proto-home-week {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding-bottom: 2px;
+}
+
+.proto-home-week__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 46px;
+}
+
+/* Mixed from the text colour, not the control borders: those are near-white and the past
+   days' bars disappeared on the paper, leaving today looking like the only day there was. */
+.proto-home-week__bar {
   display: block;
-  flex-shrink: 0;
-  color: var(--pds-accent);
+  width: 10px;
+  height: 3px;
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--pds-text-secondary) 45%, transparent);
+}
+
+.proto-home-week__bar[data-empty='true'] {
+  background: var(--pds-border-on-paper);
+}
+
+/* Later this week: a slot, not a rest day. */
+.proto-home-week__day[data-future='true'] .proto-home-week__bar {
+  background: transparent;
+  box-shadow: inset 0 0 0 0.5px var(--pds-border-on-paper);
+}
+
+.proto-home-week__day[data-future='true'] .proto-home-week__initial {
+  opacity: 0.5;
+}
+
+.proto-home-week__bar[data-unknown='true'] {
+  background: transparent;
+}
+
+.proto-home-week__day[data-today='true'] .proto-home-week__bar:not([data-empty='true']) {
+  background: var(--pds-bg-accent-button);
+}
+
+.proto-home-week__initial {
+  font-family: var(--pds-font-body);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-home-week__day[data-today='true'] .proto-home-week__initial {
+  color: var(--pds-text-primary);
+}
+
+/* A phone has no room beside the words: the week sits under them. */
+@media (max-width: 600px) {
+  .proto-home-greeting.proto-home-greeting--week,
+  .proto-feed-sheet .proto-home-greeting.proto-home-greeting--week {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
 }
 
 /* ─── Migration pill (Classic → 2.0 sidebar notice) ──────────────────────── */
@@ -9013,7 +9109,7 @@ button.proto-appearance-hero__card {
   width: 22px;
   height: 22px;
   border-radius: var(--pds-radius-pill);
-  border: 0.5px solid var(--pds-border-control-medium);
+  border: 1px solid var(--pds-border-control-strong);
   background: var(--pds-bg-page);
   color: var(--pds-text-primary);
   display: inline-flex;
@@ -9236,7 +9332,7 @@ button.proto-appearance-hero__card {
   width: 22px;
   height: 22px;
   border-radius: var(--pds-radius-pill);
-  border: 0.5px solid var(--pds-border-control-medium);
+  border: 1px solid var(--pds-border-control-strong);
   background: var(--pds-bg-page);
   color: var(--pds-text-primary);
   box-shadow: var(--pds-shadow-shell);
@@ -13207,6 +13303,18 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    trailing buttons keep their own hit boxes and their own hover on top of that. Painting
    the fill on this button instead stopped short of the controls and read as a row that
    had been cut in two. */
+/* A row that answers in place (PrototypeHomeRow `below`): the control wraps onto its own line,
+   indented to start under the title rather than the icon. */
+.proto-list-panel__row--with-below {
+  flex-wrap: wrap;
+  cursor: default;
+}
+
+.proto-list-panel__row-below {
+  flex-basis: 100%;
+  padding-left: calc(26px + 11px); /* .proto-list-panel__row-icon width + the row gap */
+}
+
 .proto-list-panel__row-main {
   appearance: none;
   border: 0;
@@ -18649,7 +18757,7 @@ html.harvous-prototype-route
   gap: 10px;
   margin-top: 32px;
   padding-top: 14px;
-  border-top: 1px solid var(--pds-border-control-soft, var(--pds-border-control));
+  border-top: 0.5px solid var(--pds-border-on-paper);
 }
 
 .proto-settings-danger__label {
@@ -20318,6 +20426,37 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   margin-bottom: 0;
 }
 
+/* The Prayer of Azariah inside Daniel 3 (NABRE, DRB): one quiet line in the text track that
+   opens the passage as a sheet over the chapter. The chevron points the way it goes — on, not
+   down — because nothing unfolds here. */
+.pds-reader-inset {
+  margin: 0 var(--pds-reader-text-inset) var(--pds-reader-paragraph-gap)
+    calc(var(--pds-reader-gutter) + var(--pds-space-2));
+}
+
+.pds-reader-inset__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--pds-text-secondary);
+}
+
+button.pds-reader-inset__toggle {
+  cursor: pointer;
+}
+
+/* Colours live in prototype-route-overrides-2.css, past the blanket proto-button rule. */
+
+.pds-reader-inset__chevron {
+  display: inline-flex;
+  transform: rotate(-90deg);
+}
+
 /* ── Verse: the unit of selection ──
    Selection snaps to whole verses, so each verse advertises itself as a target on approach
    and holds a mark once chosen.
@@ -21922,9 +22061,8 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 /* The whole row carries the selection — title line, meta and trailing control together. */
-.proto-translation-row[data-active='true'] {
-  background: var(--pds-bg-row-hover);
-}
+/* No band for the selected row: the check says it, and a grey fill competed with the offline
+   clouds for "this one is different". */
 
 /* Body and trailing control on one line; the body takes the slack. */
 .proto-translation-row__main {
@@ -21996,13 +22134,30 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * asked — but it has to be legible, since the whole point is that a number beats a limit
  * taken on trust.
  */
-.proto-translation-usage {
-  color: var(--pds-text-muted);
-  font-variant-numeric: tabular-nums;
-  /* Wraps as one unit or not at all. Without this, "3 saved · 14 MB." breaks wherever the
-     paragraph happens to run out of room — often between the dot and the number, which reads
-     as two unrelated fragments rather than one fact. */
-  white-space: nowrap;
+/* Your Bible page's save error (PrototypeYourBiblePage). */
+.proto-tradition-control__error {
+  margin: -8px 0 12px;
+  padding: 0 4px;
+  color: var(--pds-destructive);
+}
+
+/* In a "Make it yours" row: a small switch with its label beside it. */
+.proto-tradition-control {
+  margin-top: 6px;
+}
+
+.proto-tradition-control__switch {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pds-text-primary);
+  font: 500 13px/1.4 var(--pds-font-body);
+  cursor: pointer;
 }
 
 .proto-translation-row__meta {
@@ -22035,40 +22190,131 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * selected, downloaded, or verified, and this list already has a check orb meaning
  * "reading this one". Spelling it out costs a few pixels and removes the guess.
  */
-/*
- * One neutral chip for both states — "ready" and "partial" tell themselves apart by icon and
- * label (a checkmark + "Offline" vs. plain "Part-saved" text), not by color. Was green for
- * "ready": that read as a success/completion toast rather than a fact about a download, and
- * sat apart from every other small pill in the app (`.proto-chip-scripture`,
- * `.proto-menu-item__badge`), which all reach for these same neutral chip tokens.
- */
-.proto-offline-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex: 0 0 auto;
-  padding: 1.5px 6px;
-  border-radius: var(--pds-radius-pill);
-  border: 0.5px solid var(--pds-border-control-soft);
-  background: var(--pds-bg-chip);
-  color: var(--pds-text-secondary);
-  font-family: var(--pds-font-body);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
 /* The trailing control(s). Sits on the row's edge beside the check orb, so the column of
    controls reads down the right-hand side the way every other settings list does. */
 .proto-translation-row__offline {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 2px;
   flex: 0 0 auto;
-  padding-right: 14px;
-  padding-left: 4px;
+  padding-right: 8px;
+  padding-left: 2px;
+}
+
+/* The offline control as a glyph (PrototypeTranslationRow): muted until it matters. A hairline
+   circle says it's a button without filling it. The paper border, not a control one: the
+   control edges are near-white and vanish on the sheet. */
+.proto-translation-row__icon {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0.5px solid var(--pds-border-on-paper);
+  border-radius: var(--pds-radius-pill);
+  background: transparent;
+  color: var(--pds-text-tertiary);
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.proto-translation-row__icon[data-state='saved'] {
+  color: var(--pds-text-secondary);
+}
+
+/* The route-wide rule (prototype-route-overrides-1.css) pins every prototype button and its
+   descendants to primary ink with !important. These are quiet on purpose, so they answer it the
+   way its own escapes do: (0,3,1) and !important, on the button and the glyph inside. */
+html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon,
+html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon * {
+  color: var(--pds-text-tertiary) !important;
+}
+
+html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon[data-state='saved'],
+html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon[data-state='saved'] * {
+  color: var(--pds-text-secondary) !important;
+}
+
+.proto-translation-row__icon:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon:hover:not(:disabled) {
+    background: var(--pds-bg-control);
+  }
+
+  html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon:hover:not(:disabled),
+  html.harvous-prototype-route .proto-translation-row .proto-translation-row__icon:hover:not(:disabled) * {
+    color: var(--pds-text-primary) !important;
+  }
+}
+
+/* ── Settings › My Bible (PrototypeYourBiblePage) ──────────────────────────────
+   The translation card, Books, and Kept offline. Compact rows inside hairline groups (the
+   paper border — `--pds-border` is near-white and disappears on the sheet): the
+   page shows three short lists, and full-height settings rows made it scroll before it said
+   anything. Row padding drops from 11px to 8px and the offline glyphs from 30px to 26px. */
+.proto-my-bible__card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 12px;
+  border: 0.5px solid var(--pds-border-on-paper);
+  border-radius: var(--pds-radius-menu);
+}
+
+.proto-my-bible__card-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-my-bible__card-meta {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-my-bible__group {
+  display: flex;
+  flex-direction: column;
+  border: 0.5px solid var(--pds-border-on-paper);
+  border-radius: var(--pds-radius-menu);
+  overflow: hidden;
+}
+
+.proto-my-bible__card + .proto-my-bible__group {
+  margin-top: 8px;
+}
+
+p.proto-my-bible__label {
+  margin: 18px 4px 6px;
+  color: var(--pds-text-tertiary);
+}
+
+p.proto-my-bible__usage {
+  margin: 6px 4px 0;
+  color: var(--pds-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-wrap: pretty;
+}
+
+.proto-my-bible .proto-translation-row__choose {
+  padding: 8px 12px;
+}
+
+.proto-my-bible .proto-translation-row__icon {
+  width: 26px;
+  height: 26px;
+}
+
+.proto-my-bible .proto-translation-row__offline {
+  padding-right: 6px;
 }
 
 /* A small button, not a text link — bordered and filled like every other row-scoped control
@@ -22121,7 +22367,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  *
  * The importer's ink-on-a-ruled-line at the row's own width — progress answered by the
  * shape of the row rather than by a sentence. Absolutely positioned so appearing and
- * vanishing never changes the row's height: a list of eleven translations must not reflow
+ * vanishing never changes the row's height: a list of a dozen translations must not reflow
  * every time one of them starts or finishes saving.
  */
 .proto-translation-row__progress {
@@ -23098,6 +23344,16 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  */
 .proto-feed-sheet__forward {
   flex: 0 0 auto;
+}
+
+/* "Today", beside the forward arrow: the same tile, widened for a word. */
+.proto-sidebar-back-tile.proto-feed-sheet__today {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 0 10px;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 /* The date gives way before the controls do — a scope trigger pushed off the sheet's edge
@@ -25331,6 +25587,25 @@ button.proto-feed-sheet__stat:hover {
   padding: 0;
   background: none;
   border-radius: 0;
+}
+
+/* Long passages (a day's Gospel) fold to four lines and fade out; the faded text is the way in,
+   so the card gains no row and no words. Short passages never fold. */
+.proto-daily-passage__text--folded {
+  max-height: 4lh;
+  overflow: hidden;
+}
+
+.proto-daily-passage__text--folded[data-overflows='true'] {
+  cursor: pointer;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6lh), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6lh), transparent);
+}
+
+/* Where a reading skips verses between chapters (Luke 1:1-4; 4:14-21): the gap, said quietly. */
+.proto-daily-passage__gap {
+  color: var(--pds-text-tertiary);
+  padding: 0 0.15em;
 }
 
 /*

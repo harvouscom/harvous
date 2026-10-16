@@ -416,6 +416,16 @@ export type PaperStackState = {
    */
   noteTitle?: string;
   /**
+   * A chapter as the sheet, instead of a note: a passage the base chapter prints but Harvous
+   * files elsewhere (Daniel 3:24–90 is "Prayer of Azariah 1"), opened as paper over the page
+   * it belongs to. The route is the sheet's chapter, so its verses are the real reader.
+   *
+   * `landed` turns true once the route has reached the sheet. Before that, the base chapter's
+   * own path is the one frame between stacking and navigating, and keeps the stack; after it,
+   * arriving back on the base chapter by any other way (browser back, prev) ends the stack.
+   */
+  sheet?: { type: 'reader'; book: string; chapter: number; translation: string; landed?: boolean };
+  /**
    * Whether the sheet is up. Flipping down sets this false and leaves the sheet mounted
    * below the fold, so the draft is still there when you flip back — closing it for real
    * is `clearPaperStack`.
@@ -759,6 +769,16 @@ type ProtoShellContextValue = {
   paperStack: PaperStackState | null;
   /** Stack a sheet over an origin. Replaces any existing stack — there is exactly one edge. */
   stackNote: (origin: PaperStackOrigin, noteId?: string) => void;
+  /**
+   * Stack a chapter over the reader page it belongs to. The caller navigates to the sheet's
+   * chapter right after; flipping down ends the stack rather than parking it.
+   */
+  stackChapter: (
+    origin: PaperStackOrigin,
+    sheet: { book: string; chapter: number; translation: string },
+  ) => void;
+  /** The route reached a chapter sheet. Called by the layout's teardown effect. */
+  markStackSheetLanded: () => void;
   /** Flip the sheet down (or back up) without unmounting it. */
   setStackSheetOpen: (open: boolean) => void;
   /**
@@ -1881,6 +1901,20 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     playSound('nav.open');
     setPaperStack({ origin, noteId, open: true });
   }, []);
+  const stackChapter = useCallback(
+    (origin: PaperStackOrigin, sheet: { book: string; chapter: number; translation: string }) => {
+      playSound('nav.open');
+      setPaperStack({ origin, sheet: { type: 'reader', ...sheet }, open: true });
+    },
+    [],
+  );
+  const markStackSheetLanded = useCallback(() => {
+    setPaperStack((current) =>
+      current?.sheet && !current.sheet.landed
+        ? { ...current, sheet: { ...current.sheet, landed: true } }
+        : current,
+    );
+  }, []);
   const setStackSheetOpen = useCallback((open: boolean) => {
     setPaperStack((current) => (current ? { ...current, open } : current));
   }, []);
@@ -2024,6 +2058,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setReviewDockResult,
       paperStack,
       stackNote,
+      stackChapter,
+      markStackSheetLanded,
       setStackSheetOpen,
       adoptStackNoteId,
       setStackNoteTitle,
@@ -2131,6 +2167,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setReviewDockResult,
       paperStack,
       stackNote,
+      stackChapter,
+      markStackSheetLanded,
       setStackSheetOpen,
       adoptStackNoteId,
       setStackNoteTitle,
