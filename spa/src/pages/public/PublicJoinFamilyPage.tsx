@@ -207,6 +207,12 @@ export default function PublicJoinFamilyPage() {
                             <Icon name="lock" size={11} aria-hidden />
                             <span>{data.disclosure.never}</span>
                           </p>
+                          {data.disclosure.ifYouChoose ? (
+                            <p className="public-join-family__role-never">
+                              <Icon name="book-open" size={11} aria-hidden />
+                              <span>{data.disclosure.ifYouChoose}</span>
+                            </p>
+                          ) : null}
                         </section>
                       </div>
 

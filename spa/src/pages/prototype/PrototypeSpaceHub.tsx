@@ -85,6 +85,9 @@ import {
   useSpaceStudySuggestionQueue,
 } from '../../hooks/queries/useSpaceStudySuggestions';
 import { markPendingPlannerIntent } from '../../lib/pending-planner-intent';
+import { markPendingBibleMapSpace } from '../../lib/pending-bible-map-book';
+import { useSpaceBibleCoverage } from '../../hooks/queries/useSpaceBibleCoverage';
+import { shelfSentence } from './bible-map/bible-map-copy';
 import { localTodayIso } from '../../lib/church-services';
 import { parseLocalDateInput } from '../../lib/proto-date-picker';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
@@ -432,6 +435,8 @@ function PrototypeSpaceHubLive() {
   */
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const spaceTemplates = useNoteTemplates(activeSpaceId ?? null, ministryMeta.type !== 'personal');
+  /* Fetched with the page, so the map opens on data already here. */
+  const spaceBible = useSpaceBibleCoverage(activeSpaceId, !!ministryMeta.type && ministryMeta.type !== 'personal').data;
   const spaceTemplateCount = spaceTemplates.data?.space?.length ?? 0;
   const canManageSpaceLibrary = spaceLibrary.data?.canManage ?? false;
 
@@ -498,6 +503,27 @@ function PrototypeSpaceHubLive() {
 
   const spaceToolRows = useMemo<ProtoToolRow[]>(() => {
     const rows: ProtoToolRow[] = [];
+    /*
+      Our Bible — where this room has been in Scripture. Offered once there is something on
+      it, like the shelf and the planner below. A Family Space's is offered from the start:
+      its books arrive only when someone chooses to add theirs, and the map is where they do.
+    */
+    const bibleSentence = spaceBible
+      ? shelfSentence(spaceBible.coverage.books, spaceBible.kind === 'family' ? 'family' : 'space')
+      : null;
+    if (spaceBible && (bibleSentence || spaceBible.kind === 'family')) {
+      rows.push({
+        key: 'space-bible',
+        icon: 'book-open',
+        title: 'Our Bible',
+        meta: bibleSentence ?? 'Add which books you’ve been in',
+        chevron: 'expand',
+        onSelect: () => {
+          if (activeSpaceId) markPendingBibleMapSpace(activeSpaceId);
+          openExpandedSidebar('bible-map');
+        },
+      });
+    }
     /* Offered to every member, not only whoever curates it — "what do we read
        from" is a question the room asks, and the read is membership-gated.
        Shown to a curator while still empty, because otherwise the one person
@@ -577,6 +603,7 @@ function PrototypeSpaceHubLive() {
     }
     return rows;
   }, [
+    spaceBible,
     studyPlanningOn,
     suggestionsMeta,
     spaceLibraryCount,

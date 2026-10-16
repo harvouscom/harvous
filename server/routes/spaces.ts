@@ -111,6 +111,9 @@ import { syncEntitlementsFromProvider } from '../utils/entitlements';
 import { assertCanCreateSpaceInvite } from '../utils/space-invite-gate';
 import { insertPersonalSharedSpace } from '../utils/shared-space-create';
 import { familyForSpace } from '../utils/family-lifecycle';
+import { activeSpaceNotePredicate } from '../utils/space-note-predicate';
+import { loadSpaceBibleCoverage, scriptureIndexNoteFilter } from '../utils/space-bible-coverage';
+import { familyBibleSharers, loadFamilyBibleBooks } from '../utils/family-bible-books';
 import {
   assertCanCreateChurchSharedSpace,
   assertCanCreateMinistryChannel,
@@ -184,15 +187,6 @@ const route = new Hono();
 
 function normalizePrototypeSpaceId(spaceIdRaw: string): string {
   return spaceIdRaw.startsWith('space_') ? spaceIdRaw : `space_${spaceIdRaw}`;
-}
-
-function activeSpaceNotePredicate(spaceId: string) {
-  return sql`EXISTS (
-    SELECT 1 FROM ${SpaceNotes}
-    WHERE ${SpaceNotes.spaceId} = ${spaceId}
-      AND ${SpaceNotes.noteId} = ${Notes.id}
-      AND ${SpaceNotes.removedAt} IS NULL
-  )`;
 }
 
 /** Upper bound on rows the unioned shared-space highlights list returns. */
@@ -1756,17 +1750,7 @@ route.get('/api/spaces/:spaceId/scripture-index', requireAuth, async (c) => {
         createdAt: Notes.createdAt,
       })
       .from(Notes)
-      .where(
-        and(
-          ...(access.space.type === 'personal'
-            ? [eq(Notes.spaceId, spaceIdNorm), eq(Notes.userId, auth.userId)]
-            : [activeSpaceNotePredicate(spaceIdNorm)]),
-          eq(Notes.contentEncrypted, false),
-          ne(Notes.noteType, 'scripture'),
-          NOT_ONBOARDING_NOTES_THREAD,
-          NOT_ONBOARDING_SYSTEM_NOTES,
-        ),
-      );
+      .where(scriptureIndexNoteFilter(spaceIdNorm, access.space.type === 'personal' ? auth.userId : undefined));
 
     const payload = buildSpaceScriptureIndex(
       noteRows.map((n) => ({
@@ -1783,6 +1767,45 @@ route.get('/api/spaces/:spaceId/scripture-index', requireAuth, async (c) => {
     const standardError = handleAPIError(error, {
       endpoint: '/api/spaces/[spaceId]/scripture-index',
       action: 'scripture_index',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/:spaceId/bible-coverage ────────────────────────────────
+
+/**
+ * "Our Bible": the room's map (`space-bible-coverage.ts`), or for a Family Space the household's
+ * books, from the members who chose to add theirs (`family-bible-books.ts`). A personal space
+ * has no "our" — that map is My Bible, at /api/study-bible/coverage.
+ */
+route.get('/api/spaces/:spaceId/bible-coverage', requireAuth, rateLimit('read'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const spaceIdNorm = normalizePrototypeSpaceId(requireParam(c, 'spaceId'));
+    let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
+    try {
+      access = await requireSpaceAccess(spaceIdNorm, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    if (access.space.type === 'personal') {
+      return c.json({ error: 'A personal space’s map is My Bible.', code: 'NOT_SHARED' }, 404);
+    }
+    const noStore = { 'Cache-Control': 'private, max-age=0, no-store' };
+
+    const family = await familyForSpace(spaceIdNorm);
+    if (family) {
+      const [books, sharers] = await Promise.all([loadFamilyBibleBooks(family.id), familyBibleSharers(family.id)]);
+      return c.json({ success: true, kind: 'family', books, youShare: sharers.has(auth.userId) }, 200, noStore);
+    }
+    const coverage = await loadSpaceBibleCoverage(spaceIdNorm);
+    return c.json({ success: true, kind: 'space', books: coverage.books }, 200, noStore);
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/bible-coverage',
+      action: 'space_bible_coverage',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

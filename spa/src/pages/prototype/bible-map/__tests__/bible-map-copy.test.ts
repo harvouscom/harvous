@@ -56,3 +56,20 @@ describe('shelfSummary', () => {
     expect(shelfSummary([])).toBeNull();
   });
 });
+
+describe('whose map it is', () => {
+  const books = [book('Genesis', [2, 2, 0]), book('Romans', [3, 3, 2])];
+
+  it('says "This space has" for a room, with where most of it was', () => {
+    expect(shelfSentence(books, 'space')).toBe('This space has been in 2 books. Romans most of all.');
+  });
+
+  it('never picks a "most of all" for a family — every book weighs the same', () => {
+    expect(shelfSentence(books, 'family')).toBe('Your family has been in 2 books.');
+    expect(shelfSummary(books, 'family')?.detail).toBeNull();
+  });
+
+  it('keeps My Bible in the second person', () => {
+    expect(shelfSentence([book('John', [1])])).toBe("You've been in John.");
+  });
+});

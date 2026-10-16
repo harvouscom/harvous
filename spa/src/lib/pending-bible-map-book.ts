@@ -30,3 +30,30 @@ export function consumePendingBibleMapBook(): string | null {
     return null;
   }
 }
+
+/**
+ * Open the map as a space's "Our Bible" rather than My Bible — the space hub's Tools row. The
+ * same one-shot shape: read at mount, then gone, so the account menu's My Bible is never left
+ * pointing at the last space you were in.
+ */
+const PENDING_BIBLE_MAP_SPACE_KEY = 'harvous_pending_bible_map_space';
+
+export function markPendingBibleMapSpace(spaceId: string): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(PENDING_BIBLE_MAP_SPACE_KEY, spaceId);
+  } catch {
+    /* Without it the map opens as My Bible, which is wrong but harmless. */
+  }
+}
+
+export function consumePendingBibleMapSpace(): string | null {
+  if (typeof sessionStorage === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(PENDING_BIBLE_MAP_SPACE_KEY);
+    if (raw) sessionStorage.removeItem(PENDING_BIBLE_MAP_SPACE_KEY);
+    return raw || null;
+  } catch {
+    return null;
+  }
+}

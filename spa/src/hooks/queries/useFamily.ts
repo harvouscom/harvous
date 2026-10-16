@@ -227,7 +227,7 @@ export type FamilyInvitePreview = {
   familyName: string;
   inviterFirstName: string | null;
   role: FamilyRole;
-  disclosure: { summary: string; shares: string[]; never: string };
+  disclosure: { summary: string; shares: string[]; never: string; ifYouChoose?: string };
   valid: boolean;
   reason: string | null;
   /** The Family Space's looks, drawn the way a space invite draws one. */

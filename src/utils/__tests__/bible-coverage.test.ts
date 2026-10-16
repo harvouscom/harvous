@@ -10,6 +10,7 @@ import {
   mostStudiedBook,
   type BibleCoverageInput,
   type ChapterDepthCounts,
+  coverageFromBooks,
 } from '../bible-coverage';
 
 const empty: BibleCoverageInput = { read: [], cited: [], highlighted: [], depth: [] };
@@ -119,5 +120,14 @@ describe('reading the shape', () => {
 
   it('gives zeros for a book the payload left out', () => {
     expect(levelsForBook(coverage, 'Jude')).toEqual([0]);
+  });
+});
+
+describe('coverageFromBooks', () => {
+  it('fills every chapter of a named book, in canon order, and drops unknown names', () => {
+    const coverage = coverageFromBooks(['Romans', 'Genesis', 'Hezekiah']);
+    expect(coverage.books.map((b) => b.book)).toEqual(['Genesis', 'Romans']);
+    expect(coverage.books[1].levels).toHaveLength(16);
+    expect(coverage.books[1].levels.every((level) => level === 1)).toBe(true);
   });
 });

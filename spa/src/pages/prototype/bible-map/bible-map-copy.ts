@@ -11,13 +11,23 @@ import {
   type CoverageLevel,
 } from '@/utils/bible-coverage';
 
+/**
+ * Whose map it is. `you` is My Bible; `space` and `family` are Our Bible. The family's map is
+ * book names only, so it never says which book "most of all" — every book weighs the same.
+ */
+export type MapVoice = 'you' | 'space' | 'family';
+
+const SUBJECT: Record<MapVoice, string> = {
+  you: "You've",
+  space: 'This space has',
+  family: 'Your family has',
+};
+
 /** The card's one sentence, or null when there is nothing to describe yet. */
-export function shelfSentence(books: readonly BibleCoverageBook[]): string | null {
-  if (books.length === 0) return null;
-  const most = mostStudiedBook(books);
-  if (books.length === 1) return `You've been in ${books[0].book}.`;
-  const lead = `You've been in ${books.length} books.`;
-  return most ? `${lead} ${most} most of all.` : lead;
+export function shelfSentence(books: readonly BibleCoverageBook[], voice: MapVoice = 'you'): string | null {
+  const summary = shelfSummary(books, voice);
+  if (!summary) return null;
+  return summary.detail ? `${summary.headline} ${summary.detail}` : summary.headline;
 }
 
 /**
@@ -26,15 +36,24 @@ export function shelfSentence(books: readonly BibleCoverageBook[]): string | nul
  */
 export function shelfSummary(
   books: readonly BibleCoverageBook[],
+  voice: MapVoice = 'you',
 ): { headline: string; detail: string | null } | null {
   if (books.length === 0) return null;
-  const most = mostStudiedBook(books);
-  if (books.length === 1) return { headline: `You've been in ${books[0].book}.`, detail: null };
+  const subject = SUBJECT[voice];
+  if (books.length === 1) return { headline: `${subject} been in ${books[0].book}.`, detail: null };
+  const most = voice === 'family' ? null : mostStudiedBook(books);
   return {
-    headline: `You've been in ${books.length} books.`,
+    headline: `${subject} been in ${books.length} books.`,
     detail: most ? `${most} most of all.` : null,
   };
 }
+
+/** What an empty map says, by whose it is. */
+export const EMPTY_MAP_LINE: Record<MapVoice, string> = {
+  you: 'Read a chapter, write a note or highlight a verse, and it shows here.',
+  space: 'Share a note on a passage here, or highlight one, and it shows here.',
+  family: 'No one has added their books yet.',
+};
 
 /**
  * A book row's count, spelled out: "2 of 28 chapters". The row shows only "2/28"; this is what
@@ -62,6 +81,16 @@ export const COVERAGE_LEGEND: ReadonlyArray<{ level: CoverageLevel; label: strin
   { level: 1, label: 'Read' },
   { level: 2, label: 'Wrote or highlighted' },
   { level: 3, label: 'Studied deeply' },
+];
+
+/**
+ * A space's map has no reading on it — only what the room shared — so it has no "Read", and
+ * its deepest tone means several notes came back to the same chapter.
+ */
+export const SPACE_COVERAGE_LEGEND: ReadonlyArray<{ level: CoverageLevel; label: string }> = [
+  { level: 0, label: 'Not yet' },
+  { level: 2, label: 'Written about or highlighted here' },
+  { level: 3, label: 'Kept coming back to' },
 ];
 
 /**

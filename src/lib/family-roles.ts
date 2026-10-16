@@ -45,11 +45,22 @@ export function familyMemberRoleLabel(role: FamilyRole, isOwner: boolean): strin
  * What each role shares, said the way the invitee reads it before joining. The server makes
  * the redeem echo the role back, so this text is the thing actually consented to.
  */
-export const FAMILY_ROLE_DISCLOSURE: Record<FamilyRole, { summary: string; shares: string[]; never: string }> = {
+/**
+ * The same for every role, and off until the person turns it on (server/utils/family-bible-books.ts).
+ * Stated at join so that adding your books later is a choice you were told about, not a surprise.
+ */
+export const FAMILY_BIBLE_CHOICE =
+  'Only if you choose: which books you’ve been in can join the family’s Bible — never chapters, and never who.';
+
+export const FAMILY_ROLE_DISCLOSURE: Record<
+  FamilyRole,
+  { summary: string; shares: string[]; never: string; ifYouChoose: string }
+> = {
   parent: {
     summary: 'You can invite people and see how each child’s study is going.',
     shares: ['Your study stays private. Other parents can’t see it.'],
     never: 'No one in the family can see your notes.',
+    ifYouChoose: FAMILY_BIBLE_CHOICE,
   },
   child: {
     summary: 'Your parents can see how your study is going, never what you write.',
@@ -59,11 +70,13 @@ export const FAMILY_ROLE_DISCLOSURE: Record<FamilyRole, { summary: string; share
       'How many notes you wrote',
     ],
     never: 'They can never see your notes, highlights, searches, or Review. You can ask to become an adult member, and you can leave the family any time.',
+    ifYouChoose: FAMILY_BIBLE_CHOICE,
   },
   adult: {
     summary: 'You share the Family Space and the family plan. Your study stays private.',
     shares: ['Nothing about your study is shown to anyone.'],
     never: 'No one in the family can see your notes.',
+    ifYouChoose: FAMILY_BIBLE_CHOICE,
   },
 };
 

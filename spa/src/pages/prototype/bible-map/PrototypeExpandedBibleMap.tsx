@@ -12,6 +12,10 @@
  * An expanded tool rather than a route, grown out of whatever opened it. Opened at a book
  * when the opener asks (`pending-bible-map-book.ts`): the reader's "14 of John's 21 chapters"
  * lands with the Gospels open and John's row marked.
+ *
+ * The same map is "Our Bible" when a space hub opens it (`markPendingBibleMapSpace`): a shared
+ * space's chapters, from what the room shared, or a Family Space's books — names only, so its
+ * rows carry no chapter strips, and each person adds their own books or not.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -21,15 +25,24 @@ import ProtoSidebarExpandedPanel from '../ProtoSidebarExpandedPanel';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
 import type { ExpandedSidebarToolProps } from '../PrototypeExpandedSidebarHost';
 import { useBibleCoverage } from '../../../hooks/queries/useBibleCoverage';
+import { useShareFamilyBibleBooks, useSpaceBibleCoverage } from '../../../hooks/queries/useSpaceBibleCoverage';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { bookSlug, orderedCanonBooks } from '@/utils/bible-book-chapters';
 import { CANON_BOOK_GROUPS, canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
 import { chaptersBeenIn, deepestLevel, levelsForBook } from '@/utils/bible-coverage';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
-import { consumePendingBibleMapBook } from '../../../lib/pending-bible-map-book';
+import { consumePendingBibleMapBook, consumePendingBibleMapSpace } from '../../../lib/pending-bible-map-book';
 import ProtoChapterStrip from './ProtoChapterStrip';
 import ProtoCanonShelf from './ProtoCanonShelf';
-import { COVERAGE_LEGEND, bookCountLabel, sectionCountLabel, shelfSummary } from './bible-map-copy';
+import {
+  COVERAGE_LEGEND,
+  EMPTY_MAP_LINE,
+  SPACE_COVERAGE_LEGEND,
+  bookCountLabel,
+  sectionCountLabel,
+  shelfSummary,
+  type MapVoice,
+} from './bible-map-copy';
 
 /**
  * "3/5", with the total quieter than the count. Spelled out only for a screen reader: the
@@ -56,9 +69,39 @@ function ProtoCountFraction({
   );
 }
 
+/** Add your books to the family's Bible, or take them back. Yours alone to decide. */
+function FamilyShareBar({ spaceId, youShare }: { spaceId: string; youShare: boolean }) {
+  const share = useShareFamilyBibleBooks(spaceId);
+  return (
+    <div className="proto-bible-map__share">
+      <p className="proto-bible-map__share-text">
+        {youShare
+          ? 'Your books are in it. Never chapters, and never who.'
+          : 'Add which books you’ve been in? Never chapters, and never who.'}
+      </p>
+      <button
+        type="button"
+        className={youShare ? 'proto-settings-btn proto-settings-btn--secondary' : 'proto-settings-btn'}
+        disabled={share.isPending}
+        onClick={() => share.mutate(!youShare)}
+      >
+        {youShare ? 'Take mine out' : 'Add my books'}
+      </button>
+    </div>
+  );
+}
+
 export default function PrototypeExpandedBibleMap({ exiting, origin, onClose }: ExpandedSidebarToolProps) {
-  const coverageQuery = useBibleCoverage();
-  const coverage = coverageQuery.data;
+  // Read once, at mount: which map this is. No space is My Bible.
+  const [spaceId] = useState(() => consumePendingBibleMapSpace());
+  const mineQuery = useBibleCoverage();
+  const ourQuery = useSpaceBibleCoverage(spaceId, !!spaceId);
+  const ours = ourQuery.data;
+  const coverage = spaceId ? ours?.coverage : mineQuery.data;
+  const voice: MapVoice = !spaceId ? 'you' : ours?.kind === 'family' ? 'family' : 'space';
+  /* The family's map is book names only: no chapter strips, no chapter counts, no key. */
+  const booksOnly = voice === 'family';
+  const title = spaceId ? 'Our Bible' : 'My Bible';
   const navigate = useNavigate();
   const { isMobileSidebar, closeDrawer, closeExpandedSidebar } = useProtoShell();
   const books = useMemo(() => orderedCanonBooks(), []);
@@ -103,12 +146,13 @@ export default function PrototypeExpandedBibleMap({ exiting, origin, onClose }: 
     });
   };
 
-  const summary = coverage ? shelfSummary(coverage.books) : null;
+  const summary = coverage ? shelfSummary(coverage.books, voice) : null;
+  const legend = voice === 'space' ? SPACE_COVERAGE_LEGEND : COVERAGE_LEGEND;
 
   return (
     <ProtoSidebarExpandedPanel
-      label="My Bible"
-      title="My Bible"
+      label={title}
+      title={title}
       exiting={exiting}
       origin={origin}
       centered
@@ -119,14 +163,14 @@ export default function PrototypeExpandedBibleMap({ exiting, origin, onClose }: 
       <div className="proto-planner">
         <div className="proto-planner__main proto-bible-map" ref={bodyRef}>
           {!coverage ? (
-            <ProtoSpaceLoading label="Loading your Bible" />
+            <ProtoSpaceLoading label={spaceId ? 'Loading' : 'Loading your Bible'} />
           ) : (
             <>
               {/* The Home card's shelf, grown: the same picture, so the map reads as that card
                   opened rather than as a new screen. */}
               <header className="proto-bible-map__header">
                 <p className="proto-bible-map__headline">
-                  {summary?.headline ?? 'Read a chapter, write a note or highlight a verse, and it shows here.'}
+                  {summary?.headline ?? EMPTY_MAP_LINE[voice]}
                   {summary?.detail ? <span className="proto-bible-map__detail"> {summary.detail}</span> : null}
                 </p>
                 <ProtoCanonShelf coverage={coverage} />
@@ -134,6 +178,7 @@ export default function PrototypeExpandedBibleMap({ exiting, origin, onClose }: 
                   <span>Genesis</span>
                   <span>Revelation</span>
                 </div>
+                {ours?.kind === 'family' && spaceId ? <FamilyShareBar spaceId={spaceId} youShare={ours.youShare} /> : null}
               </header>
 
               <ul className="proto-bible-map__sections">
@@ -182,19 +227,23 @@ export default function PrototypeExpandedBibleMap({ exiting, origin, onClose }: 
                               data-focus={book === initialBook ? 'true' : undefined}
                             >
                               <span className="proto-bible-map__book">{book}</span>
-                              <ProtoChapterStrip
-                                book={book}
-                                levels={levels}
-                                onSelectChapter={(chapter) => openChapter(book, chapter)}
-                              />
-                              {/* In the section counts' column, so every number on the page
-                                  lines up down one edge. */}
-                              <ProtoCountFraction
-                                className="proto-bible-map__count"
-                                value={chaptersBeenIn(levels)}
-                                total={levels.length}
-                                label={bookCountLabel(levels)}
-                              />
+                              {booksOnly ? null : (
+                                <>
+                                  <ProtoChapterStrip
+                                    book={book}
+                                    levels={levels}
+                                    onSelectChapter={(chapter) => openChapter(book, chapter)}
+                                  />
+                                  {/* In the section counts' column, so every number on the page
+                                      lines up down one edge. */}
+                                  <ProtoCountFraction
+                                    className="proto-bible-map__count"
+                                    value={chaptersBeenIn(levels)}
+                                    total={levels.length}
+                                    label={bookCountLabel(levels)}
+                                  />
+                                </>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -204,14 +253,16 @@ export default function PrototypeExpandedBibleMap({ exiting, origin, onClose }: 
                 })}
               </ul>
 
-              <ul className="proto-bible-map__legend" aria-label="Key">
-                {COVERAGE_LEGEND.map((item) => (
-                  <li key={item.level}>
-                    <span className="proto-bible-map__dot" data-level={item.level} aria-hidden="true" />
-                    {item.label}
-                  </li>
-                ))}
-              </ul>
+              {booksOnly ? null : (
+                <ul className="proto-bible-map__legend" aria-label="Key">
+                  {legend.map((item) => (
+                    <li key={item.level}>
+                      <span className="proto-bible-map__dot" data-level={item.level} aria-hidden="true" />
+                      {item.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </>
           )}
         </div>

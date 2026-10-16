@@ -157,6 +157,15 @@ describe('disclosure', () => {
     expect(child.never).toMatch(/never see your notes/i);
     expect(child.never).toMatch(/Review/);
   });
+
+  it('tells every role the family’s Bible is opt-in, books only, never who', () => {
+    for (const role of ['parent', 'child', 'adult'] as const) {
+      const line = FAMILY_ROLE_DISCLOSURE[role].ifYouChoose;
+      expect(line).toMatch(/only if you choose/i);
+      expect(line).toMatch(/never chapters/i);
+      expect(line).toMatch(/never who/i);
+    }
+  });
 });
 
 describe('asking to become an adult member', () => {
