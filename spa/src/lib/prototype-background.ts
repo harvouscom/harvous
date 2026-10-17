@@ -175,7 +175,9 @@ export function applyColorSchemePreference(pref: ColorSchemePreference): void {
  */
 export function syncThemeColorMeta(pref: ColorSchemePreference): void {
   document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"][media]').forEach((meta) => {
-    const slot = meta.media.includes('dark') ? 'dark' : 'light';
+    // The attribute, not `meta.media`: that reflection only exists from Chrome 93 / Safari 15,
+    // older than our build target, and there it is undefined and the layout's mount throws.
+    const slot = (meta.getAttribute('media') ?? '').includes('dark') ? 'dark' : 'light';
     meta.content = canvasDefaultHexForMode(pref === 'system' ? slot : pref);
   });
 }
