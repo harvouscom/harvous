@@ -112,9 +112,12 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
   useEffect(() => {
     if (isGuest) return;
     let cancelled = false;
-    void import('../../lib/push-reminders').then((mod) => {
-      if (!cancelled) setPushSupport(mod.getPushSupport());
-    });
+    void import('../../lib/push-reminders')
+      .then((mod) => {
+        if (!cancelled) setPushSupport(mod.getPushSupport());
+      })
+      // Chunk missing after a deploy — main.tsx owns that recovery; the row just stays hidden.
+      .catch(() => {});
     return () => {
       cancelled = true;
     };

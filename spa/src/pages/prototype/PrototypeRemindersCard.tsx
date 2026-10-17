@@ -39,9 +39,12 @@ export default function PrototypeRemindersCard() {
   // the card must never flash in for someone already subscribed.
   useEffect(() => {
     let cancelled = false;
-    void import('../../lib/push-reminders').then((mod) => {
-      if (!cancelled) setSupport(mod.getPushSupport());
-    });
+    void import('../../lib/push-reminders')
+      .then((mod) => {
+        if (!cancelled) setSupport(mod.getPushSupport());
+      })
+      // Chunk missing after a deploy — main.tsx owns that recovery; the card just stays hidden.
+      .catch(() => {});
     return () => {
       cancelled = true;
     };

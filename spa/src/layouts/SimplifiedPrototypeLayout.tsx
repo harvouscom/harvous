@@ -365,10 +365,13 @@ export default function SimplifiedPrototypeLayout() {
 
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      void import('../lib/push-reminders').then((mod) => {
-        mod.clearAppBadge();
-        void mod.syncPushSubscriptionIfGranted();
-      });
+      void import('../lib/push-reminders')
+        .then((mod) => {
+          mod.clearAppBadge();
+          void mod.syncPushSubscriptionIfGranted();
+        })
+        // A resumed tab from before a deploy fails this chunk; main.tsx owns that recovery.
+        .catch(() => {});
       stampActiveOnResume();
     };
 

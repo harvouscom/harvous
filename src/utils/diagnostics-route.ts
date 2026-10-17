@@ -103,6 +103,20 @@ export function isNoiseDiagnosticMessage(message: string): boolean {
 }
 
 /**
+ * A lazy chunk (JS or its CSS) that would not load — after a deploy, the previous build's
+ * hashed files. Each engine words it differently, and Vite's preload helper adds the CSS case.
+ */
+export function isChunkLoadFailureMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('failed to fetch dynamically imported module') || // Chromium
+    lower.includes('importing a module script failed') || // Safari
+    lower.includes('error loading dynamically imported module') || // Firefox
+    lower.includes('unable to preload css for') // Vite preload helper
+  );
+}
+
+/**
  * Browser-extension schemes. A script served from one of these is not ours and not
  * something a deploy can fix.
  */

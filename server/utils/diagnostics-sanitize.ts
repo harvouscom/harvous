@@ -26,6 +26,18 @@ const MAX_APP_VERSION = 40;
 const MAX_METADATA_JSON = 2000;
 const MAX_SCRIPT_FILENAME = 200;
 
+/** `describeRejectionReason` in src/utils/diagnostics-client.ts. */
+const REJECTION_KINDS = new Set([
+  'error',
+  'string',
+  'null',
+  'undefined',
+  'event',
+  'response',
+  'object',
+  'primitive',
+]);
+
 export type SanitizedDiagnosticInput = {
   source: DiagnosticSource;
   severity: DiagnosticSeverity;
@@ -102,6 +114,16 @@ function sanitizeMetadata(value: unknown): Record<string, unknown> | null {
   }
   if (typeof raw.staleBuild === 'boolean') {
     out.staleBuild = raw.staleBuild;
+  }
+  // "chrome 89" — an engine label and a major version, nothing finer.
+  if (typeof raw.browserMajor === 'string' && /^[a-z]{2,12} \d{1,4}$/.test(raw.browserMajor)) {
+    out.browserMajor = raw.browserMajor;
+  }
+  if (typeof raw.rejectionKind === 'string' && REJECTION_KINDS.has(raw.rejectionKind)) {
+    out.rejectionKind = raw.rejectionKind;
+  }
+  if (raw.chunkLoadAfterReload === true) {
+    out.chunkLoadAfterReload = true;
   }
   if (Object.keys(out).length === 0) return null;
   const json = JSON.stringify(out);
