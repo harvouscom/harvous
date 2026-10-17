@@ -43,6 +43,7 @@ import {
   readActiveBackground,
   readColorSchemePreference,
   shouldReducePrototypeCompositorOnMobile,
+  syncThemeColorMeta,
   writeBackgroundForMode,
   writeColorSchemePreference,
 } from '../prototype-background';
@@ -123,6 +124,28 @@ describe('prototype color scheme preference', () => {
     writeColorSchemePreference('system');
     expect(localStorage.getItem(PROTO_COLOR_SCHEME_KEY)).toBeNull();
     expect(document.documentElement.hasAttribute('data-color-scheme')).toBe(false);
+  });
+
+  it('syncThemeColorMeta keys on the media attribute when meta.media is missing (Chrome < 93)', () => {
+    const metas = (['light', 'dark'] as const).map((scheme) => {
+      const meta = document.createElement('meta');
+      meta.setAttribute('name', 'theme-color');
+      meta.setAttribute('media', `(prefers-color-scheme: ${scheme})`);
+      meta.setAttribute('content', '#000000');
+      Object.defineProperty(meta, 'media', { value: undefined });
+      document.head.appendChild(meta);
+      return meta;
+    });
+    try {
+      syncThemeColorMeta('dark');
+      const forced = metas.map((m) => m.getAttribute('content'));
+      expect(forced[0]).toBe(forced[1]);
+      syncThemeColorMeta('system');
+      expect(metas[0].getAttribute('content')).not.toBe(metas[1].getAttribute('content'));
+      expect(metas[1].getAttribute('content')).toBe(forced[1]);
+    } finally {
+      metas.forEach((m) => m.remove());
+    }
   });
 });
 
