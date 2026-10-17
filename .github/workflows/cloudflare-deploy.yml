@@ -106,6 +106,30 @@ jobs:
         # with "Invalid manifest: file size ... exceeds 5242880 limit [code: 10304]".
         run: cp cloudflare/_headers cloudflare/_redirects cloudflare/.assetsignore dist-spa/
 
+      # Keep the previous builds' hashed /assets/* in this upload. Workers assets serve only
+      # the version just deployed, so without this every old shell still open in a tab — or
+      # served stale-while-revalidate by public/sw.js — 404s on its next lazy import, which
+      # admin diagnostics files as "Failed to fetch dynamically imported module" / "Unable to
+      # preload CSS". The archive holds 14 days of hashed files; uploads dedupe by hash, so
+      # carrying them is cheap. See scripts/carry-forward-assets.mjs.
+      #
+      # Keyed per branch: staging and main inline different Clerk keys, so their chunks differ
+      # and must never mix. The exact key never hits (it names this commit); restore-keys
+      # picks the newest archive for the branch.
+      #
+      # Edge case: GitHub evicts caches unused for 7 days. After a deploy gap that long the
+      # restore misses and only this build's assets are live — exactly the behavior before
+      # this step existed, so the failure mode is the old normal, not a broken deploy.
+      - name: Restore the hashed-asset archive
+        uses: actions/cache/restore@v4
+        with:
+          path: .asset-archive
+          key: spa-assets-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: spa-assets-${{ github.ref_name }}-
+
+      - name: Carry forward earlier builds' hashed assets
+        run: node scripts/carry-forward-assets.mjs dist-spa/assets .asset-archive
+
       # Staging authenticates against a Clerk DEVELOPMENT instance, which serves clerk.js
       # from <slug>.clerk.accounts.dev. Production's CSP allows *.clerk.com and
       # clerk.harvous.com only, so the dev script is blocked and the app never boots.
@@ -165,6 +189,15 @@ jobs:
           if find dist-spa -type f -size +5242880c ! -name '*.map' | grep -q .; then
             echo "Asset over the 5 MiB Workers limit:" >&2
             find dist-spa -type f -size +5242880c ! -name '*.map' -exec ls -lh {} \; >&2
+            exit 1
+          fi
+          # Carried-forward assets grow the upload. Workers static assets cap the file count
+          # per version; 20,000 is the lowest published limit, so stay under it. A build is
+          # ~140 files, so tripping this means the prune in carry-forward-assets broke.
+          FILES=$(find dist-spa -type f ! -name '*.map' | wc -l)
+          echo "uploading $FILES files"
+          if [ "$FILES" -gt 20000 ]; then
+            echo "::error::$FILES files exceeds the 20,000-file Workers assets ceiling" >&2
             exit 1
           fi
 
@@ -296,3 +329,11 @@ jobs:
 
           rm -f served.html sw.js
           echo "$HOST serves $SERVED with a ${EXPECT} key, sw.js pinned to ${SHA8}"
+
+      # Saved only once the live host is verified, so a build that never really went live is
+      # not carried into the next deploy. Same path and key as the restore above.
+      - name: Save the hashed-asset archive
+        uses: actions/cache/save@v4
+        with:
+          path: .asset-archive
+          key: spa-assets-${{ github.ref_name }}-${{ github.sha }}
