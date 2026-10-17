@@ -95,3 +95,6 @@ docs/future/SCRIPTURE_CONCORDANCE.md
 
 # Wrangler local state (wrangler dev caches, local KV/DO/R2 simulation)
 .wrangler/
+
+# CI-only archive of earlier builds' hashed assets (scripts/carry-forward-assets.mjs)
+.asset-archive/
