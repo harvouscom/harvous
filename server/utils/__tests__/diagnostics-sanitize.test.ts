@@ -263,4 +263,24 @@ describe('sanitizeDiagnosticPayload', () => {
       ).toBeNull();
     }
   });
+
+  it('keeps browser version, rejection kind and the after-reload flag, and nothing loose', () => {
+    const kept = sanitizeDiagnosticPayload({
+      source: 'client_js',
+      message: 'Unhandled promise rejection (null)',
+      anonymousSessionId: 'sess-123',
+      platform: 'web',
+      metadata: { browserMajor: 'chrome 89', rejectionKind: 'null', chunkLoadAfterReload: true },
+    });
+    expect(kept?.metadata).toEqual({ browserMajor: 'chrome 89', rejectionKind: 'null', chunkLoadAfterReload: true });
+
+    const loose = sanitizeDiagnosticPayload({
+      source: 'client_js',
+      message: 'Unhandled promise rejection (null)',
+      anonymousSessionId: 'sess-123',
+      platform: 'web',
+      metadata: { browserMajor: 'Mozilla/5.0 (full UA)', rejectionKind: 'anything', chunkLoadAfterReload: 'yes' },
+    });
+    expect(loose?.metadata).toBeNull();
+  });
 });

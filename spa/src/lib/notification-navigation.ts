@@ -159,8 +159,19 @@ function goTo(path: string): void {
   }
   lastHandled = { path, at: now };
 
-  void import('../shims/app-navigate').then((mod) => mod.navigate(path));
-  void clearPendingNavigation();
+  /*
+   * Cleared only once the navigate shim has loaded. After a deploy that import can fail, and
+   * main.tsx's `vite:preloadError` handler then reloads the page — the parked destination
+   * (kept through that reload's cache sweep) is what lets the fresh page still land the tap.
+   */
+  void import('../shims/app-navigate')
+    .then((mod) => {
+      mod.navigate(path);
+      void clearPendingNavigation();
+    })
+    .catch(() => {
+      lastHandled = null;
+    });
 }
 
 /**

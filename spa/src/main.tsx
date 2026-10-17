@@ -3,7 +3,11 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { queryClient } from './lib/query-client';
 import { restorePersistedQueryCache } from '@/utils/query-cache-persistence';
-import { initDiagnosticCapture } from '@/utils/diagnostics-client';
+import {
+  initDiagnosticCapture,
+  markChunkReloadExhausted,
+  markChunkReloadInFlight,
+} from '@/utils/diagnostics-client';
 import { isGuestModeActive, startGuestSessionFromUrl } from './lib/guest-session';
 import { clearAppCachesThen, showPrototypeAppUpdateNotice } from '@/utils/prototype-app-update-notice';
 import { enforceProductionClerkKey } from '@/utils/production-clerk-key-guard';
@@ -17,27 +21,53 @@ import {
 // After a new deployment, old hashed JS chunk URLs no longer exist on the CDN.
 // Vite fires a "vite:preloadError" event when a dynamic import fails (404).
 // Without this handler the SPA goes blank. We reload once to pick up the
-// fresh index.html + new chunk URLs. A sessionStorage flag prevents
+// fresh index.html + new chunk URLs. A sessionStorage timestamp prevents
 // infinite reload loops in case the reload itself still fails.
+//
+// The timestamp expires: a tab that recovered from one deploy must be able to recover from
+// the next one hours later the same way, rather than going straight to the notice. Only a
+// failure within a minute of the last reload counts as the reload not having worked.
+const CHUNK_RELOAD_KEY = 'vite_preload_reload_attempted';
+const CHUNK_RELOAD_WINDOW_MS = 60_000;
+
+function chunkReloadRecentlyAttempted(): boolean {
+  const at = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY));
+  return Number.isFinite(at) && at > 0 && Date.now() - at < CHUNK_RELOAD_WINDOW_MS;
+}
+
+/*
+ * Only the first failure on a page decides anything. A resumed tab often fails several chunks
+ * at once (the Oct 11 report: a callout's CSS and push-reminders in the same second); the rest
+ * are the same failure, not the reload having failed. Without this, the second failure on a
+ * page that had already given up re-entered the reload branch, and two missing chunks
+ * reloaded forever.
+ */
+let chunkFailureHandled = false;
+
 window.addEventListener('vite:preloadError', () => {
-  const KEY = 'vite_preload_reload_attempted';
+  if (chunkFailureHandled) return;
+  chunkFailureHandled = true;
+  const recentlyAttempted = chunkReloadRecentlyAttempted();
   // Report chunk load failure for correlation with Netlify 404s and deploys
   try {
     if (typeof (window as any).posthog?.capture === 'function') {
       (window as any).posthog.capture('chunk_load_failed', {
-        reload_attempted: !!sessionStorage.getItem(KEY),
+        reload_attempted: recentlyAttempted,
       });
     }
   } catch (_) {}
 
-  if (!sessionStorage.getItem(KEY)) {
-    sessionStorage.setItem(KEY, '1');
+  if (!recentlyAttempted) {
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
+    // Before the rethrow reaches the diagnostics listeners: this failure is being recovered.
+    markChunkReloadInFlight();
     // Clear Cache Storage first — the SW serves `/` stale-while-revalidate, so a bare
     // reload just gets the same stale index.html and fails again.
     clearAppCachesThen(() => window.location.reload());
   } else {
-    // Second failure — show recovery UI rather than staying blank
-    sessionStorage.removeItem(KEY);
+    // Second failure — show recovery UI rather than staying blank. The key stays: it expires
+    // by itself, and the notice's Reload clears it (reloadPrototypeAfterUpdate).
+    markChunkReloadExhausted();
     const isPrototypeRoute = document.documentElement.classList.contains('harvous-prototype-route');
     if (isPrototypeRoute) {
       if (typeof window.__harvousShowAppUpdateNotice === 'function') {

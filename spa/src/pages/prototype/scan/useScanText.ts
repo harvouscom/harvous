@@ -102,7 +102,12 @@ export function useScanText(file: File | null, preferredTranslation: string): Sc
     return () => {
       jobRef.current += 1;
       // Closed mid-read: stop the engine rather than let it finish a page nobody will see.
-      if (!finished) void import('@/utils/ocr/recognize-image-text').then((ocr) => ocr.terminateOcr());
+      if (!finished) {
+        void import('@/utils/ocr/recognize-image-text')
+          .then((ocr) => ocr.terminateOcr())
+          // Nothing to stop if the engine's chunk never loaded.
+          .catch(() => {});
+      }
     };
   }, [file, preferredTranslation]);
 

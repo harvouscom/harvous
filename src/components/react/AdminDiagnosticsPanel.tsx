@@ -43,6 +43,26 @@ function scriptOrigin(metadata: string | null): string | null {
   }
 }
 
+/**
+ * What was running when it threw: app version, browser engine and version, and the flags the
+ * client sets. An old engine or a stale bundle explains a crash before the stack does.
+ */
+function sampleContext(appVersion: string | null, metadata: string | null): string | null {
+  const parts: string[] = [];
+  if (appVersion) parts.push(`v${appVersion}`);
+  try {
+    const parsed = metadata ? (JSON.parse(metadata) as Record<string, unknown>) : {};
+    if (typeof parsed.browserMajor === 'string') parts.push(parsed.browserMajor);
+    else if (typeof parsed.userAgentFamily === 'string') parts.push(parsed.userAgentFamily);
+    if (parsed.staleBuild === true) parts.push('stale build');
+    if (parsed.chunkLoadAfterReload === true) parts.push('failed after reload');
+    if (typeof parsed.rejectionKind === 'string') parts.push(`rejected with ${parsed.rejectionKind}`);
+  } catch {
+    /* context is a nicety; the stack still renders */
+  }
+  return parts.length ? parts.join(' · ') : null;
+}
+
 function IssueRow({ issue }: { issue: DiagnosticIssueSummary }) {
   const [expanded, setExpanded] = useState(false);
   const events = useAdminDiagnosticIssueEvents(expanded ? issue.issueSignature : null);
@@ -126,6 +146,9 @@ function IssueRow({ issue }: { issue: DiagnosticIssueSummary }) {
                 <span>{formatWhen(ev.createdAt)}</span>
               </div>
               {ev.route ? <div className="admin-diagnostics__sample-route">{ev.route}</div> : null}
+              {sampleContext(ev.appVersion, ev.metadata) ? (
+                <div className="admin-diagnostics__sample-route">{sampleContext(ev.appVersion, ev.metadata)}</div>
+              ) : null}
               {scriptOrigin(ev.metadata) ? (
                 <div className="admin-diagnostics__sample-route">{scriptOrigin(ev.metadata)}</div>
               ) : null}

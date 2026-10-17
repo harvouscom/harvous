@@ -5,9 +5,11 @@ import type {
   DiagnosticSourceEnv,
 } from '@/utils/diagnostic-sources';
 import {
+  isChunkLoadFailureMessage,
   isExtensionOriginated,
   isNoiseDiagnosticMessage,
   redactDiagnosticRoute,
+  scrubDiagnosticText,
 } from '@/utils/diagnostics-route';
 
 const SESSION_STORAGE_KEY = 'harvous_diag_session';
@@ -86,9 +88,34 @@ function buildClientErrorMetadata(message: string): Record<string, unknown> | nu
   };
 }
 
+/**
+ * Where the `vite:preloadError` handler in spa/src/main.tsx has got to.
+ *
+ * Vite dispatches that event synchronously and only then rethrows, so by the time the same
+ * failure reaches the `unhandledrejection` listener or a route boundary, this already says
+ * whether a reload is on its way. A chunk failure during `reloading` is being recovered, not a
+ * bug — each one used to land in the admin list as well as reloading the page. One during
+ * `exhausted` means the reload did not fix it, which is worth an issue.
+ */
+let chunkRecovery: 'idle' | 'reloading' | 'exhausted' = 'idle';
+
+export function markChunkReloadInFlight(): void {
+  chunkRecovery = 'reloading';
+}
+
+export function markChunkReloadExhausted(): void {
+  chunkRecovery = 'exhausted';
+}
+
+function chunkRecoveryMetadata(message: string): Record<string, unknown> | null {
+  if (chunkRecovery !== 'exhausted' || !isChunkLoadFailureMessage(message)) return null;
+  return { chunkLoadAfterReload: true };
+}
+
 function shouldIgnoreError(error: Error | string): boolean {
   const message = typeof error === 'string' ? error : error.message ?? '';
   if (isNoiseDiagnosticMessage(message)) return true;
+  if (chunkRecovery === 'reloading' && isChunkLoadFailureMessage(message)) return true;
   if (isThirdPartyChunkFailure(message)) return true;
   return isBenignErrorMessage(message);
 }
@@ -173,6 +200,36 @@ function userAgentFamily(): string {
   return 'other';
 }
 
+/**
+ * Engine and major version, e.g. `chrome 89`. `userAgentFamily` lumps every Chromium together,
+ * and the one thing it cannot answer is whether a crash came from an engine too old to run
+ * the bundle properly — "Cannot read property 'includes' of undefined" is pre-Chrome-91
+ * wording, and nothing else in the stored event said so.
+ */
+const BROWSER_VERSION_PATTERNS: Array<[string, RegExp]> = [
+  ['edge', /\bEdg(?:e|A|iOS)?\/(\d+)/],
+  ['samsung', /\bSamsungBrowser\/(\d+)/],
+  ['firefox', /\b(?:Firefox|FxiOS)\/(\d+)/],
+  ['chrome', /\b(?:Chrome|CriOS)\/(\d+)/],
+  ['safari', /\bVersion\/(\d+)[^ ]* (?:Mobile\/\S+ )?Safari\//],
+];
+
+export function browserMajorFromUserAgent(ua: string): string | null {
+  for (const [name, re] of BROWSER_VERSION_PATTERNS) {
+    const match = re.exec(ua);
+    if (!match) continue;
+    // Android WebView reports Chrome/NN plus `; wv)` — an in-app browser, not Chrome.
+    const label = name === 'chrome' && /; wv\)/.test(ua) ? 'webview' : name;
+    return `${label} ${match[1]}`;
+  }
+  return null;
+}
+
+function browserMajor(): string | null {
+  if (typeof navigator === 'undefined') return null;
+  return browserMajorFromUserAgent(navigator.userAgent);
+}
+
 function rememberError(message: string, stack: string | null) {
   lastCapturedError = {
     message,
@@ -208,6 +265,7 @@ export function reportDiagnosticEvent(payload: DiagnosticReportPayload): void {
     metadata: {
       ...(payload.metadata ?? {}),
       userAgentFamily: userAgentFamily(),
+      browserMajor: browserMajor(),
     },
   };
 
@@ -244,6 +302,7 @@ export function reportClientError(
     stack,
     metadata: {
       ...(buildClientErrorMetadata(message) ?? {}),
+      ...(chunkRecoveryMetadata(message) ?? {}),
       ...(metadata ?? {}),
     },
   });
@@ -301,7 +360,7 @@ export function reportRouteBoundaryError(
     source: 'client_js',
     message,
     stack,
-    metadata: { routeErrorBoundary: true, ...(metadata ?? {}) },
+    metadata: { routeErrorBoundary: true, ...(chunkRecoveryMetadata(message) ?? {}), ...(metadata ?? {}) },
   });
 
   void import('@/utils/posthog')
@@ -311,6 +370,110 @@ export function reportRouteBoundaryError(
     .catch(() => {
       /* ignore */
     });
+}
+
+const REJECTION_PREFIX = 'Unhandled promise rejection';
+
+export type RejectionDescription = {
+  message: string;
+  stack: string | null;
+  kind: 'error' | 'string' | 'null' | 'undefined' | 'event' | 'response' | 'object' | 'primitive';
+  /** Where an `Event` reason's target was loading from, for the admin panel's script line. */
+  targetSrc?: string | null;
+};
+
+function shortLabel(value: unknown): string {
+  return scrubDiagnosticText(String(value)).slice(0, 40);
+}
+
+function pathOf(url: string): string {
+  try {
+    const base = typeof window !== 'undefined' ? window.location.href : 'https://app.harvous.com/';
+    const parsed = new URL(url, base);
+    const sameOrigin = typeof window !== 'undefined' && parsed.origin === window.location.origin;
+    const path = redactDiagnosticRoute(parsed.pathname);
+    return sameOrigin ? path : `${parsed.origin}${path}`;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Turn whatever a promise was rejected with into something the admin list can tell apart.
+ *
+ * The listener used to report every non-Error, non-string reason as the same bare
+ * "Unhandled promise rejection", with a stack that was its own `new Error()` — one frame,
+ * pointing at this file. That row could never be attributed. The reason itself almost always
+ * says what it was: an `Event` from an element that failed to load, a `Response` someone
+ * threw, a null from an aborted IndexedDB transaction, a plain `{ code, message }` object.
+ *
+ * Error-likes are recognised by shape, not `instanceof Error`: an error from another realm
+ * (an iframe — Clerk runs some) fails `instanceof` while being an ordinary error.
+ */
+export function describeRejectionReason(reason: unknown): RejectionDescription {
+  if (typeof reason === 'string') return { message: reason, stack: null, kind: 'string' };
+  if (reason === null) return { message: `${REJECTION_PREFIX} (null)`, stack: null, kind: 'null' };
+  if (reason === undefined) {
+    return { message: `${REJECTION_PREFIX} (undefined)`, stack: null, kind: 'undefined' };
+  }
+  if (typeof reason !== 'object' && typeof reason !== 'function') {
+    return {
+      message: `${REJECTION_PREFIX} (${typeof reason} ${shortLabel(reason)})`,
+      stack: null,
+      kind: 'primitive',
+    };
+  }
+
+  const obj = reason as Record<string, unknown>;
+  if (typeof obj.message === 'string') {
+    const name = typeof obj.name === 'string' && obj.name ? obj.name : 'Error';
+    return {
+      message: obj.message || `${REJECTION_PREFIX} (${shortLabel(name)} with no message)`,
+      stack: typeof obj.stack === 'string' && obj.stack ? obj.stack : null,
+      kind: 'error',
+    };
+  }
+
+  if (typeof Event !== 'undefined' && reason instanceof Event) {
+    const target = reason.target as (EventTarget & { tagName?: unknown; src?: unknown; href?: unknown }) | null;
+    const tag = target && typeof target.tagName === 'string' ? target.tagName : null;
+    const rawSrc =
+      target && typeof target.src === 'string' && target.src
+        ? target.src
+        : target && typeof target.href === 'string'
+          ? target.href
+          : null;
+    return {
+      message: `${REJECTION_PREFIX} (Event ${shortLabel(reason.type)}${tag ? ` on ${tag}` : ''})`,
+      stack: null,
+      kind: 'event',
+      targetSrc: rawSrc ? pathOf(rawSrc) || null : null,
+    };
+  }
+
+  if (typeof obj.status === 'number' && typeof obj.url === 'string') {
+    const path = obj.url ? pathOf(obj.url) : '';
+    return {
+      message: `${REJECTION_PREFIX} (Response ${obj.status}${path ? ` ${path}` : ''})`,
+      stack: null,
+      kind: 'response',
+    };
+  }
+
+  const ctor = (reason as { constructor?: { name?: unknown } }).constructor?.name;
+  const typeName = typeof ctor === 'string' && ctor && ctor !== 'Object' ? ctor : 'Object';
+  const code =
+    typeof obj.code === 'string' || typeof obj.code === 'number'
+      ? ` ${shortLabel(obj.code)}`
+      : typeof obj.name === 'string' && obj.name
+        ? ` ${shortLabel(obj.name)}`
+        : '';
+  const keys = Object.keys(obj).sort().slice(0, 5);
+  return {
+    message: `${REJECTION_PREFIX} (${typeName}${code}: ${keys.length ? keys.join(', ') : 'no keys'})`,
+    stack: null,
+    kind: 'object',
+  };
 }
 
 export function initDiagnosticCapture(): void {
@@ -329,15 +492,17 @@ export function initDiagnosticCapture(): void {
   });
 
   window.addEventListener('unhandledrejection', (event) => {
-    const reason = event.reason;
-    if (reason instanceof Error) {
-      reportClientError(reason, 'client_js');
+    const described = describeRejectionReason(event.reason);
+    if (described.kind === 'string') {
+      reportClientError(described.message, 'client_js', { rejectionKind: described.kind });
       return;
     }
-    if (typeof reason === 'string') {
-      reportClientError(reason, 'client_js');
-      return;
-    }
-    reportClientError(new Error('Unhandled promise rejection'), 'client_js');
+    // No synthetic stack: a `new Error()` made here records this listener, not the rejection.
+    const err = new Error(described.message);
+    err.stack = described.stack ?? undefined;
+    reportClientError(err, 'client_js', {
+      rejectionKind: described.kind,
+      ...(described.targetSrc ? { scriptFilename: described.targetSrc } : {}),
+    });
   });
 }

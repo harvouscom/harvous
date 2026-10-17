@@ -310,7 +310,9 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   // Lock note never waits on the network after the click.
   useEffect(() => {
     if (!canLockNote) return;
-    const load = () => void import('./PrototypePinSheet');
+    // Best-effort, like prefetch-note-page-chunk.ts: a miss right after a deploy is expected,
+    // and the real open reports through the router while main.tsx owns recovery.
+    const load = () => void import('./PrototypePinSheet').catch(() => {});
     const idle = (window as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
     if (idle) idle(load);
     else window.setTimeout(load, 1500);

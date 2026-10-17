@@ -1,11 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('diagnostics-client', () => {
+  // Every test imports a fresh module, and each one's capture listeners would otherwise stay
+  // on the one shared window and report again in every later test.
+  const added: Array<[string, EventListenerOrEventListenerObject]> = [];
+
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    const original = window.addEventListener.bind(window);
+    vi.spyOn(window, 'addEventListener').mockImplementation(((
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) => {
+      added.push([type, listener]);
+      original(type, listener, options);
+    }) as typeof window.addEventListener);
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
+    for (const [type, listener] of added.splice(0)) window.removeEventListener(type, listener);
     vi.unstubAllGlobals();
     vi.resetModules();
   });
@@ -155,5 +170,122 @@ describe('diagnostics-client', () => {
     reportClientError("'text/html' is not a valid JavaScript MIME type.");
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  describe('chunk recovery', () => {
+    const chunkFailure =
+      'Failed to fetch dynamically imported module: https://app.harvous.com/assets/PrototypePinSheet-BMsZRtqG.js';
+
+    it('drops chunk failures while the preloadError reload is on its way', async () => {
+      const fetchMock = vi.mocked(fetch);
+      const { markChunkReloadInFlight, reportClientError, reportRouteBoundaryError } = await import(
+        '../diagnostics-client'
+      );
+
+      markChunkReloadInFlight();
+      reportClientError(chunkFailure);
+      reportClientError('Unable to preload CSS for /assets/scan-offer-RP-LgaTI.css');
+      reportRouteBoundaryError(new TypeError('Importing a module script failed.'));
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('still reports other errors during the reload', async () => {
+      const fetchMock = vi.mocked(fetch);
+      const { markChunkReloadInFlight, reportClientError } = await import('../diagnostics-client');
+
+      markChunkReloadInFlight();
+      reportClientError(new TypeError("Cannot read properties of undefined (reading 'includes')"));
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('tags a chunk failure that survived the reload', async () => {
+      const fetchMock = vi.mocked(fetch);
+      const { markChunkReloadExhausted, reportClientError } = await import('../diagnostics-client');
+
+      markChunkReloadExhausted();
+      reportClientError(chunkFailure);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+      expect(body.metadata.chunkLoadAfterReload).toBe(true);
+    });
+  });
+
+  describe('unhandled rejections', () => {
+    async function rejectWith(reason: unknown) {
+      const fetchMock = vi.mocked(fetch);
+      const { initDiagnosticCapture } = await import('../diagnostics-client');
+      initDiagnosticCapture();
+      const event = new Event('unhandledrejection') as Event & { reason: unknown };
+      event.reason = reason;
+      window.dispatchEvent(event);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      return JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    }
+
+    it('names a null reason and sends no stack of its own', async () => {
+      const body = await rejectWith(null);
+      expect(body.message).toBe('Unhandled promise rejection (null)');
+      expect(body.stack).toBeNull();
+      expect(body.metadata.rejectionKind).toBe('null');
+    });
+
+    it('describes a plain object by its code and keys', async () => {
+      const body = await rejectWith({ code: 'PGRST116', message: undefined, details: 'x' });
+      expect(body.message).toBe('Unhandled promise rejection (Object PGRST116: code, details, message)');
+      expect(body.metadata.rejectionKind).toBe('object');
+    });
+
+    it('describes an Event by its type and target element', async () => {
+      const script = document.createElement('script');
+      script.src = '/assets/push-reminders-CDHqDcoN.js';
+      const event = new Event('error');
+      script.dispatchEvent(event);
+      const body = await rejectWith(event);
+      expect(body.message).toBe('Unhandled promise rejection (Event error on SCRIPT)');
+      expect(body.metadata.scriptFilename).toBe('/assets/push-reminders-CDHqDcoN.js');
+    });
+
+    it('describes a thrown Response by status and path', async () => {
+      const body = await rejectWith({ status: 503, url: `${window.location.origin}/api/notes/note_abc`, ok: false });
+      expect(body.message).toBe('Unhandled promise rejection (Response 503 /api/notes/:id)');
+    });
+
+    it('reports an error-like from another realm with its own message and stack', async () => {
+      const foreign = { name: 'TypeError', message: 'Load failed', stack: 'TypeError: Load failed\n    at x (clerk.js:1:1)' };
+      const body = await rejectWith(foreign);
+      expect(body.message).toBe('Load failed');
+      expect(body.stack).toContain('clerk.js');
+      expect(body.metadata.rejectionKind).toBe('error');
+    });
+  });
+
+  it('labels the browser engine and major version', async () => {
+    const { browserMajorFromUserAgent } = await import('../diagnostics-client');
+    expect(
+      browserMajorFromUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36',
+      ),
+    ).toBe('chrome 89');
+    expect(
+      browserMajorFromUserAgent(
+        'Mozilla/5.0 (Linux; Android 9; SM-G960F; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/86.0.4240.99 Mobile Safari/537.36',
+      ),
+    ).toBe('webview 86');
+    expect(
+      browserMajorFromUserAgent(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+      ),
+    ).toBe('safari 17');
+    expect(
+      browserMajorFromUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
+      ),
+    ).toBe('edge 130');
+    expect(
+      browserMajorFromUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 14.4; rv:131.0) Gecko/20100101 Firefox/131.0'),
+    ).toBe('firefox 131');
   });
 });

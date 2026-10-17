@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isExtensionOriginated } from '../diagnostics-route';
+import { isChunkLoadFailureMessage, isExtensionOriginated } from '../diagnostics-route';
 
 /**
  * Four of the eight issues open in the admin panel on 2026-09-11 were browser extensions
@@ -55,5 +55,25 @@ describe('isExtensionOriginated', () => {
     expect(isExtensionOriginated(null, null)).toBe(false);
     expect(isExtensionOriginated('', '')).toBe(false);
     expect(isExtensionOriginated(undefined, undefined)).toBe(false);
+  });
+});
+
+describe('isChunkLoadFailureMessage', () => {
+  it('matches each engine’s wording of a missing lazy chunk', () => {
+    expect(
+      isChunkLoadFailureMessage(
+        'Failed to fetch dynamically imported module: https://app.harvous.com/assets/PrototypePinSheet-BMsZRtqG.js',
+      ),
+    ).toBe(true);
+    expect(isChunkLoadFailureMessage('Importing a module script failed.')).toBe(true);
+    expect(
+      isChunkLoadFailureMessage('error loading dynamically imported module: https://app.harvous.com/assets/x-AbCdEfGh.js'),
+    ).toBe(true);
+    expect(isChunkLoadFailureMessage('Unable to preload CSS for /assets/scan-offer-RP-LgaTI.css')).toBe(true);
+  });
+
+  it('does not match ordinary errors', () => {
+    expect(isChunkLoadFailureMessage("Cannot read property 'includes' of undefined")).toBe(false);
+    expect(isChunkLoadFailureMessage('Failed to fetch')).toBe(false);
   });
 });
