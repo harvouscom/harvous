@@ -6,6 +6,7 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import Icon from '@/components/react/Icon';
+import '../../styles/public-shared-thread.css';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api } from '../../lib/api';
 import { useAddSharedThread } from '../../hooks/mutations/useAddSharedThread';

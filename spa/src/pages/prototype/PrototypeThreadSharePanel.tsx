@@ -19,6 +19,7 @@ import { APIError } from '../../lib/api';
 import { useShareStudyThread } from '../../hooks/mutations/useShareStudyThread';
 import { useStudyThreadShare } from '../../hooks/queries/useStudyThreadShare';
 import { ShareWithOthersForm } from './PrototypeShareWithOthersSheet';
+import '../../styles/prototype-thread-share.css';
 
 /**
  * The public URL, built on this page's origin from the token — the server's `shareUrl` carries the
