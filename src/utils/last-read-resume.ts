@@ -13,7 +13,8 @@ export type LastActivityRead = {
  *
  * The continue-reading card can still offer the next unread chapter. Opening the reader
  * from Home is not that card: it is returning to the surface, and the surface should be
- * where it was left — same book, chapter, verse, and translation.
+ * where it was left — same book, chapter and verse. The translation is carried in the
+ * destination but not navigated with: the reader opens in My Bible (see `useShellModeNav`).
  */
 export function destinationFromLastActivity(
   lastRead: LastActivityRead,

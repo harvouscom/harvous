@@ -211,10 +211,6 @@ export default function PrototypeStudyFeedPage() {
    * Home's whole derivation, the same one the sidebar shows — greeting trend, all three
    * Continue slots, and the full recall deck rather than the four kinds this surface could
    * previously re-derive on its own.
-   *
-   * Two destinations are null, and the hook reads that and withholds the cards that would
-   * land nowhere: reviewing a proposed grouping and prefilling a new Thread both need sheets
-   * that still live inside `PrototypeSidebar`. They turn on when those come out.
    */
   const home = useHomeSurfaceData({
     homeSpaceId: homeSpaceId ?? '',
@@ -229,16 +225,30 @@ export default function PrototypeStudyFeedPage() {
     onOpenNote: openNoteRow,
     onOpenHighlight: openHighlightRow,
     destinations: {
-      /* The review is the shell's now, not the sidebar's, so a grouping proposed here has
-         somewhere to land — it renders above the day. */
+      /* The review is the shell's, so a grouping proposed here has somewhere to land — a
+         dialog over the day, or a drawer on a phone (see the review below). */
       proposeThread: setSidebarThreadProposal,
-      /* And the create-Thread sheet is the host's, so the connect-suggestion card — the
-         thirteenth kind, withheld while this was null — can finally be offered here. */
+      /* And the create-Thread sheet is the host's: the connect-suggestion card opens it, and
+         so does any Thread suggestion with too few notes to review as a proposal. */
       createThread: organize?.openCreateThread ?? null,
       openThread: (threadId?: string) =>
         threadId ? libraryNav.openThread(threadId) : libraryNav.openList('threads'),
     },
   });
+
+  /*
+   * The proposal is shell state, so it would outlive this page: leave with one up and it came
+   * back as a dialog the next time Activity opened, long after the card that raised it.
+   */
+  useEffect(() => () => setSidebarThreadProposal(undefined), [setSidebarThreadProposal]);
+  /* Opening one of its notes answers the dialog too — the note is where you went. */
+  const openProposalNote = useCallback(
+    (row: SpaceNoteRow) => {
+      setSidebarThreadProposal(undefined);
+      openNoteRow(row);
+    },
+    [setSidebarThreadProposal, openNoteRow],
+  );
 
   /* A proposal carries ids and titles; the day sheet already has the rows they name. */
   const notesById = useMemo(
@@ -640,7 +650,7 @@ export default function PrototypeStudyFeedPage() {
    * library. A reference that will not parse simply does not navigate rather than guessing.
    */
   const openRevisited = (label: string) => {
-    const route = readerRouteForReference(label, 'NET');
+    const route = readerRouteForReference(label);
     if (route) void navigate(landAgain(route));
     else openLibraryPanel({ tab: 'notes', drill: null });
   };
@@ -955,15 +965,17 @@ export default function PrototypeStudyFeedPage() {
               ? createPortal(<PrototypeFeedComposePrompt prompts={composePrompts} />, composeDockHostEl)
               : null}
 
-            {/* Above everything when it is up: it is a question waiting on an answer, and
-                the day's record can wait behind it. */}
+            {/* Over everything when it is up: it is a question waiting on an answer. Raised as
+                a dialog (a drawer on a phone) rather than inline at the top of the sheet, where
+                it landed above wherever the reader was scrolled and the card they had just
+                pressed seemed to do nothing. */}
             <PrototypeThreadProposalReview
-              variant="inline"
+              variant="sheet"
               homeSpaceId={homeSpaceId}
               canCreate
               resolveNoteRow={resolveProposalRow}
               prefetchNote={prefetchNoteRow}
-              onOpenNote={openNoteRow}
+              onOpenNote={openProposalNote}
               onDismiss={() => setSidebarThreadProposal(undefined)}
               onCreated={(repNoteId) => {
                 setSidebarThreadProposal(undefined);

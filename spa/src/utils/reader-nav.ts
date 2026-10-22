@@ -18,14 +18,22 @@ import {
  *
  * Returns null when the reference does not parse — callers should no-op rather than navigate
  * to a malformed route.
+ *
+ * **Leave `translation` out unless the passage has one of its own.** No `t` means the reader
+ * opens in My Bible — the account default, followed live — and that is what almost every
+ * internal door wants. `?t=` pins a version, which is right for a shared link (it reads in
+ * what it was shared in), a pill set to a translation, or a highlight made in one. It is wrong
+ * for "open the reader here": Home, Continue reading and Today's passage each passed the
+ * default along explicitly, and a cold cache or a stale reading position turned that into a
+ * pinned NET that the My Bible setting could not override.
  */
 export function readerRouteForReference(
   reference: string,
-  translation: string,
+  translation?: string | null,
 ): {
   to: ReturnType<typeof prototypeReadRouteTo>;
   params: { book: string; chapter: string };
-  search: { v: string | undefined; vEnd: string | undefined; t: string };
+  search: { v: string | undefined; vEnd: string | undefined; t: string | undefined };
 } | null {
   const parsed = parseScriptureReference(reference);
   if (!parsed?.book || !parsed.chapter) return null;
@@ -38,7 +46,7 @@ export function readerRouteForReference(
     search: {
       v: namesAVerse && verseStart ? String(verseStart) : undefined,
       vEnd: namesAVerse && verseEnd && verseEnd !== verseStart ? String(verseEnd) : undefined,
-      t: translation,
+      t: translation || undefined,
     },
   };
 }
@@ -57,7 +65,7 @@ export function sanitizeReadSearch(search: ReadRouteSearch): ReadRouteSearch {
   if (!rawRef) return search;
   const parsed = parseScriptureReference(rawRef);
   if (!parsed) return search;
-  const route = readerRouteForReference(rawRef, search.t || 'NET');
+  const route = readerRouteForReference(rawRef, search.t);
   return {
     ...search,
     v: search.v || route?.search.v,

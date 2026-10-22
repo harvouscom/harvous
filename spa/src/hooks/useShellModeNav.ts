@@ -111,7 +111,10 @@ export function useShellModeNav(): ShellModeNav {
 
   /* Resolved, not read off the current value: early in a session the reading position has not
      loaded yet, and jumping then opened today's passage and overwrote where reading stopped.
-     See `useSmartJumpDestination`. */
+     See `useSmartJumpDestination`.
+
+     The position's translation is deliberately not carried: no `t` opens the reader in My
+     Bible, so changing it in Settings is followed here too. See `readerRouteForReference`. */
   const resolveSmartJump = smartJump.resolve;
   const openReader = useCallback(() => {
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
@@ -121,7 +124,6 @@ export function useShellModeNav(): ShellModeNav {
         params: { book: bookSlug(destination.book), chapter: String(destination.chapter) },
         search: {
           v: destination.verse ? String(destination.verse) : undefined,
-          t: destination.translation || undefined,
         },
       }),
     );

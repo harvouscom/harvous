@@ -654,7 +654,8 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
       {
         to: prototypeReadRouteTo(),
         params: { book: bookSlug(book), chapter: String(chapter) },
-        search: { v: undefined, t: translation || undefined },
+        // Only a version the address pinned — an unpinned chapter returns unpinned, to My Bible.
+        search: { v: undefined, t: t || undefined },
       },
     );
   }, [paperStack, pathname, retargetStackOrigin]);
