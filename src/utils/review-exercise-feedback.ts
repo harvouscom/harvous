@@ -3,9 +3,12 @@
  *
  * Review's three answers describe a memory — "I recalled it", "I almost had it". None of them
  * says anything about the *question*, so a rung that keeps landing badly had no way to be
- * reported except out loud. This is that channel: a thumbs-down means "fewer questions like
- * this", counted per exercise family, because the family is the unit the reader already has a
- * name for and the unit the settings page already offers.
+ * reported except out loud. This is that channel, and a thumbs-down says two things at two sizes:
+ *
+ * - **Not this, here.** The rung is walked past on that note or passage from the next time it is
+ *   asked, for good — `dislikedRungsBySubject`. One vote is enough to say that much.
+ * - **Fewer like this.** Counted per exercise family, over three separate items, because the
+ *   family is the unit the reader already has a name for and the unit the settings page offers.
  *
  * **A dislike is a reason to walk past a member, never a reason to return nothing.** The set
  * this module derives joins the reader's own "Less" in `material.skip`, so it enters the
@@ -156,7 +159,7 @@ export function mayOfferExerciseSetting(id: ReviewExerciseFamilyId): boolean {
  * What one vote means, given the log as it stands *after* the vote is written.
  *
  * `offerSettings` is true only on the vote that reaches the threshold exactly — a fourth and a
- * fifth dislike say "Noted." like the rest, because an offer repeated is a nag.
+ * fifth dislike get the plain acknowledgement like the rest, because an offer repeated is a nag.
  *
  * **A vote with no rung names no family.** An item that has never been answered has no
  * `lastRungKey`, and `reviewExerciseFamilyId` would helpfully fall back to `opening` — but the
@@ -179,4 +182,90 @@ export function describeDislike(
   const items = dislikedItemsByFamily(rowsIncludingThisVote).get(family);
   const reachedNow = items?.size === REVIEW_DISLIKE_THRESHOLD;
   return { family, offerSettings: Boolean(reachedNow) && mayOfferExerciseSetting(family) };
+}
+
+/**
+ * One `disliked` row with what its item asks about: the note, or the passage.
+ *
+ * Joined from `ReviewItems` at read time rather than carried on the event, because the material a
+ * rung is resolved from is loaded by note and by passage — never by review item — and that is the
+ * door every rung walk, the list's, the reveal's and the grader's alike, comes in by.
+ */
+export interface ReviewDislikeSubjectRow extends ReviewDislikeRow {
+  noteId: string | null;
+  scriptureReference: string | null;
+}
+
+/** The material a note is asked from is loaded by its id. */
+export function noteDislikeSubjectKey(noteId: string): string {
+  return `note:${noteId}`;
+}
+
+/** A verse or chapter is loaded by its reference, as the item stores it. */
+export function passageDislikeSubjectKey(reference: string): string {
+  return `passage:${reference.trim().toLowerCase()}`;
+}
+
+/**
+ * The exercises the reader thumbed down on each note and passage — per item, and for good.
+ *
+ * The family tally above asks three items before it leans away, because one thumbs-down is too
+ * little to say anything about a *kind* of question. It is plenty to say something about this
+ * passage asked this way, which is what the reader just told us, so that is honoured at once and
+ * not forgotten: no window, because nothing here quiets anything beyond the one item, and the
+ * cap on the read keeps it bounded.
+ *
+ * Keyed by subject rather than by review item, because subject is what the material is loaded by.
+ * The rung's own prefix says which: a `note.*` rung was asked of a note, a `verse.*` or
+ * `chapter.*` rung of a passage. Two items on one passage — a verse and the highlight that made
+ * it — share their dislikes, which is the same passage asked the same way twice.
+ */
+export function dislikedRungsBySubject(
+  rows: readonly ReviewDislikeSubjectRow[],
+): Map<string, Set<ReviewPromptKey>> {
+  const out = new Map<string, Set<ReviewPromptKey>>();
+  for (const row of rows) {
+    if (!row.rungKey || !REVIEW_PROMPT_KEYS.includes(row.rungKey as ReviewPromptKey)) continue;
+    const key = row.rungKey as ReviewPromptKey;
+    let subject: string | null = null;
+    if (key.startsWith('note.')) {
+      subject = row.noteId ? noteDislikeSubjectKey(row.noteId) : null;
+    } else if (key.startsWith('verse.') || key.startsWith('chapter.')) {
+      subject = row.scriptureReference?.trim() ? passageDislikeSubjectKey(row.scriptureReference) : null;
+    }
+    if (!subject) continue;
+    let keys = out.get(subject);
+    if (!keys) {
+      keys = new Set<ReviewPromptKey>();
+      out.set(subject, keys);
+    }
+    keys.add(key);
+  }
+  return out;
+}
+
+/** What a rung walk needs from one subject's dislikes: walk past them, and do not fall back to them. */
+export interface SubjectRungPreferences extends RungPreferences {
+  /**
+   * The rungs thumbed down on this very subject. Already in `skip`; carried apart because the
+   * walks' last-resort passes set the reader's Less aside, and these should be set aside later
+   * still — only when there is nothing else at all to ask.
+   */
+  avoid?: ReadonlySet<ReviewPromptKey>;
+}
+
+/**
+ * The reader's emphasis for one subject, with what they thumbed down on it folded in.
+ *
+ * **Into `skip`, and past an explicit More.** More is a weight across every passage; a thumbs-down
+ * on this one is the more specific thing said, and the walk drops a skipped member before it
+ * weighs anything. Returns `prefs` itself when there is nothing to fold, so a reader who never
+ * voted resolves exactly the rung they always did.
+ */
+export function withSubjectDislikes(
+  prefs: RungPreferences,
+  disliked: ReadonlySet<ReviewPromptKey> | undefined,
+): SubjectRungPreferences {
+  if (!disliked?.size) return prefs;
+  return { skip: new Set<ReviewPromptKey>([...prefs.skip, ...disliked]), prefer: prefs.prefer, avoid: disliked };
 }
