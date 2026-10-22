@@ -7,7 +7,7 @@ import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
  * dictionary entry ("Ecclesiastes 4:3"). The reader route focuses the verse
  * instead and never treats the reference as a headword.
  */
-export function highlightPassageRoute(reference: string, translation = 'NET') {
+export function highlightPassageRoute(reference: string, translation?: string | null) {
   const route = readerRouteForReference(reference, translation);
   return route ? landAgain(route) : null;
 }

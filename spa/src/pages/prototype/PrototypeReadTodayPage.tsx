@@ -13,7 +13,6 @@ import { useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useVotdToday } from '../../hooks/queries/useVotdToday';
 import { readerRouteForReference } from '../../utils/reader-nav';
-import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import ProtoRoutePending from './ProtoRoutePending';
 
 /**
@@ -31,11 +30,9 @@ export default function PrototypeReadTodayPage() {
   useEffect(() => {
     if (isPending) return;
     const reference = (!isError && data?.reference) || FALLBACK_REFERENCE;
-    const translation =
-      (!isError && data?.translation?.trim()) || getEffectiveDefaultTranslation();
+    // No `t`: the reader opens in My Bible (or a guest's chosen version), and keeps following it.
     const route =
-      readerRouteForReference(reference, translation) ??
-      readerRouteForReference(FALLBACK_REFERENCE, translation);
+      readerRouteForReference(reference) ?? readerRouteForReference(FALLBACK_REFERENCE);
     if (!route) return;
     // `replace`, so Back from the reader leaves the app rather than bouncing through a
     // redirect that would immediately send them forward again.

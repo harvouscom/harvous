@@ -4,7 +4,7 @@ import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
 import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcutsInit';
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
-import PrototypeSyncChip from '../components/PrototypeSyncChip';
+import PrototypeSyncWatcher from '../components/PrototypeSyncStatus';
 import PrototypeAppUpdateToast from '../components/PrototypeAppUpdateToast';
 import PrototypeWelcome3 from '../pages/prototype/PrototypeWelcome3';
 import PrototypeFeedbackToast from '../components/PrototypeFeedbackToast';
@@ -70,7 +70,11 @@ const PrototypeNotePage = lazy(loadNotePageChunk);
 import { loadNotePageChunk, prefetchNotePageChunk } from '../pages/prototype/prefetch-note-page-chunk';
 import PrototypeMainPaneShell from '../pages/prototype/PrototypeMainPaneShell';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
-import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
+import {
+  resolvePaperStackAfterNavigation,
+  shouldEndComposeOnStackDismiss,
+} from '../pages/prototype/paper-stack-teardown';
+import { resolvePaperStackFlipUp } from '../pages/prototype/paper-stack-flip';
 import type { ComposePurpose } from '../lib/compose-purpose';
 import { offerGuestAccount } from '../lib/guest-gate';
 import { guestPrefs } from '../lib/guest-store';
@@ -469,6 +473,13 @@ export default function SimplifiedPrototypeLayout() {
   );
 }
 
+/** Canonical note id at a path, for the paper-stack rules — never a draft slug, never raw. */
+function stackNoteIdAt(pathname: string): string | null {
+  const slug = matchPrototypeNoteId(pathname);
+  if (!slug || isPrototypeDraftNoteSlug(slug)) return null;
+  return normalizeNoteIdFromParam(slug);
+}
+
 function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: string; isGuest?: boolean }) {
   // Speaks once, on the way out, and only for a guest who has made something.
   useGuestExitPrompt(isGuest);
@@ -480,6 +491,14 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
   const { isSharedSpace, activeSpaceId: resolvedActiveSpaceId } = useActiveSpace();
   useRealtimeSync(userId, { homeSpaceId, activeSpaceId: isSharedSpace ? resolvedActiveSpaceId : null });
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  /* The only search a parked note carries back up. Deep-link params (`scriptureRef`, `ref`)
+     already did their job on the way in; replaying them on flip-up would re-run the landing. */
+  const spaceSearchParam = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).space;
+      return typeof v === 'string' || typeof v === 'number' ? String(v) : undefined;
+    },
+  });
   const {
     isMobileSidebar,
     drawerOpen,
@@ -603,11 +622,7 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
      */
     const verdict = resolvePaperStackAfterNavigation(paperStack, pathname, {
       isNotePath: isPrototypeNotePath,
-      noteIdAt: (p) => {
-        const slug = matchPrototypeNoteId(p);
-        if (!slug || isPrototypeDraftNoteSlug(slug)) return null;
-        return normalizeNoteIdFromParam(slug);
-      },
+      noteIdAt: stackNoteIdAt,
       isReadPath: isPrototypeReadPath,
       // Which chapter, not just "a chapter": the resolver needs to tell the origin's own
       // page (where a compose draft sits, having never navigated) from anywhere else.
@@ -654,7 +669,8 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
       {
         to: prototypeReadRouteTo(),
         params: { book: bookSlug(book), chapter: String(chapter) },
-        search: { v: undefined, t: translation || undefined },
+        // Only a version the address pinned — an unpinned chapter returns unpinned, to My Bible.
+        search: { v: undefined, t: t || undefined },
       },
     );
   }, [paperStack, pathname, retargetStackOrigin]);
@@ -668,22 +684,6 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
       clearPaperStack();
     }
   }, [resolvedActiveSpaceId, paperStack, clearPaperStack]);
-
-  /**
-   * Flip the sheet down and look at where you came from.
-   *
-   * The URL follows whichever paper is on top, so once a note has saved the address is
-   * `/{noteId}` — leaving it there would show the origin under a note's URL, and a refresh
-   * would reopen the note. Send the address to the origin's `returnTo`, captured when the
-   * stack was made; the sheet stays mounted below the fold with the draft intact. The
-   * sheet's own href is remembered so flipping back up can restore it.
-   *
-   * A `noteDock` origin does not flip — it collapses. The reader is the sheet there, and the
-   * dock it expanded from is already the reader's parked form; parking the reader below the
-   * note as well would be the same paper in two places. So the edge plays the reverse morph,
-   * clears the stack, and returns to the note with a fresh dock nonce so the dock reopens.
-   */
-  const stackedNoteHrefRef = useRef<string | null>(null);
 
   /*
    * A draft's first save, landing after you flipped it down.
@@ -704,7 +704,7 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     prevStackNoteIdRef.current = paperStack?.noteId;
     if (!paperStack || paperStack.open || prev || !paperStack.noteId) return;
     if (paperStack.origin.kind === 'noteDock' || !isPrototypeNotePath(pathname)) return;
-    stackedNoteHrefRef.current = pathname;
+    setStackSheetOpen(false, { to: pathname, search: { space: spaceSearchParam } });
     const { returnTo } = paperStack.origin;
     void chromeRouter.navigate({
       to: returnTo.to,
@@ -712,8 +712,23 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
       search: returnTo.search ?? {},
       replace: true,
     });
-  }, [paperStack, pathname, chromeRouter]);
+  }, [paperStack, pathname, spaceSearchParam, setStackSheetOpen, chromeRouter]);
   const [paperStackExiting, setPaperStackExiting] = useState(false);
+  /**
+   * Flip the sheet down and look at where you came from.
+   *
+   * The URL follows whichever paper is on top, so once a note has saved the address is
+   * `/{noteId}` — leaving it there would show the origin under a note's URL, and a refresh
+   * would reopen the note. Send the address to the origin's `returnTo`, captured when the
+   * stack was made; the sheet stays mounted below the fold with the draft intact. The
+   * sheet's own address is recorded on the stack (`parkedAt`) so flipping back up can
+   * restore it — see `resolvePaperStackFlipUp` for when there is none.
+   *
+   * A `noteDock` origin does not flip — it collapses. The reader is the sheet there, and the
+   * dock it expanded from is already the reader's parked form; parking the reader below the
+   * note as well would be the same paper in two places. So the edge plays the reverse morph,
+   * clears the stack, and returns to the note with a fresh dock nonce so the dock reopens.
+   */
   const handleFlipSheetDown = useCallback(() => {
     const stack = paperStack;
     if (!stack) return;
@@ -761,8 +776,10 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
 
     const alreadyOnOrigin =
       origin.kind === 'reader' ? isPrototypeReadPath(pathname) : isPrototypeHomePath(pathname);
-    stackedNoteHrefRef.current = alreadyOnOrigin ? null : pathname;
-    setStackSheetOpen(false);
+    setStackSheetOpen(
+      false,
+      alreadyOnOrigin ? undefined : { to: pathname, search: { space: spaceSearchParam } },
+    );
     // On a phone the Home cards live in the drawer, so flipping down to Home has to open it
     // or the flip lands on an empty pane with the reason you came nowhere in sight.
     if (origin.kind === 'homeCard' && isMobileSidebar) openDrawer();
@@ -780,6 +797,7 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     openDrawer,
     isMobileSidebar,
     pathname,
+    spaceSearchParam,
     chromeRouter,
   ]);
 
@@ -836,16 +854,30 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
 
   const dismissPaperStack = useCallback(() => {
     playSound('nav.close');
+    // A parked draft ends with the stack, or its editor stays hosted over the chapter.
+    if (shouldEndComposeOnStackDismiss(paperStack, composeDraftActive)) clearComposeDraftActive();
     clearPaperStack();
-  }, [clearPaperStack]);
+  }, [paperStack, composeDraftActive, clearComposeDraftActive, clearPaperStack]);
   const handleFlipSheetUp = useCallback(() => {
     playSound('nav.forward');
+    const target = resolvePaperStackFlipUp(paperStack, pathname, {
+      noteIdAt: stackNoteIdAt,
+      noteRoute: (noteId) => ({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(noteId) },
+        search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, space: spaceSearchParam },
+      }),
+    });
     setStackSheetOpen(true);
-    const href = stackedNoteHrefRef.current;
-    stackedNoteHrefRef.current = null;
     // An unsaved compose draft has no address of its own; it simply reappears.
-    if (href) void chromeRouter.navigate({ to: href });
-  }, [setStackSheetOpen, chromeRouter]);
+    if (target) {
+      void chromeRouter.navigate({
+        to: target.to,
+        params: target.params ?? {},
+        search: target.search ?? {},
+      });
+    }
+  }, [paperStack, pathname, spaceSearchParam, setStackSheetOpen, chromeRouter]);
   const isAdminRoute = isPrototypeAdminPath(pathname);
   const isSettingsRoute = isPrototypeSettingsPath(pathname);
   /** Desktop modal: keep last main paint under the settings portal. Mobile sheet keeps current Outlet. */
@@ -1237,7 +1269,9 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
         {userId && !isGuest ? (
           <SyncManagerIsland userId={userId} hideOfflineIndicator deferSyncInit />
         ) : null}
-        {isGuest ? null : <PrototypeSyncChip userId={userId} />}
+        {/* Watches the sync queue once for the whole shell; the toolbar's glyph and the
+            failure toast both read from it. */}
+        {isGuest ? null : <PrototypeSyncWatcher userId={userId} />}
         <PrototypeAppUpdateToast />
         {/* Sits beside the update toast because it answers the same question at a different
             size, and holds the toast back while it is up so they never stack. */}

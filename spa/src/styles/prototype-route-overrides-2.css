@@ -52,7 +52,15 @@ html.harvous-prototype-route [class*='proto-'] button .proto-inspector-activity_
 
 html.harvous-prototype-route [class*='proto-'] button .pds-caption,
 html.harvous-prototype-route [class*='proto-'] button .proto-caption,
-html.harvous-prototype-route [class*='proto-'] button .proto-footnote {
+html.harvous-prototype-route [class*='proto-'] button .proto-footnote,
+/* Activity's note rows are buttons, so their time and byline went text-primary while the
+   movement rows' times beside them stayed gray — every row on the sheet should match. */
+html.harvous-prototype-route button.proto-feed-said .proto-feed-said__time,
+html.harvous-prototype-route button.proto-feed-said .proto-feed-said__foot,
+html.harvous-prototype-route button.proto-feed-said .proto-feed-said__foot *,
+html.harvous-prototype-route button.proto-feed-said .proto-feed-said__by,
+html.harvous-prototype-route button.proto-feed-said .proto-feed-said__by *,
+html.harvous-prototype-route [class*='proto-'] button .proto-feed-said__time {
   color: var(--pds-text-secondary) !important;
 }
 
@@ -130,3 +138,21 @@ html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle:h
   color: var(--pds-text-primary) !important;
 }
 
+
+/* Note history — every row and chip is a button, so the blanket rule painted them all
+   primary. Times are secondary until chosen, the "Titled …" line and the "Now" tag quieter
+   still; the chosen row's time steps up to primary. A chosen chip keeps its white ink. */
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row .proto-note-history__row-title,
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row .proto-note-history__row-tag,
+html.harvous-prototype-route .proto-note-history button.proto-note-history__chip:not(.proto-ink-on-accent) {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row .proto-note-history__row-meta {
+  color: var(--pds-text-muted) !important;
+}
+
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row[aria-current='true'] .proto-note-history__row-title {
+  color: var(--pds-text-primary) !important;
+  font-weight: 600;
+}

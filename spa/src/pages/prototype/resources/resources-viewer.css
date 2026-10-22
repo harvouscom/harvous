@@ -465,11 +465,31 @@
    with !important — which turned Plyr's controls dark on the dark video. Plyr's own design is
    that a control inherits from what it sits on: white on the control bar, the menu's ink in
    the speed menu. Give it that back. */
-html.harvous-prototype-route .proto-resource-video__frame .plyr button.plyr__control {
+html.harvous-prototype-route .proto-resource-video__frame .plyr button.plyr__control,
+html.harvous-prototype-route .proto-resource-video__frame .plyr button.plyr__control * {
   color: inherit !important;
 }
 
-html.harvous-prototype-route .proto-resource-video__frame .plyr button.plyr__control--overlaid {
+/* The reset reaches every descendant too — `[class*='proto-'] button *` — and the glyphs are
+   descendants: an svg whose `currentColor` was text-primary drew the icons black in light mode
+   while the button itself had been put right. Inherit all the way down, and fill from it. */
+html.harvous-prototype-route .proto-resource-video__frame .plyr button.plyr__control svg,
+html.harvous-prototype-route .proto-resource-video__frame .plyr button.plyr__control svg * {
+  fill: currentColor !important;
+}
+
+/* ...except the two pieces Plyr inks on their own fill, which `inherit` would turn white on
+   white: the hover tooltip and the quality badge in the settings menu. */
+html.harvous-prototype-route .proto-resource-video__frame .plyr button.plyr__control .plyr__tooltip {
+  color: var(--plyr-tooltip-color, #4a5464) !important;
+}
+
+html.harvous-prototype-route .proto-resource-video__frame .plyr button.plyr__control .plyr__badge {
+  color: var(--plyr-badge-text-color, #fff) !important;
+}
+
+html.harvous-prototype-route .proto-resource-video__frame .plyr button.plyr__control--overlaid,
+html.harvous-prototype-route .proto-resource-video__frame .plyr button.plyr__control--overlaid * {
   color: var(--pds-on-accent) !important;
 }
 

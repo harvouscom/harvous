@@ -289,3 +289,87 @@ describe('diagnostics-client', () => {
     ).toBe('firefox 131');
   });
 });
+
+describe('diagnostics held while offline', () => {
+  const added: Array<[string, EventListenerOrEventListenerObject]> = [];
+  let online = true;
+
+  beforeEach(() => {
+    online = true;
+    localStorage.clear();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }));
+    vi.spyOn(navigator, 'onLine', 'get').mockImplementation(() => online);
+    const original = window.addEventListener.bind(window);
+    vi.spyOn(window, 'addEventListener').mockImplementation(((
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) => {
+      added.push([type, listener]);
+      original(type, listener, options);
+    }) as typeof window.addEventListener);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    for (const [type, listener] of added.splice(0)) window.removeEventListener(type, listener);
+    vi.unstubAllGlobals();
+    vi.resetModules();
+    localStorage.clear();
+  });
+
+  const pending = () => JSON.parse(localStorage.getItem('harvous_diag_pending') ?? '[]');
+
+  it('holds an event reported offline, deduped, and sends it on reconnect', async () => {
+    const { reportDiagnosticEvent, initDiagnosticCapture } = await import('../diagnostics-client');
+    initDiagnosticCapture();
+    online = false;
+
+    reportDiagnosticEvent({ source: 'client_js', message: 'Unable to save offline (unknown)' });
+    reportDiagnosticEvent({ source: 'client_js', message: 'Unable to save offline (unknown)' });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(pending()).toHaveLength(1);
+    expect(pending()[0].body.metadata.repeatCount).toBe(2);
+
+    online = true;
+    window.dispatchEvent(new Event('online'));
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string);
+    expect(body.message).toBe('Unable to save offline (unknown)');
+    expect(body.metadata.heldOffline).toBe(true);
+    expect(pending()).toHaveLength(0);
+  });
+
+  it('holds an event whose send fails, and flushes held events at boot', async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const first = await import('../diagnostics-client');
+    first.reportDiagnosticEvent({ source: 'client_api', message: 'Autosave failed (transient)' });
+    await vi.waitFor(() => expect(pending()).toHaveLength(1));
+
+    vi.resetModules();
+    const second = await import('../diagnostics-client');
+    second.initDiagnosticCapture();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(pending()).toHaveLength(0);
+  });
+
+  it('caps what it holds', async () => {
+    const { reportDiagnosticEvent } = await import('../diagnostics-client');
+    online = false;
+    for (let i = 0; i < 30; i++) reportDiagnosticEvent({ source: 'client_js', message: `failure ${i}` });
+    expect(pending()).toHaveLength(20);
+    expect(pending()[19].body.message).toBe('failure 29');
+  });
+
+  it('reports a save failure once per key inside the window, 4xx included', async () => {
+    const { reportSaveFailure } = await import('../diagnostics-client');
+    reportSaveFailure('autosave', 'Autosave failed (conflict 409)', { statusCode: 409 }, 'note_1|conflict');
+    reportSaveFailure('autosave', 'Autosave failed (conflict 409)', { statusCode: 409 }, 'note_1|conflict');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string);
+    expect(body.source).toBe('client_api');
+    expect(body.metadata).toMatchObject({ saveFailure: 'autosave', statusCode: 409 });
+  });
+});

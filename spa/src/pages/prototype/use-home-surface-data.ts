@@ -9,9 +9,9 @@
  * rather than four patches: one hook, both surfaces, no second copy to fall behind.
  *
  * **Data here, destinations from the caller.** Nearly every handler below navigates the main
- * pane or the reader and is already right for either surface. Exactly two are not — raising
- * the thread-proposal review, and opening an existing Thread — because the sidebar drills its
- * own list while Activity opens the search panel. Those arrive as `destinations`, so the
+ * pane or the reader and is already right for either surface. Three are not — raising the
+ * thread-proposal review, opening the create-Thread sheet, and opening an existing Thread —
+ * because each lands in furniture the surface owns. Those arrive as `destinations`, so the
  * cards, their ranking and their copy stay shared while each surface keeps its own furniture.
  *
  * The hook is large because the derivation is large; splitting it further would only scatter
@@ -38,7 +38,6 @@ import {
   prototypeNoteRouteTo,
   prototypeReadRouteTo,
 } from '@/lib/prototype-path';
-import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
 import { chapterKeyPartsFromReference } from '@/utils/study-bible-nodes';
 import { parseReaderQuery } from '@/utils/parse-reader-query';
@@ -221,16 +220,16 @@ function pickSpotlightHighlight(
 export type HomeSurfaceDestinations = {
   /**
    * Raise the review for a grouping Home is suggesting — a subject, a cross-reference pair,
-   * or a study arc.
+   * or a study arc. Activity raises it as a dialog (a drawer on a phone).
    *
-   * `null` where a surface has no frame to review one in. The state is the shell's, but the
-   * panel that renders it still lives inside `PrototypeSidebar`, so Activity cannot yet show
-   * a proposal it sets. As with `createThread`, the hook reads this and withholds the three
-   * kinds that would land nowhere rather than offering cards that do nothing.
+   * `null` where a surface has no frame to review one in. As with `createThread`, the hook
+   * reads this and withholds the kinds that would land nowhere rather than offering cards
+   * that do nothing.
    */
   proposeThread: ((proposal: ThreadProposal) => void) | null;
   /**
-   * Start a Thread from two notes the recall engine paired up, with the sheet prefilled.
+   * Start a Thread with the sheet prefilled — two notes the recall engine paired up, or a
+   * suggestion whose notes are short of a proposal (see `startThreadFor`).
    *
    * `null` where a surface has no sheet to raise — Activity, until the organize sheets come
    * out of `PrototypeSidebar`. Null rather than a no-op on purpose: the hook reads it and
@@ -239,7 +238,7 @@ export type HomeSurfaceDestinations = {
    */
   createThread:
     | ((prefill: {
-        noteIds: [string, string];
+        noteIds: string[];
         threadName: string;
         /** Fired once the thread actually exists — see `handleRecallCompleted`. */
         onCreated?: () => void;
@@ -376,18 +375,20 @@ export function useHomeSurfaceData({
   } = useProtoShell();
 
   /*
-   * Where a greeting chip goes when the thing it names cannot be reviewed as a proposal —
-   * the arc's notes are not on the loaded page, the connection is short of its minimum, or
-   * this surface has no frame for a proposal at all. The Library search seeded with the
-   * name is the same door the tag chip uses, and it always opens. Until now these handlers
-   * returned silently, and the chip in the greeting looked pressable and did nothing.
+   * Where a Thread suggestion goes when it cannot be reviewed as a proposal — the arc's notes
+   * are not on the loaded page, the connection is short of its minimum, or this surface has no
+   * frame for a proposal. The create-Thread sheet, already named, with whatever notes are known
+   * already ticked: the press still ends in the thing the suggestion offered.
+   *
+   * It used to open a Library search seeded with the name. That answered "where are these
+   * notes" when the card had asked "make these a Thread?", and on a phone it swapped the page
+   * for a panel — the suggestion read as a link to somewhere else rather than an offer.
    */
-  const searchLibraryFor = useCallback(
-    (query: string) => {
-      if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-      openLibraryPanel({ tab: 'all', drill: null, querySeed: query });
+  const startThreadFor = useCallback(
+    (threadName: string, noteIds: string[]) => {
+      createThread?.({ noteIds, threadName });
     },
-    [closeDrawer, isMobileSidebar, openLibraryPanel],
+    [createThread],
   );
 
   /*
@@ -874,28 +875,29 @@ export function useHomeSurfaceData({
     if (!subjectConnection) return;
     const proposalNotes = subjectConnection.notes.filter((n) => loadedNoteIds.has(n.id));
     if (proposalNotes.length < SUBJECT_CONNECTION_MIN || !proposeThread) {
-      searchLibraryFor(subjectConnection.subject);
+      startThreadFor(subjectConnection.subject, proposalNotes.map((n) => n.id));
       return;
     }
     proposeThread({
       subject: subjectConnection.subject,
       notes: proposalNotes,
     });
-  }, [subjectConnection, loadedNoteIds, proposeThread, searchLibraryFor]);
+  }, [subjectConnection, loadedNoteIds, proposeThread, startThreadFor]);
 
   const openCrossRefConnection = useCallback(() => {
     if (!crossRefConnection) return;
     const proposalNotes = crossRefConnection.notes.filter((n) => loadedNoteIds.has(n.id));
+    const subject = `${crossRefConnection.from.displayRef} and ${crossRefConnection.to.displayRef}`;
     if (proposalNotes.length < CROSSREF_CONNECTION_MIN || !proposeThread) {
-      searchLibraryFor(crossRefConnection.from.displayRef);
+      startThreadFor(subject, proposalNotes.map((n) => n.id));
       return;
     }
     proposeThread({
-      subject: `${crossRefConnection.from.displayRef} and ${crossRefConnection.to.displayRef}`,
+      subject,
       notes: proposalNotes,
       variant: 'crossref',
     });
-  }, [crossRefConnection, loadedNoteIds, proposeThread, searchLibraryFor]);
+  }, [crossRefConnection, loadedNoteIds, proposeThread, startThreadFor]);
 
   /**
    * "A passage you keep returning to — John 3:16" opens the passage.
@@ -909,7 +911,8 @@ export function useHomeSurfaceData({
    */
   const openReaderAt = useCallback(
     (displayRef: string) => {
-      const readerRoute = readerRouteForReference(displayRef, getEffectiveDefaultTranslation());
+      // No `t`: the reader opens in My Bible. See `readerRouteForReference`.
+      const readerRoute = readerRouteForReference(displayRef);
       if (!readerRoute) return;
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
       navigate(landAgain(readerRoute));
@@ -950,9 +953,9 @@ export function useHomeSurfaceData({
        * (`/api/notes/fingerprints` returns every fingerprinted note, full history, in one
        * request; see `useNoteFingerprints`). A study arc is by definition a theme returned to
        * across weeks or months, so its notes are routinely outside the recent page: `noteIds`
-       * would resolve too few — often zero — and `openStudyArc` below would fall back to a
-       * keyword search instead of proposing the Thread, even though the theme's notes were
-       * sitting in memory the whole time.
+       * would resolve too few — often zero — and `openStudyArc` below would fall back to an
+       * empty create-Thread sheet instead of proposing the Thread, even though the theme's
+       * notes were sitting in memory the whole time.
        */
       const themeLower = fromLayer.theme.toLowerCase();
       const noteIds = Array.from(fingerprintsById.entries())
@@ -1033,7 +1036,7 @@ export function useHomeSurfaceData({
       title: notes.find((n) => n.id === id)?.title ?? null,
     }));
     if (proposalNotes.length === 0 || !proposeThread) {
-      if (subject) searchLibraryFor(subject);
+      startThreadFor(subject, noteIds);
       return;
     }
     proposeThread({
@@ -1041,7 +1044,7 @@ export function useHomeSurfaceData({
       notes: proposalNotes,
       variant: 'arc',
     });
-  }, [activeArc, activeArcIsSection, sectionArc, studyArc, notes, proposeThread, searchLibraryFor]);
+  }, [activeArc, activeArcIsSection, sectionArc, studyArc, notes, proposeThread, startThreadFor]);
 
   // ── Generative recall: seed a draft note + derive prompts (Phase 1, client-side) ──
   const catholic = useIsCatholic();
@@ -1205,8 +1208,10 @@ export function useHomeSurfaceData({
    * text — and now that the reader exists, on the surface built for reading it rather than the
    * standalone passage pane this originally used.
    *
-   * Carries the translation the chapter was last read in rather than the account default, so
-   * continuing does not silently switch translations partway through a book.
+   * No `t`: the reader opens in My Bible. It used to carry the translation the chapter was
+   * last read in, so continuing would not switch versions partway through a book — but choosing
+   * a version in the reader already writes My Bible, so the two only ever disagreed after the
+   * reader changed it in Settings, and then the stale one won.
    */
   const openContinueReading = useCallback(() => {
     if (!continueReadingSuggestion) return;
@@ -1226,7 +1231,6 @@ export function useHomeSurfaceData({
         v: continueReadingSuggestion.resumeVerse
           ? String(continueReadingSuggestion.resumeVerse)
           : undefined,
-        t: continueReadingSuggestion.translation || undefined,
       },
     });
   }, [continueReadingSuggestion, isMobileSidebar, closeDrawer, navigate]);
@@ -1632,11 +1636,13 @@ export function useHomeSurfaceData({
      * taking the sentence with it.
      */
     /*
-     * The theme chips search; they never propose. The proposal to gather these notes into a
-     * Thread is the Suggestions shelf's card, a few inches below — a greeting chip that opened
-     * the same review sheet made the sentence a second, unlabelled suggestion. The chip wears
-     * the magnifying glass (`recall-kind-icons.ts`), so it opens what the glass promises.
+     * The theme chips open the same Thread suggestion as the shelf's card: the proposal in a
+     * dialog, or the create-Thread sheet named after the theme when there is no proposal to
+     * review. They used to search the Library instead, on the theory that a chip opening the
+     * review made the sentence a second suggestion — but a search is a different answer to the
+     * same tap, and every new-Thread suggestion now opens the dialog (Derek's call, Oct 2026).
      */
+    const canOfferThread = Boolean(proposeThread || createThread);
     if (trend.kind === 'arc' && activeArc) {
       const theme = studyArc?.theme ?? sectionArc?.sectionLabel ?? '';
       const parts = recallTrendGreetingParts({ kind: 'arc', theme });
@@ -1644,35 +1650,32 @@ export function useHomeSurfaceData({
       return {
         kind: 'arc',
         parts,
-        onOpen: () => searchLibraryFor(theme),
-        openable: theme.trim().length > 0,
+        onOpen: openStudyArc,
+        openable: canOfferThread && theme.trim().length > 0,
       };
     }
     if (trend.kind === 'subject' && subjectConnection) {
       const { subject } = subjectConnection;
       const parts = recallTrendGreetingParts({ kind: 'subject', subject });
       if (!parts) return undefined;
-      return { kind: 'subject', parts, onOpen: () => searchLibraryFor(subject), openable: true };
+      return { kind: 'subject', parts, onOpen: openSubjectConnection, openable: canOfferThread };
     }
     if (trend.kind === 'passage' && passageConnection) {
       const parts = recallTrendGreetingParts({ kind: 'passage', passageRef: passageConnection.displayRef });
       if (!parts) return undefined;
-      const openable =
-        readerRouteForReference(passageConnection.displayRef, getEffectiveDefaultTranslation()) !==
-        null;
+      const openable = readerRouteForReference(passageConnection.displayRef) !== null;
       return { kind: 'passage', parts, onOpen: openPassageConnection, openable };
     }
     /*
      * "lately Romans 8 and John 3 keep surfacing together" names two passages, so each chip
-     * opens its own in the reader. Joining them into a Thread is the shelf's cross-reference
-     * card, for the same reason the theme chips above search instead of proposing.
+     * opens its own in the reader — a chip that names a passage goes to the passage. Joining
+     * them into a Thread is the shelf's cross-reference card.
      */
     if (trend.kind === 'crossref' && crossRefConnection) {
       const refs = [crossRefConnection.from.displayRef, crossRefConnection.to.displayRef];
       const parts = recallTrendGreetingParts({ kind: 'crossref', fromRef: refs[0], toRef: refs[1] });
       if (!parts) return undefined;
-      const translation = getEffectiveDefaultTranslation();
-      const openable = refs.every((ref) => readerRouteForReference(ref, translation) !== null);
+      const openable = refs.every((ref) => readerRouteForReference(ref) !== null);
       return {
         kind: 'crossref',
         parts,
@@ -1703,7 +1706,10 @@ export function useHomeSurfaceData({
     crossRefConnection,
     highlightsWithRecency,
     referenceWordConnection,
-    searchLibraryFor,
+    proposeThread,
+    createThread,
+    openStudyArc,
+    openSubjectConnection,
     openReaderAt,
     openPassageConnection,
     openReferenceWordConnection,

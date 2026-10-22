@@ -18,6 +18,7 @@ const origin = buildRevisitCardStackOrigin({ title: 'The first book', meta: 'Gen
 function renderStack(
   stack: PaperStackState,
   handlers: {
+    onFlipUp?: () => void;
     onDismiss?: () => void;
     onSuggestionNevermind?: () => void;
     onSuggestionIgnore?: () => void;
@@ -28,7 +29,7 @@ function renderStack(
     <PrototypePaperStack
       stack={stack}
       onFlipDown={vi.fn()}
-      onFlipUp={vi.fn()}
+      onFlipUp={handlers.onFlipUp ?? vi.fn()}
       onDismiss={onDismiss}
       onSuggestionNevermind={handlers.onSuggestionNevermind}
       onSuggestionIgnore={handlers.onSuggestionIgnore}
@@ -61,6 +62,26 @@ describe('paper stack edge', () => {
   it('calls a parked note by its title', () => {
     renderStack({ origin, noteId: 'note_1', noteTitle: 'On patience', open: false });
     expect(screen.getByLabelText('Bring On patience back up')).toBeTruthy();
+  });
+
+  /*
+   * The title brings the note back; only the × puts it away. Derek reported the title
+   * strip "just disappearing" on a tap — the layout's flip-up was at fault (see
+   * paper-stack-flip.test.ts), but the wiring is the half of that promise this owns.
+   */
+  it('brings a parked note up from its title and dismisses only from the ×', () => {
+    const onFlipUp = vi.fn();
+    const onDismiss = vi.fn();
+    renderStack(
+      { origin, noteId: 'note_1', noteTitle: 'Fighting with fear', open: false },
+      { onFlipUp, onDismiss },
+    );
+    fireEvent.click(screen.getByLabelText('Bring Fighting with fear back up'));
+    expect(onFlipUp).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText('Stop showing Fighting with fear behind this'));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onFlipUp).toHaveBeenCalledTimes(1);
   });
 
   // Same word note rows, search and the mention picker use — not a second name invented

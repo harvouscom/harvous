@@ -25,6 +25,16 @@ describe('readerRouteForReference', () => {
   it('returns null rather than a malformed route', () => {
     expect(readerRouteForReference('not a reference', 'NET')).toBeNull();
   });
+
+  it('leaves the translation unpinned when none is given, so the reader follows My Bible', () => {
+    expect(readerRouteForReference('John 3:16')?.search.t).toBeUndefined();
+    expect(readerRouteForReference('John 3:16', '')?.search.t).toBeUndefined();
+    expect(readerRouteForReference('John 3:16', null)?.search.t).toBeUndefined();
+  });
+
+  it('pins the translation a passage carries of its own', () => {
+    expect(readerRouteForReference('John 3:16', 'ESV')?.search.t).toBe('ESV');
+  });
 });
 
 describe('sanitizeReadSearch', () => {

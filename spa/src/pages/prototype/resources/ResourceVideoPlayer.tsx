@@ -18,6 +18,11 @@ export type PlayableVideo =
   | { kind: 'file'; src: string }
   | { kind: 'frame'; src: string };
 
+/** Which video this is, as a string — the identity the player is built and torn down on. */
+export function playableVideoKey(video: PlayableVideo): string {
+  return video.kind === 'youtube' ? `youtube:${video.id}` : `${video.kind}:${video.src}`;
+}
+
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -39,6 +44,8 @@ export default function ResourceVideoPlayer({
   poster,
   durationSeconds,
   sourceName,
+  mediaKey,
+  onMediaExpired,
 }: {
   video: PlayableVideo;
   title: string;
@@ -46,18 +53,49 @@ export default function ResourceVideoPlayer({
   durationSeconds: number | null;
   /** Whose video, for the play button's name: "Play “…” on BibleProject". */
   sourceName: string | null;
+  /**
+   * What the player is built on, when the video's own address is not stable. An uploaded
+   * file plays from a signed URL that is re-minted every few minutes; keyed on that URL, each
+   * re-mint would tear the playing video down and start it again from its poster.
+   */
+  mediaKey?: string;
+  /**
+   * A fresh address for a file whose signed URL has died under the playing video. The player
+   * swaps it in and carries on from where it was, rather than stopping.
+   */
+  onMediaExpired?: () => Promise<string | null>;
 }) {
   const [started, setStarted] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const mountRef = useRef<HTMLDivElement>(null);
 
+  /*
+   * The player is built once per video and per press of play — and nothing else.
+   *
+   * Its effect depended on `video` and `poster`, and `video` is an object the parent makes
+   * fresh on render. Any re-render was a teardown: the parent refetching on window focus (or
+   * React Query re-running anything above it) destroyed the playing Plyr and rebuilt it on its
+   * poster, which looked exactly like the video stopping by itself a minute in. Keyed on a
+   * string instead, and everything else is read from refs at build time.
+   */
+  const key = mediaKey ?? playableVideoKey(video);
+  const videoRef = useRef(video);
+  videoRef.current = video;
+  const posterRef = useRef(poster);
+  posterRef.current = poster;
+  const onMediaExpiredRef = useRef(onMediaExpired);
+  onMediaExpiredRef.current = onMediaExpired;
+
   useEffect(() => {
+    const video = videoRef.current;
+    const poster = posterRef.current;
     if (!started || video.kind === 'frame') return undefined;
     const mount = mountRef.current;
     if (!mount) return undefined;
     let player: PlyrInstance | null = null;
     let media: HTMLElement | null = null;
     let cancelled = false;
+    let reSigning = false;
 
     void (async () => {
       const [{ default: Plyr }, { PLYR_OPTIONS }] = await Promise.all([
@@ -78,6 +116,33 @@ export default function ResourceVideoPlayer({
         el.playsInline = true;
         el.preload = 'metadata';
         if (poster) el.poster = poster;
+        /* A signed URL lives ten minutes; a long video outlasts it, and the next range
+           request fails. Re-sign once per failure and pick up where it stopped. */
+        el.addEventListener('error', () => {
+          const refresh = onMediaExpiredRef.current;
+          if (!refresh || reSigning || cancelled) return;
+          reSigning = true;
+          const resumeAt = el.currentTime;
+          const wasPlaying = !el.paused;
+          void refresh()
+            .then((fresh) => {
+              if (cancelled || !fresh || fresh === el.currentSrc) return;
+              el.src = fresh;
+              el.addEventListener(
+                'loadedmetadata',
+                () => {
+                  el.currentTime = resumeAt;
+                  if (wasPlaying) void el.play().catch(() => {});
+                },
+                { once: true },
+              );
+              el.load();
+            })
+            .catch(() => {})
+            .finally(() => {
+              reSigning = false;
+            });
+        });
         media = el;
       }
       mount.appendChild(media);
@@ -105,7 +170,8 @@ export default function ResourceVideoPlayer({
       }
       mount.replaceChildren();
     };
-  }, [started, video, poster]);
+    // `key` stands for `video`; `poster` is only read when the player is first built.
+  }, [started, key]);
 
   return (
     <figure className="proto-resource-video">

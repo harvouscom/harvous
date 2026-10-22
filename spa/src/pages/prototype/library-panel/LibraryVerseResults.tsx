@@ -13,27 +13,16 @@ import Icon from '@/components/react/Icon';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { plainVerseSnippet, splitVerseSnippet } from '@/utils/verse-search-snippet';
 import type { VerseSearchHit } from '../../../hooks/queries/useScriptureVerseSearch';
+import MatchText from './MatchText';
 
 function VerseSnippet({ snippet }: { snippet: string }) {
-  return (
-    <>
-      {splitVerseSnippet(snippet).map((part, i) =>
-        part.match ? (
-          <mark key={i} className="proto-verse-hit__match">
-            {part.text}
-          </mark>
-        ) : (
-          <span key={i}>{part.text}</span>
-        ),
-      )}
-    </>
-  );
+  return <MatchText parts={splitVerseSnippet(snippet)} />;
 }
 
 function VerseHitRow({ hit, onOpen }: { hit: VerseSearchHit; onOpen: (hit: VerseSearchHit) => void }) {
   const translation = getTranslationAbbreviationDisplay(hit.translation);
   return (
-    <li className="proto-note-row-item" data-active="false">
+    <li className="proto-note-row-item" data-active="false" data-kind="verse">
       <button
         type="button"
         className="proto-note-row__main proto-note-row__main--lead proto-verse-hit"

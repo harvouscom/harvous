@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   resolvePaperStackAfterNavigation,
+  shouldEndComposeOnStackDismiss,
   type PaperStackPathHelpers,
 } from '../paper-stack-teardown';
 import type { PaperStackOrigin, PaperStackState } from '../../../layouts/proto-shell-context';
@@ -211,5 +212,33 @@ describe('a chapter as the sheet (the Prayer of Azariah over Daniel 3)', () => {
     expect(resolvePaperStackAfterNavigation(sheet(true), '/read/Daniel/4', helpers)).toBe('clear');
     expect(resolvePaperStackAfterNavigation(sheet(true), '/', helpers)).toBe('clear');
     expect(resolvePaperStackAfterNavigation(sheet(false), '/note-abc', helpers)).toBe('clear');
+  });
+});
+
+describe('shouldEndComposeOnStackDismiss', () => {
+  /*
+   * The guest bug: a draft from the reader, flipped down, then × on the parked strip. The
+   * stack cleared but `composeDraftActive` kept the editor hosted on /read/... with no chapter.
+   * A guest draft has no id however long it lives, so it is the stack shape to pin.
+   */
+  it('ends the session for a parked draft with no note id (guest compose)', () => {
+    const stack: PaperStackState = { origin: readerOrigin, open: false };
+    expect(shouldEndComposeOnStackDismiss(stack, true)).toBe(true);
+  });
+
+  it('ends the session for a parked draft that has adopted an id', () => {
+    const stack: PaperStackState = { origin: readerOrigin, noteId: 'note_abc', open: false };
+    expect(shouldEndComposeOnStackDismiss(stack, true)).toBe(true);
+  });
+
+  it('keeps the session when the draft is up: that × drops the origin, not the draft', () => {
+    const stack: PaperStackState = { origin: readerOrigin, open: true };
+    expect(shouldEndComposeOnStackDismiss(stack, true)).toBe(false);
+  });
+
+  it('has nothing to end when no compose session is running', () => {
+    const stack: PaperStackState = { origin: readerOrigin, noteId: 'note_abc', open: false };
+    expect(shouldEndComposeOnStackDismiss(stack, false)).toBe(false);
+    expect(shouldEndComposeOnStackDismiss(null, true)).toBe(false);
   });
 });

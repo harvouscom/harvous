@@ -360,10 +360,11 @@ export default function PrototypePaperStack({
          * place as the edge that put it there.
          *
          * It carries the dismiss too. That was left off at first on the reasoning that
-         * putting down a breadcrumb and throwing away a mounted draft are different acts,
-         * but a draft cannot reach this state: parking requires a note id, and a compose
-         * draft has none until it saves. By the time a note can be parked it is persisted,
-         * so dismissing it drops the stack and leaves the note where it already lives.
+         * putting down a breadcrumb and throwing away a mounted draft are different acts.
+         * A compose draft CAN be parked — a guest's never gets an id, and an empty one never
+         * saves — so the shell ends the compose session along with the stack
+         * (`shouldEndComposeOnStackDismiss`). Nothing is thrown away: autosave has already
+         * filed the draft where it lives, and the × leaves the page in front.
          */
         <div className="pds-paper-stack__edge-row pds-paper-stack__edge-row--parked">
           <button

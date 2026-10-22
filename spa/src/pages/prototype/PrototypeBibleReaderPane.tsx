@@ -186,6 +186,13 @@ const READER_MENU_HEIGHT = 36;
 const CARD_BLEED = 6;
 
 /**
+ * Inside the paper stack, one more margin measure after mount, for a flip that ends without a
+ * `transitionend` (reduced motion, or a layer that was already where it was going). Just past
+ * `--pds-duration-paper-stack`.
+ */
+const STACK_SETTLE_FALLBACK_MS = 400;
+
+/**
  * How much clear space the "In your note" chrome needs above the card before it fits without
  * covering anything — its own ~27px row plus the 6px gap `bottom: calc(100% + 6px)` opens
  * above the card. A bar on verse 1 has nothing but the chapter heading above it, so below
@@ -1208,8 +1215,21 @@ export default function PrototypeBibleReaderPane({
       }
       return null;
     };
+    /*
+     * In the column's own pixels, not the screen's.
+     *
+     * Inside the paper stack the reader is a layer that scales — 96% while it sits behind a
+     * note, easing to 100% as it comes forward — and client rects report the scaled size. The
+     * bars are laid out inside that same layer, in unscaled pixels, so a gap measured on screen
+     * and used as-is landed about 4% short: flip back from a note and every bar sat a little
+     * above its verses, more so the further down the chapter. Dividing by the column's drawn
+     * scale gives the same answer at any point in the flip, or with no stack at all.
+     */
     const measure = () => {
-      const base = column.getBoundingClientRect().top;
+      const columnRect = column.getBoundingClientRect();
+      const base = columnRect.top;
+      const scale = column.offsetHeight > 0 ? columnRect.height / column.offsetHeight : 1;
+      const toColumn = (px: number) => (scale > 0 ? px / scale : px);
       const next: MarginBar[] = [];
       for (const a of anchorLanes) {
         const startEl = renderedVerse(a.startVerse);
@@ -1227,8 +1247,8 @@ export default function PrototypeBibleReaderPane({
         }));
         next.push({
           key: `${a.startVerse}-${a.endVerse}:${a.lane}`,
-          top: Math.round(first.top - base),
-          height: Math.max(4, Math.round(last.bottom - first.top)),
+          top: Math.round(toColumn(first.top - base)),
+          height: Math.max(4, Math.round(toColumn(last.bottom - first.top))),
           lane: a.lane,
           startVerse: a.startVerse,
           endVerse: a.endVerse,
@@ -1250,9 +1270,23 @@ export default function PrototypeBibleReaderPane({
     // flow spans the wrong lines. Observing the column catches all three.
     const observer = new ResizeObserver(measure);
     observer.observe(column);
+    /*
+     * ...and once more when the paper stack finishes moving. A flip is a transform, which no
+     * ResizeObserver sees, and the parked layer changes its box as it comes forward. The scale
+     * correction above already holds mid-flip; this settles anything the flip moved besides.
+     * Filtered to the layer's own `transform`, since its children's transitions bubble here.
+     */
+    const stackLayer = column.closest<HTMLElement>('.pds-paper-stack__base');
+    const onLayerSettled = (event: TransitionEvent) => {
+      if (event.target === stackLayer && event.propertyName === 'transform') measure();
+    };
+    stackLayer?.addEventListener('transitionend', onLayerSettled);
+    const settleTimer = stackLayer ? window.setTimeout(measure, STACK_SETTLE_FALLBACK_MS) : 0;
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
+      stackLayer?.removeEventListener('transitionend', onLayerSettled);
+      window.clearTimeout(settleTimer);
     };
   }, [anchorLanes, verseLayout, verses, compare, visibleColumn]);
 

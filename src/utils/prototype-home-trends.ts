@@ -2220,7 +2220,7 @@ export interface SmartJumpDestination {
   chapter: number;
   /** The verse to focus on arrival, when the source named one. */
   verse: number | null;
-  /** Carried only from a reading position, so continuing never switches translation. */
+  /** Carried only from a reading position. Not navigated with — the reader opens in My Bible. */
   translation: string | null;
   /** Which of the three sources answered. */
   source: 'continue' | 'votd' | 'fallback';

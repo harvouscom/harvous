@@ -77,7 +77,8 @@ export function useDailyPassageActions({
   /** Any of the day's readings in the reader; the passage itself, or the Gospel, by default. */
   const openReading = useCallback(
     (reference: string) => {
-      const route = readerRouteForReference(reference, getEffectiveDefaultTranslation());
+      // No `t`: the reader opens in My Bible. See `readerRouteForReference`.
+      const route = readerRouteForReference(reference);
       if (!route) return;
       recordVotdEngagement('open_reader');
       markActed();

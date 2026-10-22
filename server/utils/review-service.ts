@@ -240,9 +240,14 @@ import {
   type RungPreferences,
 } from '@/utils/review-exercise-settings';
 import {
+  dislikedRungsBySubject,
   mergeRungPreferences,
+  noteDislikeSubjectKey,
+  passageDislikeSubjectKey,
   reviewDislikeWindowStart,
+  withSubjectDislikes,
   type ReviewDislikeRow,
+  type ReviewDislikeSubjectRow,
 } from '@/utils/review-exercise-feedback';
 import type { VerseKey } from './scripture-knowledge';
 import { REVIEWED_SOURCE } from '@/utils/study-bible-source-copy';
@@ -733,8 +738,7 @@ async function loadNoteMaterial(
         canConnect: noteChoiceBuildable(set.connect),
         canTakeaway: set.takeaway.cue != null,
         takeawayCue: set.takeaway.cue,
-        skip: rungPrefs.skip,
-        prefer: rungPrefs.prefer,
+        ...rungPrefs(noteDislikeSubjectKey(id)),
       });
     }
     return out;
@@ -1445,32 +1449,45 @@ async function loadDefaultTranslation(userId: string): Promise<string> {
 }
 
 /**
- * The reader's recent thumbs-down votes, read once per request and memoised the same way.
+ * The reader's thumbs-down votes, read once per request and memoised the same way.
  *
- * Narrow by construction: `disliked` rows are the rarest thing in the log, the window is thirty
- * days, and the cap is there so a pathological account cannot make a rung resolution unbounded.
- * The tally is done in JS rather than SQL so the rung-to-family mapping stays derived from
- * `FAMILY_BY_KEY` — see `review-exercise-feedback.ts`.
+ * Narrow by construction: `disliked` rows are the rarest thing in the log, and the cap is there so
+ * a pathological account cannot make a rung resolution unbounded. Not windowed, because a vote on
+ * one item is honoured on that item for good — see `dislikedRungsBySubject`; the family tally
+ * takes its thirty days from the same rows below. Joined to the item for what it asks about,
+ * since the material a rung is resolved from is loaded by note and by passage. The tally is done
+ * in JS rather than SQL so the rung-to-family mapping stays derived from `FAMILY_BY_KEY` — see
+ * `review-exercise-feedback.ts`.
  */
 const DISLIKE_ROW_CAP = 500;
 
-async function loadRecentDislikes(userId: string): Promise<ReviewDislikeRow[]> {
+interface DislikeLogRow extends ReviewDislikeSubjectRow {
+  createdAt: Date;
+}
+
+async function loadDislikeLog(userId: string): Promise<DislikeLogRow[]> {
   return memoisedMaterial(`${userId}:dislikes`, async () => {
     try {
       const rows = await db
-        .select({ reviewItemId: ReviewEvents.reviewItemId, rungKey: ReviewEvents.rungKey })
+        .select({
+          reviewItemId: ReviewEvents.reviewItemId,
+          rungKey: ReviewEvents.rungKey,
+          createdAt: ReviewEvents.createdAt,
+          noteId: ReviewItems.noteId,
+          scriptureReference: ReviewItems.scriptureReference,
+        })
         .from(ReviewEvents)
+        .innerJoin(ReviewItems, eq(ReviewItems.id, ReviewEvents.reviewItemId))
         .where(
           and(
             eq(ReviewEvents.userId, userId),
             eq(ReviewEvents.action, 'disliked'),
-            gte(ReviewEvents.createdAt, reviewDislikeWindowStart(new Date())),
             isNotNull(ReviewEvents.rungKey),
           ),
         )
         .orderBy(desc(ReviewEvents.createdAt))
         .limit(DISLIKE_ROW_CAP);
-      return rows as ReviewDislikeRow[];
+      return rows as DislikeLogRow[];
     } catch {
       /*
        * The same bargain `loadPreferredEmphasis` strikes: on a database the migration has not
@@ -1482,6 +1499,19 @@ async function loadRecentDislikes(userId: string): Promise<ReviewDislikeRow[]> {
   });
 }
 
+/** The family tally's rows: the log inside its thirty-day window. */
+async function loadRecentDislikes(userId: string): Promise<ReviewDislikeRow[]> {
+  const since = reviewDislikeWindowStart(new Date()).getTime();
+  return (await loadDislikeLog(userId))
+    .filter((row) => row.createdAt.getTime() >= since)
+    .map(({ reviewItemId, rungKey }) => ({ reviewItemId, rungKey }));
+}
+
+/** What the reader thumbed down on each note and passage, keyed as the material loaders key it. */
+async function loadSubjectDislikes(userId: string): Promise<Map<string, Set<ReviewPromptKey>>> {
+  return dislikedRungsBySubject(await loadDislikeLog(userId));
+}
+
 /**
  * Everything that moves a rung: the reader's emphasis, and what they keep thumbing down.
  *
@@ -1491,18 +1521,30 @@ async function loadRecentDislikes(userId: string): Promise<ReviewDislikeRow[]> {
  * `material.skip`, which every walk treats as a reason to move on rather than a reason to stop,
  * and More only weights a draw. Which of the two wins where they disagree is
  * `mergeRungPreferences`.
+ *
+ * Returns a lookup for one subject's preferences rather than one set, because a thumbs-down on a
+ * single passage is folded into that passage's walk alone — `withSubjectDislikes`.
  */
-async function loadRungPreferences(userId: string): Promise<RungPreferences> {
-  const [preferred, dislikes] = await Promise.all([
+async function loadRungPreferences(
+  userId: string,
+): Promise<(subjectKey: string | null) => ReturnType<typeof withSubjectDislikes>> {
+  const [preferred, dislikes, bySubject] = await Promise.all([
     loadPreferredEmphasis(userId),
     loadRecentDislikes(userId),
+    loadSubjectDislikes(userId),
   ]);
-  return mergeRungPreferences(preferred, dislikes);
+  const merged = mergeRungPreferences(preferred, dislikes);
+  return (subjectKey) => withSubjectDislikes(merged, subjectKey ? bySubject.get(subjectKey) : undefined);
 }
 
-/** The tally behind the card's "Noted." — read after a vote lands, so it bypasses the memo. */
+/**
+ * The tally behind the vote's toast — read after a vote lands, so it bypasses the memo.
+ *
+ * Drops every memoised material for the reader, not only the log: a thumbs-down changes the rung
+ * its passage or note resolves to, and the material built a moment ago still carries the old walk.
+ */
 export async function reviewDislikeRowsFor(userId: string): Promise<ReviewDislikeRow[]> {
-  materialMemo.delete(`${userId}:dislikes`);
+  forgetReviewMaterial(userId);
   return loadRecentDislikes(userId);
 }
 
@@ -2652,8 +2694,8 @@ async function loadVerseMaterialUncached(
       next && next.book === at.book && next.chapter === at.chapter && engagedNumbers.includes(next.verse),
     ),
     beforePartners: verseBeforePartners(at.verse, engagedNumbers).length,
-    skip: rungPrefs.skip,
-    prefer: rungPrefs.prefer,
+    // Keyed by the reference as the item stores it, which is what the dislike was joined to.
+    ...rungPrefs(passageDislikeSubjectKey(ref)),
   };
 }
 
@@ -3453,8 +3495,7 @@ async function loadChapterMaterialUncached(
     placeCount: askablePlaces(places).length,
     highlightCount: highlightedNumbers.length,
     markedAnswerable: chapterMarkedDraw(verses, highlightedNumbers).viable.length,
-    skip: rungPrefs.skip,
-    prefer: rungPrefs.prefer,
+    ...rungPrefs(reference?.trim() ? passageDislikeSubjectKey(reference) : null),
   };
 }
 

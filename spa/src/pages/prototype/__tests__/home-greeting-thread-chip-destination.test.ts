@@ -1,12 +1,12 @@
 /**
- * "lately returning to X" is a study-arc theme, not a Thread title — and not a suggestion.
+ * "lately returning to X" opens the Thread suggestion, never a search.
  *
  * The greeting chip runs `trend.onOpen` rather than opening the Threads list. For the arc and
- * subject clauses that handler is a Library search on the name: proposing the Thread is the
- * Suggestions shelf's job (its arc card still calls `openStudyArc`), and a chip that opened the
- * same proposal sheet made the greeting a second, unlabelled suggestion. The chip wears the
- * magnifying glass, so it opens search. The crossref clause names two passages, so each of its
- * chips opens its passage in the reader.
+ * subject clauses that handler is the same one the Suggestions shelf's card runs: the proposal
+ * in a dialog, or the create-Thread sheet prefilled when there is no proposal to review. They
+ * used to open a Library search seeded with the name, which answered a different question than
+ * the one the tap asked. The crossref clause names two passages, so each of its chips opens its
+ * passage in the reader.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -14,6 +14,13 @@ import { describe, expect, it } from 'vitest';
 
 const hook = () =>
   readFileSync(resolve(process.cwd(), 'spa/src/pages/prototype/use-home-surface-data.ts'), 'utf8');
+
+function callbackBody(name: string): string {
+  const src = hook();
+  const start = src.indexOf(`const ${name} = useCallback`);
+  expect(start).toBeGreaterThan(-1);
+  return src.slice(start, src.indexOf('}, [', start));
+}
 
 function greetingTrendBody(): string {
   const src = hook();
@@ -23,12 +30,10 @@ function greetingTrendBody(): string {
 }
 
 describe('greeting returning-to chip', () => {
-  it('searches the theme rather than proposing a Thread', () => {
+  it('opens the Thread suggestion the shelf card opens', () => {
     const body = greetingTrendBody();
-    expect(body).toContain('onOpen: () => searchLibraryFor(theme)');
-    expect(body).toContain('onOpen: () => searchLibraryFor(subject)');
-    expect(body).not.toContain('onOpen: openStudyArc');
-    expect(body).not.toContain('onOpen: openSubjectConnection');
+    expect(body).toContain('onOpen: openStudyArc');
+    expect(body).toContain('onOpen: openSubjectConnection');
   });
 
   it('opens each cross-referenced passage rather than proposing a Thread', () => {
@@ -36,12 +41,24 @@ describe('greeting returning-to chip', () => {
     expect(body).toContain('onOpen: (labelIndex) => openReaderAt(refs[labelIndex]');
     expect(body).not.toContain('onOpen: openCrossRefConnection');
   });
+});
 
-  it('leaves the proposal to the Suggestions shelf', () => {
-    const src = hook();
-    const start = src.indexOf('const openStudyArc = useCallback');
-    expect(start).toBeGreaterThan(-1);
-    const body = src.slice(start, src.indexOf('}, [', start));
-    expect(body).toContain('proposeThread');
+describe('Thread suggestions never fall back to a search', () => {
+  it('has no Library search door left in the hook', () => {
+    expect(hook()).not.toContain('searchLibraryFor');
+    expect(hook()).not.toContain('querySeed');
+  });
+
+  it.each(['openStudyArc', 'openSubjectConnection', 'openCrossRefConnection'])(
+    '%s proposes, or opens the prefilled create-Thread sheet',
+    (name) => {
+      const body = callbackBody(name);
+      expect(body).toContain('proposeThread(');
+      expect(body).toContain('startThreadFor(');
+    },
+  );
+
+  it('prefills the create-Thread sheet with the notes and the name', () => {
+    expect(callbackBody('startThreadFor')).toContain('createThread?.({ noteIds, threadName })');
   });
 });

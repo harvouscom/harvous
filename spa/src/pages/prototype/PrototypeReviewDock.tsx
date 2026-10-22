@@ -114,6 +114,7 @@ import {
   REVIEW_DEFER_COPY,
   REVIEW_PAUSE_COPY,
   REVIEW_FEEDBACK_ACK_COPY,
+  REVIEW_FEEDBACK_DISLIKE_ACK_COPY,
   REVIEW_FEEDBACK_DOWN_COPY,
   REVIEW_FEEDBACK_SETTINGS_LINK_COPY,
   REVIEW_FEEDBACK_UP_COPY,
@@ -354,7 +355,6 @@ export default function PrototypeReviewDock() {
    */
   const feedback = useReviewFeedback();
   const [feedbackVote, setFeedbackVote] = useState<'liked' | 'disliked' | null>(null);
-  const [feedbackOffer, setFeedbackOffer] = useState<string | null>(null);
   /*
    * How the last answer went, while the card still has the question on it.
    *
@@ -537,7 +537,8 @@ export default function PrototypeReviewDock() {
     const context = lastResult?.context;
     if (!context) return null;
     const reader = context.reference
-      ? readerRouteForReference(context.reference, context.translation || 'NET')
+      ? // No translation of its own: the reader opens in the account's default, not NET.
+        readerRouteForReference(context.reference, context.translation || undefined)
       : null;
     if (!context.note && !reader) return null;
     return (
@@ -582,9 +583,13 @@ export default function PrototypeReviewDock() {
    */
   useEffect(() => {
     setFeedbackVote(null);
-    setFeedbackOffer(null);
   }, [lastResult?.at]);
 
+  /*
+   * What came of the rating is said in a toast, not on the card. It was a caption under the
+   * actions row, which gave the quietest thing on the card a line of its own and pushed the
+   * reader's ways back down; the thumbs in the header keep showing which way they voted.
+   */
   const castFeedback = useCallback(
     (vote: 'liked' | 'disliked') => {
       const itemId = lastResult?.itemId;
@@ -595,17 +600,27 @@ export default function PrototypeReviewDock() {
         { itemId, vote },
         {
           onSuccess: (data) => {
-            if (data.offerSettings && data.family) setFeedbackOffer(data.family.label);
+            if (vote === 'liked') {
+              toast.success(REVIEW_FEEDBACK_ACK_COPY);
+              return;
+            }
+            if (data.offerSettings && data.family) {
+              toast.success(reviewFeedbackOfferCopy(data.family.label), {
+                action: {
+                  label: REVIEW_FEEDBACK_SETTINGS_LINK_COPY,
+                  onAction: () => void navigate({ to: prototypeHref('settings/review-exercises') }),
+                },
+              });
+              return;
+            }
+            toast.success(REVIEW_FEEDBACK_DISLIKE_ACK_COPY);
           },
-          // Put the blocks back rather than leaving a rating that was never recorded.
-          onError: () => {
-            setFeedbackVote(null);
-            setFeedbackOffer(null);
-          },
+          // Put the glyphs back rather than leaving a rating that was never recorded.
+          onError: () => setFeedbackVote(null),
         },
       );
     },
-    [feedback, lastResult?.itemId],
+    [feedback, lastResult?.itemId, navigate],
   );
   /*
    * When the next scheduled thing comes back, for the empty card.
@@ -1480,34 +1495,6 @@ export default function PrototypeReviewDock() {
               </button>
               {resultContextLinks}
             </div>
-            {lastResult.itemId && feedbackVote ? (
-              /*
-               * What came of the rating. The buttons themselves are in the header now — see
-               * `headerActions` — so all that is left in the body is the one thing a tooltip
-               * cannot carry: that the vote landed, and, on the third dislike of a family, the
-               * offer to ask for less of it in Settings. Absent until there is a vote, which is
-               * most of the time.
-               */
-              <div className="proto-review-dock__feedback">
-                <p className="proto-caption proto-review-dock__feedback-caption">
-                  {feedbackOffer ? reviewFeedbackOfferCopy(feedbackOffer) : REVIEW_FEEDBACK_ACK_COPY}
-                  {feedbackOffer ? (
-                    <>
-                      {' '}
-                      <button
-                        type="button"
-                        className="proto-review-dock__feedback-link"
-                        onClick={() =>
-                          void navigate({ to: prototypeHref('settings/review-exercises') })
-                        }
-                      >
-                        {REVIEW_FEEDBACK_SETTINGS_LINK_COPY}
-                      </button>
-                    </>
-                  ) : null}
-                </p>
-              </div>
-            ) : null}
           </div>
         ) : !item ? (
           /*

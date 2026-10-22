@@ -525,3 +525,64 @@
   border-radius: var(--pds-radius-card);
 }
 
+
+/* Library search rows (ds-28-library-search-rows) — the panel's width beside a phone's, so rows
+   truncate where they would in the app. */
+.pds-gallery-search-rows__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-3);
+}
+
+.pds-gallery-search-rows__controls > * {
+  flex: 0 1 320px;
+}
+
+.pds-gallery-search-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-5);
+  align-items: flex-start;
+}
+
+.pds-gallery-search-rows__slot {
+  min-width: 0;
+}
+
+.pds-gallery-search-rows__slot--panel {
+  flex: 1 1 560px;
+  max-width: 680px;
+}
+
+.pds-gallery-search-rows__slot--phone {
+  flex: 0 1 390px;
+}
+
+.pds-gallery-search-rows__frame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-2);
+  min-width: 0;
+}
+
+.pds-gallery-search-rows__frame-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--pds-space-1);
+}
+
+.pds-gallery-search-rows__frame-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.pds-gallery-search-rows__panel {
+  padding: var(--pds-space-2) 0;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-card);
+  background: var(--pds-glass-shell-drawer);
+  box-shadow: var(--pds-shadow-card);
+}

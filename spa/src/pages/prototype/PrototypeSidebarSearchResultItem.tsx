@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from './ProtoRowSelectCheckbox';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -23,6 +24,25 @@ function SearchRecencyPreview({ rel, preview }: { rel?: string; preview?: string
   );
 }
 
+/**
+ * What a row has already worked out about itself, handed to `renderBody`.
+ *
+ * The row keeps everything that makes it a row — the `<li>`, the real `<button>`, the
+ * selection orb, the click rules, the accessible name — and lends out only what goes *inside*
+ * the button. That is the part the Library panel's design directions differ on.
+ */
+export type SearchRowParts = {
+  result: SidebarSearchResult;
+  leadIcon?: IconName;
+  title: string;
+  /** Relative time, already abbreviated ("2d"). */
+  rel?: string;
+  /** The preview this row would show today, before any direction re-cuts it. */
+  preview?: string;
+  pinned: boolean;
+  locked: boolean;
+};
+
 export type PrototypeSidebarSearchResultItemProps = {
   result: SidebarSearchResult;
   active?: boolean;
@@ -42,6 +62,11 @@ export type PrototypeSidebarSearchResultItemProps = {
    * folder on the Folders tab should not become an unmarked line here.
    */
   leadIcon?: IconName;
+  /**
+   * Draw the inside of the button some other way — the Library panel's tile rows
+   * (`LibrarySearchRowBody`). Without it the markup is the sidebar's own, unchanged.
+   */
+  renderBody?: (parts: SearchRowParts) => ReactNode;
 };
 
 export default function PrototypeSidebarSearchResultItem({
@@ -52,6 +77,7 @@ export default function PrototypeSidebarSearchResultItem({
   highlightsById,
   selection,
   leadIcon,
+  renderBody,
 }: PrototypeSidebarSearchResultItemProps) {
   switch (result.kind) {
     case 'note':
@@ -63,6 +89,7 @@ export default function PrototypeSidebarSearchResultItem({
           notesById={notesById}
           selection={selection}
           leadIcon={leadIcon}
+          renderBody={renderBody}
         />
       );
     case 'highlight':
@@ -74,6 +101,7 @@ export default function PrototypeSidebarSearchResultItem({
           highlightsById={highlightsById}
           selection={selection}
           leadIcon={leadIcon}
+          renderBody={renderBody}
         />
       );
     case 'folder':
@@ -89,6 +117,7 @@ export default function PrototypeSidebarSearchResultItem({
           active={active}
           onActivate={onActivate}
           leadIcon={leadIcon}
+          renderBody={renderBody}
         />
       );
     case 'scripturePassage':
@@ -98,6 +127,7 @@ export default function PrototypeSidebarSearchResultItem({
           active={active}
           onActivate={onActivate}
           leadIcon={leadIcon}
+          renderBody={renderBody}
         />
       );
     default:
@@ -112,6 +142,7 @@ function NoteSearchResultItem({
   notesById,
   selection,
   leadIcon,
+  renderBody,
 }: {
   result: SidebarSearchResult;
   active: boolean;
@@ -119,6 +150,7 @@ function NoteSearchResultItem({
   notesById: Map<string, SpaceNoteRow>;
   selection?: SearchResultSelection;
   leadIcon?: IconName;
+  renderBody?: (parts: SearchRowParts) => ReactNode;
 }) {
   const loaded = result.noteId ? notesById.get(result.noteId) : undefined;
   const title =
@@ -146,6 +178,7 @@ function NoteSearchResultItem({
         .filter(Boolean)
         .join(' ')}
       data-active={pick?.selectMode ? (pick.selected ? 'true' : 'false') : active ? 'true' : 'false'}
+      data-kind={renderBody ? result.kind : undefined}
     >
       {pick ? <ProtoRowSelectCheckbox {...pick.checkbox} /> : null}
       <button
@@ -157,6 +190,10 @@ function NoteSearchResultItem({
           onActivate();
         }}
       >
+        {renderBody ? (
+          renderBody({ result, leadIcon, title, rel, preview: preview || undefined, pinned, locked })
+        ) : (
+        <>
         {leadIcon ? (
           <span className="proto-note-row__lead-icon" aria-hidden>
             <Icon name={leadIcon} size={13} />
@@ -176,6 +213,8 @@ function NoteSearchResultItem({
           ) : null}
         </div>
         <SearchRecencyPreview rel={rel} preview={preview || undefined} />
+        </>
+        )}
       </button>
     </li>
   );
@@ -188,6 +227,7 @@ function HighlightSearchResultItem({
   highlightsById,
   selection,
   leadIcon,
+  renderBody,
 }: {
   result: SidebarSearchResult;
   active: boolean;
@@ -195,6 +235,7 @@ function HighlightSearchResultItem({
   highlightsById: Map<string, PrototypeHighlightStudyThreadRow>;
   selection?: SearchResultSelection;
   leadIcon?: IconName;
+  renderBody?: (parts: SearchRowParts) => ReactNode;
 }) {
   const row = result.highlightId ? highlightsById.get(result.highlightId) : undefined;
   const entryKind = row?.entryKind ?? result.highlightEntryKind;
@@ -218,6 +259,7 @@ function HighlightSearchResultItem({
         .filter(Boolean)
         .join(' ')}
       data-active={pick?.selectMode ? (pick.selected ? 'true' : 'false') : active ? 'true' : 'false'}
+      data-kind={renderBody ? result.kind : undefined}
     >
       {pick ? <ProtoRowSelectCheckbox {...pick.checkbox} /> : null}
       <button
@@ -230,6 +272,10 @@ function HighlightSearchResultItem({
         }}
         aria-label={`${highlightEntryKindAriaLabel(entryKind)}: ${title}`}
       >
+        {renderBody ? (
+          renderBody({ result, leadIcon, title, rel, preview, pinned: false, locked: false })
+        ) : (
+        <>
         {leadIcon ? (
           <span className="proto-note-row__lead-icon" aria-hidden>
             <Icon name={leadIcon} size={13} />
@@ -244,6 +290,8 @@ function HighlightSearchResultItem({
           <span className="pds-list-title proto-note-row__title-text">{title}</span>
         </div>
         <SearchRecencyPreview rel={rel} preview={preview} />
+        </>
+        )}
       </button>
     </li>
   );
@@ -291,20 +339,37 @@ function InlineKindSearchResultItem({
   active,
   onActivate,
   leadIcon,
+  renderBody,
 }: {
   result: SidebarSearchResult;
   active: boolean;
   onActivate: () => void;
   leadIcon?: IconName;
+  renderBody?: (parts: SearchRowParts) => ReactNode;
 }) {
   const iconName = collectionIconName(result.kind);
   return (
-    <li className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
+    <li
+      className="proto-note-row-item"
+      data-active={active ? 'true' : 'false'}
+      data-kind={renderBody ? result.kind : undefined}
+    >
       <button
         type="button"
         className={`proto-note-row__main${leadIcon ? ' proto-note-row__main--lead' : ''}`}
         onClick={onActivate}
       >
+        {renderBody ? (
+          renderBody({
+            result,
+            leadIcon,
+            title: result.title,
+            preview: result.subtitle,
+            pinned: false,
+            locked: false,
+          })
+        ) : (
+        <>
         {/* The same glyph, moved out of the sentence and into its own column. Inline it had
             to share the baseline with the title and shrink to 11px to manage it; leading, it
             sits where this kind's own tab puts it. */}
@@ -324,6 +389,8 @@ function InlineKindSearchResultItem({
         {result.subtitle ? (
           <div className="pds-list-preview proto-note-row__preview">{result.subtitle}</div>
         ) : null}
+        </>
+        )}
       </button>
     </li>
   );
@@ -340,19 +407,36 @@ function ScripturePassageSearchResultItem({
   active,
   onActivate,
   leadIcon,
+  renderBody,
 }: {
   result: SidebarSearchResult;
   active: boolean;
   onActivate: () => void;
   leadIcon?: IconName;
+  renderBody?: (parts: SearchRowParts) => ReactNode;
 }) {
   return (
-    <li className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
+    <li
+      className="proto-note-row-item"
+      data-active={active ? 'true' : 'false'}
+      data-kind={renderBody ? result.kind : undefined}
+    >
       <button
         type="button"
         className={`proto-note-row__main${leadIcon ? ' proto-note-row__main--lead' : ''}`}
         onClick={onActivate}
       >
+        {renderBody ? (
+          renderBody({
+            result,
+            leadIcon,
+            title: result.title,
+            preview: result.subtitle,
+            pinned: false,
+            locked: false,
+          })
+        ) : (
+        <>
         {leadIcon ? (
           <span className="proto-note-row__lead-icon" aria-hidden>
             <Icon name={leadIcon} size={13} />
@@ -364,6 +448,8 @@ function ScripturePassageSearchResultItem({
         {result.subtitle ? (
           <div className="pds-list-preview proto-note-row__preview">{result.subtitle}</div>
         ) : null}
+        </>
+        )}
       </button>
     </li>
   );

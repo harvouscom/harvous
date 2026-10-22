@@ -10251,7 +10251,10 @@ button.proto-appearance-hero__card {
 
 /* Connect action */
 
-/* ─── Global sync status chip (portaled to body) ─────────────────────────── */
+/* ─── Admin loading chip (portaled to body) ──────────────────────────────────
+ * What is left of the global sync pill: the admin pages' "Loading…". The sync states moved
+ * into the toolbar (`.proto-sync-status`). Tokens only — this was `#fff`, which vanished on a
+ * dark canvas. */
 @keyframes protoSyncChipSpin {
   to {
     transform: rotate(360deg);
@@ -10261,32 +10264,21 @@ button.proto-appearance-hero__card {
 .proto-sync-chip {
   position: fixed;
   left: calc(var(--pds-shell-frame-inset, 14px) + max(16px, env(safe-area-inset-left)));
-  /* Lifted clear of the study dock band. These two are the only bottom-anchored things
-     outside the band — fixed to the body rather than living in it — so the reserve the
-     scrollers take does not move them, and an open dock would sit on top of them. */
-  bottom: calc(
-    var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom) +
-      var(--proto-study-dock-band-height, 0px)
-  );
+  bottom: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom));
   z-index: 1000020;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  border-radius: 999px;
-  background: #fff;
-  color: var(--pds-text-secondary, #555);
-  font-family: var(--pds-font-body, var(--font-sans, system-ui, -apple-system, sans-serif));
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-popover-solid);
+  color: var(--pds-text-secondary);
+  font-family: var(--pds-font-body);
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  pointer-events: auto;
-}
-
-.proto-sync-chip--error {
-  color: var(--pds-destructive, #c0392b);
+  box-shadow: var(--pds-shadow-popover);
+  border: 0.5px solid var(--pds-border-control-strong);
 }
 
 .proto-sync-chip__dot {
@@ -10295,24 +10287,8 @@ button.proto-appearance-hero__card {
   border-radius: 50%;
   flex: 0 0 auto;
   box-sizing: border-box;
-  background: #9aa0a6;
-}
-
-.proto-sync-chip--syncing .proto-sync-chip__dot {
-  background: transparent;
-  border: 2px solid #3d7de8;
+  border: 2px solid var(--pds-text-link);
   border-top-color: transparent;
-}
-
-.proto-sync-chip--success .proto-sync-chip__dot {
-  background: #2ea169;
-}
-
-.proto-sync-chip--error .proto-sync-chip__dot {
-  background: var(--pds-destructive, #c0392b);
-}
-
-.proto-sync-chip__dot--spin {
   animation: protoSyncChipSpin 0.8s linear infinite;
 }
 
@@ -10320,27 +10296,68 @@ button.proto-appearance-hero__card {
   min-width: 0;
 }
 
-.proto-sync-chip__retry {
-  display: inline-flex;
-  align-items: center;
-  border: none;
-  background: transparent;
-  color: var(--pds-accent, #3d7de8) !important;
-  font: inherit;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
+@media (prefers-reduced-motion: reduce) {
+  .proto-sync-chip__dot {
+    animation: none;
+  }
 }
 
-.proto-sync-chip__retry:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+/* ─── Toolbar sync status ─────────────────────────────────────────────────────
+ * A glyph in the trailing orb group while offline, saving or failed; absent when caught up.
+ * The quiet states take the secondary ink so they sit back among the toolbar's controls;
+ * failed takes the destructive ink, the one state that asks for something. Route-scoped and
+ * element-qualified to outrank both `.proto-toolbar-icon-btn *` and the route reset
+ * (`[class*='proto-'] button *`), each of which pins every glyph to text-primary. */
+html.harvous-prototype-route button.proto-toolbar-icon-btn.proto-sync-status,
+html.harvous-prototype-route button.proto-toolbar-icon-btn.proto-sync-status * {
+  color: var(--pds-text-secondary) !important;
 }
 
-.proto-sync-chip__retry,
-.proto-sync-chip__retry * {
-  color: var(--pds-accent, #3d7de8) !important;
+html.harvous-prototype-route button.proto-toolbar-icon-btn.proto-sync-status--error,
+html.harvous-prototype-route button.proto-toolbar-icon-btn.proto-sync-status--error * {
+  color: var(--pds-destructive) !important;
+}
+
+.proto-sync-status-popover {
+  position: fixed;
+  z-index: var(--pds-z-popover);
+  background: var(--pds-bg-popover-solid);
+  color: var(--pds-text-primary);
+  border: 0.5px solid var(--pds-border-control-strong);
+  border-radius: 14px;
+  box-shadow: var(--pds-shadow-popover);
+  padding: var(--pds-space-4);
+  font-family: var(--pds-font-body);
+}
+
+.proto-sync-status-popover .proto-popover-shell__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--pds-space-1);
+}
+
+.proto-sync-status-popover__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--pds-text-primary);
+}
+
+.proto-sync-status-popover--error .proto-sync-status-popover__title {
+  color: var(--pds-destructive);
+}
+
+.proto-sync-status-popover__detail {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pds-text-secondary);
+}
+
+.proto-sync-status-popover__retry {
+  margin-top: var(--pds-space-2);
 }
 
 /* ─── Proposed-thread review layer (Home theme card → review) ─────────────── */
@@ -21515,9 +21532,15 @@ button.pds-reader-inset__toggle {
 }
 
 /* ...and the reader, now the paper you are looking at, comes forward and to full size.
-   Both halves of the swap are a transform, so the flip is one composited move each way. */
+   Both halves of the swap are a transform, so the flip is one composited move each way.
+
+   Shortened by the peek it is pushed down by. Left at `inset: 0`, the translate carried the
+   layer's last 40–48px below the stack, where `overflow: hidden` cut them off: the chapter's
+   final lines could never be scrolled into view, and the scroller's own bottom fade sat off
+   the paper. With `bottom` taking the same peek, the layer ends exactly at the stack's foot. */
 .pds-paper-stack:has(.pds-paper-stack__sheet[data-stacked='false']) .pds-paper-stack__base {
   transform: translateY(var(--pds-paper-stack-peek));
+  bottom: var(--pds-paper-stack-peek);
   z-index: var(--pds-z-dropdown);
 }
 
@@ -23450,6 +23473,10 @@ p.proto-my-bible__usage {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* A vertical scroller, never a sideways one. Setting overflow-y alone makes x `auto` too, so
+     anything that bled a few pixels past the sheet's edge (an opened callout stack did) let the
+     whole sheet pan under a finger. `clip` cuts it without making a second scroll axis. */
+  overflow-x: clip;
   scroll-padding-bottom: var(--proto-study-dock-band-height, 0px);
   display: flex;
   flex-direction: column;
@@ -24260,7 +24287,10 @@ button.proto-feed-sheet__stat:hover {
 
 .proto-feed-said__time {
   flex: 0 0 auto;
-  color: var(--pds-text-muted-soft);
+  /* Secondary, the same as every other row's time in the sheet. These sit inside a button
+     on the note rows, where the route reset pins them (see `prototype-route-overrides-2.css`);
+     the movement rows' trailing time is not, and read lighter until both took this. */
+  color: var(--pds-text-secondary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
