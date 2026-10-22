@@ -1,0 +1,42 @@
+/*
+ * A suggested Thread raised over the page (`PrototypeThreadProposalReview`, `variant="sheet"`):
+ * the centred dialog on desktop, the bottom drawer on a phone.
+ *
+ * Its own file, imported by that module. The review's base rules are rail rules — it owns a
+ * whole column at `min-height: 100%` and pins its actions to that column's foot — so in a card
+ * of its own the list is what scrolls, and the actions simply end the card.
+ */
+.proto-thread-proposal-popover .proto-thread-review--sheet {
+  max-height: min(520px, 72vh);
+}
+
+.proto-thread-proposal-sheet {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+}
+
+.proto-thread-review--sheet {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.proto-thread-review--sheet .proto-thread-review__header {
+  padding: 16px 18px 12px;
+}
+
+.proto-thread-review--sheet .proto-thread-review__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0 6px;
+}
+
+.proto-thread-review--sheet .proto-thread-review__actions {
+  position: static;
+  margin-top: 0;
+  background: transparent;
+}

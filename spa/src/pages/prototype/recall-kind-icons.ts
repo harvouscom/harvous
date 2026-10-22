@@ -16,13 +16,15 @@ export const RECALL_KIND_ICONS: Record<RecallOpportunityKind, IconName> = {
   revisitNote: 'arrow-rotate-left',
 
   /*
-   * An arc or shared theme is not a Thread. Tapping the greeting chip searches the library
-   * for that name, so it wears the same magnifying glass as every other search door.
+   * An arc or shared theme is offered as a Thread: the card and the greeting chip both open the
+   * suggested Thread in a dialog, or the create-Thread sheet named after it. They wore the
+   * magnifying glass while the chip searched the Library for the name; now that no suggestion
+   * opens a search, they wear what they make.
    */
-  arc: 'magnifying-glass',
-  subject: 'magnifying-glass',
+  arc: 'arrow-right-arrow-left',
+  subject: 'arrow-right-arrow-left',
   searchGap: 'magnifying-glass',
-  /* Two notes to join — that one really is a Thread being made. */
+  /* Two notes to join — a Thread being made, like the two above. */
   connectNotes: 'arrow-right-arrow-left',
 
   /*

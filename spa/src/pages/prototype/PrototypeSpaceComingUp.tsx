@@ -86,7 +86,8 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled, canLead = fal
   */
   const readPassage = useCallback(
     (reference: string) => {
-      const route = readerRouteForReference(reference, getEffectiveDefaultTranslation());
+      // No `t`: the reader opens in My Bible. See `readerRouteForReference`.
+      const route = readerRouteForReference(reference);
       if (!route) return;
       navigate(landAgain(route));
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
@@ -181,7 +182,7 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled, canLead = fal
   */
   const readableReference =
     gathering.reference &&
-    readerRouteForReference(gathering.reference, getEffectiveDefaultTranslation())
+    readerRouteForReference(gathering.reference)
       ? gathering.reference
       : null;
 

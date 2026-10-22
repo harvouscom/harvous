@@ -13,7 +13,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
 import { bookFromSlug, bookSlug } from '@/utils/bible-book-chapters';
 import { buildScripturePillWithQuoteHtml } from '../../lib/votd-scripture-pill-html';
-import { useProfile } from '../../hooks/queries/useProfile';
+import { useMyBibleTranslation } from '../../hooks/useMyBibleTranslation';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getNoteQueryOptions } from '../../hooks/queries/useNote';
 import {
   saveReaderReferenceStudyThread,
@@ -167,9 +168,9 @@ export default function PrototypeReadPage() {
   };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: profile } = useProfile();
+  const myBible = useMyBibleTranslation();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const { isGuest } = useHarvousIdentity();
+  const { isGuest, mode } = useHarvousIdentity();
   const {
     beginPrototypeComposeSession,
     stackNote,
@@ -204,9 +205,19 @@ export default function PrototypeReadPage() {
    */
   const focusVerseEnd = search.vEnd ? Number.parseInt(search.vEnd, 10) : undefined;
 
-  // URL wins so a shared link reads in the translation it was shared in; otherwise
-  // the reader follows the account's default rather than a hardcoded one.
-  const translation = (search.t || profile?.defaultTranslation || 'NET').toUpperCase();
+  /*
+   * URL wins so a shared link reads in the translation it was shared in; otherwise the reader
+   * follows My Bible, live — change it in Settings and an open chapter changes with it.
+   *
+   * Internal doors leave `t` off for exactly that reason (see `readerRouteForReference`), so
+   * with no pin the version is not known until the profile (or a guest's prefs) is. Until then
+   * `translationKnown` is false and the chapter waits rather than painting in NET and swapping;
+   * `translation` still holds the session cache's best guess so the hooks keyed on it below
+   * have something to key on.
+   */
+  const pinnedTranslation = search.t ? search.t.toUpperCase() : undefined;
+  const translation = pinnedTranslation ?? myBible ?? getEffectiveDefaultTranslation().toUpperCase();
+  const translationKnown = Boolean(pinnedTranslation ?? myBible);
 
   /*
    * The second column, when there is one. Absent means the page is a single column.
@@ -528,11 +539,12 @@ export default function PrototypeReadPage() {
         to: prototypeReadRouteTo(),
         // Slugged at capture — the route reads a slug, and this is a route, not a display.
         params: { book: bookSlug(book), chapter: String(chapter) },
-        search: { v: fromVerse ? String(fromVerse) : undefined, t: translation },
+        // `search.t`, not `translation`: coming back should not pin what My Bible chose.
+        search: { v: fromVerse ? String(fromVerse) : undefined, t: search.t },
       },
       base: { type: 'reader', book, chapter, translation, fromVerse, fromVerseEnd },
     }),
-    [book, chapter, translation],
+    [book, chapter, translation, search.t],
   );
 
   /**
@@ -702,11 +714,12 @@ export default function PrototypeReadPage() {
     (ref: string) => {
       // Shared helper so a cross-reference that names a range lands on the whole range,
       // the same way today's passage and a note's dock now do.
-      const route = readerRouteForReference(ref, translation);
+      // A pinned version stays pinned along the chain; otherwise My Bible keeps reading.
+      const route = readerRouteForReference(ref, search.t);
       if (!route) return;
       void navigate(landAgain(route));
     },
-    [navigate, translation],
+    [navigate, search.t],
   );
 
   /**
@@ -790,7 +803,11 @@ export default function PrototypeReadPage() {
   );
 
   // Reuses the reader's own cached chapter query, so opening the inspector costs nothing.
-  const { data: chapterData } = usePrototypeBibleChapter(book, chapter, translation);
+  const { data: chapterData } = usePrototypeBibleChapter(
+    translationKnown ? book : undefined,
+    chapter,
+    translation,
+  );
   /*
    * The compared chapter. Same hook, same cache, so a version already read — or already pulled
    * as a stack edge's prefetch — costs nothing to bring alongside.
@@ -844,8 +861,11 @@ export default function PrototypeReadPage() {
    * 1. **It sticks.** `useUpdateTranslation` writes `UserMetadata.defaultTranslation`, so the
    *    next chapter and tomorrow both open in what you just chose. Choosing is the whole
    *    gesture; a version you have to re-choose every chapter is a preview, not a switch.
-   * 2. **The URL still carries it**, so a reload and a copied link both read in it — the rule
-   *    `translation` above is written against, unchanged.
+   * 2. **The URL lets go of it.** The choice is now My Bible, and an unpinned reader follows
+   *    My Bible — on a reload, the next chapter, and after a later change in Settings. Pinning
+   *    it here used to leave a `?t=` that outranked the setting from then on: change My Bible to
+   *    ESV and the chapter you had last switched in kept reading in the old one. Only a reader
+   *    with nowhere to keep the choice (signed out, no guest session) still pins it.
    *
    * Deliberately NOT called for `search.t` on arrival. Following a shared ESV link would
    * otherwise rewrite what the reader reads in, silently, on someone else's say-so. Persisting
@@ -857,6 +877,7 @@ export default function PrototypeReadPage() {
     (next: string) => {
       const id = next.trim().toUpperCase();
       if (!id || id === translation) return;
+      const choiceSticks = mode === 'account' || mode === 'guest';
 
       /* Fire-and-forget: the read must not wait on, or fail with, a preference write. The
          mutation is optimistic, so the profile cache already reads as `id` regardless. */
@@ -865,17 +886,16 @@ export default function PrototypeReadPage() {
       void navigate({
         to: prototypeReadRouteTo(),
         params: { book: bookSlug(book), chapter: String(chapter) },
-        // Pin it in the URL so the choice survives a reload and travels in a shared link.
         search: {
           v: search.v,
-          t: id,
+          t: choiceSticks ? undefined : id,
           /* Reading in what you were comparing against closes the comparison rather than
              splitting the page against itself. The other column has become this one. */
           c: search.c && search.c.toUpperCase() === id ? undefined : search.c,
         },
       });
     },
-    [navigate, book, chapter, search.v, search.c, translation, updateTranslation],
+    [navigate, book, chapter, search.v, search.c, translation, updateTranslation, mode],
   );
 
   /**
@@ -1007,7 +1027,9 @@ export default function PrototypeReadPage() {
       {mobileInspectorLayer}
       {desktopInspectorLayer}
       <div className="pds-reader-with-dock">
-        <PrototypeBibleReaderPane
+        {/* The pane's own sub-grace loading state — see `useMyBibleTranslation` for the wait. */}
+        {!translationKnown ? <div className="pds-reader" aria-busy="true" /> : null}
+        {translationKnown ? <PrototypeBibleReaderPane
           book={book}
           chapter={chapter}
           translation={translation}
@@ -1049,7 +1071,7 @@ export default function PrototypeReadPage() {
           visiblePositionRef={visiblePositionRef}
           referenceRequest={referenceRequest}
           landRequestKey={search.req}
-        />
+        /> : null}
       </div>
     </PrototypeMainPaneShell>
   );
