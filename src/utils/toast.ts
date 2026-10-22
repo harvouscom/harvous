@@ -61,6 +61,11 @@ export interface ShowErrorToastOptions {
   persistent?: boolean;
   /** Dedupe key so a repeated failure replaces its predecessor instead of stacking. */
   id?: string;
+  /**
+   * The one thing to do about it, in place of "Get support" — Retry on a save that did not
+   * reach the server. Only shown on a persistent toast; an ephemeral one leaves too fast to aim at.
+   */
+  action?: { label: string; onAction: () => void };
 }
 
 /**
@@ -77,9 +82,12 @@ export interface ShowErrorToastOptions {
  */
 function showError(message: string, options: ShowErrorToastOptions = {}): void {
   const persistent = options.persistent ?? false;
+  const action = persistent ? options.action : undefined;
   const prototypeOptions: ShowPrototypeFeedbackToastOptions = {
     persistent,
-    ...(persistent ? { action: { label: 'Get support' } } : {}),
+    ...(persistent
+      ? { action: action ? { label: action.label, onAction: action.onAction } : { label: 'Get support' } }
+      : {}),
   };
   safeToast(
     () =>
@@ -88,7 +96,13 @@ function showError(message: string, options: ShowErrorToastOptions = {}): void {
         duration: persistent ? Infinity : ERROR_TOAST_DURATION_MS,
         className: 'harvous-error-toast',
         ...(options.id ? { id: options.id } : {}),
-        ...(persistent ? { action: { label: 'Get support', onClick: openSupportSettings } } : {}),
+        ...(persistent
+          ? {
+              action: action
+                ? { label: action.label, onClick: action.onAction }
+                : { label: 'Get support', onClick: openSupportSettings },
+            }
+          : {}),
       }),
     'error',
     message,

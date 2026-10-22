@@ -6,7 +6,7 @@
  * it — reader view for an article, the host's own player for a video, the file drawn in
  * place — and anything it cannot show falls to a card of what we already know about it.
  */
-import { lazy, Suspense, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import { safeRenderHtml } from '@/utils/content-renderer';
@@ -118,7 +118,10 @@ export default function PrototypeResourceViewer({
      decides the whole layout — the player leads, a video's page text is never shown. */
   const reader = useResourceReader(resource.id, { enabled: viewer.kind === 'reader' });
   const pageVideo = reader.data && !reader.data.readable && reader.data.reason === 'is_video' ? reader.data.video : null;
-  const playable = playableFrom(viewer, pageVideo ?? null);
+  /* Memoized so the player gets the same object across renders — though it no longer
+     depends on that (it keys itself on a string), its poster and duration still flow from
+     here, and a fresh object per render was half of what restarted playback. */
+  const playable = useMemo(() => playableFrom(viewer, pageVideo ?? null), [viewer, pageVideo]);
   const isFile = resource.kind === 'file';
   const isVideo = Boolean(playable) || viewer.kind === 'video';
   const article = viewer.kind === 'reader' && reader.data?.readable ? reader.data : null;
@@ -313,14 +316,32 @@ function AudioEmbed({ resource, embed }: { resource: ViewerResource; embed: Reso
   );
 }
 
-/** An uploaded video, in the same player as a saved one. */
+/**
+ * An uploaded video, in the same player as a saved one.
+ *
+ * Plays from the first signed URL it is given and keeps it. The query re-mints the URL as it
+ * goes stale, and handing each new one to a mounted player swapped the source of a video
+ * mid-play — it restarted from nothing. The URL only matters again if it dies under the
+ * player, which the player reports as a media error; that is when to ask for a fresh one.
+ */
 function FileVideo({ resource }: { resource: ViewerResource }) {
-  const file = useLibraryFileUrl(resource.id);
+  const file = useLibraryFileUrl(resource.id, { refetchOnWindowFocus: false });
+  const [src, setSrc] = useState<string | null>(null);
+  const fetched = file.data?.url ?? null;
+  useEffect(() => {
+    if (!src && fetched) setSrc(fetched);
+  }, [src, fetched]);
+  const { refetch } = file;
+  const video = useMemo<PlayableVideo | null>(() => (src ? { kind: 'file', src } : null), [src]);
+  const reSign = useCallback(async () => (await refetch()).data?.url ?? null, [refetch]);
+
   if (file.isPending) return <ProtoSpaceLoading label="Loading video" />;
-  if (file.isError || !file.data?.url) return null;
+  if (!video) return null;
   return (
     <ResourceVideoPlayer
-      video={{ kind: 'file', src: file.data.url }}
+      video={video}
+      mediaKey={`file:${resource.id}`}
+      onMediaExpired={reSign}
       title={resource.title}
       poster={resource.sourceImage}
       durationSeconds={null}

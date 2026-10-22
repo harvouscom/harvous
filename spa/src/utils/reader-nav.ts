@@ -29,6 +29,7 @@ import {
  */
 export function readerRouteForReference(
   reference: string,
+  /** Omitted, the reader opens in the account's default translation. */
   translation?: string | null,
 ): {
   to: ReturnType<typeof prototypeReadRouteTo>;
