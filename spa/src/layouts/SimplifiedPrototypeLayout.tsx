@@ -70,7 +70,10 @@ const PrototypeNotePage = lazy(loadNotePageChunk);
 import { loadNotePageChunk, prefetchNotePageChunk } from '../pages/prototype/prefetch-note-page-chunk';
 import PrototypeMainPaneShell from '../pages/prototype/PrototypeMainPaneShell';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
-import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
+import {
+  resolvePaperStackAfterNavigation,
+  shouldEndComposeOnStackDismiss,
+} from '../pages/prototype/paper-stack-teardown';
 import { resolvePaperStackFlipUp } from '../pages/prototype/paper-stack-flip';
 import type { ComposePurpose } from '../lib/compose-purpose';
 import { offerGuestAccount } from '../lib/guest-gate';
@@ -851,8 +854,10 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
 
   const dismissPaperStack = useCallback(() => {
     playSound('nav.close');
+    // A parked draft ends with the stack, or its editor stays hosted over the chapter.
+    if (shouldEndComposeOnStackDismiss(paperStack, composeDraftActive)) clearComposeDraftActive();
     clearPaperStack();
-  }, [clearPaperStack]);
+  }, [paperStack, composeDraftActive, clearComposeDraftActive, clearPaperStack]);
   const handleFlipSheetUp = useCallback(() => {
     playSound('nav.forward');
     const target = resolvePaperStackFlipUp(paperStack, pathname, {

@@ -128,3 +128,27 @@ export function resolvePaperStackAfterNavigation(
   }
   return 'clear';
 }
+
+/**
+ * Does the × on this stack also end the compose session?
+ *
+ * Only when the sheet is parked and is a compose draft. Parked, the × means "stop keeping
+ * this note behind the page I'm on", and the page in front is the origin — but the layout
+ * keeps hosting the editor on read and home paths for as long as `composeDraftActive` holds,
+ * so clearing the stack alone left the draft's editor standing on `/read/...` with no
+ * chapter behind it.
+ *
+ * It was assumed a draft could not get here, because parking used to imply a saved note with
+ * an id. A guest's draft never gets one (it stays `note_draft`, saved to the guest store
+ * instead), and an empty draft never saves at all. Ending the session does not discard
+ * anything: whatever autosave already filed stays filed.
+ *
+ * With the sheet UP the × is on the origin edge — dropping the breadcrumb, not the draft —
+ * so the session carries on.
+ */
+export function shouldEndComposeOnStackDismiss(
+  stack: Pick<PaperStackState, 'open'> | null,
+  composeDraftActive: boolean,
+): boolean {
+  return Boolean(stack && !stack.open && composeDraftActive);
+}
