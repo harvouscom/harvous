@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -62,6 +62,8 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
   const showPopoverPortal = !asSheet && mounted;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmRect, setConfirmRect] = useState<DOMRect | null>(null);
+  // State, not a ref: in the phone drawer the strip mounts after this component's effects run.
+  const [chipsEl, setChipsEl] = useState<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const history = useNoteHistory(noteId, open);
@@ -73,7 +75,10 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
   const days = useMemo(() => groupNoteHistoryByDay(sessions), [sessions]);
   const pages = history.data?.pages;
   const locked = pages?.[pages.length - 1]?.locked ?? null;
-  const selected = sessions.find((session) => session.id === selectedId) ?? null;
+  const showUpsell = Boolean(locked && fullHistory.ready && !fullHistory.has);
+  // History opens on the note as it is now; picking a version swaps the page beside it.
+  const selected = sessions.find((session) => session.id === selectedId) ?? sessions[0] ?? null;
+  const selectedIndex = selected ? sessions.indexOf(selected) : -1;
   const currentTitle = sessions.find((session) => session.isCurrent)?.title?.trim() || '';
   const version = useNoteHistoryVersion(noteId, selected && !selected.contentEncrypted ? selected.id : null);
 
@@ -89,12 +94,20 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
     {
       enabled: showPopoverPortal,
       strategy: 'centered',
-      topVhFraction: 0.12,
-      fallbackWidth: 720,
-      fallbackHeight: 520,
+      topVhFraction: 0.1,
+      fallbackWidth: 860,
+      fallbackHeight: 640,
     },
-    [selectedId, sessions.length],
+    [sessions.length > 0],
   );
+
+  // Centre the chosen chip in the strip; scrollLeft only, so nothing else on the page moves.
+  const selectedSessionId = selected?.id;
+  useEffect(() => {
+    if (!chipsEl || !selectedSessionId) return;
+    const chip = chipsEl.querySelector<HTMLElement>(`[data-session-id="${selectedSessionId}"]`);
+    if (chip) chipsEl.scrollLeft = chip.offsetLeft - (chipsEl.clientWidth - chip.offsetWidth) / 2;
+  }, [chipsEl, selectedSessionId]);
 
   // The confirm is portaled outside the card, so a click on it must not read as outside.
   useDismissOnOutside(cardRef, () => onOpenChange(false), open && !asSheet && !restore.isPending && !confirmRect);
@@ -144,19 +157,24 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
     );
   };
 
-  const listBody = history.isPending ? (
-    <div className="proto-note-history__skeleton" aria-busy="true">
-      {Array.from({ length: 4 }, (_, index) => (
-        <span key={index} className="proto-note-history__skeleton-row" />
-      ))}
-    </div>
-  ) : history.isError ? (
+  const loadError = (
     <div className="proto-note-history__notice">
       <p>{COPY.loadError}</p>
       <button type="button" className="proto-note-history__text-btn" onClick={() => void history.refetch()}>
         {COPY.retry}
       </button>
     </div>
+  );
+
+  // Desktop: a timeline of sessions down the left, grouped by day. The dot is the selection.
+  const timeline = history.isPending ? (
+    <div className="proto-note-history__skeleton" aria-busy="true">
+      {Array.from({ length: 4 }, (_, index) => (
+        <span key={index} className="proto-note-history__skeleton-row" />
+      ))}
+    </div>
+  ) : history.isError ? (
+    loadError
   ) : (
     <>
       {days.map((day) => (
@@ -164,14 +182,12 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
           <h3 className="proto-note-history__day-label">{day.label}</h3>
           {day.sessions.map((session) => {
             const detail = rowDetail(session, currentTitle);
-            const isSelected = session.id === selectedId;
             return (
               <button
                 key={session.id}
                 type="button"
-                className={isSelected ? 'proto-note-history__row proto-ink-on-accent' : 'proto-note-history__row'}
-                data-current={session.isCurrent || undefined}
-                aria-current={isSelected ? 'true' : undefined}
+                className="proto-note-history__row"
+                aria-current={session.id === selected?.id ? 'true' : undefined}
                 aria-label={session.isCurrent ? `${COPY.current}, ${noteHistorySessionTimeLabel(session)}` : undefined}
                 onClick={() => setSelectedId(session.id)}
               >
@@ -179,13 +195,7 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
                   <span className="proto-note-history__row-title">{noteHistorySessionTimeLabel(session)}</span>
                   {detail ? <span className="proto-note-history__row-meta">{detail}</span> : null}
                 </span>
-                {session.isCurrent ? (
-                  <span className="proto-note-history__row-tag">{COPY.currentTag}</span>
-                ) : asSheet ? (
-                  <span className="proto-note-history__row-chevron" aria-hidden="true">
-                    <Icon name="caret-right" size={12} />
-                  </span>
-                ) : null}
+                {session.isCurrent ? <span className="proto-note-history__row-tag">{COPY.currentTag}</span> : null}
               </button>
             );
           })}
@@ -193,7 +203,6 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
       ))}
       {sessions.length <= 1 && !locked ? (
         <div className="proto-note-history__empty">
-          <Icon name="clock-rotate-left" size={16} />
           <p className="proto-note-history__empty-title">{COPY.empty}</p>
           <p className="proto-note-history__empty-detail">{COPY.emptyDetail}</p>
         </div>
@@ -208,7 +217,7 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
           {COPY.loadMore}
         </button>
       ) : null}
-      {locked && fullHistory.ready && !fullHistory.has ? (
+      {showUpsell && locked ? (
         <div className="proto-note-history__locked">
           <PrototypeHomeRow
             icon="clock-rotate-left"
@@ -222,8 +231,83 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
     </>
   );
 
+  // Phone: the same sessions as a strip, oldest on the left so time reads the way it scrolls.
+  // Older pages and the Plus upsell lead the strip, since there is no list to hold them.
+  const strip =
+    sessions.length > 0 ? (
+      <div className="proto-note-history__scrubber">
+        <button
+          type="button"
+          className="proto-side-panel__action-btn"
+          disabled={selectedIndex < 0 || selectedIndex >= sessions.length - 1}
+          onClick={() => setSelectedId(sessions[selectedIndex + 1].id)}
+          aria-label="Older version"
+          title="Older version"
+        >
+          <Icon name="caret-left" size={12} />
+        </button>
+        <div className="proto-note-history__chips" ref={setChipsEl}>
+          {showUpsell ? (
+            <button type="button" className="proto-note-history__chip" onClick={openUpgrade}>
+              {COPY.lockedTitle}
+              <span className="proto-menu-item__badge">{PLUS_BADGE_COPY}</span>
+            </button>
+          ) : history.hasNextPage ? (
+            <button
+              type="button"
+              className="proto-note-history__chip"
+              disabled={history.isFetchingNextPage}
+              onClick={() => void history.fetchNextPage()}
+            >
+              {COPY.loadMore}
+            </button>
+          ) : null}
+          {[...sessions].reverse().map((session, index, oldestFirst) => {
+            const day = noteHistoryDayLabel(new Date(session.endedAt));
+            const startsDay = index === 0 || noteHistoryDayLabel(new Date(oldestFirst[index - 1].endedAt)) !== day;
+            const isSelected = session.id === selected?.id;
+            return (
+              <Fragment key={session.id}>
+                {/* A day is a divider in the strip, not part of the first chip after it. */}
+                {startsDay ? <span className="proto-note-history__chip-day">{day}</span> : null}
+                <button
+                  type="button"
+                  data-session-id={session.id}
+                  className={isSelected ? 'proto-note-history__chip proto-ink-on-accent' : 'proto-note-history__chip'}
+                  aria-pressed={isSelected}
+                  aria-label={`${day}, ${noteHistorySessionTimeLabel(session)}${session.isCurrent ? `, ${COPY.current}` : ''}`}
+                  onClick={() => setSelectedId(session.id)}
+                >
+                  {session.isCurrent
+                    ? COPY.currentTag
+                    : new Date(session.endedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                </button>
+              </Fragment>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          className="proto-side-panel__action-btn"
+          disabled={selectedIndex <= 0}
+          onClick={() => setSelectedId(sessions[selectedIndex - 1].id)}
+          aria-label="Newer version"
+          title="Newer version"
+        >
+          <Icon name="caret-right" size={12} />
+        </button>
+      </div>
+    ) : null;
+
   const preview = !selected ? (
-    <p className="proto-note-history__notice">{COPY.previewPrompt}</p>
+    history.isError ? (
+      asSheet ? loadError : null
+    ) : (
+      <div className="proto-note-history__skeleton" aria-busy="true">
+        <span className="proto-note-history__skeleton-row" />
+        <span className="proto-note-history__skeleton-row" />
+      </div>
+    )
   ) : selected.contentEncrypted ? (
     <p className="proto-note-history__notice">{COPY.encryptedPreview}</p>
   ) : version.isPending ? (
@@ -247,53 +331,26 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
   );
 
   const canRestore = Boolean(selected && !selected.isCurrent && !selected.contentEncrypted && version.isSuccess);
-
-  // Which version this is, and the one thing you can do with it, sit over the page itself.
-  const previewHeader = selected ? (
-    <div className="proto-note-history__preview-header">
-      <span className="proto-note-history__preview-when">
-        {noteHistoryDayLabel(new Date(selected.endedAt))}
-        <span className="proto-note-history__preview-time">{noteHistorySessionTimeLabel(selected)}</span>
-      </span>
-      {selected.isCurrent ? (
-        <span className="proto-note-history__row-tag">{COPY.current}</span>
-      ) : canRestore ? (
-        <button
-          type="button"
-          className="proto-note-history__restore"
-          disabled={restore.isPending}
-          onClick={(event) => setConfirmRect(event.currentTarget.getBoundingClientRect())}
-        >
-          {COPY.restore}
-        </button>
-      ) : null}
-    </div>
+  const restoreButton = canRestore ? (
+    <button
+      type="button"
+      className="proto-note-history__restore"
+      disabled={restore.isPending}
+      onClick={(event) => setConfirmRect(event.currentTarget.getBoundingClientRect())}
+    >
+      {COPY.restore}
+    </button>
   ) : null;
 
   const content = (
     <div className="proto-note-history" data-layout={asSheet ? 'stacked' : 'split'}>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          {asSheet && selected ? (
-            <button
-              type="button"
-              className="proto-side-panel__action-btn"
-              onClick={() => setSelectedId(null)}
-              aria-label={COPY.back}
-              title={COPY.back}
-            >
-              <Icon name="caret-left" size={12} />
-            </button>
-          ) : null}
-          <span className="proto-note-history__heading">
-            <span className="proto-study-thread-popover__title">{COPY.title}</span>
-            {/* The rows no longer repeat the note's name, so the header carries it once. */}
-            {currentTitle && !(asSheet && selected) ? (
-              <span className="proto-note-history__subtitle">{currentTitle}</span>
-            ) : null}
-          </span>
+          <span className="proto-study-thread-popover__title">{COPY.title}</span>
         </div>
         <div className="proto-note-history__header-actions">
+          {/* On a phone Restore sits under the page, within reach; here it heads the window. */}
+          {asSheet ? null : restoreButton}
           <button
             type="button"
             className="proto-side-panel__action-btn"
@@ -305,19 +362,33 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
           </button>
         </div>
       </div>
+      {asSheet ? strip : null}
       <div className="proto-note-history__panes">
-        {!asSheet || !selected ? <div className="proto-note-history__list">{listBody}</div> : null}
-        {!asSheet || selected ? (
-          <div className="proto-note-history__preview">
-            {previewHeader}
-            <div className="proto-note-history__preview-scroll">{preview}</div>
-          </div>
-        ) : null}
+        {asSheet ? null : <div className="proto-note-history__list">{timeline}</div>}
+        <div className="proto-note-history__preview">
+          <div className="proto-note-history__preview-scroll">{preview}</div>
+          {asSheet && selected && (restoreButton || sessions.length <= 1) ? (
+            <div className="proto-note-history__footer">
+              {restoreButton ? (
+                <>
+                  <span className="proto-note-history__footer-when">
+                    {noteHistoryDayLabel(new Date(selected.endedAt))}
+                    <span className="proto-note-history__footer-time">{noteHistorySessionTimeLabel(selected)}</span>
+                  </span>
+                  {restoreButton}
+                </>
+              ) : (
+                <span className="proto-note-history__footer-empty">{COPY.empty}</span>
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
       {confirmRect && selected ? (
         <ProtoConfirmDialog
           anchorRect={confirmRect}
           alignRight
+          preferAbove={asSheet}
           title={COPY.restoreConfirmTitle}
           description={COPY.restoreConfirmBody(formatNoteHistoryMoment(selected.endedAt))}
           confirmLabel={COPY.restore}
@@ -340,7 +411,10 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
           ref={cardRef}
           role="dialog"
           aria-label={COPY.title}
-          className={portaledDialogShellClassName('proto-connect-note-popover proto-note-history-popover', exiting)}
+          className={portaledDialogShellClassName(
+            'proto-connect-note-popover proto-note-history-popover',
+            exiting,
+          )}
           style={{
             position: 'fixed',
             top: position?.top ?? -9999,

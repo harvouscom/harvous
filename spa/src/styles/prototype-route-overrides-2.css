@@ -139,16 +139,20 @@ html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle:h
 }
 
 
-/* Note history rows — the time is secondary under its day, the "Titled …" line and the
-   "Now" tag quieter still. Every history row is a button, so the blanket rule painted all
-   three primary. `:not(.proto-ink-on-accent)` hands the selected row back to white ink. */
-html.harvous-prototype-route .proto-note-history button.proto-note-history__row:not(.proto-ink-on-accent) .proto-note-history__row-title,
-html.harvous-prototype-route .proto-note-history button.proto-note-history__row:not(.proto-ink-on-accent) .proto-note-history__row-tag {
+/* Note history — every row and chip is a button, so the blanket rule painted them all
+   primary. Times are secondary until chosen, the "Titled …" line and the "Now" tag quieter
+   still; the chosen row's time steps up to primary. A chosen chip keeps its white ink. */
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row .proto-note-history__row-title,
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row .proto-note-history__row-tag,
+html.harvous-prototype-route .proto-note-history button.proto-note-history__chip:not(.proto-ink-on-accent) {
   color: var(--pds-text-secondary) !important;
 }
 
-html.harvous-prototype-route .proto-note-history button.proto-note-history__row:not(.proto-ink-on-accent) .proto-note-history__row-meta,
-html.harvous-prototype-route .proto-note-history button.proto-note-history__row:not(.proto-ink-on-accent) .proto-note-history__row-chevron,
-html.harvous-prototype-route .proto-note-history button.proto-note-history__row:not(.proto-ink-on-accent) .proto-note-history__row-chevron * {
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row .proto-note-history__row-meta {
   color: var(--pds-text-muted) !important;
+}
+
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row[aria-current='true'] .proto-note-history__row-title {
+  color: var(--pds-text-primary) !important;
+  font-weight: 600;
 }
