@@ -47,6 +47,7 @@ import {
   saveSignature,
   shouldRetrySave,
 } from '@/utils/autosave-retry';
+import { reportSaveFailure } from '@/utils/diagnostics-client';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { formatNoteDefaultTitle } from '@/utils/date-formatting';
 import type { HighlightDockOpenMetadata, ResourceDockSession } from '@/utils/study-dock-stack';
@@ -2884,6 +2885,27 @@ export default function CardFullEditable({
 
       if (willRetry) {
         scheduleProtoSaveRetry(nextBackoffDelayMs(attempts, classification.retryAfterMs));
+      }
+
+      // Into the admin Maintenance log, on the same beats as the toast: when it first fails
+      // and when we stop trying. Conflict and permission failures included — the generic API
+      // reporter drops every 4xx, and for a save a 404 or 409 is exactly the note that did
+      // not land.
+      if (attempts === 1 || !willRetry) {
+        const status = (error as { status?: unknown } | null)?.status;
+        reportSaveFailure(
+          'autosave',
+          `Autosave failed (${classification.kind}${typeof status === 'number' ? ` ${status}` : ''})`,
+          {
+            noteId: saveNoteId ?? null,
+            statusCode: typeof status === 'number' ? status : null,
+            failureKind: classification.kind,
+            attempt: attempts,
+            willRetry,
+            errorMessage: error instanceof Error ? error.message.slice(0, 200) : null,
+          },
+          `${saveNoteId ?? 'draft'}|${classification.kind}|${willRetry ? 'retrying' : 'gave-up'}`,
+        );
       }
 
       // One toast per failure episode — on the first failure, and again only when we

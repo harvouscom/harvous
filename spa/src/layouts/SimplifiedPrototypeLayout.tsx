@@ -4,7 +4,7 @@ import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
 import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcutsInit';
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
-import PrototypeSyncChip from '../components/PrototypeSyncChip';
+import PrototypeSyncWatcher from '../components/PrototypeSyncStatus';
 import PrototypeAppUpdateToast from '../components/PrototypeAppUpdateToast';
 import PrototypeWelcome3 from '../pages/prototype/PrototypeWelcome3';
 import PrototypeFeedbackToast from '../components/PrototypeFeedbackToast';
@@ -1263,7 +1263,9 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
         {userId && !isGuest ? (
           <SyncManagerIsland userId={userId} hideOfflineIndicator deferSyncInit />
         ) : null}
-        {isGuest ? null : <PrototypeSyncChip userId={userId} />}
+        {/* Watches the sync queue once for the whole shell; the toolbar's glyph and the
+            failure toast both read from it. */}
+        {isGuest ? null : <PrototypeSyncWatcher userId={userId} />}
         <PrototypeAppUpdateToast />
         {/* Sits beside the update toast because it answers the same question at a different
             size, and holds the toast back while it is up so they never stack. */}

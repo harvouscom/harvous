@@ -731,13 +731,21 @@
      `flex-shrink: 0`, and without this the list ran off the foot of the window. */
   flex: 0 1 auto;
   min-height: 0;
+}
+
+/*
+ * Only the corner stack scrolls — it is the one with a max-height. A scrolling box clips
+ * whatever its children paint outside it, shadows included — which cut every card's shadow off
+ * at the sides and foot. The padding gives the shadows room inside the box (and the corner ×
+ * above each card), and the negative margin puts the cards back where they were.
+ *
+ * Not inline. Opened at the top of Home on a phone, the stack sits inside the feed sheet's
+ * scroller, and that 28px of side bleed reached past the sheet's edge: the whole sheet panned
+ * sideways under a finger. Inline has no max-height and so nothing to scroll; without the
+ * overflow there is no clip, and the shadows draw where they fall.
+ */
+.proto-callout-stack[data-direction='up'] .proto-callout-stack__list {
   overflow-y: auto;
-  /*
-   * A scrolling box clips whatever its children paint outside it, shadows included — which cut
-   * every card's shadow off at the sides and foot. The padding gives the shadows room inside the
-   * box (and the corner × above each card), and the negative margin puts the cards back where
-   * they were.
-   */
   padding: 14px 28px 32px;
   margin: -14px -28px -32px;
 }
