@@ -11,8 +11,11 @@ import {
   ScriptureDraft,
   confirmScriptureDraftView,
   draftShouldDissolveOnDigitsRemoved,
+  draftTextToReference,
+  editScripturePillAsDraft,
   scriptureDraftInputDecision,
 } from '../TiptapScriptureDraft';
+import { AllSelection } from '@tiptap/pm/state';
 import type { ScriptureDraftConfirmedDetail } from '@/utils/scripture-draft-events';
 
 const extensions = [Document, Paragraph, Text, Bold, Italic, ScripturePill, ScriptureDraft];
@@ -275,5 +278,110 @@ describe('the confirmed event says whether an edit changed the passage', () => {
       isNew: false,
       referenceChanged: false,
     });
+  });
+});
+
+describe('adding a verse to a committed chapter pill ("Acts 21" + ":8")', () => {
+  function pillRefs(editor: Editor): string[] {
+    const refs: string[] = [];
+    editor.state.doc.descendants((n) => {
+      const pill = n.marks.find((m) => m.type.name === 'scripturePill');
+      if (pill) refs.push(pill.attrs.reference);
+    });
+    return refs;
+  }
+
+  /** "See " + a committed "Acts 21" pill + the trailing space a commit leaves behind. */
+  function editorWithChapterPill(): Editor {
+    const editor = new Editor({ extensions, content: '<p>See Acts 21</p>' });
+    const pillType = editor.state.schema.marks.scripturePill;
+    // Parsing trims a trailing space, so add it the way typing would.
+    const tr = editor.state.tr.insertText(' ', 12);
+    tr.addMark(5, 12, pillType.create({ reference: 'Acts 21', noteId: 'n1', translation: 'NET' }));
+    tr.setMeta('addToHistory', false);
+    editor.view.dispatch(tr);
+    return editor;
+  }
+
+  it('a stray space around the colon still reads as the verse', () => {
+    expect(draftTextToReference('Acts 21 :8')).toBe('Acts 21:8');
+    expect(draftTextToReference('Acts 21: 8')).toBe('Acts 21:8');
+    expect(draftTextToReference('Acts 21 : 8')).toBe('Acts 21:8');
+  });
+
+  it('editing from after the trailing space drafts the pill only, not the space', () => {
+    const editor = editorWithChapterPill();
+    try {
+      // jsdom has no layout: a real focus() would re-read a stale DOM selection.
+      editor.view.focus = () => {};
+      // What Backspace-to-edit hands over: the pill plus the whitespace gap up to the caret.
+      editScripturePillAsDraft(editor.view, 5, 13);
+      expect(draftRanges(editor)).toEqual([{ from: 5, to: 12 }]);
+      expect(editor.state.selection.from).toBe(12);
+
+      editor.view.dispatch(editor.state.tr.insertText(':8', 12));
+      confirmScriptureDraftView(editor.view, 12, { onInvalid: 'finalize' });
+
+      expect(pillRefs(editor)).toEqual(['Acts 21:8']);
+      expect(editor.state.doc.textContent).toBe('See Acts 21:8 ');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('an abandoned "Acts 21 :8" commits the verse instead of throwing the ":8" away', () => {
+    const editor = editorWithDraft('Acts 21 :8', { originalReference: 'Acts 21', noteId: 'n1' });
+    try {
+      confirmScriptureDraftView(editor.view, 2, { onInvalid: 'finalize' });
+      expect(pillRefs(editor)).toEqual(['Acts 21:8']);
+      expect(editor.state.doc.textContent.trim()).toBe('Acts 21:8');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('an abandoned edit of a chapter pill restores "Acts 21", not its stored "Acts 21:1-40"', () => {
+    const editor = new Editor({ extensions, content: '<p>See Acts 21</p>' });
+    try {
+      editor.view.focus = () => {};
+      const pillType = editor.state.schema.marks.scripturePill;
+      editor.view.dispatch(
+        editor.state.tr.addMark(5, 12, pillType.create({ reference: 'Acts 21:1-40', noteId: 'n1' })),
+      );
+      editScripturePillAsDraft(editor.view, 5, 12);
+      const draft = editor.state.doc.nodeAt(5)?.marks.find((m) => m.type.name === 'scriptureDraft');
+      expect(draft?.attrs).toMatchObject({ originalReference: 'Acts 21:1-40', originalText: 'Acts 21' });
+    } finally {
+      editor.destroy();
+    }
+
+    // Retyped as a chapter Acts doesn't have, then abandoned.
+    const abandoned = editorWithDraft('Acts 99', {
+      originalReference: 'Acts 21:1-40',
+      originalText: 'Acts 21',
+      noteId: 'n1',
+    });
+    try {
+      confirmScriptureDraftView(abandoned.view, 2, { onInvalid: 'finalize' });
+      expect(abandoned.state.doc.textContent).toBe('Acts 21');
+      expect(pillRefs(abandoned)).toEqual(['Acts 21:1-40']);
+    } finally {
+      abandoned.destroy();
+    }
+  });
+
+  it('Select All while a draft is open keeps the selection, so Delete clears the note', () => {
+    const editor = editorWithDraft('Acts 21:8');
+    try {
+      editor.view.dispatch(editor.state.tr.setSelection(new AllSelection(editor.state.doc)));
+      confirmScriptureDraftView(editor.view, 2, { onInvalid: 'finalize' });
+      const { from, to } = editor.state.selection;
+      expect(from).toBe(0);
+      expect(to).toBe(editor.state.doc.content.size);
+      editor.view.dispatch(editor.state.tr.deleteSelection());
+      expect(editor.state.doc.textContent).toBe('');
+    } finally {
+      editor.destroy();
+    }
   });
 });
