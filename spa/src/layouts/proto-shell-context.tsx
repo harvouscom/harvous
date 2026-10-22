@@ -431,6 +431,16 @@ export type PaperStackState = {
    * is `clearPaperStack`.
    */
   open: boolean;
+  /**
+   * Where the sheet's own address was when it went down, for the flip back up.
+   *
+   * Absent when the sheet had no address of its own to leave — a compose draft that never
+   * left the origin, or a note that was already standing on its origin's URL (a chapter the
+   * note's dock fell back to). Flip-up then falls back to the note's route when there is a
+   * note id, so the edge never "opens" onto the page that is already showing. Kept on the
+   * stack rather than in the layout so it lives and dies with the edge it belongs to.
+   */
+  parkedAt?: PaperStackReturnTo;
 };
 
 /**
@@ -779,8 +789,11 @@ type ProtoShellContextValue = {
   ) => void;
   /** The route reached a chapter sheet. Called by the layout's teardown effect. */
   markStackSheetLanded: () => void;
-  /** Flip the sheet down (or back up) without unmounting it. */
-  setStackSheetOpen: (open: boolean) => void;
+  /**
+   * Flip the sheet down (or back up) without unmounting it. `parkedAt` records where the
+   * sheet's URL was as it goes down (see `PaperStackState.parkedAt`); flipping up clears it.
+   */
+  setStackSheetOpen: (open: boolean, parkedAt?: PaperStackReturnTo) => void;
   /**
    * Record the stacked note's id once a compose draft has saved and has one. Called by the
    * layout's teardown effect, not by surfaces.
@@ -1915,8 +1928,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
         : current,
     );
   }, []);
-  const setStackSheetOpen = useCallback((open: boolean) => {
-    setPaperStack((current) => (current ? { ...current, open } : current));
+  const setStackSheetOpen = useCallback((open: boolean, parkedAt?: PaperStackReturnTo) => {
+    setPaperStack((current) =>
+      current ? { ...current, open, parkedAt: open ? undefined : parkedAt } : current,
+    );
   }, []);
   const adoptStackNoteId = useCallback((noteId: string) => {
     setPaperStack((current) => (current && !current.noteId ? { ...current, noteId } : current));
