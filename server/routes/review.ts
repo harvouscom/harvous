@@ -713,8 +713,12 @@ route.post('/api/review/items/:id/defer', requireAuth, rateLimit('write'), requi
  * the *current* preferences produce. That distinction is the whole point of the write: a vote
  * recorded against the wrong rung would quiet a family the reader never complained about.
  *
- * Nothing here invalidates a query. The sitting is a fixed set of questions on purpose, and
- * quieting takes effect the next time one is composed.
+ * Nothing here invalidates a query. The sitting is a fixed set of questions on purpose, and the
+ * item just voted on is not in what is left of it: the vote is cast from its result card, an
+ * answered item drops out of today's sitting (`todaySitting`), and the practice re-ask is off. So
+ * there is no queued question for this item to rebuild; the server forgets its memoised material
+ * (`reviewDislikeRowsFor`), and the next time the item is composed it walks past the rung — and,
+ * on the third item, the family is quieted too.
  */
 route.post('/api/review/items/:id/feedback', requireAuth, rateLimit('write'), requireReviewAccess(), async (c) => {
   try {

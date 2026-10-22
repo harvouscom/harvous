@@ -18,10 +18,20 @@ export type PrototypeSyncChipPresentation = {
   visible: boolean;
   variant: PrototypeSyncChipVariant;
   label: string;
+  /** The sentence under the label in the toolbar status popover. */
+  detail: string;
   showRetry: boolean;
 };
 
-/** Casual, non-technical chip copy — never exposes raw queue counts. */
+const HIDDEN: PrototypeSyncChipPresentation = {
+  visible: false,
+  variant: 'success',
+  label: '',
+  detail: '',
+  showRetry: false,
+};
+
+/** Casual, non-technical status copy — never exposes raw queue counts. */
 export function getPrototypeSyncChipPresentation(
   input: PrototypeSyncChipInput,
 ): PrototypeSyncChipPresentation {
@@ -36,15 +46,16 @@ export function getPrototypeSyncChipPresentation(
     !input.isSyncing &&
     !input.queueUnhealthy;
 
-  if (healthy && !input.showAllSynced) {
-    return { visible: false, variant: 'success', label: '', showRetry: false };
-  }
+  if (healthy && !input.showAllSynced) return HIDDEN;
 
   if (hasError) {
     return {
       visible: true,
       variant: 'error',
       label: "Couldn't save to the cloud",
+      detail: input.isOffline
+        ? "Your changes are kept on this device. They'll go up once you're back online."
+        : "Your changes are kept on this device. Try again, or keep writing and we'll retry.",
       showRetry: !input.isOffline,
     };
   }
@@ -54,6 +65,7 @@ export function getPrototypeSyncChipPresentation(
       visible: true,
       variant: 'success',
       label: 'All caught up',
+      detail: 'Everything is saved to the cloud.',
       showRetry: false,
     };
   }
@@ -66,6 +78,10 @@ export function getPrototypeSyncChipPresentation(
         input.pendingCount > 0
           ? "You're offline — saved on this device"
           : "You're offline",
+      detail:
+        input.pendingCount > 0
+          ? "Your changes are saved on this device and will go up when you're back online."
+          : "Anything you write is kept on this device until you're back online.",
       showRetry: false,
     };
   }
@@ -75,9 +91,10 @@ export function getPrototypeSyncChipPresentation(
       visible: true,
       variant: 'syncing',
       label: 'Saving…',
+      detail: 'Sending your latest changes to the cloud.',
       showRetry: false,
     };
   }
 
-  return { visible: false, variant: 'success', label: '', showRetry: false };
+  return HIDDEN;
 }

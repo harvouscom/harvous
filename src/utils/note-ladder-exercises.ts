@@ -69,6 +69,11 @@ export interface NoteMaterial {
   skip?: ReadonlySet<ReviewPromptKey>;
   /** Rungs the reader asked for more of. Weighted in the seeded walk; see `emphasisDraw`. */
   prefer?: ReadonlySet<ReviewPromptKey>;
+  /**
+   * Rungs the reader thumbed down on this very note. Also in `skip`; the second pass keeps
+   * walking past these, and a third gives one back only when the note has nothing else.
+   */
+  avoid?: ReadonlySet<ReviewPromptKey>;
 }
 
 /**
@@ -132,9 +137,11 @@ export function resolveNoteRung(
    * `members[0]`. Turning a preference into a disappearance is the one thing a preference must
    * not do.
    */
-  for (let i = 0; i < NOTE_LADDER.length; i++) {
-    const key = NOTE_LADDER[(start + i) % NOTE_LADDER.length];
-    if (buildable[key]) return key;
+  for (const avoid of material.avoid?.size ? [material.avoid, undefined] : [undefined]) {
+    for (let i = 0; i < NOTE_LADDER.length; i++) {
+      const key = NOTE_LADDER[(start + i) % NOTE_LADDER.length];
+      if (buildable[key] && !avoid?.has(key)) return key;
+    }
   }
   return null;
 }

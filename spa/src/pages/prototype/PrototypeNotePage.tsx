@@ -29,6 +29,7 @@ import { detectScriptureReferences, parseScriptureReference } from '@/utils/scri
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { useSettledFlag } from '../../hooks/useSettledFlag';
 import { buildNoteDockOrigin, readPaperStackDockPlacement } from './paper-stack-origins';
+import { shouldFallbackUnresolvedScriptureToReader } from './unresolved-scripture-dock';
 import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleChapter';
 import { bookSlug } from '@/utils/bible-book-chapters';
 import {
@@ -1415,15 +1416,39 @@ export default function PrototypeNotePage() {
 
   // Scripture highlight whose parent note has no matching pill: the tap must not silently
   // land on "just the note", so fall back to the reader at that reference instead.
+  //
+  // Except over the reader: the chapter is already the paper behind this note, so falling
+  // back to it would leave the note open on its origin's URL — where the shell renders the
+  // chapter, and flipping down then up "opened" onto the reader instead of the note. Stay on
+  // the note and drop the deep link.
   const onScriptureDockUnresolved = useCallback(() => {
     if (!initialScriptureRef) return;
+    if (!shouldFallbackUnresolvedScriptureToReader(paperStack)) {
+      navigate({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteSlugParam },
+        search: {
+          ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+          space: toPrototypeSpaceSearchParam(contextSpaceId),
+        },
+        replace: true,
+      });
+      return;
+    }
     const readerRoute = readerRouteForReference(
       initialScriptureRef,
       initialScriptureTranslation ?? '',
     );
     if (!readerRoute) return;
     navigate(landAgain(readerRoute));
-  }, [navigate, initialScriptureRef, initialScriptureTranslation]);
+  }, [
+    navigate,
+    initialScriptureRef,
+    initialScriptureTranslation,
+    paperStack,
+    noteSlugParam,
+    contextSpaceId,
+  ]);
 
   // Dock the inspector side-by-side only when the pane is wide enough to seat the
   // editor (max 720px content) beside it (~268px reserve); otherwise let it float over

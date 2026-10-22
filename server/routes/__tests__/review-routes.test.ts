@@ -1094,6 +1094,18 @@ describe('question feedback is filed against the question that was asked', () =>
     expect(handler()).toContain('reviewDislikeRowsFor');
   });
 
+  it('says what came of a vote in a toast rather than a caption on the card', () => {
+    const dock = withoutComments(source('spa/src/pages/prototype/PrototypeReviewDock.tsx'));
+    expect(dock).not.toContain('proto-review-dock__feedback');
+    const start = dock.indexOf('const castFeedback');
+    const body = dock.slice(start, start + 1600);
+    expect(body).toContain('toast.success(REVIEW_FEEDBACK_ACK_COPY)');
+    expect(body).toContain('toast.success(REVIEW_FEEDBACK_DISLIKE_ACK_COPY)');
+    // The third dislike of a family Settings can lean away from carries the way there.
+    expect(body).toContain('label: REVIEW_FEEDBACK_SETTINGS_LINK_COPY');
+    expect(body).toContain("prototypeHref('settings/review-exercises')");
+  });
+
   it('invalidates nothing on the client', () => {
     /*
      * A sitting is a fixed set of questions on purpose. Quieting takes effect the next time one
@@ -1107,21 +1119,54 @@ describe('question feedback is filed against the question that was asked', () =>
 });
 
 describe('the dislike tally', () => {
-  it('reads only disliked rows, inside the window, with a cap', () => {
+  const fn = (name: string) => {
     const text = service();
-    const start = text.indexOf('async function loadRecentDislikes');
-    const body = text.slice(start, text.indexOf('async function', start + 10));
+    const start = text.indexOf(`async function ${name}`);
+    expect(start).toBeGreaterThan(-1);
+    return text.slice(start, text.indexOf('async function', start + 10));
+  };
+
+  it('reads only disliked rows, with a cap', () => {
+    const body = fn('loadDislikeLog');
     expect(body).toContain("eq(ReviewEvents.action, 'disliked')");
-    expect(body).toContain('reviewDislikeWindowStart');
     expect(body).toContain('DISLIKE_ROW_CAP');
+  });
+
+  it('quiets a family only from the votes inside the window', () => {
+    expect(fn('loadRecentDislikes')).toContain('reviewDislikeWindowStart');
+  });
+
+  it('honours a vote on its own item for good, so that read has no window', () => {
+    // One thumbs-down says "not this, here", and that is not something to forget in a month.
+    expect(fn('loadDislikeLog')).not.toContain('reviewDislikeWindowStart');
+    expect(fn('loadSubjectDislikes')).not.toContain('reviewDislikeWindowStart');
+    expect(fn('loadSubjectDislikes')).toContain('dislikedRungsBySubject');
   });
 
   it('degrades to no dampening rather than a broken queue', () => {
     // The same bargain the preference read strikes: a database the migration has not reached
     // has no `rungKey` column, and Review opening matters more than a lean being honoured.
+    expect(fn('loadDislikeLog')).toContain('catch');
+  });
+
+  it("folds each subject's dislikes into the material every rung walk reads", () => {
+    /*
+     * The list, the reveal, the grader and the truth all resolve through these three loaders, so
+     * an item's dislikes entering here is what keeps them resolving the same rung. Folded in
+     * anywhere downstream, the grader could mark against a question the reader was never shown.
+     */
     const text = service();
-    const start = text.indexOf('async function loadRecentDislikes');
-    expect(text.slice(start, text.indexOf('async function', start + 10))).toContain('catch');
+    expect(text).toContain('...rungPrefs(noteDislikeSubjectKey(id))');
+    expect(text).toContain('...rungPrefs(passageDislikeSubjectKey(ref))');
+    expect(text).toMatch(/\.\.\.rungPrefs\(reference\?\.trim\(\) \? passageDislikeSubjectKey\(reference\)/);
+    expect(text).not.toContain('skip: rungPrefs.skip');
+  });
+
+  it('forgets the memoised material once a vote lands', () => {
+    // A thumbs-down moves its passage's rung; material built a moment ago still has the old walk.
+    const text = service();
+    const start = text.indexOf('export async function reviewDislikeRowsFor');
+    expect(text.slice(start, start + 200)).toContain('forgetReviewMaterial(userId)');
   });
 });
 

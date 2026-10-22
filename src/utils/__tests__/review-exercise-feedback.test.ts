@@ -3,15 +3,27 @@ import {
   REVIEW_DISLIKE_THRESHOLD,
   REVIEW_DISLIKE_WINDOW_DAYS,
   describeDislike,
+  dislikedRungsBySubject,
   mergeRungPreferences,
+  noteDislikeSubjectKey,
+  passageDislikeSubjectKey,
   quietedFamilies,
   quietedKeySet,
   reviewDislikeWindowStart,
+  withSubjectDislikes,
   type ReviewDislikeRow,
+  type ReviewDislikeSubjectRow,
 } from '@/utils/review-exercise-feedback';
 import { ALWAYS_ON_FAMILIES } from '@/utils/review-exercise-settings';
 import { reviewPromptKeysInFamily } from '@/utils/review-exercise-families';
-import type { ReviewPromptKey } from '@/utils/review-prompts';
+import {
+  VERSE_FAMILIES,
+  VERSE_FLOOR_KEY,
+  chapterRungFor,
+  verseRungFor,
+  type ReviewPromptKey,
+} from '@/utils/review-prompts';
+import { resolveNoteRung } from '@/utils/note-ladder-exercises';
 
 /** `verse.rebuild` is in the `blanks` family, which Settings offers More and Less on. */
 const BLANKS = 'verse.rebuild';
@@ -154,5 +166,135 @@ describe('a rung Review no longer asks', () => {
     // An item last answered on the retired folder question, disliked after the deploy.
     const rows = ['a', 'b', 'c'].map((id) => ({ reviewItemId: id, rungKey: 'note.folder' }));
     expect(describeDislike('note.folder', rows)).toEqual({ family: null, offerSettings: false });
+  });
+});
+
+describe('not this, here: a dislike on one item', () => {
+  const subjectRow = (
+    rungKey: string | null,
+    subject: { noteId?: string; scriptureReference?: string },
+    reviewItemId = 'item',
+  ): ReviewDislikeSubjectRow => ({
+    reviewItemId,
+    rungKey,
+    noteId: subject.noteId ?? null,
+    scriptureReference: subject.scriptureReference ?? null,
+  });
+  const none = { skip: new Set<ReviewPromptKey>(), prefer: new Set<ReviewPromptKey>() };
+  const prefsFor = (keys: ReviewPromptKey[]) => withSubjectDislikes(none, new Set(keys));
+
+  it('is filed under the note for a note rung and the passage for a passage rung', () => {
+    const map = dislikedRungsBySubject([
+      subjectRow('note.passage', { noteId: 'n1' }),
+      subjectRow('verse.rebuild', { scriptureReference: ' John 15:5 ' }),
+      subjectRow('chapter.order', { scriptureReference: 'Psalm 23' }),
+    ]);
+    expect([...(map.get(noteDislikeSubjectKey('n1')) ?? [])]).toEqual(['note.passage']);
+    // The reference is matched as the item stores it, give or take case and whitespace.
+    expect([...(map.get(passageDislikeSubjectKey('john 15:5')) ?? [])]).toEqual(['verse.rebuild']);
+    expect([...(map.get(passageDislikeSubjectKey('Psalm 23')) ?? [])]).toEqual(['chapter.order']);
+  });
+
+  it('counts from the first vote, on one item, with no threshold', () => {
+    // The family tally waits for three items; this is about the one the reader just answered.
+    const map = dislikedRungsBySubject([subjectRow(BLANKS, { scriptureReference: 'John 15:5' })]);
+    expect(map.get(passageDislikeSubjectKey('John 15:5'))?.has(BLANKS)).toBe(true);
+    expect(quietedFamilies(rows(BLANKS, ['item'])).size).toBe(0);
+  });
+
+  it('files nothing for a vote with no rung, a retired rung, or nothing to file it under', () => {
+    const map = dislikedRungsBySubject([
+      subjectRow(null, { noteId: 'n1' }),
+      subjectRow('note.folder', { noteId: 'n1' }),
+      subjectRow('note.passage', {}),
+      subjectRow('verse.rebuild', { scriptureReference: '  ' }),
+    ]);
+    expect(map.size).toBe(0);
+  });
+
+  it("hands back the reader's own preferences untouched when there is nothing to fold", () => {
+    expect(withSubjectDislikes(none, undefined)).toBe(none);
+    expect(withSubjectDislikes(none, new Set())).toBe(none);
+  });
+
+  it('outranks an explicit More, which is about every passage and not this one', () => {
+    const more = { skip: new Set<ReviewPromptKey>(), prefer: new Set<ReviewPromptKey>([BLANKS]) };
+    const folded = withSubjectDislikes(more, new Set<ReviewPromptKey>([BLANKS]));
+    expect(folded.skip.has(BLANKS)).toBe(true);
+    expect(folded.avoid?.has(BLANKS)).toBe(true);
+    // Still preferred everywhere else: nothing about the reader's choice is rewritten.
+    expect(folded.prefer).toBe(more.prefer);
+  });
+
+  describe('on a verse', () => {
+    const verse = {
+      citedInNotes: 2,
+      themeCount: 2,
+      personCount: 2,
+      crossRefCount: 2,
+      contentWordCount: 12,
+      locateRivals: 5,
+    };
+    const seeds = Array.from({ length: 24 }, (_, i) => `review_x:${i}`);
+
+    it('walks to the family sibling, for every seed', () => {
+      for (const seed of seeds) {
+        expect(verseRungFor(1, seed, { ...verse, ...prefsFor([BLANKS]) }).key).toBe('verse.initials');
+      }
+    });
+
+    it('steps down to the floor where the family has no one else to ask', () => {
+      // Family 7 is `verse.altered` alone. The reader's Less leaves it be; a dislike here does not.
+      const altered = VERSE_FAMILIES.findIndex((family) => family.length === 1 && family[0] === ALWAYS_ON);
+      expect(altered).toBeGreaterThan(-1);
+      expect(verseRungFor(altered, seeds[0], verse).key).toBe(ALWAYS_ON);
+      const less = { skip: new Set<ReviewPromptKey>([ALWAYS_ON]), prefer: new Set<ReviewPromptKey>() };
+      expect(verseRungFor(altered, seeds[0], { ...verse, ...less }).key).toBe(ALWAYS_ON);
+      expect(verseRungFor(altered, seeds[0], { ...verse, ...prefsFor([ALWAYS_ON]) }).key).toBe(VERSE_FLOOR_KEY);
+    });
+
+    it("steps down to the floor where the sibling can't be built", () => {
+      // Three content words: too few for initials, so rebuild was the only member.
+      const short = { ...verse, contentWordCount: 3 };
+      expect(verseRungFor(1, seeds[0], short).key).toBe(BLANKS);
+      expect(verseRungFor(1, seeds[0], { ...short, ...prefsFor([BLANKS]) }).key).toBe(VERSE_FLOOR_KEY);
+    });
+
+    it('still asks something when the floor is the thing they disliked', () => {
+      expect(verseRungFor(0, seeds[0], { ...verse, ...prefsFor([VERSE_FLOOR_KEY]) }).key).toBe(VERSE_FLOOR_KEY);
+    });
+  });
+
+  describe('on a chapter', () => {
+    const chapter = { verseCount: 36, finishCandidates: 20, personCount: 3, placeCount: 0 };
+
+    it('walks past it inside the family', () => {
+      for (let i = 0; i < 12; i++) {
+        expect(chapterRungFor(2, `c:${i}`, { ...chapter, ...prefsFor(['chapter.order']) }).key).toBe('chapter.person');
+      }
+    });
+
+    it('walks past it on the floor too, and asks it only when there is nothing else', () => {
+      // Family 1 is verse-level questions; a chapter that was only read has none and falls to the floor.
+      const onlyRead = { ...chapter, finishCandidates: 0, engagedCount: 0, markedAnswerable: 0 };
+      expect(chapterRungFor(1, 'c', onlyRead).key).toBe('chapter.order');
+      expect(chapterRungFor(1, 'c', { ...onlyRead, ...prefsFor(['chapter.order']) }).key).toBe('chapter.person');
+      const nobody = { ...onlyRead, personCount: 0 };
+      expect(chapterRungFor(1, 'c', { ...nobody, ...prefsFor(['chapter.order']) }).key).toBe('chapter.order');
+    });
+  });
+
+  describe('on a note', () => {
+    it('asks the other rung, for every seed', () => {
+      const both = { canPassage: true, canConnect: true, canTakeaway: false };
+      for (let i = 0; i < 12; i++) {
+        expect(resolveNoteRung(i % 3, { ...both, ...prefsFor(['note.passage']) }, `n:${i}`)).toBe('note.connect');
+      }
+    });
+
+    it('still asks the one rung a note has, rather than nothing', () => {
+      const onlyPassage = { canPassage: true, canConnect: false, canTakeaway: false };
+      expect(resolveNoteRung(0, { ...onlyPassage, ...prefsFor(['note.passage']) }, 'n')).toBe('note.passage');
+    });
   });
 });

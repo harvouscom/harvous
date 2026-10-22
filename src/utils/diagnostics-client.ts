@@ -248,10 +248,114 @@ export function getLastCapturedDiagnosticError(): typeof lastCapturedError {
   return lastCapturedError;
 }
 
+type DiagnosticEventBody = Record<string, unknown> & {
+  source: DiagnosticSource;
+  message: string;
+  metadata: Record<string, unknown>;
+};
+
+/**
+ * Events that could not be sent, kept until there is a connection to send them on.
+ *
+ * A save failure is most likely exactly when the network is not there, and a report posted
+ * into no network was simply lost — which is how no save failure ever reached the admin
+ * Maintenance log. Held in localStorage so a reload or a closed tab does not lose them either.
+ *
+ * Capped and deduped: offline, the same failure repeats on every retry, and a queue that grew
+ * with each one would be a storage leak with a flood of identical rows behind it. A repeat
+ * bumps the held event's count instead of adding another.
+ */
+const PENDING_STORAGE_KEY = 'harvous_diag_pending';
+const PENDING_MAX = 20;
+/** Older than this, a held event says more about a device left in a drawer than about a bug. */
+const PENDING_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+type PendingDiagnostic = { key: string; queuedAt: number; body: DiagnosticEventBody };
+
+function readPending(): PendingDiagnostic[] {
+  try {
+    const raw = localStorage.getItem(PENDING_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as PendingDiagnostic[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePending(items: PendingDiagnostic[]): void {
+  try {
+    if (items.length === 0) localStorage.removeItem(PENDING_STORAGE_KEY);
+    else localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // Storage full or blocked — the event is lost, which is what happened before this existed.
+  }
+}
+
+function holdForLater(body: DiagnosticEventBody): void {
+  const key = `${body.source}|${body.message}`;
+  const items = readPending();
+  const existing = items.find((item) => item.key === key);
+  if (existing) {
+    const count = Number(existing.body.metadata.repeatCount ?? 1);
+    existing.body.metadata.repeatCount = count + 1;
+  } else {
+    items.push({ key, queuedAt: Date.now(), body });
+  }
+  writePending(items.slice(-PENDING_MAX));
+}
+
+function isOfflineNow(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+function sendDiagnosticBody(body: DiagnosticEventBody): void {
+  if (isOfflineNow()) {
+    holdForLater(body);
+    return;
+  }
+  try {
+    void fetch(`${API_BASE}/api/diagnostics/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then((res) => {
+        // The service worker answers an unreachable API with a synthetic 503 rather than
+        // rejecting, so that is a "no network" too.
+        if (res.status === 503) holdForLater(body);
+      })
+      .catch(() => holdForLater(body));
+  } catch {
+    // Swallow — diagnostics must never disrupt the app
+  }
+}
+
+let flushingPending = false;
+
+/** Send whatever was held while offline. Runs at boot and on every reconnect. */
+export function flushPendingDiagnostics(): void {
+  if (typeof window === 'undefined' || flushingPending || isOfflineNow()) return;
+  const items = readPending();
+  if (items.length === 0) return;
+  flushingPending = true;
+  // Cleared before sending: anything that fails again is re-held by the send itself.
+  writePending([]);
+  const now = Date.now();
+  for (const item of items) {
+    if (now - item.queuedAt > PENDING_MAX_AGE_MS) continue;
+    sendDiagnosticBody({
+      ...item.body,
+      metadata: { ...item.body.metadata, heldOffline: true, heldMs: now - item.queuedAt },
+    });
+  }
+  flushingPending = false;
+}
+
 export function reportDiagnosticEvent(payload: DiagnosticReportPayload): void {
   if (typeof window === 'undefined') return;
 
-  const body = {
+  const body: DiagnosticEventBody = {
     source: payload.source,
     severity: payload.severity ?? 'error',
     message: payload.message,
@@ -269,12 +373,46 @@ export function reportDiagnosticEvent(payload: DiagnosticReportPayload): void {
     },
   };
 
-  void fetch(`${API_BASE}/api/diagnostics/event`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }).catch(() => {
-    // Swallow — diagnostics must never disrupt the app
+  sendDiagnosticBody(body);
+}
+
+/**
+ * Work someone wrote that did not get saved — the failures the admin log exists for.
+ *
+ * Kept apart from `reportApiDiagnostic`, which deliberately drops 4xx: for a save, a 404 or a
+ * 409 is not noise, it is the note that did not land. Deduped over a longer window than the
+ * generic repeat guard because saves retry on a backoff measured in minutes, and each retry
+ * of the same failure is not a new finding. The first report says it happened; the metadata
+ * says how far it got.
+ */
+const SAVE_FAILURE_DEDUPE_MS = 5 * 60 * 1000;
+const recentSaveFailures = new Map<string, number>();
+
+export type SaveFailureKind = 'autosave' | 'sync_exhausted' | 'sync_error' | 'offline_store';
+
+export function reportSaveFailure(
+  kind: SaveFailureKind,
+  message: string,
+  metadata: Record<string, unknown> = {},
+  dedupeKey: string = message,
+): void {
+  if (typeof window === 'undefined') return;
+  const now = Date.now();
+  for (const [k, at] of recentSaveFailures) {
+    if (now - at > SAVE_FAILURE_DEDUPE_MS) recentSaveFailures.delete(k);
+  }
+  const key = `${kind}|${dedupeKey}`;
+  if (recentSaveFailures.has(key)) return;
+  recentSaveFailures.set(key, now);
+  rememberError(message, null);
+  reportDiagnosticEvent({
+    source: kind === 'autosave' ? 'client_api' : 'client_js',
+    message,
+    metadata: {
+      saveFailure: kind,
+      navigatorOnLine: typeof navigator !== 'undefined' ? navigator.onLine : null,
+      ...metadata,
+    },
   });
 }
 
@@ -479,6 +617,10 @@ export function describeRejectionReason(reason: unknown): RejectionDescription {
 export function initDiagnosticCapture(): void {
   if (typeof window === 'undefined' || captureInitialized) return;
   captureInitialized = true;
+
+  // Anything held from a session that ended offline goes now, and again on every reconnect.
+  flushPendingDiagnostics();
+  window.addEventListener('online', flushPendingDiagnostics);
 
   window.addEventListener('error', (event) => {
     const message = event.message || 'Script error';

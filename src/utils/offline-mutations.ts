@@ -11,6 +11,7 @@ import {
   ensureUserPartition 
 } from './offline-db';
 import { enqueueMutation } from './sync-manager';
+import { reportSaveFailure } from './diagnostics-client';
 import { filterThreadClusterEdgesForRemoval } from './thread-cluster-bulk-actions';
 import { cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId } from './offline-db';
 import { getCurrentSeason } from './season-helpers';
@@ -1116,9 +1117,11 @@ export async function createNoteOfflineWithRetry(
   },
   options: { retries?: number; retryDelay?: number } = {}
 ): Promise<OfflineOperationResult> {
+  let lastError: unknown = null;
   const result = await runOfflineOperationWithRetry(() => createNoteOffline(userId, data), {
     ...options,
     onAttemptFailed: (attempt, maxAttempts, error, errorType) => {
+      lastError = error;
       console.error(`[createNoteOfflineWithRetry] Attempt ${attempt} failed:`, {
         error: error?.message || error,
         errorType,
@@ -1135,6 +1138,14 @@ export async function createNoteOfflineWithRetry(
   console.error('[createNoteOfflineWithRetry] All retries exhausted', {
     error: result.error,
     errorType: result.errorType,
+  });
+  // "Unable to save offline" means the note exists nowhere — not on the server, not on this
+  // device. The one save failure with no copy left to recover from.
+  const raw = lastError as { name?: unknown; message?: unknown } | null;
+  reportSaveFailure('offline_store', `Unable to save offline (${result.errorType})`, {
+    errorType: result.errorType,
+    errorName: typeof raw?.name === 'string' ? raw.name : null,
+    errorMessage: typeof raw?.message === 'string' ? raw.message.slice(0, 200) : null,
   });
   return { success: false, error: result.error, errorType: result.errorType };
 }

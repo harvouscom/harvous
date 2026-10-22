@@ -21,6 +21,12 @@
    * paper above it, and above so a tall one does not become a page.
    */
   --rx-card-h: clamp(300px, calc(100dvh - 300px), 520px);
+  /*
+   * How far a card may grow past that for a question that will not fit — four options that are
+   * each a sentence, say. A floor, not a fixed size: a card that clipped its last option to stay
+   * one size was a card with an answer missing. Past this the stage scrolls.
+   */
+  --rx-card-max-h: max(var(--rx-card-h), calc(100dvh - 180px));
   /* The header's own inset, so the question starts under the card's icon. */
   --rx-gutter: 12px;
   --rx-scene-bg: color-mix(in srgb, var(--pds-text-primary) 3.5%, transparent);
@@ -33,8 +39,8 @@
 
 .proto-review-dock .proto-review-dock__body:has(> .rx-stage),
 .proto-review-dock .proto-review-dock__body:has(> .proto-review-dock__result) {
-  block-size: var(--rx-card-h);
-  max-height: none;
+  min-block-size: var(--rx-card-h);
+  max-height: var(--rx-card-max-h);
   overflow: hidden;
 }
 
@@ -44,8 +50,8 @@
  * Capped at the usual height, so a long verse still scrolls inside the card.
  */
 .proto-review-dock .proto-review-dock__body:has(> .rx-stage[data-fit]) {
-  block-size: auto;
-  max-block-size: var(--rx-card-h);
+  min-block-size: 0;
+  max-height: var(--rx-card-h);
 }
 
 .rx-stage[data-fit] .rx-scene {
@@ -234,7 +240,8 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
 /*
  * Two across. `auto-fit` left four short names as three and an orphan, which reads as a list
  * that ran out rather than four equal answers; a set of three or six short ones takes three
- * across, and sentences go to one column on a phone, where two would wrap every line.
+ * across, and sentences go to one column at every width — two across, a sentence wraps on every
+ * line and the four of them stop reading as answers.
  */
 .rx-options {
   display: grid;
@@ -247,10 +254,8 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-@media (max-width: 520px) {
-  .rx-options[data-long] {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.rx-options[data-long] {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /*
@@ -785,8 +790,14 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
 
 .rx-options[data-variant='theme'] .rx-option {
   min-height: 40px;
+  max-inline-size: 100%;
   padding: 6px 16px 6px 6px;
   border-radius: 999px;
+}
+
+/* A theme that is a phrase wraps, and a pill two lines tall is a lozenge: it takes the card's corner. */
+.rx-options[data-variant='theme'][data-long] .rx-option {
+  border-radius: 14px;
 }
 
 /*
@@ -795,6 +806,7 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
  */
 .rx-options[data-variant='note'] {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   padding: 6px 0 2px;
 }
@@ -831,6 +843,22 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
 
 .rx-options[data-variant='note'] .rx-option:nth-child(4n + 4) {
   --rx-fan: 4deg;
+}
+
+/*
+ * Long titles: the sheets sit side by side, two across and straight. Laid over each other, a
+ * sheet's title ran under its neighbour; tilted, a wrapped title reads crooked; and left to wrap
+ * as a row, four made three and an orphan.
+ */
+.rx-options[data-variant='note'][data-long] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rx-options[data-variant='note'][data-long] .rx-option {
+  margin: 0;
+  --rx-fan: 0deg;
 }
 
 .rx-options[data-variant='note'] .rx-option:is(:hover, :focus-visible):not(:disabled),
@@ -873,6 +901,10 @@ html.harvous-prototype-route .proto-review-dock .proto-review-dock__body:has(> .
     margin: 0;
     min-height: 96px;
     --rx-fan: 0deg;
+  }
+
+  .rx-options[data-variant='note'][data-long] {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
