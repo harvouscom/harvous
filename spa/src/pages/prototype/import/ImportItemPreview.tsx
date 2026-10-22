@@ -3,13 +3,12 @@
  *
  * Loaded when its row is opened, never during upload — most files are imported
  * without anyone looking inside, and a forty-file drop shouldn't fetch forty bodies.
- * The body is the HTML commit will write, rendered through the same read-only path
- * as note history, so a Scripture pill already in the file shows as a pill here.
+ * The body is the HTML commit will write, drawn on the same read-only surface as note
+ * history, so a Scripture pill already in the file shows as the pill it will become.
  */
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import Icon from '@/components/react/Icon';
-import { safeRenderHtml } from '@/utils/content-renderer';
-import { prepareReadOnlyNoteBodyHtml } from '@/utils/note-read-only-html';
+import ProtoReadOnlyNotePaper from '../ProtoReadOnlyNotePaper';
 import type { ImportItemPreview as ImportItemPreviewData } from './import-session-api';
 
 export interface ImportItemPreviewProps {
@@ -36,12 +35,6 @@ function formatDate(value: string | null): string | null {
     : new Date(value);
   if (isNaN(date.getTime())) return null;
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-function PreviewBody({ html }: { html: string }) {
-  // A fresh object each render would re-apply innerHTML and drop any text selection.
-  const markup = useMemo(() => ({ __html: safeRenderHtml(prepareReadOnlyNoteBodyHtml(html)) }), [html]);
-  return <div className="card-full-editable__content-html proto-import-preview__body" dangerouslySetInnerHTML={markup} />;
 }
 
 export default function ImportItemPreview({ itemId, loadPreview, showTitle = true }: ImportItemPreviewProps) {
@@ -100,7 +93,7 @@ export default function ImportItemPreview({ itemId, loadPreview, showTitle = tru
       {showTitle ? <h4 className="proto-import-preview__title">{preview.title}</h4> : null}
 
       {hasBody ? (
-        <PreviewBody html={preview.html} />
+        <ProtoReadOnlyNotePaper variant="inset" className="proto-import-preview__body" html={preview.html} />
       ) : (
         <p className="proto-import-preview__status">This note has no body text.</p>
       )}

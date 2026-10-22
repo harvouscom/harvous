@@ -38,6 +38,7 @@ import { offerGuestAccount } from '../../lib/guest-gate';
 import PrototypeSharePopover from './PrototypeSharePopover';
 import PrototypeFindInNotePopover from './PrototypeFindInNotePopover';
 import PrototypeLibraryChip from './PrototypeLibraryChip';
+import PrototypeSyncStatusButton from './PrototypeSyncStatusButton';
 import { LIBRARY_CHIP_OPENING_VIEW } from './library-panel/library-panel-view';
 import {
   clearLibraryChipRect,
@@ -842,6 +843,10 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
               onDismiss={onboardingPopover.dismiss}
             />
           ) : null}
+
+          {/* Offline, saving, or failed — nothing at all while caught up. A guest has nothing
+              to sync. */}
+          {isGuest ? null : <PrototypeSyncStatusButton />}
 
           <AccountMenu iconSize={PROTO_TOOLBAR_ORB_ICON_SIZE} />
         </div>

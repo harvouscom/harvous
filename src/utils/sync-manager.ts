@@ -25,6 +25,7 @@ import { dispatchAppearanceAccountSync } from './harvous-appearance-account-even
 import { dispatchOnboardingAccountSync } from './harvous-onboarding-account-event';
 import { isPrototypeShellPath } from '@/lib/prototype-path';
 import { MAX_NOTE_CREATES_PER_SYNC_PUSH } from '@/utils/rate-limit';
+import { reportSaveFailure } from '@/utils/diagnostics-client';
 
 /** Pending ops above this threshold are treated as a stuck/unhealthy queue. */
 export const SYNC_QUEUE_UNHEALTHY_THRESHOLD = 100;
@@ -655,10 +656,12 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
     return appliedCount;
   } catch (error) {
     console.error('Error applying incremental changes:', error);
+    const syncError = error instanceof Error ? error.message : String(error);
     await updateSyncState(userId, {
       isSyncing: false,
-      syncError: error instanceof Error ? error.message : String(error),
+      syncError,
     });
+    reportSyncError('pull', syncError);
     throw error;
   }
 }
@@ -823,6 +826,7 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
       isSyncing: false,
       syncError,
     });
+    if (syncError) reportSyncError('pull', syncError);
 
     return {
       success: false,
@@ -922,9 +926,47 @@ export async function enqueueMutation(userId: string, operation: Omit<SyncOperat
  * successful pushes clear stale errors. Per-op failures are surfaced via the queue's failed count.
  */
 export async function recordPushQueueOutcome(userId: string, pushResult: SyncResult): Promise<void> {
+  const syncError = pushResult.success ? null : pushResult.error ?? 'Sync failed';
   await updateSyncState(userId, {
     isSyncing: false,
-    syncError: pushResult.success ? null : pushResult.error ?? 'Sync failed',
+    syncError,
+  });
+  if (syncError) reportSyncError('push', syncError);
+}
+
+/** A queued op is past retrying. Mirrors `useSyncQueueStatus`'s `retryCount >= 5` = failed. */
+const SYNC_OP_MAX_RETRIES = 5;
+
+/**
+ * Sync failures into the admin Maintenance log. Before this, an op that exhausted its retries
+ * was a `console.error` on a device nobody was watching, and the only trace anywhere was the
+ * status glyph telling the person their work had not gone up.
+ *
+ * No content: the entity type, the operation, and the server's error — enough to find the
+ * route that refused it, nothing of what was written.
+ */
+function reportSyncOpGaveUp(op: SyncOperation, errorType: string, errorMessage: string): void {
+  reportSaveFailure(
+    'sync_exhausted',
+    `Sync gave up on ${op.entityType} ${op.operation} (${errorType})`,
+    {
+      entityType: op.entityType,
+      operation: op.operation,
+      entityId: op.entityId,
+      retryCount: op.retryCount,
+      errorType,
+      errorMessage: errorMessage.slice(0, 200),
+    },
+  );
+}
+
+/** Offline is the status glyph's to explain, not a failure; and auth-not-ready resolves itself. */
+function reportSyncError(phase: 'push' | 'pull' | 'sync', syncError: string): void {
+  if (syncError === 'Offline' || syncError === 'AUTH_NOT_READY') return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  reportSaveFailure('sync_error', `Sync ${phase} failed: ${syncError.slice(0, 160)}`, {
+    phase,
+    errorType: classifySyncError(syncError),
   });
 }
 
@@ -1107,6 +1149,10 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
             retryCount: op.retryCount + 1,
             lastError: errorMessage,
           });
+          // The fifth strike parks it: nothing pushes it again until someone presses Retry.
+          if (op.retryCount + 1 === SYNC_OP_MAX_RETRIES) {
+            reportSyncOpGaveUp(op, errorType, errorMessage);
+          }
         } else if (shouldDropStalePrototypeQueueOp(op, errorType)) {
           // Prototype reads from the server; a queued edit for a missing note will never apply.
           await offlineDB.syncQueue.delete(op.id!);
@@ -1117,6 +1163,7 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
             retryCount: 999, // High count to prevent further retries
             lastError: `[${errorType}] ${errorMessage}`,
           });
+          reportSyncOpGaveUp(op, errorType, errorMessage);
         }
       }
     }
@@ -1597,10 +1644,12 @@ export async function syncNow(userId: string): Promise<SyncResult> {
     };
   } catch (error) {
     console.error('[Sync] syncNow error:', error);
+    const syncError = error instanceof Error ? error.message : String(error);
     await updateSyncState(userId, {
       isSyncing: false,
-      syncError: error instanceof Error ? error.message : String(error),
+      syncError,
     });
+    reportSyncError('sync', syncError);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),

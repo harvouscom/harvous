@@ -21,11 +21,12 @@ import {
  */
 export function readerRouteForReference(
   reference: string,
-  translation: string,
+  /** Omitted, the reader opens in the account's default translation. */
+  translation: string | undefined,
 ): {
   to: ReturnType<typeof prototypeReadRouteTo>;
   params: { book: string; chapter: string };
-  search: { v: string | undefined; vEnd: string | undefined; t: string };
+  search: { v: string | undefined; vEnd: string | undefined; t: string | undefined };
 } | null {
   const parsed = parseScriptureReference(reference);
   if (!parsed?.book || !parsed.chapter) return null;

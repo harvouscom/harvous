@@ -10,6 +10,7 @@ import {
   composeDraftNoteOffline,
   getHomeSpaceId,
   getPersistedUserIdFromPage,
+  clickSyncRetry,
   getSyncChipLabel,
   getSyncQueueSnapshot,
   runOfflineMutationHelper,
@@ -91,7 +92,7 @@ test('1 — basic offline create/edit and chip transitions', async ({ authedPage
   expect(queued.some((op) => op.entityType === 'note' && op.operation === 'create')).toBe(true);
 
   await page.context().setOffline(false);
-  await waitForSyncChip(page, /Saving|All caught up/i);
+  // Saving may be over before the toolbar reveals it, and caught up shows nothing at all.
   await waitForSyncChipHidden(page, 30_000);
 
   const after = await getSyncQueueSnapshot(page, userId!);
@@ -274,11 +275,9 @@ test('5 — failed sync chip and Retry', async ({ authedPage: page }) => {
   );
 
   await waitForSyncChip(page, /Couldn't save|cloud/i, 15_000);
-  const retry = page.locator('.proto-sync-chip__retry');
-  await expect(retry).toBeVisible();
 
   await page.context().setOffline(false);
-  await retry.click();
+  await clickSyncRetry(page);
   await page.waitForTimeout(3000);
 
   const label = await getSyncChipLabel(page);

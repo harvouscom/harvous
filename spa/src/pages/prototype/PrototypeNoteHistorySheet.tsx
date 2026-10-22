@@ -4,14 +4,13 @@ import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
-import { safeRenderHtml } from '@/utils/content-renderer';
-import { prepareReadOnlyNoteBodyHtml } from '@/utils/note-read-only-html';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { toastError } from '../../lib/error-copy';
 import { useNoteHistory, type NoteHistorySessionWire } from '../../hooks/queries/useNoteHistory';
 import { useNoteHistoryVersion } from '../../hooks/queries/useNoteHistoryVersion';
 import { restoreNoteVersion, useRestoreNoteVersion } from '../../hooks/mutations/useRestoreNoteVersion';
+import { useProfile } from '../../hooks/queries/useProfile';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
@@ -19,6 +18,7 @@ import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import PrototypeHomeRow from './PrototypeHomeRow';
+import ProtoReadOnlyNotePaper from './ProtoReadOnlyNotePaper';
 import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import { PLUS_BADGE_COPY } from './proto-review-copy';
@@ -27,6 +27,7 @@ import {
   formatNoteHistoryDay,
   formatNoteHistoryMoment,
   groupNoteHistoryByDay,
+  noteHistoryDayLabel,
   noteHistorySessionTimeLabel,
 } from './note-history-presentation';
 import '../../styles/prototype-note-history.css';
@@ -54,20 +55,6 @@ function rowDetail(session: NoteHistorySessionWire, currentTitle: string): strin
   return COPY.titledAs(title);
 }
 
-function NoteReadOnlyBody({ title, html }: { title: string | null; html: string }) {
-  // A fresh object each render would re-apply innerHTML and drop any text selection.
-  const markup = useMemo(() => ({ __html: safeRenderHtml(prepareReadOnlyNoteBodyHtml(html)) }), [html]);
-  return (
-    <article className="proto-note-history__body">
-      {title?.trim() ? <h2 className="proto-note-history__body-title">{title}</h2> : null}
-      <div
-        className="card-full-editable__content-html proto-note-history__body-html"
-        dangerouslySetInnerHTML={markup}
-      />
-    </article>
-  );
-}
-
 export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }: PrototypeNoteHistorySheetProps) {
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -80,6 +67,7 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
   const history = useNoteHistory(noteId, open);
   const restore = useRestoreNoteVersion();
   const fullHistory = useHasFeature('full_history');
+  const defaultTranslation = useProfile().data?.defaultTranslation ?? null;
 
   const sessions = useMemo(() => history.data?.pages.flatMap((page) => page.sessions) ?? [], [history.data]);
   const days = useMemo(() => groupNoteHistoryByDay(sessions), [sessions]);
@@ -176,13 +164,14 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
           <h3 className="proto-note-history__day-label">{day.label}</h3>
           {day.sessions.map((session) => {
             const detail = rowDetail(session, currentTitle);
+            const isSelected = session.id === selectedId;
             return (
               <button
                 key={session.id}
                 type="button"
-                className="proto-note-history__row"
+                className={isSelected ? 'proto-note-history__row proto-ink-on-accent' : 'proto-note-history__row'}
                 data-current={session.isCurrent || undefined}
-                aria-current={session.id === selectedId ? 'true' : undefined}
+                aria-current={isSelected ? 'true' : undefined}
                 aria-label={session.isCurrent ? `${COPY.current}, ${noteHistorySessionTimeLabel(session)}` : undefined}
                 onClick={() => setSelectedId(session.id)}
               >
@@ -247,10 +236,39 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
       {isLockedError(version.error) && locked ? COPY.lockedMeta(formatNoteHistoryDay(locked.before)) : COPY.previewError}
     </p>
   ) : (
-    <NoteReadOnlyBody title={version.data.version.title} html={version.data.version.content} />
+    // Older versions can hold references as plain words; they show as pills here and are
+    // stored, and restored, exactly as they were.
+    <ProtoReadOnlyNotePaper
+      className="proto-note-history__paper"
+      title={version.data.version.title}
+      html={version.data.version.content}
+      displayPills={{ noteId, fallbackTranslation: defaultTranslation }}
+    />
   );
 
   const canRestore = Boolean(selected && !selected.isCurrent && !selected.contentEncrypted && version.isSuccess);
+
+  // Which version this is, and the one thing you can do with it, sit over the page itself.
+  const previewHeader = selected ? (
+    <div className="proto-note-history__preview-header">
+      <span className="proto-note-history__preview-when">
+        {noteHistoryDayLabel(new Date(selected.endedAt))}
+        <span className="proto-note-history__preview-time">{noteHistorySessionTimeLabel(selected)}</span>
+      </span>
+      {selected.isCurrent ? (
+        <span className="proto-note-history__row-tag">{COPY.current}</span>
+      ) : canRestore ? (
+        <button
+          type="button"
+          className="proto-note-history__restore"
+          disabled={restore.isPending}
+          onClick={(event) => setConfirmRect(event.currentTarget.getBoundingClientRect())}
+        >
+          {COPY.restore}
+        </button>
+      ) : null}
+    </div>
+  ) : null;
 
   const content = (
     <div className="proto-note-history" data-layout={asSheet ? 'stacked' : 'split'}>
@@ -276,16 +294,6 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
           </span>
         </div>
         <div className="proto-note-history__header-actions">
-          {canRestore ? (
-            <button
-              type="button"
-              className="proto-note-history__restore"
-              disabled={restore.isPending}
-              onClick={(event) => setConfirmRect(event.currentTarget.getBoundingClientRect())}
-            >
-              {COPY.restore}
-            </button>
-          ) : null}
           <button
             type="button"
             className="proto-side-panel__action-btn"
@@ -299,7 +307,12 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
       </div>
       <div className="proto-note-history__panes">
         {!asSheet || !selected ? <div className="proto-note-history__list">{listBody}</div> : null}
-        {!asSheet || selected ? <div className="proto-note-history__preview">{preview}</div> : null}
+        {!asSheet || selected ? (
+          <div className="proto-note-history__preview">
+            {previewHeader}
+            <div className="proto-note-history__preview-scroll">{preview}</div>
+          </div>
+        ) : null}
       </div>
       {confirmRect && selected ? (
         <ProtoConfirmDialog

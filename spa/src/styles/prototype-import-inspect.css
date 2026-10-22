@@ -149,60 +149,13 @@
   color: var(--pds-text-secondary);
 }
 
-/* Capped so one long sermon can't push the rest of the list off screen. */
-.proto-import-preview__body {
+/* Capped so one long sermon can't push the rest of the list off screen. Type, rhythm and
+   pills come from the note's own surface (prototype-note-readonly.css); the compound
+   selector outranks that surface's `overflow: visible` whatever order the files load in. */
+.proto-editor-surface.proto-note-readonly.proto-import-preview__body {
   max-height: 280px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  font-family: var(--pds-font-notes);
-  font-variation-settings: var(--pds-font-notes-variation);
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--pds-text-primary);
-  overflow-wrap: anywhere;
-}
-
-/* Matches the editor's block rhythm (prototype-editor.css), so a note reads here the
-   way it will once it's in the library. The app's reset strips list markers. */
-.proto-import-preview__body p {
-  margin: 0 0 0.6em;
-}
-
-.proto-import-preview__body ul,
-.proto-import-preview__body ol {
-  margin: 0 0 0.6em;
-  padding-left: 1.4em;
-}
-
-.proto-import-preview__body ul {
-  list-style: disc;
-}
-
-.proto-import-preview__body ol {
-  list-style: decimal;
-}
-
-.proto-import-preview__body li {
-  margin-bottom: 0.2em;
-}
-
-.proto-import-preview__body li::marker {
-  color: var(--pds-text-tertiary, var(--pds-text-secondary));
-}
-
-.proto-import-preview__body blockquote:not([data-scripture-quote-accent]) {
-  margin: 0 0 0.6em;
-  padding-left: 1em;
-  border-left: 2.5px solid var(--pds-accent);
-  color: var(--pds-text-secondary);
-}
-
-.proto-import-preview__body > :first-child {
-  margin-top: 0;
-}
-
-.proto-import-preview__body > :last-child {
-  margin-bottom: 0;
 }
 
 /* Highlights and facts sit below a paper rule, the way a margin sits beside text:

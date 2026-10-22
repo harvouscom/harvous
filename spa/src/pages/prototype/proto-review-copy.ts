@@ -299,20 +299,28 @@ export const REVIEW_FEEDBACK_UP_COPY = 'Good question';
 export const REVIEW_FEEDBACK_DOWN_COPY = 'Not helpful';
 
 /**
- * Said back, and nothing more.
+ * Said back, and nothing more — a toast, so the result card keeps its room for the answer.
  *
- * Never "you will see fewer of these". The engine leans away where the step has somewhere else
- * to go, and on a note with nothing but a body it must still fall back to the rung just marked
- * unhelpful. A card that promised otherwise would be the lie `review-exercise-settings.ts`
- * names, moved from a settings row onto a study card.
+ * No trailing stop: toasts strip it anyway (`stripToastPunctuation`).
  */
-export const REVIEW_FEEDBACK_ACK_COPY = 'Noted.';
+export const REVIEW_FEEDBACK_ACK_COPY = 'Noted';
 
 /**
- * The third time, for a family Settings can actually lean away from.
+ * A thumbs-down, said back with what it does: this note or passage walks past that exercise from
+ * the next time it is asked (`dislikedRungsBySubject`).
  *
- * Offered once — a fourth and a fifth say "Noted." like the rest, because an offer repeated is a
- * nag — and never for a family with no control, where naming one would promise something the
+ * "Try", never "won't". A note that can only be asked one way must still be asked that way — a
+ * question is never withheld on account of a vote — and a toast that promised otherwise would be
+ * the lie `review-exercise-settings.ts` names, moved from a settings row onto a study card.
+ */
+export const REVIEW_FEEDBACK_DISLIKE_ACK_COPY = "Noted. We'll try a different exercise on this one";
+
+/**
+ * The third time, for a family Settings can actually lean away from — the toast's text, with
+ * `REVIEW_FEEDBACK_SETTINGS_LINK_COPY` as its action.
+ *
+ * Offered once — a fourth and a fifth get the plain thumbs-down line, because an offer repeated
+ * is a nag — and never for a family with no control, where naming one would promise something the
  * engine is entitled to ignore.
  *
  * "Ask for less", never "turn off". Less is the most the page offers, and it is a lean: the family
@@ -321,7 +329,7 @@ export const REVIEW_FEEDBACK_ACK_COPY = 'Noted.';
  */
 export const REVIEW_FEEDBACK_SETTINGS_LINK_COPY = 'Review exercises';
 export const reviewFeedbackOfferCopy = (family: string) =>
-  `Noted. You can ask for less of “${family}” in`;
+  `Noted. You can ask for less of “${family}”`;
 
 /** A vote is a log line, not a setting; losing one is not worth interrupting a sitting for. */
 export const REVIEW_FEEDBACK_FAILED_TOAST = "Couldn't note that";

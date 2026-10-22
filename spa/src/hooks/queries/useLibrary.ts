@@ -107,13 +107,25 @@ export function useUploadLibraryItem() {
  * before the URL dies under it, and never kept after the viewer closes — nothing durable
  * to a private file should outlive the moment it was looked at.
  */
-export function useLibraryFileUrl(itemId: string | null, options?: { enabled?: boolean }) {
+export function useLibraryFileUrl(
+  itemId: string | null,
+  options?: {
+    enabled?: boolean;
+    /**
+     * False for a playing video. A refocus past the stale time re-mints the URL, and a new
+     * URL handed to a mounted player swaps its source mid-play. The video player asks for a
+     * fresh one itself, when the old one actually fails.
+     */
+    refetchOnWindowFocus?: boolean;
+  },
+) {
   const authReady = useAuthReady();
   return useQuery({
     queryKey: ['library-file-url', itemId],
     enabled: authReady && Boolean(itemId) && (options?.enabled ?? true),
     staleTime: 8 * 60 * 1000,
     gcTime: 0,
+    refetchOnWindowFocus: options?.refetchOnWindowFocus ?? true,
     queryFn: async () =>
       api.get<{ url: string; fileName: string | null; fileMime: string | null }>(
         `/api/library/items/${encodeURIComponent(itemId!)}/file`,
