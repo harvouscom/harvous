@@ -26,9 +26,14 @@ the note pane. Now:
   anyway. Existing pills are set aside and put back byte for byte, because the highlighter
   matches through inline tags and would otherwise re-wrap a pill (and drop its accent)
   whenever the same reference also appears bare.
-- **List and header tidy.** Day headings lead each group, times sit under them in
-  `--pds-text-secondary`, the selected row takes the accent fill with white ink, and the
-  preview has its own header with the version's day and time beside Restore.
+- **Layout.** Desktop is a timeline: sessions down a dotted rail grouped by day (the chosen
+  one takes a filled accent dot and a grey wash, never a tinted row), the version on flat
+  paper beside it, Restore in the window header. Phone is a scrubber: the version fills a
+  full-height drawer, sessions are a chip strip above it (oldest left, "Now" at the right,
+  "Show older" and the Plus upsell leading), and Restore sits in a footer. Both open on the
+  current version and hold one size while you move between versions. Things shown twice
+  were cut: the note title in the header, a day-and-time bar over the page, and a
+  "Current version" tag beside "Now". Picked from four directions tried live (Oct 22).
 
 The preview now shares the editor surface, so it is the hook point for a diff (§2): marks
 added there inherit the same pill and highlight styles as the note.

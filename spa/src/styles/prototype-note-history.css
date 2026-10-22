@@ -1,22 +1,32 @@
+/*
+ * Note history (PrototypeNoteHistorySheet).
+ *
+ * Desktop: a timeline of editing sessions down the left, the chosen version on flat paper
+ * beside it. Phone: the version fills the drawer and the sessions become a strip above it.
+ * Both open on the note as it is now. The window holds one size while you move through
+ * versions, so the timeline never jumps under the pointer.
+ */
+
+/* ─── Window ─────────────────────────────────────────────────────────────── */
 .proto-note-history-popover {
-  width: min(720px, calc(100vw - 24px));
+  width: min(860px, calc(100vw - 48px));
 }
 
 .proto-note-history {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: min(640px, calc(100dvh - 96px));
+  height: min(680px, calc(100dvh - 120px));
 }
 
 .proto-note-history-sheet .proto-note-history {
-  max-height: calc(100dvh - 72px);
+  height: calc(100dvh - 72px);
 }
 
 .proto-note-history__header-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .proto-note-history__restore {
@@ -25,7 +35,6 @@
   border: none;
   border-radius: 7px;
   background: var(--pds-bg-control-strong);
-  color: var(--pds-text-primary);
   font: inherit;
   font-size: 0.85rem;
   font-weight: 600;
@@ -44,118 +53,53 @@
 .proto-note-history__panes {
   display: flex;
   flex: 1 1 auto;
-  flex-shrink: 1;
   min-height: 0;
+  border-top: 0.5px solid var(--pds-border-control);
 }
 
+/* ─── Desktop timeline ───────────────────────────────────────────────────── */
 .proto-note-history__list {
-  flex: 0 0 240px;
+  flex: 0 0 216px;
   min-width: 0;
   overflow-y: auto;
-  padding: 8px 6px 12px;
-  border-right: 0.5px solid var(--pds-border-control);
-}
-
-.proto-note-history[data-layout='stacked'] .proto-note-history__list {
-  flex: 1 1 auto;
-  flex-shrink: 1;
-  border-right: none;
-}
-
-.proto-note-history__preview {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  flex-shrink: 1;
-  min-width: 0;
-  min-height: 0;
-}
-
-/* The version on show and the one thing to do with it, over the page rather than in the
-   window's title bar, so Restore sits beside the time it restores. */
-.proto-note-history__preview-header {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
-  padding: 6px 12px 6px 16px;
-  border-bottom: 0.5px solid var(--pds-border-control);
-}
-
-.proto-note-history__preview-when {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--pds-text-primary);
-}
-
-.proto-note-history__preview-time {
-  font-weight: 500;
-  color: var(--pds-text-secondary);
-}
-
-.proto-note-history__preview-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px;
-}
-
-/* The note's own sheet (ProtoReadOnlyNotePaper), at the preview's width. */
-.proto-note-history__paper {
-  --proto-note-readonly-padding-x: 28px;
-}
-
-.proto-note-history[data-layout='stacked'] .proto-note-history__preview-scroll {
-  padding: 12px;
-}
-
-.proto-note-history[data-layout='stacked'] .proto-note-history__paper {
-  --proto-note-readonly-padding-x: 20px;
+  padding: 10px 8px 16px;
 }
 
 .proto-note-history__day + .proto-note-history__day {
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
-.proto-note-history__heading {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.proto-note-history__day {
+  position: relative;
 }
 
-.proto-note-history__subtitle {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.8rem;
-  color: var(--pds-text-muted);
+/* The rail: a hairline through the dots, from the first session of the day to the last. */
+.proto-note-history__day::before {
+  content: '';
+  position: absolute;
+  top: 40px;
+  bottom: 20px;
+  left: 16.5px;
+  width: 1px;
+  /* --pds-border-control composites to nothing on the glass. */
+  background: color-mix(in srgb, var(--pds-text-primary) 14%, transparent);
 }
 
-/* Day groups: the day is the heading, the times under it are secondary. */
 .proto-note-history__day-label {
-  margin: 6px 10px 4px;
+  margin: 4px 8px 6px;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--pds-text-primary);
 }
 
 .proto-note-history__row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  min-height: 44px;
-  padding: 7px 10px;
+  min-height: 36px;
+  padding: 6px 8px 6px 30px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -164,18 +108,36 @@
   cursor: pointer;
 }
 
+.proto-note-history__row::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 18px;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--pds-paper-sheet);
+  box-shadow: inset 0 0 0 1.5px var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
 .proto-note-history__row:hover {
   background: var(--pds-bg-control-hover);
 }
 
-/* Selected: the accent fill, white ink (`proto-ink-on-accent` on the row). Never a tint. */
+/* Chosen: a grey wash and a filled dot. The accent is the dot, never a tinted row. */
 .proto-note-history__row[aria-current='true'],
 .proto-note-history__row[aria-current='true']:hover {
-  background: var(--pds-bg-accent-button);
+  background: var(--pds-bg-control);
 }
 
-.proto-note-history__row[aria-current='true'] .proto-note-history__row-tag {
-  background: color-mix(in srgb, var(--pds-on-accent) 22%, transparent);
+.proto-note-history__row[aria-current='true']::before {
+  left: 11px;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  background: var(--pds-bg-accent-button);
+  box-shadow: 0 0 0 3px var(--pds-paper-sheet);
 }
 
 .proto-note-history__row-text {
@@ -186,79 +148,209 @@
   min-width: 0;
 }
 
-.proto-note-history__row-tag {
-  flex: none;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--pds-bg-control);
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--pds-text-secondary);
-}
-
-.proto-note-history__row-chevron {
-  display: inline-flex;
-  flex: none;
-  color: var(--pds-text-muted);
-}
-
-/* Stacked (phone): rows read as a list of things to open — taller, divided. */
-.proto-note-history[data-layout='stacked'] .proto-note-history__row {
-  min-height: 52px;
-  border-radius: 10px;
-}
-
-.proto-note-history[data-layout='stacked'] .proto-note-history__row + .proto-note-history__row {
-  box-shadow: inset 0 0.5px 0 var(--pds-border-control);
-}
-
 .proto-note-history__row-title {
-  flex-shrink: 1;
-  max-width: 100%;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: var(--pds-text-secondary);
 }
 
 .proto-note-history__row-meta {
-  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.75rem;
-  color: var(--pds-text-muted);
+}
+
+.proto-note-history__row-tag {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--pds-bg-control);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.proto-note-history__row[aria-current='true'] .proto-note-history__row-tag {
+  background: var(--pds-bg-control-strong);
 }
 
 .proto-note-history__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 20px 16px 8px;
-  text-align: center;
-  color: var(--pds-text-muted);
+  padding: 14px 8px 4px 30px;
 }
 
 .proto-note-history__empty-title {
-  margin: 6px 0 0;
-  font-size: 0.88rem;
+  margin: 0;
+  font-size: 0.84rem;
   font-weight: 500;
   color: var(--pds-text-primary);
 }
 
 .proto-note-history__empty-detail {
-  margin: 0;
-  max-width: 260px;
-  font-size: 0.8rem;
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--pds-text-muted);
 }
 
+.proto-note-history__more {
+  display: block;
+  margin: 10px 0 0 30px;
+}
+
+.proto-note-history__locked {
+  margin-top: 12px;
+}
+
+/* ─── The page ───────────────────────────────────────────────────────────── */
+.proto-note-history__preview {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--pds-paper-sheet);
+}
+
+.proto-note-history__preview-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Flat paper: the pane is the sheet, so the sheet draws no edge of its own. */
+.proto-note-history__paper {
+  --proto-note-readonly-padding-x: 40px;
+}
+
+.proto-note-history__paper .proto-editor-paper {
+  max-width: 680px;
+  margin: 0 auto;
+  background: transparent;
+  box-shadow: none;
+}
+
+.proto-note-history[data-layout='stacked'] .proto-note-history__paper {
+  --proto-note-readonly-padding-x: 20px;
+}
+
+/* ─── Phone strip ────────────────────────────────────────────────────────── */
+.proto-note-history__scrubber {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 10px;
+}
+
+.proto-note-history__scrubber .proto-side-panel__action-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Fades at both ends say "there is more this way" where a hard edge cut a chip in half.
+   The inline padding lets the first and last chips scroll clear of the fade. */
+.proto-note-history__chips {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 20px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent);
+}
+
+.proto-note-history__chips::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-note-history__chips {
+    scroll-behavior: auto;
+  }
+}
+
+.proto-note-history__chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--pds-bg-control);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.proto-note-history__chip:hover {
+  background: var(--pds-bg-control-hover);
+}
+
+.proto-note-history__chip[aria-pressed='true'],
+.proto-note-history__chip[aria-pressed='true']:hover {
+  background: var(--pds-bg-accent-button);
+}
+
+.proto-note-history__chip-day {
+  flex: none;
+  padding: 0 2px 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--pds-text-secondary);
+}
+
+.proto-note-history__chip-day:first-child {
+  padding-left: 0;
+}
+
+/* Under the page on a phone: which version this is, and Restore, within reach. */
+.proto-note-history__footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 16px max(8px, env(safe-area-inset-bottom));
+  border-top: 0.5px solid var(--pds-border-on-paper);
+}
+
+.proto-note-history__footer-when {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-note-history__footer-time {
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+}
+
+.proto-note-history__footer-empty {
+  font-size: 0.84rem;
+  color: var(--pds-text-muted);
+}
+
+/* ─── Shared bits ────────────────────────────────────────────────────────── */
 .proto-note-history__notice {
-  margin: 12px 8px;
+  margin: 20px;
   font-size: 0.85rem;
   color: var(--pds-text-muted);
 }
@@ -273,20 +365,11 @@
   cursor: pointer;
 }
 
-.proto-note-history__more {
-  display: block;
-  margin: 8px auto 0;
-}
-
-.proto-note-history__locked {
-  margin-top: 10px;
-}
-
 .proto-note-history__skeleton {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 10px 8px;
+  padding: 12px 10px;
 }
 
 .proto-note-history__skeleton-row {
