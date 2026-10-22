@@ -183,9 +183,15 @@ function renderResults(props: Props) {
 
 /** The group headings, in the order they are painted. */
 function headings(container: HTMLElement): string[] {
-  return [...container.querySelectorAll('.proto-library-results__heading')].map(
+  return [...container.querySelectorAll('.proto-library-results__heading-text')].map(
     (el) => el.textContent ?? '',
   );
+}
+
+/** A row title by its whole text — matched words are split into `<mark>`s inside it. */
+function rowTitle(text: string) {
+  return (_content: string, el: Element | null) =>
+    Boolean(el?.classList.contains('proto-note-row__title-text') && el.textContent === text);
 }
 
 beforeEach(() => {
@@ -255,13 +261,13 @@ describe('In the Bible', () => {
     const { container } = renderResults({ query: 'shepherd', tab: 'all' });
 
     expect(sourceTabs(container)).toEqual(['My Harvous · 1', 'Bible · 8+']);
-    expect(screen.getByText('The good shepherd')).toBeTruthy();
+    expect(screen.getByText(rowTitle('The good shepherd'))).toBeTruthy();
     expect(container.querySelectorAll('.proto-verse-hit__text')).toHaveLength(0);
 
     screen.getByRole('tab', { name: /Bible/ }).click();
     return Promise.resolve().then(() => {
       expect(container.querySelectorAll('.proto-verse-hit__text')).toHaveLength(8);
-      expect(screen.queryByText('The good shepherd')).toBeNull();
+      expect(screen.queryByText(rowTitle('The good shepherd'))).toBeNull();
     });
   });
 
@@ -356,7 +362,7 @@ describe('My Home, searched from inside a shared space', () => {
       .closest('.proto-library-results__group');
     expect(home?.textContent).toContain('Grace at home');
 
-    screen.getByText('Grace at home').click();
+    screen.getByText(rowTitle('Grace at home')).click();
     expect(openHomeNote).toHaveBeenCalledWith(expect.objectContaining({ id: 'h1' }));
   });
 
@@ -501,7 +507,7 @@ describe('the passage the query names', () => {
     // chapter nobody has written about yet.
     renderResults({ query: '1 cor 13', tab: 'scripture' });
 
-    expect(screen.getByText('1 Corinthians 13')).toBeTruthy();
+    expect(screen.getByText(rowTitle('1 Corinthians 13'))).toBeTruthy();
     expect(screen.getByText('Read passage')).toBeTruthy();
     expect(screen.queryByText(SIDEBAR_NO_MATCH_COPY.noScriptureMatch)).toBeNull();
   });
@@ -594,5 +600,22 @@ describe('Go to', () => {
       ],
     });
     expect(headings(container)).not.toContain('Go to');
+  });
+});
+
+/*
+ * The tile rows: a group says how many rows it holds, each row says what kind it is, and a match
+ * is marked where the word appears.
+ */
+describe('search rows', () => {
+  it('counts each group and marks the matched words', () => {
+    state.notes = [note('n1', 'Abide in me', 'Gospel of John')];
+    const { container } = renderResults({ query: 'abide', tab: 'all' });
+    expect(container.querySelector('.proto-library-search-rows')).toBeTruthy();
+    expect(container.querySelector('.proto-library-results__heading-count')?.textContent).toBe('1');
+    const row = container.querySelector('li[data-kind="note"]')!;
+    expect(row.querySelector('mark')?.textContent).toBe('Abide');
+    expect(row.querySelector('.proto-search-row__context')?.textContent).toBe('Gospel of John');
+    expect(row.querySelector('.proto-search-row__meta')?.textContent).toBeTruthy();
   });
 });

@@ -332,6 +332,20 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     // One button per moment, grouped by voice: paper for pages, press for docks, mech for panels.
     // Never a baseline — there is nothing to see, only to hear.
   },
+  {
+    id: 'ds-28-library-search-rows',
+    title: 'Library search rows',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/library-panel/LibrarySearchRowBody.tsx',
+      'spa/src/pages/prototype/library-panel/library-search-row-decor.ts',
+      'spa/src/pages/prototype/PrototypeSidebarSearchResultItem.tsx',
+      'spa/src/styles/prototype-shell.css',
+      'spa/src/pages/dev/design-system/LibrarySearchRowsScene.tsx',
+    ],
+    screenshotSlug: 'ds-28-library-search-rows',
+    // The glyph-tile rows, at panel and phone width, for a word query and a reference query.
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {
