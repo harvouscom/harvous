@@ -105,6 +105,13 @@ export const ScriptureDraft = Mark.create<ScriptureDraftOptions>({
         parseHTML: () => null,
         renderHTML: () => ({}),
       },
+      // The pill's visible text when the edit began. A chapter pill reads "Acts 21" but stores the
+      // expanded "Acts 21:1-40", so restoring from the reference alone rewrote what the reader wrote.
+      originalText: {
+        default: null,
+        parseHTML: () => null,
+        renderHTML: () => ({}),
+      },
       // Carried so a round-trip through the draft doesn't reset a persisted pill to 'pending'.
       noteId: {
         default: null,
@@ -422,7 +429,10 @@ export function findDetachedScriptureDraft(state: any): { from: number; to: numb
  * otherwise skew the longest-match comparison.
  */
 export function draftTextToReference(text: string): string | null {
-  const trimmed = text.trim();
+  // A stray space either side of the chapter:verse colon ("Acts 21 :8", "Acts 21: 8") is still
+  // the reference the reader meant. The detector rejects it, and an edit-draft that won't parse
+  // restores its original pill on blur — silently throwing away the ":8" they typed.
+  const trimmed = text.trim().replace(/(\d)\s*:\s*(?=\d)/g, '$1:');
   if (!trimmed) return null;
   const refs = detectScriptureReferences(trimmed);
   if (refs.length === 0) return null;
@@ -854,6 +864,8 @@ export function editScripturePillAsDraft(view: any, from: number, to: number): b
   const { state } = view;
   const pillType = state.schema.marks.scripturePill;
   const draftType = state.schema.marks.scriptureDraft;
+  // Never pull the space after a pill into the draft: "Acts 21 " + ":8" reads "Acts 21 :8".
+  while (to > from && /\s/.test(state.doc.textBetween(to - 1, to))) to -= 1;
   if (!pillType || !draftType || to <= from) return false;
   const pillMark = getMarkInstanceAt(state.doc, from, pillType);
   const carried = pillMark
@@ -862,6 +874,7 @@ export function editScripturePillAsDraft(view: any, from: number, to: number): b
         pillAccent: pillMark.attrs.pillAccent ?? null,
         originalReference:
           pillMark.attrs.reference ?? state.doc.textBetween(from, to),
+        originalText: state.doc.textBetween(from, to),
         noteId: pillMark.attrs.noteId ?? null,
       }
     : {};
@@ -906,7 +919,7 @@ export function restoreScripturePillFromDraft(view: any, from: number, to: numbe
   tr.replaceWith(
     from,
     to,
-    state.schema.text(originalReference, [
+    state.schema.text(draftMark.attrs.originalText || originalReference, [
       pillType.create({
         reference: originalReference,
         noteId: draftMark.attrs.noteId ?? 'pending',
@@ -1130,13 +1143,21 @@ export function confirmScriptureDraftView(
   const charAfter = tr.doc.textBetween(pillEnd, Math.min(pillEnd + 1, tr.doc.content.size));
   if (charAfter === ' ') caret = pillEnd + 1;
   const caretPos = Math.min(caret, tr.doc.content.size);
-  tr.setSelection(TextSelection.create(tr.doc, caretPos));
+  // A detached draft commits when the selection leaves it — including Select All. Collapsing
+  // that selection to after the pill made Select All + Delete do nothing while a draft was open.
+  const userRange = !state.selection.empty &&
+    (state.selection.from < range.from || state.selection.to > effectiveTo);
+  if (userRange) {
+    tr.setSelection(state.selection.map(tr.doc, tr.mapping));
+  } else {
+    tr.setSelection(TextSelection.create(tr.doc, caretPos));
+  }
   tr.setStoredMarks([]);
   tr.scrollIntoView();
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
 
-  if (opts?.focus) {
+  if (opts?.focus && !userRange) {
     resyncMobileCaret(view, {
       focus: true,
       pos: caretPos,
