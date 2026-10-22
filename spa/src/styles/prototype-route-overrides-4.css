@@ -47,9 +47,22 @@ html.harvous-prototype-route button.proto-menu-item--destructive,
 html.harvous-prototype-route button.proto-menu-item--destructive *,
 html.harvous-prototype-route button.proto-menu-item--destructive span,
 html.harvous-prototype-route button.proto-menu-item--destructive svg,
-html.harvous-prototype-route button.proto-menu-item--destructive path {
+html.harvous-prototype-route button.proto-menu-item--destructive path,
+html.harvous-prototype-route button.proto-thread-share__row--danger,
+html.harvous-prototype-route button.proto-thread-share__row--danger *,
+html.harvous-prototype-route [class*='proto-'] button.proto-thread-share__row--danger span.proto-thread-share__row-label {
   color: var(--pds-destructive) !important;
   fill: currentColor !important;
+}
+
+/* Thread share rows: the icon and the one-line hint are secondary ink, the label primary —
+   the button rule above would flatten all three to text-primary. */
+html.harvous-prototype-route .proto-thread-share__row:not(.proto-thread-share__row--danger) > :first-child,
+html.harvous-prototype-route .proto-thread-share__row:not(.proto-thread-share__row--danger) > :first-child *,
+html.harvous-prototype-route button.proto-thread-share__row .proto-thread-share__row-hint,
+html.harvous-prototype-route button.proto-thread-share__row .proto-thread-share__row-caret,
+html.harvous-prototype-route button.proto-thread-share__row .proto-thread-share__row-caret * {
+  color: var(--pds-text-secondary) !important;
 }
 
 html.harvous-prototype-route button.proto-inspector-delete-btn,

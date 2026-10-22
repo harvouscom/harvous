@@ -37,13 +37,7 @@ import {
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { resolveNoteTemplateIconColor } from '@/utils/note-template-icon';
 import { findPersonalLibrary } from './ensure-personal-library';
-import { collectStudyThreadGraphForScope } from './study-thread-space';
-import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
-import { resolveStudyThreadClusterNaming } from './study-thread-cluster-naming';
-import {
-  pickStudyThreadRepresentativeNoteId,
-  type StudyThreadSuggestNode,
-} from '@/utils/suggest-study-thread-title';
+import { resolvePersonalStudyThread } from './study-thread-share';
 
 /**
  * How many notes one pack may carry.
@@ -429,75 +423,10 @@ export async function snapshotPack(sourceId: string, userId: string): Promise<Sn
  * cut down to its first hundred notes.
  */
 async function snapshotThreadClusterPack(repNoteId: string, userId: string): Promise<SnapshotResult> {
-  const rep = first(
-    await db
-      .select({ id: Notes.id, spaceId: Notes.spaceId })
-      .from(Notes)
-      .where(and(eq(Notes.id, repNoteId), eq(Notes.userId, userId)))
-      .limit(1),
-  );
-  if (!rep) return { ok: false, status: 404, code: 'THREAD_NOT_FOUND', error: 'Thread not found' };
-  if (rep.spaceId) {
-    const space = first(
-      await db
-        .select({ type: Spaces.type, deletedAt: Spaces.deletedAt })
-        .from(Spaces)
-        .where(eq(Spaces.id, rep.spaceId))
-        .limit(1),
-    );
-    if (!space || space.deletedAt || space.type !== 'personal') {
-      return {
-        ok: false,
-        status: 409,
-        code: 'THREAD_IN_SHARED_SPACE',
-        error: 'A thread in a shared space is the room’s, not yours alone to give away.',
-      };
-    }
-  }
-
-  const { graph } = await collectStudyThreadGraphForScope(rep.id, userId, {
-    preferredSpaceId: rep.spaceId,
-    maxNodes: MAX_PACK_NOTES + 1,
-  });
-  /* One note is a note, and has its own way to be shared. */
-  if (graph.nodeIds.length < 2) {
-    return {
-      ok: false,
-      status: 400,
-      code: 'EMPTY_PACK',
-      error: 'Connect at least one more note before sharing this Thread.',
-    };
-  }
-
-  /* The name, resolved as the Thread endpoint resolves it — a manual title if one was set, the
-     suggestion from its notes otherwise — so the listing is called what the app calls it. */
-  const namingRows = await fetchStudyThreadNoteRows(graph.nodeIds, userId);
-  const resourceIds = namingRows.filter((n) => n.noteType === 'resource').map((n) => n.id);
-  const resourceText = new Map<string, { sourceTitle: string | null; sourceDescription: string | null }>();
-  if (resourceIds.length > 0) {
-    const rows = await db
-      .select({
-        noteId: ResourceMetadata.noteId,
-        sourceTitle: ResourceMetadata.sourceTitle,
-        sourceDescription: ResourceMetadata.sourceDescription,
-      })
-      .from(ResourceMetadata)
-      .where(inArray(ResourceMetadata.noteId, resourceIds));
-    for (const row of rows) resourceText.set(row.noteId, row);
-  }
-  const suggestNodes: StudyThreadSuggestNode[] = namingRows.map((n) => ({
-    id: n.id,
-    title: n.title,
-    content: n.content,
-    noteType: n.noteType,
-    resourceTitle: resourceText.get(n.id)?.sourceTitle ?? null,
-    resourceDescription: resourceText.get(n.id)?.sourceDescription ?? null,
-    updatedAt: n.updatedAt ? n.updatedAt.toISOString() : null,
-  }));
-  const namingRepId =
-    pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? rep.id;
-  const naming = resolveStudyThreadClusterNaming(namingRows, suggestNodes, namingRepId);
-  const title = naming.threadTitle?.trim() || naming.suggestedTitle?.trim() || 'Untitled Thread';
+  const thread = await resolvePersonalStudyThread(repNoteId, userId, { maxNodes: MAX_PACK_NOTES + 1 });
+  if (!thread.ok) return thread;
+  const { title } = thread;
+  const graph = { nodeIds: thread.nodeIds };
 
   /* In the graph's own order, the order the walk reached them. */
   const order = new Map(graph.nodeIds.map((id, index) => [id, index]));

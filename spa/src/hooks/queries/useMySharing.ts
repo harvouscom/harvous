@@ -12,6 +12,20 @@ export interface SharedNoteItem {
   sharedAt?: string | null;
   shareToken: string;
   shareUrl: string;
+  /**
+   * What the link opens. Absent means a note. `thread` is a personal Thread (connected notes),
+   * whose `id` is the note the link is anchored to — any member answers for the whole Thread.
+   */
+  entity?: 'note' | 'thread';
+}
+
+/** A personal Thread's public link — see `server/utils/study-thread-share.ts`. */
+export interface SharedStudyThreadItem {
+  id: string;
+  title: string;
+  sharedAt?: string | null;
+  shareToken: string;
+  shareUrl: string;
 }
 
 export interface SharedThreadItem {
@@ -25,6 +39,8 @@ export interface SharedThreadItem {
 export interface MySharingResponse {
   threads: SharedThreadItem[];
   notes: SharedNoteItem[];
+  /** Absent on servers that predate Thread links. */
+  studyThreads?: SharedStudyThreadItem[];
 }
 
 export const mySharingQueryKey = ['profile', 'my-sharing'] as const;

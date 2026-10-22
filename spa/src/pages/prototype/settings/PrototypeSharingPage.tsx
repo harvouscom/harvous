@@ -21,6 +21,7 @@ import Icon, { type IconName } from '@/components/react/Icon';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { toast } from '@/utils/toast';
 import { useShareNote } from '../../../hooks/mutations/useShareNote';
+import { useShareStudyThread } from '../../../hooks/mutations/useShareStudyThread';
 import { mySharingQueryKey, useMySharing, type SharedNoteItem } from '../../../hooks/queries/useMySharing';
 import { useMySharedSpaces } from '../../../hooks/queries/useMySharedSpaces';
 import {
@@ -259,6 +260,7 @@ export default function PrototypeSharingPage() {
   const deletedSpacesQuery = useDeletedSpaces();
 
   const shareNote = useShareNote();
+  const shareStudyThread = useShareStudyThread();
   const withdraw = useWithdrawDiscoverSubmission();
   const removeNoteFromSpace = useRemoveNoteFromSpace();
   const leaveSpace = useLeaveSpace();
@@ -272,6 +274,7 @@ export default function PrototypeSharingPage() {
     () =>
       buildSharingItems({
         links: sharingQuery.data?.notes ?? [],
+        threadLinks: sharingQuery.data?.studyThreads ?? [],
         spaces: spacesQuery.data ?? { owned: [], memberOf: [] },
         spaceNotes: spaceNotesQuery.data?.notes ?? [],
         discover: discoverQuery.data?.listings ?? [],
@@ -309,9 +312,13 @@ export default function PrototypeSharingPage() {
   const handleDisableNote = async (itemId: string, note: SharedNoteItem) => {
     setBusyId(itemId);
     try {
-      await shareNote.mutateAsync({ noteId: note.id, action: 'disable' });
+      if (note.entity === 'thread') {
+        await shareStudyThread.mutateAsync({ noteId: note.id, action: 'disable' });
+      } else {
+        await shareNote.mutateAsync({ noteId: note.id, action: 'disable' });
+      }
       await queryClient.invalidateQueries({ queryKey: mySharingQueryKey });
-      toast.success('Note is now private');
+      toast.success(note.entity === 'thread' ? 'Thread is now private' : 'Note is now private');
     } catch (err) {
       toast.error(errorMessage(err, 'Could not stop sharing'));
     } finally {
@@ -322,7 +329,11 @@ export default function PrototypeSharingPage() {
   const handleRefreshNote = async (itemId: string, note: SharedNoteItem) => {
     setBusyId(itemId);
     try {
-      await shareNote.mutateAsync({ noteId: note.id, action: 'refresh' });
+      if (note.entity === 'thread') {
+        await shareStudyThread.mutateAsync({ noteId: note.id, action: 'refresh' });
+      } else {
+        await shareNote.mutateAsync({ noteId: note.id, action: 'refresh' });
+      }
       await queryClient.invalidateQueries({ queryKey: mySharingQueryKey });
       setPendingConfirm(null);
       toast.success('New share link created');
@@ -424,7 +435,7 @@ export default function PrototypeSharingPage() {
             icon: DISCOVER_KIND_ICON[item.submission.kind] ?? resolveSharedItemLeadingMeta('discover').icon,
             label: 'Discover',
           }
-        : resolveSharedItemLeadingMeta('note');
+        : resolveSharedItemLeadingMeta(item.kind === 'link' && item.note.entity === 'thread' ? 'thread' : 'note');
     return (
       <span className="proto-settings-list-row__leading" aria-label={meta.label} title={meta.label}>
         <Icon name={meta.icon} size={15} />

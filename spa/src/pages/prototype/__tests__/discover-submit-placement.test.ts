@@ -29,6 +29,7 @@ const sheet = () => source('spa/src/pages/prototype/PrototypeShareWithOthersShee
 const resourceList = () => source('spa/src/pages/prototype/PrototypeResourceLibraryList.tsx');
 const sharingPage = () => source('spa/src/pages/prototype/settings/PrototypeSharingPage.tsx');
 const threadView = () => source('spa/src/pages/prototype/library-panel/PrototypeLibraryThreadView.tsx');
+const threadPanel = () => source('spa/src/pages/prototype/PrototypeThreadSharePanel.tsx');
 
 describe('discover submit placement', () => {
   it('offers a note to Discover only after it is already public', () => {
@@ -126,13 +127,30 @@ describe('discover submit placement', () => {
   });
 
   it('offers a Thread to Discover only from a Thread of your own, in the Library panel', () => {
-    // A shared-space Thread is the room's, so the offer lives in the personal branch alone.
+    // A shared-space Thread is the room's, so the share panel lives in the personal branch alone.
     const text = threadView();
     const personal = text.indexOf('function PersonalThreadMembers');
     const shared = text.indexOf('function SharedThreadMembers');
-    const offer = text.indexOf("kind: 'pack'");
-    expect(offer, 'the Thread offer is missing').toBeGreaterThan(-1);
-    expect(offer, 'the Thread offer escaped the personal branch').toBeGreaterThan(personal);
-    expect(offer, 'the Thread offer escaped the personal branch').toBeLessThan(shared);
+    const panel = text.indexOf('<PrototypeThreadSharePanel');
+    expect(panel, 'the Thread share panel is missing').toBeGreaterThan(-1);
+    expect(panel, 'the Thread share panel escaped the personal branch').toBeGreaterThan(personal);
+    expect(panel, 'the Thread share panel escaped the personal branch').toBeLessThan(shared);
+  });
+
+  it('offers a Thread to Discover only once it has a link, and in place', () => {
+    // The note popover's rule, kept for Threads: a link is people you chose, Discover is
+    // everyone — so the offer sits inside the has-a-link branch, after the link itself. And it
+    // swaps the panel's own view rather than opening a second dialog over the first.
+    const text = threadPanel();
+    const linkRow = text.indexOf('proto-thread-share__link-text');
+    const offer = text.indexOf('Share with others on Harvous');
+    expect(linkRow, 'the link row moved').toBeGreaterThan(-1);
+    expect(offer, 'the Discover offer is missing').toBeGreaterThan(linkRow);
+    expect(text).toContain("kind: 'pack'");
+    expect(text).not.toContain('<PrototypeShareWithOthersSheet');
+    expect(threadView()).not.toContain('<PrototypeShareWithOthersSheet');
+    expect(source('spa/src/pages/prototype/PrototypeStudyThreadPopover.tsx')).not.toContain(
+      '<PrototypeShareWithOthersSheet',
+    );
   });
 });

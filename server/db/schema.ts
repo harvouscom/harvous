@@ -2716,6 +2716,28 @@ export const StudyThreadMemberOrders = pgTable(
   (table) => [index('StudyThreadMemberOrders_userIdIndex').on(table.userId)],
 );
 
+/**
+ * Public link for a personal Thread (a study-thread cluster). The cluster has no row of its own,
+ * so the link names one member note; owner reads match any member, the public read walks the
+ * cluster from the anchor. A table rather than a `Notes` column so an unmigrated database is
+ * "nothing shared" instead of every full `Notes` select failing. See server/utils/study-thread-share.ts.
+ */
+export const StudyThreadShares = pgTable(
+  'StudyThreadShares',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    anchorNoteId: text('anchorNoteId').notNull(),
+    shareToken: text('shareToken').notNull(),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('StudyThreadShares_shareTokenIndex').on(table.shareToken),
+    index('StudyThreadShares_userIdIndex').on(table.userId),
+    index('StudyThreadShares_anchorNoteIdIndex').on(table.anchorNoteId),
+  ],
+);
+
 // ─── VerseTextCache (verse text cache, keyed by normalized reference + translation) ─
 
 export const VerseTextCache = pgTable('VerseTextCache', {

@@ -18,15 +18,20 @@ const shareMutate = vi.fn(() => Promise.resolve());
 vi.mock('../../../../hooks/mutations/useShareNote', () => ({
   useShareNote: () => ({ mutateAsync: shareMutate }),
 }));
+const shareThreadMutate = vi.fn(() => Promise.resolve());
+vi.mock('../../../../hooks/mutations/useShareStudyThread', () => ({
+  useShareStudyThread: () => ({ mutateAsync: shareThreadMutate }),
+}));
 
 let links: unknown[] = [];
+let threadLinks: unknown[] = [];
 let owned: unknown[] = [];
 let memberOf: unknown[] = [];
 let deleted: unknown[] = [];
 const query = (data: unknown) => ({ data, isLoading: false, isError: false, error: null, refetch: vi.fn() });
 vi.mock('../../../../hooks/queries/useMySharing', () => ({
   mySharingQueryKey: ['my-sharing'],
-  useMySharing: () => query({ notes: links }),
+  useMySharing: () => query({ notes: links, studyThreads: threadLinks }),
 }));
 vi.mock('../../../../hooks/queries/useMySharedSpaces', () => ({
   useMySharedSpaces: () => query({ owned, memberOf }),
@@ -76,16 +81,40 @@ function link(id: string) {
 
 beforeEach(() => {
   links = [];
+  threadLinks = [];
   owned = [];
   memberOf = [];
   deleted = [];
   navigate.mockClear();
   shareMutate.mockClear();
+  shareThreadMutate.mockClear();
   toastSuccess.mockClear();
   Object.assign(navigator, { clipboard: { writeText: vi.fn(() => Promise.resolve()) } });
 });
 
 describe('Settings → Sharing', () => {
+  it('lists a Thread link beside note links, and stops it through the Thread', async () => {
+    links = [link('n1')];
+    threadLinks = [
+      {
+        id: 'note_t1',
+        title: 'Fear and faith',
+        shareToken: 'tok2',
+        shareUrl: 'https://harvous.com/shared/thread/tok2',
+        sharedAt: '2026-10-02T00:00:00Z',
+      },
+    ];
+    render(<PrototypeSharingPage />);
+    expect(screen.getByTitle('Thread')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'More for Fear and faith' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Stop sharing' }));
+    await vi.waitFor(() =>
+      expect(shareThreadMutate).toHaveBeenCalledWith({ noteId: 'note_t1', action: 'disable' }),
+    );
+    expect(shareMutate).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Thread is now private'));
+  });
+
   it('gives each row exactly one control: its ⋮', () => {
     links = [link('n1'), link('n2')];
     render(<PrototypeSharingPage />);

@@ -179,6 +179,7 @@ import {
 } from '../utils/pg-undefined-relation';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { enrichImportedNote } from '../utils/import-enrichment';
+import { listStudyThreadShares } from '../utils/study-thread-share';
 
 const app = new Hono();
 
@@ -2702,7 +2703,11 @@ app.get('/api/profile/my-sharing', requireAuth, async (c) => {
         };
       });
 
-    return c.json({ threads, notes }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
+    /* Personal Threads (connected notes) shared from the app — a different record from `threads`
+       above, which are the older `Threads` rows. */
+    const studyThreads = await listStudyThreadShares(auth.userId, origin);
+
+    return c.json({ threads, notes, studyThreads }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error: unknown) {
     const e = handleAPIError(error, { endpoint: '/api/profile/my-sharing', action: 'get_my_sharing' });
     return c.json({ error: e.message, code: e.code }, 500);

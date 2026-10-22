@@ -10,7 +10,7 @@
  * no fetching and no rendering, so the ordering and the filter rules are tested rather than
  * eyeballed.
  */
-import type { SharedNoteItem } from '../../../hooks/queries/useMySharing';
+import type { SharedNoteItem, SharedStudyThreadItem } from '../../../hooks/queries/useMySharing';
 import type { OwnedSharedSpaceItem } from '../../../hooks/queries/useMySharedSpaces';
 import type { MySharedSpaceNoteItem } from '../../../hooks/queries/useMySharedSpaceNotes';
 import type { MyDiscoverSubmission } from '../../../hooks/queries/useDiscoverListings';
@@ -57,6 +57,8 @@ function isoOf(value: string | Date | null | undefined): string | null {
 
 export function buildSharingItems(input: {
   links?: readonly SharedNoteItem[];
+  /** Public links on personal Threads — the same kind of thing as a note's link, so the same row. */
+  threadLinks?: readonly SharedStudyThreadItem[];
   spaces?: { owned?: readonly OwnedSharedSpaceItem[]; memberOf?: readonly OwnedSharedSpaceItem[] };
   spaceNotes?: readonly MySharedSpaceNoteItem[];
   discover?: readonly MyDiscoverSubmission[];
@@ -70,6 +72,16 @@ export function buildSharingItems(input: {
       title: note.title || 'Untitled note',
       recencyMs: timeOf(note.sharedAt ?? note.updatedAt ?? note.createdAt),
       note,
+    });
+  }
+
+  for (const thread of input.threadLinks ?? []) {
+    items.push({
+      id: `thread-link:${thread.id}`,
+      kind: 'link',
+      title: thread.title || 'Untitled Thread',
+      recencyMs: timeOf(thread.sharedAt),
+      note: { ...thread, entity: 'thread' },
     });
   }
 

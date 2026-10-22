@@ -1987,12 +1987,55 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
  * padding on three sides so it spans the full width and lands flush, and the bottom corners
  * pick up the panel's own radius so it ends where the panel ends.
  */
-.proto-library-panel__body .proto-resource-footer {
+.proto-library-panel__body :is(.proto-resource-footer, .proto-library-thread-share-footer, .proto-library-thread-share-view .proto-add-notes-sheet__footer) {
   margin-inline: calc(-1 * var(--proto-library-body-pad));
   margin-bottom: calc(-1 * var(--proto-library-body-pad));
   bottom: calc(-1 * var(--proto-library-body-pad));
   border-bottom-left-radius: var(--pds-shell-frame-radius);
   border-bottom-right-radius: var(--pds-shell-frame-radius);
+}
+
+/*
+ * A Thread's footer belongs to the bottom of the panel, not under the last row.
+ *
+ * Sticky alone only pins it once the body scrolls; with a short trail (or the share view,
+ * which is always short) it sat halfway down with empty panel beneath. The body becomes a
+ * column for these two views only, and the footer takes the spare height above itself.
+ */
+.proto-library-panel__body:has(> .proto-library-thread-share-footer),
+.proto-library-panel__body:has(> .proto-library-thread-share-view) {
+  display: flex;
+  flex-direction: column;
+}
+.proto-library-panel__body > .proto-library-thread-share-footer {
+  margin-top: auto;
+}
+.proto-library-panel__body > .proto-library-thread-share-view {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The Thread share panel in the Library body: its header already sits under the panel's own
+   back row, so it drops the rule that separates it from a popover's edge. */
+.proto-library-thread-share-view .proto-add-notes-sheet__footer {
+  position: sticky;
+  margin-top: auto;
+}
+.proto-library-thread-share-view .proto-study-thread-popover__header {
+  border-bottom: 0;
+  padding-inline: 0;
+}
+/* A share sheet, not a page: at panel width it reads as a column, not a stretched form. */
+.proto-library-thread-share-view .proto-thread-share__body,
+.proto-library-thread-share-view .proto-study-thread-popover__header {
+  width: 100%;
+  max-width: 520px;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+.proto-library-thread-share-view .proto-thread-share__body {
+  padding-inline: 0;
 }
 
 /*

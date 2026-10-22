@@ -16,13 +16,14 @@ import { Hono } from 'hono';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, UserMetadata, ScriptureMetadata, ResourceMetadata,
-  NoteScriptureReferences, Spaces, SpaceInvites,
+  NoteScriptureReferences, NoteConnections, Spaces, SpaceInvites,
   ChurchSeries, ChurchServicePublishedNotes, ChurchServices,
   eq, and, desc, asc, isNotNull, isNull, count, sql, inArray, lt,
   first,
 } from '../db';
 import { parseSequenceNoteIds } from '../utils/thread-sequence';
 import { findPublicSharedNoteByToken } from '../utils/shared-note-lookup';
+import { loadSharedStudyThread } from '../utils/study-thread-share';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { generateNoteId, generateThreadId, isValidShareToken } from '@/utils/ids';
@@ -264,7 +265,13 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
     const shareToken = requireParam(c, 'shareToken');
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
 
-    const thread = first(await db
+    const sharedNoteFields = {
+      id: Notes.id, title: Notes.title, content: Notes.content, noteType: Notes.noteType,
+      createdAt: Notes.createdAt, updatedAt: Notes.updatedAt, lastVisited: Notes.lastVisited,
+    };
+    type SharedThreadNote = { id: string; title: string | null; content: string; noteType: string; createdAt: Date; updatedAt: Date | null; lastVisited: Date | null };
+
+    const threadRow = first(await db
       .select({
         id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color,
         isPublic: Threads.isPublic, shareToken: Threads.shareToken, createdAt: Threads.createdAt,
@@ -274,35 +281,53 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
       .where(and(eq(Threads.shareToken, shareToken), eq(Threads.isPublic, true)))
       .limit(1));
 
-    if (!thread) return c.json({ error: 'Shared thread not found or no longer available' }, 404);
-    if (thread.spaceId) {
-      const contextSpace = first(
-        await db.select({ type: Spaces.type, deletedAt: Spaces.deletedAt })
-          .from(Spaces)
-          .where(eq(Spaces.id, thread.spaceId))
-          .limit(1),
-      );
-      if (!contextSpace || contextSpace.deletedAt || contextSpace.type !== 'personal') {
-        return c.json({ error: 'Shared thread not found or no longer available' }, 404);
+    let thread: { id: string; title: string; subtitle: string | null; color: string | null; createdAt: Date; userId: string };
+    let notes: SharedThreadNote[];
+    if (threadRow) {
+      if (threadRow.spaceId) {
+        const contextSpace = first(
+          await db.select({ type: Spaces.type, deletedAt: Spaces.deletedAt })
+            .from(Spaces)
+            .where(eq(Spaces.id, threadRow.spaceId))
+            .limit(1),
+        );
+        if (!contextSpace || contextSpace.deletedAt || contextSpace.type !== 'personal') {
+          return c.json({ error: 'Shared thread not found or no longer available' }, 404);
+        }
       }
+      thread = threadRow;
+      notes = await db
+        .select(sharedNoteFields)
+        .from(Notes)
+        .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+        .where(and(eq(NoteThreads.threadId, threadRow.id), eq(Notes.contentEncrypted, false)))
+        .orderBy(
+          asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+          desc(Notes.lastVisited),
+          desc(Notes.updatedAt),
+          desc(Notes.createdAt),
+          asc(Notes.id)
+        );
+    } else {
+      /* A personal Thread — connected notes — shared from the app. Live: walked from its anchor
+         on every read, so it shows the Thread as it is now. */
+      const cluster = await loadSharedStudyThread(shareToken);
+      if (!cluster) return c.json({ error: 'Shared thread not found or no longer available' }, 404);
+      thread = {
+        id: cluster.anchorNoteId, title: cluster.title, subtitle: null, color: 'paper',
+        createdAt: cluster.createdAt, userId: cluster.userId,
+      };
+      const order = new Map(cluster.nodeIds.map((id, index) => [id, index]));
+      notes = (await db
+        .select(sharedNoteFields)
+        .from(Notes)
+        .where(and(
+          inArray(Notes.id, cluster.nodeIds),
+          eq(Notes.userId, cluster.userId),
+          eq(Notes.contentEncrypted, false),
+        )))
+        .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
     }
-
-    const notes = await db
-      .select({
-        id: Notes.id, title: Notes.title, content: Notes.content, noteType: Notes.noteType,
-        createdAt: Notes.createdAt, updatedAt: Notes.updatedAt, lastVisited: Notes.lastVisited,
-      })
-      .from(Notes)
-      .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-      .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.contentEncrypted, false)))
-      .orderBy(
-        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Notes.lastVisited),
-        desc(Notes.updatedAt),
-        desc(Notes.createdAt),
-        asc(Notes.id)
-      )
-      ;
 
     // Resolve referenced scripture notes (same pattern as getNotesForThread in dashboard-data.ts)
     const threadNoteIds = notes.map(n => n.id).filter(Boolean);
@@ -614,7 +639,7 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
     if (!shareToken) return c.json({ error: 'Share token is required' }, 400);
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
 
-    const sourceThread = first(await db
+    const sourceThreadRow = first(await db
       .select({
         id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color,
         isPublic: Threads.isPublic, userId: Threads.userId, spaceId: Threads.spaceId,
@@ -623,18 +648,26 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
       .where(and(eq(Threads.shareToken, shareToken), eq(Threads.isPublic, true)))
       .limit(1));
 
-    if (!sourceThread) return c.json({ error: 'Shared thread not found or no longer available' }, 404);
-    if (sourceThread.spaceId) {
+    if (sourceThreadRow?.spaceId) {
       const contextSpace = first(
         await db.select({ type: Spaces.type, deletedAt: Spaces.deletedAt })
           .from(Spaces)
-          .where(eq(Spaces.id, sourceThread.spaceId))
+          .where(eq(Spaces.id, sourceThreadRow.spaceId))
           .limit(1),
       );
       if (!contextSpace || contextSpace.deletedAt || contextSpace.type !== 'personal') {
         return c.json({ error: 'Shared thread not found or no longer available' }, 404);
       }
     }
+    /* No row: a personal Thread (connected notes). Its id for the copy's lineage is the anchor
+       note's, which can never collide with a `Threads` id in the unique index. */
+    const sourceCluster = sourceThreadRow ? null : await loadSharedStudyThread(shareToken);
+    const sourceThread = sourceThreadRow
+      ?? (sourceCluster
+        ? { id: sourceCluster.anchorNoteId, title: sourceCluster.title, subtitle: null as string | null, color: 'paper' as string | null, userId: sourceCluster.userId }
+        : null);
+
+    if (!sourceThread) return c.json({ error: 'Shared thread not found or no longer available' }, 404);
 
     if (sourceThread.userId === auth.userId) {
       return c.json({ error: 'Already in your Harvous' }, 400);
@@ -647,21 +680,36 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
     if (existingCopy) return c.json(alreadyImportedThread(existingCopy.id));
 
     // Fetch source notes (junction + referenced scripture notes)
-    const junctionNotes = await db
-      .select({
-        id: Notes.id, title: Notes.title, content: Notes.content, noteType: Notes.noteType,
-        createdAt: Notes.createdAt, userId: Notes.userId, currentVersionId: Notes.currentVersionId,
-      })
-      .from(Notes)
-      .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-      .where(and(eq(NoteThreads.threadId, sourceThread.id), eq(Notes.contentEncrypted, false)))
-      .orderBy(
-        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Notes.lastVisited),
-        desc(Notes.updatedAt),
-        desc(Notes.createdAt),
-        asc(Notes.id)
-      );
+    const sourceNoteFields = {
+      id: Notes.id, title: Notes.title, content: Notes.content, noteType: Notes.noteType,
+      createdAt: Notes.createdAt, userId: Notes.userId, currentVersionId: Notes.currentVersionId,
+    };
+    let junctionNotes;
+    if (sourceCluster) {
+      const order = new Map(sourceCluster.nodeIds.map((id, index) => [id, index]));
+      junctionNotes = (await db
+        .select(sourceNoteFields)
+        .from(Notes)
+        .where(and(
+          inArray(Notes.id, sourceCluster.nodeIds),
+          eq(Notes.userId, sourceCluster.userId),
+          eq(Notes.contentEncrypted, false),
+        )))
+        .sort((x, y) => (order.get(x.id) ?? 0) - (order.get(y.id) ?? 0));
+    } else {
+      junctionNotes = await db
+        .select(sourceNoteFields)
+        .from(Notes)
+        .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+        .where(and(eq(NoteThreads.threadId, sourceThread.id), eq(Notes.contentEncrypted, false)))
+        .orderBy(
+          asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+          desc(Notes.lastVisited),
+          desc(Notes.updatedAt),
+          desc(Notes.createdAt),
+          asc(Notes.id)
+        );
+    }
 
     // Also include referenced scripture notes
     const junctionNoteIds = junctionNotes.map(n => n.id).filter(Boolean);
@@ -849,6 +897,39 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
         createdAt: ts,
       });
     }
+    /* A personal Thread *is* its connections: without them the copy would land as loose notes,
+       and the app would have no Thread to show. Only edges between notes that were copied. */
+    const copiedConnectionRows: (typeof NoteConnections.$inferInsert)[] = [];
+    if (sourceCluster) {
+      const sourceIds = [...sourceToNewNoteId.keys()];
+      const edges = sourceIds.length > 0
+        ? await db
+            .select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId })
+            .from(NoteConnections)
+            .where(and(
+              eq(NoteConnections.userId, sourceCluster.userId),
+              inArray(NoteConnections.fromNoteId, sourceIds),
+              inArray(NoteConnections.toNoteId, sourceIds),
+            ))
+        : [];
+      const seenEdges = new Set<string>();
+      for (const edge of edges) {
+        const fromNoteId = sourceToNewNoteId.get(edge.fromNoteId);
+        const toNoteId = sourceToNewNoteId.get(edge.toNoteId);
+        if (!fromNoteId || !toNoteId || fromNoteId === toNoteId) continue;
+        const key = `${fromNoteId}:${toNoteId}`;
+        if (seenEdges.has(key)) continue;
+        seenEdges.add(key);
+        copiedConnectionRows.push({
+          id: generateNoteId(),
+          fromNoteId,
+          toNoteId,
+          userId: auth.userId,
+          spaceId: myHomeSpaceId,
+          createdAt: ts,
+        });
+      }
+    }
 
     try {
       await db.transaction(async (tx) => {
@@ -907,6 +988,9 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
           await tx
             .insert(NoteScriptureReferences)
             .values(copiedReferenceRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
+        }
+        for (let i = 0; i < copiedConnectionRows.length; i += SHARED_BULK_INSERT_CHUNK) {
+          await tx.insert(NoteConnections).values(copiedConnectionRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
         }
         if (sourceNotes.length > 0) {
           await tx.update(UserMetadata).set({ highestSimpleNoteId: currentSimpleNoteId - 1, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
