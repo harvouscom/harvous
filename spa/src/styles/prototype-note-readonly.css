@@ -1,0 +1,165 @@
+/*
+ * A note body read rather than edited (ProtoReadOnlyNotePaper) — note history, import preview.
+ *
+ * It carries `.proto-editor-surface` so the pill, accent, quote and highlight rules in
+ * prototype-editor.css and scripture-pill-accent.css reach it wherever it is portaled. What
+ * those files give the editor through `.ProseMirror` — the block rhythm — is restated here for
+ * the static body, matched against the live editor's computed values.
+ */
+
+/* The surface is a pane column in the note view (flex: 1, overflow hidden). Here it is a
+   block inside someone else's scroller, sized by its content. */
+.proto-editor-surface.proto-note-readonly {
+  display: block;
+  flex: none;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* The note's sheet, at the narrow pane's insets: the note-view token padding (48px top,
+   80px foot) is a page's, not a preview's. */
+.proto-note-readonly__paper.proto-editor-paper {
+  flex: none;
+  padding: var(--pds-editor-paper-padding-top-narrow) var(--proto-note-readonly-padding-x, 28px) 32px;
+}
+
+/* The study-dock reserve belongs to the note view's sheet, not this one. */
+.proto-note-readonly__paper.proto-editor-paper::after {
+  content: none;
+}
+
+/* The note's title field as measured on the live note (24px / 700 / rounded, ~12px to the
+   body). Not `[data-proto-note-title]`: that rule is the native compose spec (22px / 600),
+   which the web title does not draw at. */
+.proto-note-readonly__title {
+  margin: 0 0 12px;
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--pds-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.proto-note-readonly[data-variant='inset'] .proto-note-readonly__title {
+  font-size: 17px;
+}
+
+/* ─── Body: the editor's type and rhythm (prototype-editor.css `.ProseMirror`) ─── */
+.proto-note-readonly .card-full-editable__content-html {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--pds-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.proto-note-readonly[data-variant='inset'] .card-full-editable__content-html {
+  font-size: 14px;
+}
+
+.proto-note-readonly .card-full-editable__content-html p {
+  margin: 0 0 0.75em;
+}
+
+.proto-note-readonly .card-full-editable__content-html h2 {
+  margin: 1.4em 0 0.4em;
+}
+
+.proto-note-readonly .card-full-editable__content-html h3 {
+  margin: 1.2em 0 0.35em;
+}
+
+.proto-note-readonly .card-full-editable__content-html :is(ul, ol) {
+  margin: 0 0 0.75em;
+  padding-left: 1.4em;
+}
+
+/* The app's reset strips list markers; the editor puts them back for `.ProseMirror` only. */
+.proto-note-readonly .card-full-editable__content-html ul {
+  list-style: disc;
+}
+
+.proto-note-readonly .card-full-editable__content-html ol {
+  list-style: decimal;
+}
+
+.proto-note-readonly .card-full-editable__content-html li {
+  display: list-item;
+  margin-bottom: 0.2em;
+}
+
+.proto-note-readonly .card-full-editable__content-html li > p {
+  margin: 0;
+}
+
+.proto-note-readonly .card-full-editable__content-html blockquote:not([data-scripture-quote-accent]) {
+  margin: 0 0 0.75em;
+  padding-left: 1em;
+  border-left: 2.5px solid var(--pds-accent);
+  color: var(--pds-text-secondary);
+}
+
+.proto-note-readonly .card-full-editable__content-html hr {
+  margin: 1.5em 0;
+  border: none;
+  border-top: 1px solid var(--pds-border-on-paper);
+}
+
+.proto-note-readonly .card-full-editable__content-html img {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  margin: 1em 0;
+  border: 1px solid var(--pds-border-on-paper);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.proto-note-readonly .card-full-editable__content-html strong {
+  font-weight: 600;
+}
+
+.proto-note-readonly .card-full-editable__content-html a:not(.url-link-pill) {
+  color: var(--pds-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.proto-note-readonly .card-full-editable__content-html > :first-child {
+  margin-top: 0;
+}
+
+.proto-note-readonly .card-full-editable__content-html > :last-child {
+  margin-bottom: 0;
+}
+
+/* ─── Read-only guard: nothing here opens, so nothing invites a click ─── */
+/* `!important` because global.css pins `.scripture-pill` to a pointer with it. */
+.proto-note-readonly[data-readonly='true'] :is(.scripture-pill, .url-link-pill, .mention-pill) {
+  cursor: default !important;
+}
+
+/* Hold the resting fill: the hover deepening in scripture-pill-accent.css is an editor affordance. */
+.proto-note-readonly[data-readonly='true'] .card-full-editable__content-html .scripture-pill:hover {
+  background-color: color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-fill-mix), transparent);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-gradient-top-mix), transparent),
+    color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-gradient-bottom-mix), transparent)
+  );
+}
+
+.proto-note-readonly[data-readonly='true'] .url-link-pill:hover {
+  background: var(--pds-bg-section) !important;
+}
+
+.proto-note-readonly[data-readonly='true'] .card-full-editable__content-html .mention-pill:hover {
+  background-color: color-mix(in srgb, var(--mention-pill-tint) var(--mention-pill-fill-mix), transparent);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--mention-pill-tint) 10%, transparent),
+    color-mix(in srgb, var(--mention-pill-tint) 6.5%, transparent)
+  );
+}
