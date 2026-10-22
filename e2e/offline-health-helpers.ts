@@ -44,20 +44,29 @@ export async function getSyncQueueSnapshot(page: Page, userId: string): Promise<
   }, userId);
 }
 
+/** The toolbar's sync glyph (`PrototypeSyncStatusButton`); its label is the aria-label. */
+const SYNC_STATUS = 'button.proto-sync-status';
+
 export async function getSyncChipLabel(page: Page): Promise<string | null> {
-  const chip = page.locator('.proto-sync-chip__label');
-  if ((await chip.count()) === 0) return null;
-  return chip.textContent();
+  const status = page.locator(SYNC_STATUS);
+  if ((await status.count()) === 0) return null;
+  return status.getAttribute('aria-label');
 }
 
 export async function waitForSyncChip(page: Page, pattern: RegExp, timeout = 20_000): Promise<string> {
-  const label = page.locator('.proto-sync-chip__label');
-  await expect(label).toHaveText(pattern, { timeout });
-  return (await label.textContent()) ?? '';
+  const status = page.locator(SYNC_STATUS);
+  await expect(status).toHaveAttribute('aria-label', pattern, { timeout });
+  return (await status.getAttribute('aria-label')) ?? '';
 }
 
 export async function waitForSyncChipHidden(page: Page, timeout = 20_000): Promise<void> {
-  await expect(page.locator('.proto-sync-chip')).toHaveCount(0, { timeout });
+  await expect(page.locator(SYNC_STATUS)).toHaveCount(0, { timeout });
+}
+
+/** Retry lives in the status card now — open it from the glyph first. */
+export async function clickSyncRetry(page: Page): Promise<void> {
+  await page.locator(SYNC_STATUS).click();
+  await page.locator('.proto-sync-status-popover__retry').click();
 }
 
 export async function getPersistedUserIdFromPage(page: Page): Promise<string | null> {
