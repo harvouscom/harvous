@@ -167,7 +167,11 @@ export function ChoiceOptions({
   variant = 'card',
 }: ChoiceOptionsProps) {
   const pick = useChoiceKeys(options, { disabled, missed, onPick });
-  const long = variant === 'card' && (opening || options.some((option) => option.length > LONG_OPTION));
+  /*
+   * Every variant, not only the plain card: a note title or a theme can run to a sentence too, and
+   * a fan of sheets or a row of pills holding one was cut off at the card's edge.
+   */
+  const long = opening || options.some((option) => option.length > LONG_OPTION);
 
   return (
     <div

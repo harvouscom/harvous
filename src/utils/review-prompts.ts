@@ -506,6 +506,12 @@ export interface VerseMaterial {
    * `emphasisDraw`, and never a reason to skip anything else.
    */
   prefer?: ReadonlySet<ReviewPromptKey>;
+  /**
+   * Rungs the reader thumbed down on this very passage. Also in `skip`; named apart because the
+   * fall-forward that sets `skip` aside keeps walking past these, and gives one back only when
+   * the passage has nothing else to ask — see `withSubjectDislikes`.
+   */
+  avoid?: ReadonlySet<ReviewPromptKey>;
 }
 
 /** Below this many rivals of the reader's own, "where is this from?" is a coin toss. */
@@ -674,7 +680,13 @@ export function verseRungFor(step: number, seed?: string, material?: VerseMateri
   }
 
   const members = VERSE_FAMILIES[family];
-  const unskipped = material ? { ...material, skip: undefined } : material;
+  /*
+   * The reader's Less set aside, but not what they thumbed down on this passage: a family with
+   * nowhere else to go falls to the floor rather than asking the very exercise they marked
+   * unhelpful here. The floor itself is returned whatever was said about it, so a step still
+   * always resolves.
+   */
+  const unskipped = material ? { ...material, skip: material.avoid } : material;
   if (!seed || members.length === 1) {
     return {
       key: verseFamilyMemberAvailable(members[0], unskipped) ? members[0] : VERSE_FLOOR_KEY,
@@ -734,6 +746,8 @@ export interface ChapterMaterial {
   skip?: ReadonlySet<ReviewPromptKey>;
   /** Rungs the reader asked for more of. See `VerseMaterial.prefer`. */
   prefer?: ReadonlySet<ReviewPromptKey>;
+  /** Rungs thumbed down on this chapter. See `VerseMaterial.avoid`. */
+  avoid?: ReadonlySet<ReviewPromptKey>;
 }
 
 /**
@@ -829,9 +843,13 @@ export function chapterRungFor(step: number, seed?: string, material?: ChapterMa
     const key = draw[(start + i) % draw.length];
     if (chapterFamilyMemberAvailable(key, material)) return { key, pass, family };
   }
-  const unskipped = { ...material, skip: undefined };
-  for (const key of CHAPTER_WHOLE_FLOOR) {
-    if (chapterFamilyMemberAvailable(key, unskipped)) return { key, pass, family };
+  // The floor sets the reader's Less aside, and what they thumbed down here only after that.
+  const floorSkips = material.avoid?.size ? [material.avoid, undefined] : [undefined];
+  for (const skip of floorSkips) {
+    const unskipped = { ...material, skip };
+    for (const key of CHAPTER_WHOLE_FLOOR) {
+      if (chapterFamilyMemberAvailable(key, unskipped)) return { key, pass, family };
+    }
   }
   return { key: 'chapter.order', pass, family };
 }
