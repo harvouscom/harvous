@@ -2502,6 +2502,136 @@ html.harvous-prototype-route .proto-sidebar-search-results button .proto-note-ro
   color: var(--pds-text-tertiary) !important;
 }
 
+/*
+ * Library search rows — glyph tiles (Oct 2026).
+ *
+ * The kind sits in a 30px neutral tile you can find at a glance; the row you are on fills its
+ * tile with the accent and the glyph turns white. Title and meta (time for what you wrote, a
+ * count for a place) share the first line; the second is the sentence the word was found in,
+ * cut around the match by `library-search-row-decor.ts`. Chosen from five directions explored
+ * side by side — tiles over a refined plain row, a one-line list, a breadcrumb eyebrow, and a
+ * content/places split.
+ *
+ * The slots are `LibrarySearchRowBody`'s: lead icon, title line, `.proto-search-row__meta`,
+ * `.proto-search-row__context`, `.proto-note-row__preview`. Selectors open with
+ * `:is(#proto-library-panel, .pds-gallery)`, which takes the id's weight, so the `!important`
+ * rules below outrank the route overrides' blanket (every descendant of a prototype button
+ * painted text-primary) without another exception in that file — and the gallery scene
+ * (ds-28-library-search-rows) draws the same rows. The sidebar's search never carries
+ * `.proto-library-search-rows`, so it is untouched.
+ */
+
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icon title   meta'
+    'icon excerpt excerpt';
+  align-items: center;
+  column-gap: 12px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+/* Nothing for a second line: one row, the title centred on its tile. */
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead:not(:has(> .proto-note-row__preview)):not(:has(> .proto-search-row__context)) {
+  grid-template-areas: 'icon title meta';
+}
+
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead > .proto-note-row__lead-icon {
+  grid-area: icon;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--pds-bg-chip);
+  align-self: center;
+}
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead > .proto-note-row__title-line {
+  grid-area: title;
+}
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead > .proto-search-row__meta {
+  grid-area: meta;
+}
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead > .proto-note-row__preview {
+  grid-area: excerpt;
+}
+
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__lead-icon,
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__lead-icon * {
+  color: var(--pds-text-secondary) !important;
+}
+
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item[data-active='true'] .proto-note-row__main--lead > .proto-note-row__lead-icon,
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item[data-keyboard-focus='true'] .proto-note-row__main--lead > .proto-note-row__lead-icon,
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item:has(.proto-note-row__main:focus-visible) .proto-note-row__main--lead > .proto-note-row__lead-icon {
+  background: var(--pds-bg-accent-button);
+}
+
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item[data-active='true'] .proto-note-row__lead-icon *,
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item[data-keyboard-focus='true'] .proto-note-row__lead-icon *,
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item:has(.proto-note-row__main:focus-visible) .proto-note-row__lead-icon * {
+  color: var(--pds-on-accent) !important;
+}
+
+/* The keyboard ring is the app's blue, never the grey the row used to draw. */
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item:has(.proto-note-row__main:focus-visible),
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item[data-keyboard-focus='true'] {
+  box-shadow: inset 0 0 0 1.5px var(--pds-accent-focus-ring) !important;
+}
+
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-search-row__meta,
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-search-row__meta * {
+  justify-self: end;
+  white-space: nowrap;
+  font-size: var(--pds-list-meta-size);
+  font-weight: 500 !important;
+  font-variant-numeric: tabular-nums;
+  font-variation-settings: var(--pds-font-body-variation-list-timestamp) !important;
+  color: var(--pds-text-tertiary) !important;
+}
+
+/* Where it lives is not shown, except as the only second line a row has — a resource's site. */
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-search-row__context {
+  display: none;
+}
+
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead:not(:has(> .proto-note-row__preview)) > .proto-search-row__context {
+  display: block;
+  grid-area: excerpt;
+  min-width: 0;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--pds-list-meta-size);
+  font-variation-settings: var(--pds-font-body-variation-list-preview) !important;
+  color: var(--pds-text-list-preview) !important;
+}
+
+/* A verb or a destination has only its title and its chord; the title takes the rest of the row
+   so the chord sits at the right edge. */
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows li:is([data-kind='command'], [data-kind='destination']) .proto-note-row__main--lead > .proto-note-row__title-line {
+  grid-column: 2 / -1;
+}
+
+/* Everywhere else the title hugs its text, so a lock or a pin stays beside the words it marks
+   rather than drifting to the far edge. */
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows li:not([data-kind='command']):not([data-kind='destination']) .proto-note-row__title-text {
+  flex: 0 1 auto;
+}
+
+/* A match in a title is the same mark as a match in a verse. */
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__title-text mark.proto-verse-hit__match {
+  color: inherit !important;
+}
+
+:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-library-results__heading-count {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--pds-text-tertiary) !important;
+}
+
 .proto-verse-hit__text {
   /* Two lines of the verse rather than a note's one: a match halfway through is still the
      reason the row is here. Clamped so a long verse cannot take the list over. */

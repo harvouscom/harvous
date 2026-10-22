@@ -30,9 +30,8 @@
  * rather than re-derive it.
  */
 import { recordSearchEvent } from '../proto-search-events';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import Icon, { type IconName } from '@/components/react/Icon';
 import { TRANSLATION_ORDER, getTranslationAbbreviationDisplay } from '@/data/translations';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { useSearch } from '@/hooks/useSearch';
@@ -40,7 +39,6 @@ import { parseScriptureReference } from '@/utils/scripture-detector';
 import { bookSlug } from '@/utils/bible-book-chapters';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
-import ProtoKbdChord from '../ProtoKbdChord';
 import ProtoSelectMenu from '../ProtoSelectMenu';
 import PrototypeSidebarSearchResultItem from '../PrototypeSidebarSearchResultItem';
 import { PrototypeListNoMatchEmptyState } from '../PrototypeListEmptyState';
@@ -78,6 +76,9 @@ import { useLibraryCommandContext } from './use-library-command-context';
 import { matchPrototypeCommands } from './library-command-matches';
 import { LIBRARY_TAB_LABELS } from './library-panel-view';
 import LibraryVerseResults from './LibraryVerseResults';
+import { ChordRow, ResultGroup, resultLeadIcon } from './library-search-groups';
+import { makeLibrarySearchRowBody } from './LibrarySearchRowBody';
+import type { SearchResult } from '@/hooks/useSearch';
 import PrototypeLibrarySegmented from './PrototypeLibrarySegmented';
 import {
   defaultLibrarySearchSource,
@@ -174,105 +175,6 @@ export type PrototypeLibrarySearchResultsProps = {
    */
   onResultsSettled?: (settled: { query: string; count: number }) => void;
 };
-
-/**
- * A titled group of results.
- *
- * The heading is sticky and carries its own rule, because a result list can run past a
- * screen and a label that scrolls away leaves you reading rows with no idea which group
- * they belong to — the exact question two groups exist to answer.
- *
- * It took `.proto-sidebar-search-section__header` when this was first ported, which was a
- * misnomer twice over: the sidebar had stopped rendering that class, and the treatment
- * (11px uppercase, letter-spaced) was a louder voice than anything else on the surface.
- */
-function ResultGroup({
-  heading,
-  meta,
-  children,
-  alwaysLabelled = false,
-}: {
-  heading: string;
-  /** A small tag after the label — the verse group's translation, which is also its picker. */
-  meta?: ReactNode;
-  children: ReactNode;
-  /** Keep the heading on screen even as the only group — for a heading that says more than
-      "these are the results" (the verse group's translation). */
-  alwaysLabelled?: boolean;
-}) {
-  return (
-    <div
-      className={`proto-library-results__group${alwaysLabelled ? ' proto-library-results__group--labelled' : ''}`}
-    >
-      <h3 className="proto-library-results__heading">
-        <span className="proto-library-results__heading-text">{heading}</span>
-        {typeof meta === 'string' ? (
-          <span className="proto-library-results__heading-meta">{meta}</span>
-        ) : (
-          meta ?? null
-        )}
-      </h3>
-      {children}
-    </div>
-  );
-}
-
-/**
- * The glyph each kind leads with — the browse list's own table (`PrototypeLibraryAllView`),
- * so a row looks the same before and after you type. Search used to draw a smaller glyph
- * inline with the title, and only for some kinds, so the list had no left edge: folders were
- * marked, notes were not, and the text started at three different places.
- */
-function resultLeadIcon(result: SidebarSearchResult): IconName {
-  switch (result.kind) {
-    case 'note':
-      return 'note-sticky';
-    case 'folder':
-      return 'folder';
-    case 'threadCluster':
-      return 'arrow-right-arrow-left';
-    case 'highlight':
-      return 'highlighter';
-    case 'scriptureBook':
-      return 'book';
-    case 'scripturePassage':
-    case 'scriptureReference':
-      return 'book-open';
-    case 'resource':
-      return 'newspaper';
-    default:
-      return 'note-sticky';
-  }
-}
-
-/** A row that runs a verb or goes somewhere, with its chord printed on the right. */
-function ChordRow({
-  icon,
-  label,
-  keys,
-  onActivate,
-}: {
-  icon: string;
-  label: string;
-  keys?: string;
-  onActivate: () => void;
-}) {
-  return (
-    <li className="proto-note-row-item">
-      <button type="button" className="proto-note-row__main proto-note-row__main--lead" onClick={onActivate}>
-        <span className="proto-note-row__lead-icon" aria-hidden>
-          {/* Commands and navigation items both carry their glyph as a plain string —
-              `PrototypeCommand.icon` is a table entry, not a typed name. */}
-          <Icon name={icon as IconName} size={13} />
-        </span>
-        <div className="proto-note-row__title-line">
-          <span className="pds-list-title proto-note-row__title-text">{label}</span>
-          {keys ? <ProtoKbdChord keys={keys} compact /> : null}
-        </div>
-      </button>
-    </li>
-  );
-}
 
 export default function PrototypeLibrarySearchResults({
   query,
@@ -654,6 +556,44 @@ export default function PrototypeLibrarySearchResults({
     return map;
   }, [homeFtsSearch.data?.results]);
 
+  /*
+   * The rows' tile layout (prototype-shell.css, "Library search rows") draws a meta, and an
+   * excerpt cut around the match, from what the panel already holds. A note the loaded list
+   * does not have is read from its full-text hit.
+   */
+  const ftsHitsById = useMemo(() => {
+    const map = new Map<string, SearchResult>();
+    for (const hit of ftsSearch.data?.results ?? []) if (hit.type === 'note') map.set(hit.id, hit);
+    return map;
+  }, [ftsSearch.data?.results]);
+
+  const homeFtsHitsById = useMemo(() => {
+    const map = new Map<string, SearchResult>();
+    for (const hit of homeFtsSearch.data?.results ?? []) if (hit.type === 'note') map.set(hit.id, hit);
+    return map;
+  }, [homeFtsSearch.data?.results]);
+
+  const rowBody = useMemo(
+    () =>
+      makeLibrarySearchRowBody({
+        query: trimmed,
+        notesById: data.notesById,
+        highlightsById,
+        ftsHitsById,
+      }),
+    [trimmed, data.notesById, highlightsById, ftsHitsById],
+  );
+  const homeRowBody = useMemo(
+    () =>
+      makeLibrarySearchRowBody({
+        query: trimmed,
+        notesById: homeNotesById,
+        highlightsById: homeHighlightsById,
+        ftsHitsById: homeFtsHitsById,
+      }),
+    [trimmed, homeNotesById, homeHighlightsById, homeFtsHitsById],
+  );
+
   /* Held results are the previous query's, so they count as still loading: the count below
      must not report them against this term. */
   const ftsLoading =
@@ -846,10 +786,10 @@ export default function PrototypeLibrarySearchResults({
   if (!trimmed) return null;
 
   return (
-    <div className="proto-sidebar-search-results">
+    <div className="proto-sidebar-search-results proto-library-search-rows">
       <div className="proto-sidebar-search-results__body">
         {commands.length > 0 ? (
-          <ResultGroup heading="Actions">
+          <ResultGroup heading="Actions" count={commands.length}>
             <ul className="proto-note-list">
               {commands.map((command) => (
                 <ChordRow
@@ -870,7 +810,7 @@ export default function PrototypeLibrarySearchResults({
         ) : null}
 
         {navMatches.length > 0 ? (
-          <ResultGroup heading="Go to">
+          <ResultGroup heading="Go to" count={navMatches.length}>
             <ul className="proto-note-list">
               {navMatches.map((item) => (
                 <ChordRow
@@ -878,6 +818,7 @@ export default function PrototypeLibrarySearchResults({
                   icon={item.icon}
                   label={item.label}
                   keys={item.keys}
+                  kind="destination"
                   onActivate={() => {
                     item.run();
                     /* These navigate, so the panel's history entry has already been left
@@ -904,7 +845,10 @@ export default function PrototypeLibrarySearchResults({
         {/* Named by the kind you are searching inside, so the heading says what the list
             is rather than repeating "Results" above two different lists. */}
         {source === 'mine' ? (
-        <ResultGroup heading={tab === 'all' ? 'Results' : LIBRARY_TAB_LABELS[tab]}>
+        <ResultGroup
+          heading={tab === 'all' ? 'Results' : LIBRARY_TAB_LABELS[tab]}
+          count={visibleResults.length}
+        >
           {visibleResults.length > 0 ? (
             <ul className="proto-note-list">
               {visibleResults.map((result) => (
@@ -916,6 +860,7 @@ export default function PrototypeLibrarySearchResults({
                   notesById={data.notesById}
                   highlightsById={highlightsById}
                   leadIcon={resultLeadIcon(result)}
+                  renderBody={rowBody}
                 />
               ))}
             </ul>
@@ -944,6 +889,7 @@ export default function PrototypeLibrarySearchResults({
               />
             }
             alwaysLabelled
+            count={verseHits.length > 0 ? verseHits.length : undefined}
           >
             {verseHits.length > 0 ? (
               <LibraryVerseResults hits={verseHits} onOpen={openVerse} />
@@ -956,7 +902,7 @@ export default function PrototypeLibrarySearchResults({
         ) : null}
 
         {source === 'mine' && elsewhereRest.length > 0 ? (
-          <ResultGroup heading="Everywhere else">
+          <ResultGroup heading="Everywhere else" count={elsewhereRest.length}>
             <ul className="proto-note-list">
               {elsewhereRest.map((result) => (
                 <PrototypeSidebarSearchResultItem
@@ -967,6 +913,7 @@ export default function PrototypeLibrarySearchResults({
                   notesById={data.notesById}
                   highlightsById={highlightsById}
                   leadIcon={resultLeadIcon(result)}
+                  renderBody={rowBody}
                 />
               ))}
             </ul>
@@ -976,7 +923,7 @@ export default function PrototypeLibrarySearchResults({
         {/* Last, because it answers a different question — not "what else is in this space"
             but "what did I write at home" — and the open space's own answer comes first. */}
         {source === 'mine' && homeResults.length > 0 ? (
-          <ResultGroup heading="My Home">
+          <ResultGroup heading="My Home" count={homeResults.length}>
             <ul className="proto-note-list">
               {homeResults.map((result) => (
                 <PrototypeSidebarSearchResultItem
@@ -987,6 +934,7 @@ export default function PrototypeLibrarySearchResults({
                   notesById={homeNotesById}
                   highlightsById={homeHighlightsById}
                   leadIcon={resultLeadIcon(result)}
+                  renderBody={homeRowBody}
                 />
               ))}
             </ul>
