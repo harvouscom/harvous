@@ -43,6 +43,7 @@ import {
   noteOgDescription,
   noteOgTitle,
 } from '../utils/og-note-cards';
+import { loadSharedStudyThread } from '../utils/study-thread-share';
 
 const route = new Hono();
 
@@ -205,12 +206,14 @@ route.get('/api/og/share/thread/:shareToken', rateLimit('read'), async (c) => {
       .limit(1),
   );
 
-  if (!thread) return c.html(renderNotFoundOgHtml(canonicalUrl), 200);
+  /* No row: a personal Thread (connected notes), named the way the app names it. */
+  const cluster = thread ? null : await loadSharedStudyThread(shareToken);
+  if (!thread && !cluster) return c.html(renderNotFoundOgHtml(canonicalUrl), 200);
 
   return c.html(
     renderShareOgHtml({
-      title: thread.title?.trim() || 'Shared Thread',
-      description: thread.subtitle?.trim() || 'A shared Thread on Harvous.',
+      title: (thread ? thread.title?.trim() : cluster?.title) || 'Shared Thread',
+      description: thread?.subtitle?.trim() || 'A shared Thread on Harvous.',
       canonicalUrl,
       imageUrl: `${origin}/api/og/image/thread/${shareToken}?v=${OG_IMAGE_VERSION}`,
     }),

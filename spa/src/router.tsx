@@ -23,7 +23,6 @@ import PrototypeRouteErrorState from './pages/prototype/PrototypeRouteErrorState
 import ProtoRoutePending from './pages/prototype/ProtoRoutePending';
 import { PROTO_ROUTE_PENDING_DELAY_MS, PROTO_ROUTE_PENDING_MIN_MS } from './layouts/proto-motion';
 import PublicJoinSpacePage from './pages/public/PublicJoinSpacePage';
-import PublicSharedThreadPage from './pages/public/PublicSharedThreadPage';
 import PublicInvitationPage from './pages/public/PublicInvitationPage';
 import { noteParamSlug } from './pages/prototype/proto-route-slugs';
 import { parsePrototypeSearch } from './router-search';
@@ -109,7 +108,9 @@ const sharedNoteRoute = createRoute({
 const sharedThreadRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/thread/$shareToken',
-  component: PublicSharedThreadPage,
+  /* Lazy, like the shared note above: a public page someone reaches from a link should not
+     put its code and styles in every other route's initial payload. */
+  component: lazyRouteComponent(() => import('./pages/public/PublicSharedThreadPage')),
 });
 
 const discoverListingRoute = createRoute({

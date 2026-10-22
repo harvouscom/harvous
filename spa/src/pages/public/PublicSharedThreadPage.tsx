@@ -4,8 +4,9 @@ import { useParams, useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
-import CondensedNoteItem from '@/components/react/CondensedNoteItem';
-import CardNote from '@/components/react/CardNote';
+import { stripHtmlForPreview } from '@/utils/html-stripper';
+import Icon from '@/components/react/Icon';
+import '../../styles/public-shared-thread.css';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api } from '../../lib/api';
 import { useAddSharedThread } from '../../hooks/mutations/useAddSharedThread';
@@ -46,6 +47,36 @@ interface SharedThreadPlanResponse {
   steps: { step: number; title: string; reference: string | null; serviceDate: string | null }[];
   /** Only when the room already has a live invite — this page never mints one. */
   joinToken: string | null;
+}
+
+/**
+ * One note on the Thread's trail, the way the app reads a Thread: a dot on a spine, the title,
+ * and the opening lines — not a card per note. A passage leads with its reference and
+ * translation; a link says it is one.
+ */
+function SharedThreadTrailRow({ note, index }: { note: SharedThreadNote; index: number }) {
+  const preview = stripHtmlForPreview(note.content || '', 180).trim();
+  const translation = note.scriptureTranslation ?? note.version ?? null;
+  const kind =
+    note.noteType === 'scripture' ? 'scripture' : note.noteType === 'resource' ? 'resource' : 'note';
+  return (
+    <li
+      className={`public-thread-trail__item public-thread-trail__item--${kind} card-enter`}
+      style={{ animationDelay: `${100 + index * 40}ms` }}
+    >
+      <span className="public-thread-trail__orb" aria-hidden />
+      <div className="public-thread-trail__text">
+        <p className="public-thread-trail__title">
+          {note.title?.trim() || 'Untitled'}
+          {kind === 'scripture' && translation ? (
+            <span className="public-thread-trail__badge">{translation}</span>
+          ) : null}
+          {kind === 'resource' ? <span className="public-thread-trail__badge">Link</span> : null}
+        </p>
+        {preview ? <p className="public-thread-trail__preview">{preview}</p> : null}
+      </div>
+    </li>
+  );
 }
 
 export default function PublicSharedThreadPage() {
@@ -178,7 +209,11 @@ export default function PublicSharedThreadPage() {
   const notes = data?.notes || [];
   const creator = data?.creator;
 
+  /* A personal Thread has no colour of its own ('paper'), and a beige rule over a white card
+     read as a smudge rather than an accent — so the stripe is for Threads that chose one. */
+  const hasThreadColor = Boolean(thread?.color && thread.color !== 'paper');
   const colorVar = colorTokenVar(thread?.color, 'blue');
+  const noteCount = data?.meta?.noteCount ?? notes.length;
 
   return (
     <>
@@ -271,43 +306,34 @@ export default function PublicSharedThreadPage() {
                       : `Created by ${creator?.displayName || 'A Harvous User'} on Harvous`}
                   </p>
 
-                  <div className="public-card">
-                    <div className="public-card__color-stripe" style={{ background: colorVar }} />
-                    <div className="public-card__header">
-                      <h1 className="public-card__title">{thread.title}</h1>
-                      {thread.subtitle && <p className="public-card__meta">{thread.subtitle}</p>}
+                  <div className="public-card public-card--thread">
+                    {hasThreadColor ? (
+                      <div className="public-card__color-stripe" style={{ background: colorVar }} />
+                    ) : null}
+                    {/* The Thread's own tile — the glyph the app draws on every Thread card —
+                        beside its name, so the page says what it is before a word is read. */}
+                    <div className="public-card__header public-thread-head">
+                      <span className="public-thread-head__icon" aria-hidden>
+                        <Icon name="arrow-right-arrow-left" size={18} />
+                      </span>
+                      <div className="public-thread-head__text">
+                        <h1 className="public-card__title">{thread.title}</h1>
+                        <p className="public-card__meta">
+                          Thread · {noteCount} {noteCount === 1 ? 'note' : 'notes'}
+                          {thread.subtitle ? ` · ${thread.subtitle}` : ''}
+                        </p>
+                      </div>
                     </div>
 
                     <div className="public-card__scroll">
                       {notes.length === 0 ? (
                         <div className="public-card__empty">No notes yet. Add this thread to start studying.</div>
                       ) : (
-                        <ul className="public-card__list">
+                        <ol className="public-thread-trail">
                           {notes.map((note, index) => (
-                            <li
-                              key={note.id}
-                              className="public-card__list-item card-enter"
-                              style={{ animationDelay: `${100 + index * 40}ms` }}
-                            >
-                              {note.noteType === 'scripture' ? (
-                                <CondensedNoteItem
-                                  title={note.title || 'Untitled'}
-                                  noteType="scripture"
-                                  href="#"
-                                  noteId={note.id}
-                                  scriptureTranslation={note.scriptureTranslation ?? note.version ?? undefined}
-                                />
-                              ) : (
-                                <CardNote
-                                  title={note.title || 'Untitled'}
-                                  content={note.content || ''}
-                                  noteType={note.noteType}
-                                  noteId={note.id}
-                                />
-                              )}
-                            </li>
+                            <SharedThreadTrailRow key={note.id} note={note} index={index} />
                           ))}
-                        </ul>
+                        </ol>
                       )}
                     </div>
 
@@ -340,10 +366,20 @@ export default function PublicSharedThreadPage() {
                     </div>
                   </div>
 
-                  <p className="public-footer">
-                    Harvous is a notes app for Bible study.{' '}
-                    <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">harvous.com</a>
-                  </p>
+                  {/* Closing kicker — the shared note's, so both pages end the same way. */}
+                  <div className="public-footer public-footer--rich">
+                    <span className="public-footer__tag">
+                      This was created in Harvous. Start creating your own study Bible.{' '}
+                      <a
+                        href="https://harvous.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="public-footer__cta"
+                      >
+                        Try free →
+                      </a>
+                    </span>
+                  </div>
                 </>
               </SubtleContentMount>
             )}

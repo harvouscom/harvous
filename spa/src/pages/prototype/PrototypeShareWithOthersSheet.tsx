@@ -17,7 +17,7 @@
  * thing; the history is a list of every kind of sharing, and it lives in
  * Settings › Sharing, which the sent state points to.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -89,68 +89,47 @@ const KIND_DESCRIPTION_PLACEHOLDER: Record<ShareWithOthersKind, string> = {
   resource: 'A sentence, so someone knows why it is worth opening',
 };
 
-export default function PrototypeShareWithOthersSheet({
-  open,
+/**
+ * The form alone — what is being offered, the one optional line, the attribution, and the blue
+ * footer button — for a host that already has a surface of its own. The Thread share panel shows
+ * it in place, in the same popover, rather than stacking a second dialog on top of the first.
+ *
+ * `renderHeader` draws the title row, because the two hosts close differently: the sheet has an
+ * ×, the Thread panel a back chevron. `onDone` is the sent state's Done.
+ */
+export function ShareWithOthersForm({
   target,
-  onOpenChange,
+  onDone,
+  renderHeader,
+  onStateChange,
 }: {
-  open: boolean;
   target: ShareWithOthersTarget | null;
-  onOpenChange: (open: boolean) => void;
+  onDone: () => void;
+  renderHeader: (state: { sent: boolean }) => ReactNode;
+  /** For a host that re-measures its position when the content changes height. */
+  onStateChange?: (state: { sent: boolean; error: string | null }) => void;
 }) {
-  const { mounted, exiting } = useProtoOverlayMotion(open);
-  const cardRef = useRef<HTMLDivElement | null>(null);
   const submitToDiscover = useSubmitToDiscover();
   const navigate = useNavigate();
 
-  const [description, setDescription] = useState('');
+  /* Seeded from the item's own blurb, because the common case is that it already says the
+     right thing and the person should not have to retype it. Hosts remount the form for each
+     new offer, so this is read once. */
+  const [description, setDescription] = useState(() =>
+    (target?.description ?? '').slice(0, DESCRIPTION_MAX_LENGTH),
+  );
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
-  /* Seeded from the template's own blurb, because the common case is that it
-     already says the right thing and the person should not have to retype it. */
   useEffect(() => {
-    if (open && target) {
-      setDescription((target.description ?? '').slice(0, DESCRIPTION_MAX_LENGTH));
-      setError(null);
-      setSent(false);
-    }
-  }, [open, target]);
+    onStateChange?.({ sent, error });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sent, error]);
 
-  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
-  const usePopoverPresentation = !shouldUseSheetPresentation;
-  const showPopoverPortal = usePopoverPresentation && mounted;
-
-  const { position } = useProtoAnchoredPopoverPosition(
-    cardRef,
-    {},
-    {
-      enabled: showPopoverPortal,
-      strategy: 'centered',
-      topVhFraction: 0.16,
-      fallbackWidth: 380,
-      fallbackHeight: 340,
-    },
-    [sent, error],
-  );
-
-  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
-
-  const close = () => {
-    onOpenChange(false);
-    /* Reset after the exit animation, so the form does not visibly empty itself
-       on the way out. */
-    window.setTimeout(() => {
-      setDescription('');
-      setError(null);
-      setSent(false);
-    }, 250);
-  };
-
-  /* Out to the page that lists every kind of sharing, closing this sheet on the way. Same route
+  /* Out to the page that lists every kind of sharing, closing the host on the way. Same route
      cast the Settings layout uses — the generated route union does not know the prototype base. */
   const openSharingSettings = () => {
-    close();
+    onDone();
     void navigate({ to: prototypeHref('settings/sharing') as '/' });
   };
 
@@ -173,24 +152,9 @@ export default function PrototypeShareWithOthersSheet({
     );
   };
 
-  const content = (
+  return (
     <>
-      <div className="proto-study-thread-popover__header">
-        <div className="proto-study-thread-popover__title-row">
-          <span className="proto-study-thread-popover__title">
-            {sent ? 'Sent' : 'Share with others'}
-          </span>
-        </div>
-        <button
-          type="button"
-          className="proto-side-panel__action-btn"
-          onClick={close}
-          aria-label="Close"
-          title="Close"
-        >
-          <Icon name="xmark" size={12} />
-        </button>
-      </div>
+      {renderHeader({ sent })}
 
       <div className="proto-service-editor">
         {sent ? (
@@ -282,7 +246,7 @@ export default function PrototypeShareWithOthersSheet({
 
       <div className="proto-add-notes-sheet__footer proto-sheet-footer--stacked">
         {sent ? (
-          <button type="button" className="proto-share-popover__primary" onClick={close}>
+          <button type="button" className="proto-share-popover__primary" onClick={onDone}>
             Done
           </button>
         ) : (
@@ -297,6 +261,80 @@ export default function PrototypeShareWithOthersSheet({
         )}
       </div>
     </>
+  );
+}
+
+export default function PrototypeShareWithOthersSheet({
+  open,
+  target,
+  onOpenChange,
+}: {
+  open: boolean;
+  target: ShareWithOthersTarget | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { mounted, exiting } = useProtoOverlayMotion(open);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  /* A fresh form for every opening, so a sent state or a half-typed line never greets the next
+     offer. Bumped on open rather than on close, so the form does not visibly empty itself on
+     the way out. */
+  const [formKey, setFormKey] = useState(0);
+  const [formState, setFormState] = useState<{ sent: boolean; error: string | null }>({
+    sent: false,
+    error: null,
+  });
+  /* Keyed on identity, not the object: callers build `target` inline on every render. */
+  useEffect(() => {
+    if (open) setFormKey((key) => key + 1);
+  }, [open, target?.kind, target?.id]);
+
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
+  const usePopoverPresentation = !shouldUseSheetPresentation;
+  const showPopoverPortal = usePopoverPresentation && mounted;
+
+  const { position } = useProtoAnchoredPopoverPosition(
+    cardRef,
+    {},
+    {
+      enabled: showPopoverPortal,
+      strategy: 'centered',
+      topVhFraction: 0.16,
+      fallbackWidth: 380,
+      fallbackHeight: 340,
+    },
+    [formState.sent, formState.error],
+  );
+
+  useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
+
+  const close = () => onOpenChange(false);
+
+  const content = (
+    <ShareWithOthersForm
+      key={formKey}
+      target={target}
+      onDone={close}
+      onStateChange={setFormState}
+      renderHeader={({ sent }) => (
+        <div className="proto-study-thread-popover__header">
+          <div className="proto-study-thread-popover__title-row">
+            <span className="proto-study-thread-popover__title">
+              {sent ? 'Sent' : 'Share with others'}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="proto-side-panel__action-btn"
+            onClick={close}
+            aria-label="Close"
+            title="Close"
+          >
+            <Icon name="xmark" size={12} />
+          </button>
+        </div>
+      )}
+    />
   );
 
   if (showPopoverPortal && typeof document !== 'undefined') {

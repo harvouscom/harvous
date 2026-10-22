@@ -36,14 +36,13 @@ import { useThreadNotes } from '../../../hooks/queries/useThreadNotes';
 import { useStudyThreadMemberDragReorder } from '../../../hooks/useStudyThreadMemberDragReorder';
 import { useUpdateThreadSequence } from '../../../hooks/mutations/useUpdateThreadSequence';
 import { useActiveSpace } from '../../../hooks/useActiveSpace';
+import { useHarvousIdentity } from '../../../hooks/useHarvousIdentity';
 import { canManageStudyThreadsInSharedSpace } from '../../../lib/shared-space-capabilities';
 import { toastError } from '../../../lib/error-copy';
 import type { SpaceNoteRow } from '../../../hooks/queries/useSpace';
 import { useLibraryPanelData, type LibraryPanelData } from './library-panel-data';
 import Icon from '@/components/react/Icon';
-import PrototypeShareWithOthersSheet, {
-  type ShareWithOthersTarget,
-} from '../PrototypeShareWithOthersSheet';
+import PrototypeThreadSharePanel, { useThreadShareAction } from '../PrototypeThreadSharePanel';
 import { resolveThreadDrillSubject } from './use-library-drill-subject';
 
 export default function PrototypeLibraryThreadView({ threadId }: { threadId: string }) {
@@ -110,7 +109,12 @@ function PersonalThreadMembers({
   data: LibraryPanelData;
 }) {
   const threadQuery = usePrototypeStudyThread(threadId, data.spaceId);
-  const [shareTarget, setShareTarget] = useState<ShareWithOthersTarget | null>(null);
+  const { isGuest } = useHarvousIdentity();
+  /* Sharing swaps in for the trail, in the same panel — never a dialog stacked over it. */
+  const [view, setView] = useState<'trail' | 'share'>('trail');
+  useEffect(() => {
+    setView('trail');
+  }, [threadId]);
 
   /* Same order the note page's trail reads in: the author's manual order when they
      set one, otherwise the graph walk from the representative note. */
@@ -152,6 +156,22 @@ function PersonalThreadMembers({
     [nodesSorted, drag.displayOrderedIds],
   );
 
+  /*
+   * Sharing — a link first, Discover second, both from one blue button at the foot of the Thread.
+   *
+   * Only for a Thread of your own on My Home: one in a shared space is the room's, and the server
+   * refuses it anyway. Not before the Thread has two notes — one note is a note, and has its own
+   * way to be shared — and not while the previous Thread is still the placeholder, or its name
+   * would go out on this one's notes. Never for a guest, whose notes live only in this browser.
+   * Worked out before the early returns below, because the share hook has to run on every render.
+   */
+  const canShareThread =
+    !isGuest &&
+    !data.isScopedSharedSpace && !threadQuery.isPlaceholderData && nodesSorted.length >= 2;
+  const shareAction = useThreadShareAction(repNoteId, data.spaceId, canShareThread);
+  const threadName =
+    resolveThreadDrillSubject({ personal: threadQuery.data ?? null }) ?? 'Untitled Thread';
+
   if (threadQuery.isPending) return <ProtoSpaceLoading label="Loading Thread" />;
   if (threadQuery.isError) {
     return (
@@ -175,46 +195,25 @@ function PersonalThreadMembers({
      cannot have loaded without one, so this is a type guard more than a state. */
   if (!spaceId) return null;
 
-  /*
-   * "Share with others" — a whole Thread offered to Discover, the way a note is from its share
-   * popover.
-   *
-   * Only for a Thread of your own on My Home: one in a shared space is the room's, and the server
-   * refuses it anyway. Not before the Thread has two notes — one note is a note, and has its own
-   * way to be shared — and not while the previous Thread is still the placeholder, or its name
-   * would go out on this one's notes. The id is the Thread's main note, which is how the server
-   * finds a personal Thread.
-   */
-  const canShareThread =
-    !data.isScopedSharedSpace && !threadQuery.isPlaceholderData && nodesSorted.length >= 2;
+  if (view === 'share' && canShareThread) {
+    return (
+      <div className="proto-library-thread-share-view">
+        <PrototypeThreadSharePanel
+          noteId={repNoteId}
+          spaceId={spaceId}
+          threadName={threadName}
+          noteCount={nodesSorted.length}
+          discoverSourceId={repNoteId}
+          action={shareAction}
+          onBack={() => setView('trail')}
+        />
+      </div>
+    );
+  }
 
   return (
     <>
-    <LibraryThreadTrail
-      dragging={Boolean(drag.draggingId)}
-      header={
-        canShareThread ? (
-          <div className="proto-library-thread-share">
-            <button
-              type="button"
-              className="proto-sheet-quiet-action"
-              onClick={() =>
-                setShareTarget({
-                  kind: 'pack',
-                  id: repNoteId,
-                  name:
-                    resolveThreadDrillSubject({ personal: threadQuery.data ?? null }) ??
-                    'Untitled Thread',
-                })
-              }
-            >
-              <Icon name="share" size={12} aria-hidden />
-              Share with others
-            </button>
-          </div>
-        ) : undefined
-      }
-    >
+    <LibraryThreadTrail dragging={Boolean(drag.draggingId)}>
       <ProtoThreadTrailSortableList
         items={drag.displayOrderedIds}
         onDragStart={drag.handleDragStart}
@@ -252,13 +251,22 @@ function PersonalThreadMembers({
         })}
       </ProtoThreadTrailSortableList>
     </LibraryThreadTrail>
-    <PrototypeShareWithOthersSheet
-      open={Boolean(shareTarget)}
-      target={shareTarget}
-      onOpenChange={(open) => {
-        if (!open) setShareTarget(null);
-      }}
-    />
+    {canShareThread ? (
+      <div className="proto-add-notes-sheet__footer proto-sheet-footer--stacked proto-library-thread-share-footer">
+        <button
+          type="button"
+          className="proto-share-popover__primary proto-thread-share__button"
+          onClick={() => {
+            /* In the click itself: the copy has to start inside the gesture. */
+            shareAction.share();
+            setView('share');
+          }}
+        >
+          <Icon name="share" size={13} aria-hidden />
+          Share Thread
+        </button>
+      </div>
+    ) : null}
     </>
   );
 }
