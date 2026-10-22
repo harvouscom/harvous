@@ -5,6 +5,34 @@ rows are now named by time, the current session wears a "Now" tag, the note's ti
 the header, and the "57 saves" count is gone. This doc keeps the bigger ideas that were raised
 alongside that pass and deliberately left for later.
 
+## Done: the preview looks like the note (Oct 22 2026)
+
+A past version used to render in the pre-2.0 pill look — flat grey pills, no accent tints,
+different type — because every current pill, accent, quote and highlight rule is scoped to
+`.proto-editor-surface`, and the preview is portaled (desktop popover, phone drawer) outside
+the note pane. Now:
+
+- **One read-only surface.** `ProtoReadOnlyNotePaper` draws the body on
+  `.proto-editor-surface` with the note's own sheet (`.proto-editor-paper`) and title type.
+  Pills keep their `data-pill-accent` tints; quotes and highlights match the live note.
+  `data-readonly` holds pill hover fills and pointer cursors off, since nothing there opens.
+  The block rhythm the editor gets through `.ProseMirror` is restated for the static body in
+  `prototype-note-readonly.css`. The import preview (`ImportItemPreview.tsx`) uses the same
+  component, without the sheet (`variant="inset"`).
+- **Old versions show pills.** Versions saved before the server added pills, and
+  `sync-update` saves, hold references as plain words. `withDisplayScripturePills`
+  (`src/utils/note-read-only-html.ts`) wraps them for display, the way a save would. It is
+  never written back: Restore copies the stored HTML, and the server pills it on save
+  anyway. Existing pills are set aside and put back byte for byte, because the highlighter
+  matches through inline tags and would otherwise re-wrap a pill (and drop its accent)
+  whenever the same reference also appears bare.
+- **List and header tidy.** Day headings lead each group, times sit under them in
+  `--pds-text-secondary`, the selected row takes the accent fill with white ink, and the
+  preview has its own header with the version's day and time beside Restore.
+
+The preview now shares the editor surface, so it is the hook point for a diff (§2): marks
+added there inherit the same pill and highlight styles as the note.
+
 ## Where it stands
 
 - Every save writes an immutable `NoteVersions` row (`server/db/schema.ts`): `title`, full
@@ -51,7 +79,9 @@ string diff breaks pills and marks, so this has to diff at the block level, then
 level inside changed blocks.
 
 **Cost.** Medium to high, because pills, highlights and blockquotes all need to survive the
-diff rendering. `prepareReadOnlyNoteBodyHtml` is the place to hook in.
+diff rendering. `prepareReadOnlyNoteBodyHtml` is the place to hook in for the HTML, and
+`ProtoReadOnlyNotePaper` for the rendering: both versions should get the display pills before
+diffing, or every reference an old save held as plain text reads as a change.
 
 ## 3. Open a session into its checkpoints
 

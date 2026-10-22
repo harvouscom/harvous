@@ -130,3 +130,17 @@ html.harvous-prototype-route .pds-reader-inset button.pds-reader-inset__toggle:h
   color: var(--pds-text-primary) !important;
 }
 
+
+/* Note history rows — the time is secondary under its day, the "Titled …" line and the
+   "Now" tag quieter still. Every history row is a button, so the blanket rule painted all
+   three primary. `:not(.proto-ink-on-accent)` hands the selected row back to white ink. */
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row:not(.proto-ink-on-accent) .proto-note-history__row-title,
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row:not(.proto-ink-on-accent) .proto-note-history__row-tag {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row:not(.proto-ink-on-accent) .proto-note-history__row-meta,
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row:not(.proto-ink-on-accent) .proto-note-history__row-chevron,
+html.harvous-prototype-route .proto-note-history button.proto-note-history__row:not(.proto-ink-on-accent) .proto-note-history__row-chevron * {
+  color: var(--pds-text-muted) !important;
+}
