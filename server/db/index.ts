@@ -72,6 +72,7 @@ export {
   DiagnosticIssueTriage,
   NoteConnections,
   StudyThreadMemberOrders,
+  StudyThreadShares,
   VerseTextCache,
   BibleTranslations,
   BibleVerses,

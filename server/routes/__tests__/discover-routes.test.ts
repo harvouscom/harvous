@@ -472,11 +472,15 @@ describe('discover routes', () => {
     // A Thread on My Home is a cluster of connected notes addressed by its main note, not a
     // `Threads` row — so a pack sent from the Library panel or the Thread popover carries a note
     // id, and has to be walked the way GET /api/notes/:id/thread walks it.
+    // The walk and its refusals live in `resolvePersonalStudyThread`, which the Thread's public
+    // link uses too — one walk, so a pack and a link can never disagree about what a Thread holds.
     const text = snapshot();
+    const walk = readFileSync(resolve(process.cwd(), 'server/utils/study-thread-share.ts'), 'utf8');
     expect(text).toContain('snapshotThreadClusterPack');
-    expect(text).toContain('collectStudyThreadGraphForScope');
+    expect(text).toContain('resolvePersonalStudyThread(');
+    expect(walk).toContain('collectStudyThreadGraphForScope');
     expect(text).toContain("sourceId.startsWith('note_')");
-    expect(text).toContain('Connect at least one more note before sharing this Thread.');
+    expect(walk).toContain('Connect at least one more note before sharing this Thread.');
   });
 
   it('counts a note and its Thread as different things to have already shared', () => {

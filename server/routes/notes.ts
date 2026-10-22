@@ -52,6 +52,13 @@ import { pickStudyThreadRepresentativeNoteId, type StudyThreadSuggestNode } from
 import { normalizeServerNoteId } from '../utils/normalize-note-id';
 import { fetchStudyThreadNoteRows } from '../utils/study-thread-note-rows';
 import { resolveStudyThreadClusterNaming } from '../utils/study-thread-cluster-naming';
+import {
+  resolvePersonalStudyThread,
+  findStudyThreadShare,
+  createStudyThreadShare,
+  deleteStudyThreadShares,
+  isStudyThreadSharesTableMissing,
+} from '../utils/study-thread-share';
 import { collectStudyThreadGraphForScope } from '../utils/study-thread-space';
 import {
   fetchStudyThreadMemberOrder,
@@ -1700,6 +1707,93 @@ route.get('/api/notes/:id/thread', requireAuth, async (c) => {
     });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/thread', action: 'get_note_thread' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET/POST /api/notes/:id/thread/share ───────────────────────────────────
+// The public link for the personal Thread this note belongs to. See server/utils/study-thread-share.ts.
+function studyThreadShareBody(origin: string, share: { shareToken: string; createdAt: Date } | null) {
+  return {
+    isPublic: Boolean(share),
+    shareToken: share?.shareToken ?? null,
+    shareUrl: share ? `${origin}/shared/thread/${share.shareToken}` : null,
+    shareTokenCreatedAt: share?.createdAt ?? null,
+  };
+}
+
+route.get('/api/notes/:id/thread/share', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = normalizeServerNoteId(requireParam(c, 'id'));
+    const preferredSpaceId = typeof c.req.query('spaceId') === 'string' ? c.req.query('spaceId') : undefined;
+    const thread = await resolvePersonalStudyThread(noteId, auth.userId, { preferredSpaceId, maxNodes: 200 });
+    const origin = new URL(c.req.url).origin;
+    /* A Thread that cannot be shared is reported as unshared, not as an error: the status read
+       runs whenever the popover opens, and the refusal belongs to the press of Share. */
+    const share = thread.ok ? await findStudyThreadShare(auth.userId, thread.nodeIds) : null;
+    return c.json(
+      { success: true, ...studyThreadShareBody(origin, share) },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/thread/share', action: 'get_thread_share_status' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+route.post('/api/notes/:id/thread/share', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = normalizeServerNoteId(requireParam(c, 'id'));
+    const body = (await c.req.json().catch(() => ({}))) as { action?: unknown; spaceId?: unknown };
+    const action = body.action;
+    if (action !== 'enable' && action !== 'disable' && action !== 'refresh') {
+      return c.json({ success: false, error: 'Invalid action. Must be enable, disable, or refresh' }, 400);
+    }
+    const preferredSpaceId = typeof body.spaceId === 'string' ? body.spaceId : undefined;
+    const thread = await resolvePersonalStudyThread(noteId, auth.userId, { preferredSpaceId, maxNodes: 200 });
+    const origin = new URL(c.req.url).origin;
+
+    if (!thread.ok) {
+      /* Turning a link off is always allowed, even for a Thread that has since moved into a
+         shared space or shrunk to one note — that is exactly when someone wants it gone. */
+      if (action === 'disable') {
+        await deleteStudyThreadShares(auth.userId, [noteId]).catch((error) => {
+          if (!isStudyThreadSharesTableMissing(error)) throw error;
+        });
+        return c.json({ success: true, ...studyThreadShareBody(origin, null) });
+      }
+      return c.json({ success: false, error: thread.error, code: thread.code }, thread.status);
+    }
+
+    try {
+      if (action === 'disable') {
+        await deleteStudyThreadShares(auth.userId, thread.nodeIds);
+        return c.json({ success: true, ...studyThreadShareBody(origin, null) });
+      }
+      const existing = await findStudyThreadShare(auth.userId, thread.nodeIds);
+      /* Enable is idempotent: pressing Share twice hands back the link already out there. */
+      if (action === 'enable' && existing) {
+        return c.json({ success: true, ...studyThreadShareBody(origin, existing) });
+      }
+      if (action === 'refresh' && !existing) {
+        return c.json({ success: false, error: 'Cannot refresh share link for a private thread' }, 400);
+      }
+      await deleteStudyThreadShares(auth.userId, thread.nodeIds);
+      const share = await createStudyThreadShare(auth.userId, thread.repNoteId);
+      queueAudiencefulProductFlagsForUser(auth.userId, { has_shared: true });
+      return c.json({ success: true, ...studyThreadShareBody(origin, share) });
+    } catch (error) {
+      if (!isStudyThreadSharesTableMissing(error)) throw error;
+      return c.json(
+        { success: false, error: 'Thread links are not set up yet.', code: 'THREAD_LINKS_UNAVAILABLE' },
+        503,
+      );
+    }
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/thread/share', action: 'update_thread_share' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
