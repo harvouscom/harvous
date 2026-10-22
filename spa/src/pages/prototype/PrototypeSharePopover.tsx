@@ -5,7 +5,7 @@ import { useShareNote } from '../../hooks/mutations/useShareNote';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import ProtoPopoverShell from './ProtoPopoverShell';
-import PrototypeShareWithOthersSheet from './PrototypeShareWithOthersSheet';
+import { ShareWithOthersForm } from './PrototypeShareWithOthersSheet';
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import { protoPortaledPopoverClassName } from './proto-portaled-popover-classes';
 import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
@@ -22,16 +22,22 @@ import { APIError } from '../../lib/api';
  *  - Public: read-only URL field + Copy button + "Get a new link" + Disable.
  *  - Pending / error states inline.
  *
+ * From the public state, the Discover offer swaps this same card
+ * to the Discover form, with a back chevron — never a second dialog stacked
+ * over this one. The Thread share panel does the same.
+ *
  * The popover is dismissed on outside-click and `Escape`. The host (the
  * share pill button) owns the `open` state.
  */
 
 const CARD_WIDTH = 320;
+/** The Discover form's own width, the one it has as a sheet of its own. */
+const DISCOVER_CARD_WIDTH = 360;
 const CARD_OFFSET = PROTO_TOOLBAR_POPOVER_OFFSET;
 
 interface PrototypeSharePopoverProps {
   noteId: string;
-  /** Shown in the Discover submit sheet so you can see what you are offering. */
+  /** Shown in the Discover form so you can see what you are offering. */
   noteTitle?: string | null;
   isPublic: boolean;
   shareToken: string | null;
@@ -60,7 +66,11 @@ export default function PrototypeSharePopover({
   const [pos, setPos] = useState<ReturnType<typeof computeRightAnchoredPopoverPosition> | null>(null);
   const [copied, setCopied] = useState(false);
   const [ackRequired, setAckRequired] = useState(false);
-  const [shareWithOthersOpen, setShareWithOthersOpen] = useState(false);
+  const [view, setView] = useState<'link' | 'discover'>('link');
+  const [discoverState, setDiscoverState] = useState<{ sent: boolean; error: string | null }>({
+    sent: false,
+    error: null,
+  });
 
   // Build the canonical public URL. The server returns one too, but we
   // construct it client-side so the popover paints instantly on enable
@@ -76,12 +86,18 @@ export default function PrototypeSharePopover({
     return shareUrl.replace(/^https?:\/\//, '');
   }, [shareUrl]);
 
+  /* Discover is a second step of an already-public note. If sharing stops while the form is
+     open (another device), the card falls back to the link view rather than offering a
+     private note to everyone. */
+  const showDiscover = view === 'discover' && isPublic && !ackRequired;
+  const cardWidth = showDiscover ? DISCOVER_CARD_WIDTH : CARD_WIDTH;
+
   // Position once the card has measured itself.
   useLayoutEffect(() => {
     if (!anchorRect) return;
     const h = cardRef.current?.getBoundingClientRect().height ?? 180;
-    setPos(computeRightAnchoredPopoverPosition(anchorRect, CARD_WIDTH, h, CARD_OFFSET));
-  }, [ackRequired, anchorRect, isPublic]);
+    setPos(computeRightAnchoredPopoverPosition(anchorRect, cardWidth, h, CARD_OFFSET));
+  }, [ackRequired, anchorRect, isPublic, cardWidth, discoverState.sent, discoverState.error]);
 
   // Dismiss on outside-click and Escape.
   useDismissOnOutside(cardRef, onDismiss, true, { dismissOnEscape: !ackRequired });
@@ -172,23 +188,50 @@ export default function PrototypeSharePopover({
       role={ackRequired ? 'alertdialog' : 'dialog'}
       aria-modal="false"
       aria-labelledby={ackRequired ? warningTitleId : titleId}
-      aria-describedby={ackRequired ? warningDescriptionId : descriptionId}
+      aria-describedby={ackRequired ? warningDescriptionId : showDiscover ? undefined : descriptionId}
       aria-live={ackRequired ? 'assertive' : undefined}
       aria-atomic={ackRequired ? 'true' : undefined}
-      className={protoPortaledPopoverClassName('proto-share-popover', {
-        exiting,
-        placement: pos?.placement,
-        originAlign: 'right',
-      })}
+      className={protoPortaledPopoverClassName(
+        showDiscover ? 'proto-share-popover proto-share-popover--discover' : 'proto-share-popover',
+        {
+          exiting,
+          placement: pos?.placement,
+          originAlign: 'right',
+        },
+      )}
       style={{
         position: 'fixed',
         top: pos?.top ?? -9999,
         left: pos?.left ?? -9999,
-        width: CARD_WIDTH,
+        width: cardWidth,
         zIndex: 6000,
       }}
     >
-      {!ackRequired ? (
+      {showDiscover ? (
+        <ShareWithOthersForm
+          target={{ kind: 'note', id: noteId, name: noteTitle?.trim() || 'Untitled note' }}
+          onDone={() => setView('link')}
+          onStateChange={setDiscoverState}
+          renderHeader={({ sent }) => (
+            <div className="proto-study-thread-popover__header">
+              <div className="proto-study-thread-popover__title-row">
+                <button
+                  type="button"
+                  className="proto-side-panel__action-btn"
+                  onClick={() => setView('link')}
+                  aria-label="Back"
+                  title="Back"
+                >
+                  <Icon name="caret-left" size={14} />
+                </button>
+                <span id={titleId} className="proto-study-thread-popover__title">
+                  {sent ? 'Sent' : 'Share with others'}
+                </span>
+              </div>
+            </div>
+          )}
+        />
+      ) : !ackRequired ? (
         <div className="proto-share-popover__header">
           <div id={titleId} className="proto-share-popover__title">
             Share note
@@ -201,7 +244,7 @@ export default function PrototypeSharePopover({
         </div>
       ) : null}
 
-      {ackRequired && !isPublic ? (
+      {showDiscover ? null : ackRequired && !isPublic ? (
         <>
           <div className="proto-share-popover__header">
             <div
@@ -298,12 +341,12 @@ export default function PrototypeSharePopover({
 
           {/* Only here, in the already-public branch. A link is one person you
               chose; Discover is everyone, so it is the second step and never
-              the first. */}
+              the first. It swaps this card's own content, not a second dialog. */}
           <div className="proto-share-popover__actions">
             <button
               type="button"
               className="proto-share-popover__link-action"
-              onClick={() => setShareWithOthersOpen(true)}
+              onClick={() => setView('discover')}
               disabled={isBusy}
             >
               Share with others on Harvous
@@ -312,23 +355,11 @@ export default function PrototypeSharePopover({
         </>
       )}
 
-      {errorMessage ? (
+      {errorMessage && !showDiscover ? (
         <div className="proto-share-popover__error" role="alert">
           {errorMessage}
         </div>
       ) : null}
-
-      <PrototypeShareWithOthersSheet
-        open={shareWithOthersOpen}
-        target={
-          shareWithOthersOpen
-            ? { kind: 'note', id: noteId, name: noteTitle?.trim() || 'Untitled note' }
-            : null
-        }
-        onOpenChange={(next) => {
-          if (!next) setShareWithOthersOpen(false);
-        }}
-      />
     </ProtoPopoverShell>,
     document.body,
   );
