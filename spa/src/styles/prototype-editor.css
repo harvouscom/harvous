@@ -992,6 +992,17 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   gap: 10px;
 }
 
+/* The Discover form in place of the link: its header, body and footer carry their own
+   14px gutters and rules, so the card gives up its padding and the footer sits flush. */
+.proto-share-popover.proto-share-popover--discover {
+  padding: 0;
+  overflow: hidden;
+}
+
+.proto-share-popover--discover > .proto-popover-shell__content {
+  gap: 0;
+}
+
 .proto-share-popover__header {
   display: flex;
   flex-direction: column;

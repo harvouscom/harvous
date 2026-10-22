@@ -49,6 +49,15 @@ describe('discover submit placement', () => {
     expect(popover()).toContain("kind: 'note'");
   });
 
+  it('opens the note Discover form in place, and only while the note is public', () => {
+    // The form swaps the popover's own content rather than stacking a second dialog over it,
+    // and the swap is gated on isPublic so a note made private elsewhere is never offered.
+    const text = popover();
+    expect(text).not.toContain('<PrototypeShareWithOthersSheet');
+    expect(text).toContain('<ShareWithOthersForm');
+    expect(text).toContain("view === 'discover' && isPublic");
+  });
+
   it('offers a template to Discover only from rows the reader owns', () => {
     const text = browseSheet();
     expect(text).toContain("onShareWithOthers && template.section === 'personal'");
