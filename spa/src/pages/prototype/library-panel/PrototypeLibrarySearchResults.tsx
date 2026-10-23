@@ -786,7 +786,7 @@ export default function PrototypeLibrarySearchResults({
   if (!trimmed) return null;
 
   return (
-    <div className="proto-sidebar-search-results proto-library-search-rows">
+    <div className="proto-sidebar-search-results proto-library-tile-rows">
       <div className="proto-sidebar-search-results__body">
         {commands.length > 0 ? (
           <ResultGroup heading="Actions" count={commands.length}>

@@ -3,7 +3,7 @@
  *
  * Each frame draws the real pieces — `ResultGroup`, `ChordRow`, the shared row presenter with
  * `LibrarySearchRowBody`, `LibraryVerseResults` — over fixtures, under the same
- * `.proto-library-search-rows` root the panel uses, so a change to the rows' block in
+ * `.proto-library-tile-rows` root the panel uses, so a change to the rows' block in
  * prototype-shell.css lands here and in the panel alike.
  *
  * The gallery is not `html.harvous-prototype-route`, so the route overrides' type axes do not
@@ -105,6 +105,18 @@ const RESULTS: SidebarSearchResult[] = [
   { id: 'note:n3', kind: 'note', title: 'Prayer journal', noteId: 'n3' },
 ];
 
+/* The All tab before you type: every kind, newest first, nothing marked. */
+const BROWSE_RESULTS: SidebarSearchResult[] = [
+  RESULTS[0],
+  { id: 'folder:Gospel of John', kind: 'folder', title: 'Gospel of John', subtitle: '14 notes', folderKey: 'Gospel of John' },
+  RESULTS[1],
+  RESULTS[2],
+  { id: 'threadCluster:t1', kind: 'threadCluster', title: 'Abiding', subtitle: '6 notes', threadClusterId: 't1' },
+  { id: 'scriptureBook:2', kind: 'scriptureBook', title: 'Exodus', subtitle: '31 passages · 15 notes', scriptureBookOrder: 2 },
+  { id: 'resource:r1', kind: 'resource', title: 'Abide: a guided week in John 15', subtitle: 'bibleproject.com' },
+  RESULTS[6],
+];
+
 const REFERENCE_RESULTS: SidebarSearchResult[] = [
   {
     id: 'scriptureReference:John 15',
@@ -190,7 +202,7 @@ function Frame({ label, note, children }: { label: string; note: string; childre
         <p className="pds-caption">{note}</p>
       </header>
       <div className="pds-gallery-search-rows__panel">
-        <div className="proto-sidebar-search-results proto-library-search-rows">
+        <div className="proto-sidebar-search-results proto-library-tile-rows">
           <div className="proto-sidebar-search-results__body">{children}</div>
         </div>
       </div>
@@ -198,10 +210,10 @@ function Frame({ label, note, children }: { label: string; note: string; childre
   );
 }
 
-type Sample = 'words' | 'reference';
+type Sample = 'browse' | 'words' | 'reference';
 
 export default function LibrarySearchRowsScene() {
-  const [sample, setSample] = useState<Sample>('words');
+  const [sample, setSample] = useState<Sample>('browse');
 
   return (
     <div className="pds-gallery-stack">
@@ -213,6 +225,7 @@ export default function LibrarySearchRowsScene() {
       <div className="pds-gallery-search-rows__controls">
         <PrototypeLibrarySegmented
           options={[
+            { id: 'browse', label: 'Browse' },
             { id: 'words', label: `“${QUERY}”` },
             { id: 'reference', label: `“${REF_QUERY}”` },
           ]}
@@ -225,7 +238,11 @@ export default function LibrarySearchRowsScene() {
         {FRAMES.map((frame) => (
           <div key={frame.id} className={`pds-gallery-search-rows__slot pds-gallery-search-rows__slot--${frame.id}`}>
             <Frame label={frame.label} note={frame.note}>
-              {sample === 'words' ? (
+              {sample === 'browse' ? (
+                <ResultGroup heading="Everything">
+                  <ResultRows results={BROWSE_RESULTS} query="" activeNoteId="n1" />
+                </ResultGroup>
+              ) : sample === 'words' ? (
                 <>
                   <ResultGroup heading="Go to" count={1}>
                     <ul className="proto-note-list">

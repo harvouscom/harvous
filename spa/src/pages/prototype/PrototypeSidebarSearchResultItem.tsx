@@ -118,6 +118,7 @@ export default function PrototypeSidebarSearchResultItem({
           onActivate={onActivate}
           leadIcon={leadIcon}
           renderBody={renderBody}
+          selection={selection}
         />
       );
     case 'scripturePassage':
@@ -304,16 +305,20 @@ function HighlightSearchResultItem({
  * presenter: the sidebar owns which kind is selectable and what a range means
  * over the flat result order, and answers `null` for the kinds that only drill.
  */
+type SearchResultPick = {
+  selectMode: boolean;
+  selected: boolean;
+  checkbox: { selected: boolean; label: string; onToggle: () => void };
+} | null;
+
 export type SearchResultSelection = {
-  for: (
-    kind: 'note' | 'highlight',
-    id: string,
-    label: string,
-  ) => {
-    selectMode: boolean;
-    selected: boolean;
-    checkbox: { selected: boolean; label: string; onToggle: () => void };
-  } | null;
+  for: (kind: 'note' | 'highlight', id: string, label: string) => SearchResultPick;
+  /**
+   * Folders and Threads, where a list selects them too — the Library panel's All tab, which
+   * draws them as rows. Separate from `for` so the sidebar, which never selects a place from
+   * its search, keeps a signature that cannot be asked.
+   */
+  forPlace?: (kind: 'folder' | 'thread', id: string, label: string) => SearchResultPick;
 };
 
 function collectionIconName(kind: SidebarSearchResult['kind']): string {
@@ -340,24 +345,47 @@ function InlineKindSearchResultItem({
   onActivate,
   leadIcon,
   renderBody,
+  selection,
 }: {
   result: SidebarSearchResult;
   active: boolean;
   onActivate: () => void;
   leadIcon?: IconName;
   renderBody?: (parts: SearchRowParts) => ReactNode;
+  selection?: SearchResultSelection;
 }) {
   const iconName = collectionIconName(result.kind);
+  const placeId =
+    result.kind === 'folder'
+      ? result.folderKey ?? null
+      : result.kind === 'threadCluster'
+        ? result.threadClusterId ?? null
+        : null;
+  const pick =
+    placeId != null && selection?.forPlace
+      ? selection.forPlace(result.kind === 'folder' ? 'folder' : 'thread', placeId, result.title)
+      : null;
   return (
     <li
-      className="proto-note-row-item"
-      data-active={active ? 'true' : 'false'}
+      className={[
+        'proto-note-row-item',
+        pick?.selectMode ? 'proto-note-row-item--selectable' : '',
+        pick?.selected ? 'proto-note-row-item--selected' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      data-active={pick?.selectMode ? (pick.selected ? 'true' : 'false') : active ? 'true' : 'false'}
       data-kind={renderBody ? result.kind : undefined}
     >
+      {pick ? <ProtoRowSelectCheckbox {...pick.checkbox} /> : null}
       <button
         type="button"
         className={`proto-note-row__main${leadIcon ? ' proto-note-row__main--lead' : ''}`}
-        onClick={onActivate}
+        onClick={(e) => {
+          if (pick && (e.metaKey || e.ctrlKey)) return pick.checkbox.onToggle();
+          if (pick?.selectMode) return pick.checkbox.onToggle();
+          onActivate();
+        }}
       >
         {renderBody ? (
           renderBody({
