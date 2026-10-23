@@ -161,6 +161,7 @@ export default function PrototypeReadPage() {
   const search = useSearch({ strict: false }) as {
     v?: string;
     vEnd?: string;
+    at?: string;
     t?: string;
     c?: string;
     ref?: string;
@@ -204,6 +205,8 @@ export default function PrototypeReadPage() {
    * chapter has to cover all of them. Absent for a single-verse link, where it is `focusVerse`.
    */
   const focusVerseEnd = search.vEnd ? Number.parseInt(search.vEnd, 10) : undefined;
+  /** Where reading stopped, put back rather than landed on. See `ReadRouteSearch.at`. */
+  const resumeVerse = search.at ? Number.parseInt(search.at, 10) : undefined;
 
   /*
    * URL wins so a shared link reads in the translation it was shared in; otherwise the reader
@@ -306,7 +309,12 @@ export default function PrototypeReadPage() {
    * every tap regardless of whether an earlier one already went through.
    */
   /** Where the reader has scrolled to, kept current by the pane. See `useReadingSession`. */
-  const visiblePositionRef = useRef<{ book: string; chapter: number; verse: number } | null>(null);
+  const visiblePositionRef = useRef<{
+    book: string;
+    chapter: number;
+    verse: number;
+    atEnd: boolean;
+  } | null>(null);
 
   const { data: chapterReferences } = usePrototypeChapterReferences(book, chapter, translation);
   const savedReferences = useMemo(() => {
@@ -841,10 +849,12 @@ export default function PrototypeReadPage() {
      * holds a verse of the chapter arrived at, not the one departed. Matching the address is
      * what stops "left off at John 4:1" being written the moment John 3 is closed.
      */
-    getVerse: () => {
+    getPosition: () => {
       const at = visiblePositionRef.current;
       if (!at || !chapterData) return undefined;
-      return at.book === chapterData.book && at.chapter === chapter ? at.verse : undefined;
+      return at.book === chapterData.book && at.chapter === chapter
+        ? { verse: at.verse, atEnd: at.atEnd }
+        : undefined;
     },
   });
 
@@ -1035,6 +1045,7 @@ export default function PrototypeReadPage() {
           translation={translation}
           focusVerse={Number.isFinite(focusVerse) ? focusVerse : undefined}
           focusVerseEnd={Number.isFinite(focusVerseEnd) ? focusVerseEnd : undefined}
+          resumeVerse={Number.isFinite(resumeVerse) ? resumeVerse : undefined}
           onNavigateTo={handleNavigateTo}
           onOpenSheet={handleOpenSheet}
           onChangeTranslation={handleChangeTranslation}

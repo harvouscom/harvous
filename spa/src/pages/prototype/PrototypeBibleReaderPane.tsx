@@ -431,6 +431,14 @@ export interface PrototypeBibleReaderPaneProps {
   /** End of a ranged arrival; the focus covers `focusVerse`..`focusVerseEnd` inclusive. */
   focusVerseEnd?: number;
   /**
+   * Where reading stopped, to be put back: this verse at the top of the view, nothing lit.
+   *
+   * Not `focusVerse`. Landing centres its verse, and the position is measured from the top of
+   * the view — so resuming through landing put the saved verse mid-screen, the next save read
+   * the verse half a screen above it, and every return walked the reader backwards.
+   */
+  resumeVerse?: number;
+  /**
    * Go to a chapter, in any book. Book-aware rather than chapter-only: reading runs past a
    * book's end, and prev/next that could not name a book dead-ended at every one of them.
    */
@@ -599,10 +607,16 @@ export interface PrototypeBibleReaderPaneProps {
   savedReferences?: ReadonlyMap<string, SavedReference>;
   /**
    * Filled with the verse currently at the top of the view, tagged with the chapter it belongs
-   * to. The reading log reads it when a session ends so continuing lands where you stopped
-   * rather than at verse 1.
+   * to, and whether the chapter's end is on screen. The reading log reads it when a session
+   * starts and ends so continuing lands where you stopped rather than at verse 1, and only
+   * moves on to the next chapter once this one was read to the end.
    */
-  visiblePositionRef?: React.MutableRefObject<{ book: string; chapter: number; verse: number } | null>;
+  visiblePositionRef?: React.MutableRefObject<{
+    book: string;
+    chapter: number;
+    verse: number;
+    atEnd: boolean;
+  } | null>;
   /**
    * Open a looked-up word's card on arrival, for a saved reference tapped somewhere else.
    *
@@ -639,6 +653,7 @@ export default function PrototypeBibleReaderPane({
   translation,
   focusVerse,
   focusVerseEnd,
+  resumeVerse,
   onNavigateTo,
   onOpenSheet,
   onChangeTranslation,
@@ -1115,17 +1130,32 @@ export default function PrototypeBibleReaderPane({
     let frame = 0;
     const measure = () => {
       frame = 0;
-      const top = container.getBoundingClientRect().top;
-      // First verse whose bottom is still below the top edge — the one being read, rather
-      // than the one that has just scrolled out of sight above it. Bails on the first hit, so
+      const { top, bottom } = container.getBoundingClientRect();
+      const verseEls = container.querySelectorAll<HTMLElement>('[data-reader-verse]');
+      // The last verse is in view, or there is nowhere further to scroll — true from the start
+      // for a chapter that fits on one screen. The verse rather than the scroll end alone, so
+      // reaching the chapter's last line counts without also scrolling past the footer.
+      const last = verseEls[verseEls.length - 1];
+      const atEnd =
+        container.scrollTop + container.clientHeight >= container.scrollHeight - 2 ||
+        (last != null && last.getBoundingClientRect().bottom <= bottom + 1);
+      // The verse the top edge falls in: the last one that starts at or above it. Starts, not
+      // bottoms — verses run on inline, so the one before a verse that begins mid-line ends on
+      // that same line, and "first bottom below the edge" named the verse before the one the
+      // restore had put there, one verse further back every visit. A pixel of slack so a verse
+      // put exactly on the edge counts as on it. Stops at the first verse below the edge, so
       // this stays cheap even in Psalm 119.
-      for (const el of container.querySelectorAll<HTMLElement>('[data-reader-verse]')) {
-        if (el.getBoundingClientRect().bottom > top) {
-          const n = Number(el.dataset.readerVerse);
-          if (Number.isFinite(n)) visiblePositionRef.current = { book, chapter, verse: n };
-          return;
-        }
+      let at: number | null = null;
+      for (const el of verseEls) {
+        if (el.getBoundingClientRect().top > top + 1) break;
+        const n = Number(el.dataset.readerVerse);
+        if (Number.isFinite(n)) at = n;
       }
+      if (at === null) {
+        const n = Number(verseEls[0]?.dataset.readerVerse);
+        if (Number.isFinite(n)) at = n;
+      }
+      if (at !== null) visiblePositionRef.current = { book, chapter, verse: at, atEnd };
     };
 
     const onScroll = () => {
@@ -1551,6 +1581,30 @@ export default function PrototypeBibleReaderPane({
     // `landRequestKey` so asking for the verse you are already on lands on it again: the
     // verse number has not changed, but the request is new.
   }, [focusVerse, focusVerseEnd, verses.length, landRequestKey]);
+
+  /*
+   * Put the reader back where they stopped — BEFORE paint, for the same reason as landing.
+   *
+   * The verse's top goes to the scroller's top edge, with no centring: that edge is the line
+   * the "where you left off" measure reads from, so the verse restored is the verse the next
+   * save reports. Any offset here would be re-measured as the verse above and drift a little
+   * every visit.
+   *
+   * Once per arrival. Verses re-render as highlights and the compare column change, and
+   * restoring again on each of those would snap the reader back while they scroll.
+   */
+  const resumedKey = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (!resumeVerse || focusVerse || verses.length === 0) return;
+    const key = `${book}|${chapter}|${resumeVerse}`;
+    if (resumedKey.current === key) return;
+    const scroller = scrollRef.current;
+    const el = scroller?.querySelector<HTMLElement>(`[data-reader-verse="${resumeVerse}"]`);
+    if (!scroller || !el) return;
+    resumedKey.current = key;
+    const delta = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTop = Math.max(0, scroller.scrollTop + delta);
+  }, [book, chapter, resumeVerse, focusVerse, verses.length]);
 
   /*
    * Tapping a second verse extends the passage rather than replacing it — see

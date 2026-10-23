@@ -122,9 +122,11 @@ export function useShellModeNav(): ShellModeNav {
       navigate({
         to: prototypeReadRouteTo(),
         params: { book: bookSlug(destination.book), chapter: String(destination.chapter) },
-        search: {
-          v: destination.verse ? String(destination.verse) : undefined,
-        },
+        /* Your own position is put back (`at`); today's passage is landed on (`v`). */
+        search:
+          destination.source === 'continue'
+            ? { at: destination.verse && destination.verse > 1 ? String(destination.verse) : undefined }
+            : { v: destination.verse ? String(destination.verse) : undefined },
       }),
     );
   }, [closeDrawer, isMobileSidebar, navigate, resolveSmartJump]);

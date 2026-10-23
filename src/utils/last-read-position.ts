@@ -7,6 +7,10 @@
  * laptop mid-chapter and come back wanting to continue. Position is recorded when the
  * chapter opens; the log records what was read afterwards. They answer different questions
  * and they are allowed to disagree.
+ *
+ * The open carries the verse on screen too, when the surface knows it. An open that sent only
+ * the chapter replaced the verse already stored, and if the closing write never landed (tab
+ * closed, app killed, offline) the next visit started at the top.
  */
 
 import {
@@ -18,6 +22,11 @@ import {
 export type LastReadPosition = ScriptureChapterTarget & {
   translation: string;
   verse?: number;
+  /**
+   * The end of the chapter was on screen. Only surfaces that track a verse send it; without
+   * it, a chapter left partway is offered again rather than skipped. See `deriveContinueReading`.
+   */
+  atEnd?: boolean;
   readAt: string;
 };
 
@@ -27,7 +36,7 @@ const LOCAL_LAST_READ_KEY = 'harvous.lastReadPosition';
 
 export function validateLastReadPositionInput(body: unknown): LastReadPositionInput | null {
   if (!body || typeof body !== 'object') return null;
-  const { book, chapter, translation, verse } = body as Record<string, unknown>;
+  const { book, chapter, translation, verse, atEnd } = body as Record<string, unknown>;
 
   const target = resolveScriptureChapterTarget(book, chapter);
   if (!target) return null;
@@ -37,7 +46,9 @@ export function validateLastReadPositionInput(body: unknown): LastReadPositionIn
 
   if (verse !== undefined && verse !== null) {
     if (typeof verse !== 'number' || !Number.isInteger(verse) || verse < 1) return null;
-    return { ...target, translation: translationCode, verse };
+    // Optional and new, so anything that is not a plain `true` is dropped rather than refused:
+    // an older client simply never sends it.
+    return { ...target, translation: translationCode, verse, ...(atEnd === true ? { atEnd } : {}) };
   }
 
   return { ...target, translation: translationCode };

@@ -20,7 +20,7 @@ import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { reviewAnswersByDay, reviewDaySubjects } from '@/utils/review-activity-summary';
 import PrototypeStudyFeedDateJump from './PrototypeStudyFeedDateJump';
 import { studyFeedJumpStep } from '@/utils/study-feed-date-jump';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -77,6 +77,11 @@ import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePr
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useOrganizeApi } from '../../lib/prototype-organize-runner-store';
+
+/* Off the critical path: a callout arrives after the page does. */
+const PrototypeFeatureCalloutDock = lazy(() =>
+  import('./callouts/PrototypeFeatureCallout').then((m) => ({ default: m.PrototypeFeatureCalloutDock })),
+);
 
 /**
  * Edges drawn above the current sheet — the days immediately behind it.
@@ -962,7 +967,16 @@ export default function PrototypeStudyFeedPage() {
                 the foot of the paper rather than inline, so scrolling never takes it away. A day
                 you flipped back to or a single room's trail is not where a new note goes. */}
             {safeIndex === 0 && !scopedSpace && composeDockHostEl
-              ? createPortal(<PrototypeFeedComposePrompt prompts={composePrompts} />, composeDockHostEl)
+              ? createPortal(
+                  <>
+                    {/* On a phone, what's new rides folded just above it — see the dock. */}
+                    <Suspense fallback={null}>
+                      <PrototypeFeatureCalloutDock />
+                    </Suspense>
+                    <PrototypeFeedComposePrompt prompts={composePrompts} />
+                  </>,
+                  composeDockHostEl,
+                )
               : null}
 
             {/* Over everything when it is up: it is a question waiting on an answer. Raised as

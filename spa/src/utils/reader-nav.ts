@@ -55,6 +55,12 @@ export function readerRouteForReference(
 export type ReadRouteSearch = {
   v?: string;
   vEnd?: string;
+  /**
+   * Where reading stopped, to put back — not a passage to show. `v` lands on a verse (centred,
+   * the rest of the chapter dimmed); `at` restores the scroll so this verse is at the top of the
+   * view, which is the line `visiblePositionRef` measures from. See `PrototypeBibleReaderPane`.
+   */
+  at?: string;
   t?: string;
   c?: string;
   ref?: string;

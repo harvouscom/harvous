@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { preferFresherLastRead, type LastReadPosition } from '../last-read-position';
+import {
+  parseLastReadPosition,
+  preferFresherLastRead,
+  serializeLastReadPosition,
+  validateLastReadPositionInput,
+  type LastReadPosition,
+} from '../last-read-position';
 
 const at = (iso: string, extra: Partial<LastReadPosition> = {}): LastReadPosition => ({
   book: 'Exodus',
@@ -27,5 +33,29 @@ describe('preferFresherLastRead', () => {
     const without = at('2026-09-15T20:40:00.000Z', { chapter: 12 });
     const withVerse = at('2026-09-15T20:40:00.000Z', { chapter: 12, verse: 8 });
     expect(preferFresherLastRead(without, withVerse)?.verse).toBe(8);
+  });
+});
+
+describe('validateLastReadPositionInput — atEnd', () => {
+  const base = { book: 'John', chapter: 3, translation: 'NET', verse: 20 };
+
+  it('keeps atEnd with a verse and round-trips it', () => {
+    const input = validateLastReadPositionInput({ ...base, atEnd: true });
+    expect(input).toMatchObject({ verse: 20, atEnd: true });
+    const parsed = parseLastReadPosition(serializeLastReadPosition(input!, '2026-10-22T12:00:00.000Z'));
+    expect(parsed?.atEnd).toBe(true);
+  });
+
+  it('drops anything that is not a plain true, without refusing the position', () => {
+    for (const atEnd of [false, 'yes', 1, null]) {
+      const input = validateLastReadPositionInput({ ...base, atEnd });
+      expect(input).toMatchObject({ verse: 20 });
+      expect(input).not.toHaveProperty('atEnd');
+    }
+  });
+
+  it('ignores atEnd on a chapter-only position', () => {
+    const { verse: _verse, ...chapterOnly } = base;
+    expect(validateLastReadPositionInput({ ...chapterOnly, atEnd: true })).not.toHaveProperty('atEnd');
   });
 });

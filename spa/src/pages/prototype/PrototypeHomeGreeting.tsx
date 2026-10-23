@@ -236,11 +236,13 @@ export default function PrototypeHomeGreeting({
    * the week says how much, so the sentence no longer needs to.
    */
   const subjectTail = layout.afterChip.replace(/,?\s*with\s*$/, '').replace(/\s*saved so far\s*$/, '');
+  /* A sentence that ends on the chip ends there — no full stop after it. The chip already closes
+     the line, and a lone dot hanging off a pill reads as a stray mark, not punctuation. */
   const subjectClause =
     lead.kind === 'none' || !subjectChip ? null : (
       <>
         {layout.beforeChip}
-        {withTrailingPunctuation(subjectChip, `${subjectTail}.`)}
+        {subjectTail.trim() ? withTrailingPunctuation(subjectChip, `${subjectTail}.`) : subjectChip}
       </>
     );
 
