@@ -94,9 +94,10 @@ import {
   PROTO_PAPER_STACK_EXIT_MS,
   PROTO_RESOURCE_MORPH_MS,
 } from './proto-motion';
+/* Components, then tokens, then shell — the order is load-bearing; see main.tsx. */
+import '../styles/prototype-components.css';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
-import '../styles/prototype-components.css';
 import '../styles/prototype-editor.css';
 import '../styles/prototype-route-overrides.css';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
