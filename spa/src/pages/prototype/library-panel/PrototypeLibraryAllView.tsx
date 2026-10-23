@@ -7,8 +7,8 @@
  *
  * Rows, not cards. Folders, Threads and Scripture books each earn a card in their own tab,
  * but a mixed list cannot be cards and rows at once without the reader reading the shape as
- * a grouping that isn't there — so every kind wears the search-result row, which already
- * knows how to render all of them and carries each kind's glyph.
+ * a grouping that isn't there — so every kind wears the search results' glyph-tile row
+ * (`LibrarySearchRowBody`), and a row looks the same before and after you type.
  *
  * The merge itself is `buildLibraryAllItems`, kept pure and structural next door. This file
  * is the adaptation layer on both sides of it: query rows in, `SidebarSearchResult` out.
@@ -23,13 +23,8 @@ import { noteFolderMembershipLabels, normalizeFolderKey } from '@/utils/note-fol
 import { usePrototypeFolderRegistry } from '../../../hooks/mutations/usePrototypeFolderRegistry';
 import type { SpaceNoteRow } from '../../../hooks/queries/useSpace';
 import PrototypeSidebarSearchResultItem from '../PrototypeSidebarSearchResultItem';
-import {
-  PrototypeSidebarFolderCard,
-  PrototypeSidebarSharedThreadCard,
-  PrototypeSidebarThreadCard,
-} from '../sidebar-rows';
-import { LibraryScriptureBookCard } from './PrototypeLibraryScriptureView';
 import { ProtoNotesListLoading } from '../sidebar-rows';
+import { makeLibrarySearchRowBody } from './LibrarySearchRowBody';
 import {
   prototypeHighlightListTitle,
   prototypeHighlightRecencyIso,
@@ -69,11 +64,11 @@ const NONE: never[] = [];
  * `item.id` is already `${kind}:${sourceId}` — the same shape `sidebarSearchResultStableId`
  * produces — so it carries straight through as the result id.
  */
-/**
- * Rows only. Folders, Threads and Scripture are drawn by their own components below, so this
- * no longer has a case for them — a `SidebarSearchResult` cannot express a card.
- */
-function allItemAsSearchResult(item: LibraryAllItem): SidebarSearchResult {
+function allItemAsSearchResult(
+  item: LibraryAllItem,
+  folderCounts: ReadonlyMap<string, number>,
+  clusterIdBySlug: ReadonlyMap<string, string>,
+): SidebarSearchResult {
   switch (item.kind) {
     case 'note':
       return { id: item.id, kind: 'note', title: item.title, noteId: item.sourceId };
@@ -88,6 +83,34 @@ function allItemAsSearchResult(item: LibraryAllItem): SidebarSearchResult {
       };
     case 'resource':
       return { id: item.id, kind: 'resource', title: item.title, subtitle: item.subtitle };
+    case 'folder': {
+      const count = folderCounts.get(item.sourceId) ?? 0;
+      return {
+        id: item.id,
+        kind: 'folder',
+        title: item.title,
+        subtitle: `${count} note${count === 1 ? '' : 's'}`,
+        folderKey: item.sourceId,
+      };
+    }
+    case 'thread':
+      return {
+        id: item.id,
+        kind: 'threadCluster',
+        title: item.title,
+        subtitle: item.subtitle,
+        /* The raw cluster id, which is what selection packs — the item's own `sourceId` is the
+           drill slug. Absent for a shared space's Threads, which were never selectable here. */
+        threadClusterId: clusterIdBySlug.get(item.sourceId),
+      };
+    case 'scriptureBook':
+      return {
+        id: item.id,
+        kind: 'scriptureBook',
+        title: item.title,
+        subtitle: item.subtitle,
+        scriptureBookOrder: item.scriptureBookOrder,
+      };
     default:
       return { id: item.id, kind: 'note', title: item.title, subtitle: item.subtitle };
   }
@@ -102,6 +125,7 @@ function allItemAsSearchResult(item: LibraryAllItem): SidebarSearchResult {
  */
 const ALL_KIND_ICONS: Partial<Record<LibraryAllItemKind, IconName>> = {
   note: 'note-sticky',
+  folder: 'folder',
   thread: 'arrow-right-arrow-left',
   highlight: 'highlighter',
   scriptureBook: 'book',
@@ -207,8 +231,41 @@ export default function PrototypeLibraryAllView({ selection }: { selection?: Lib
           },
         };
       },
+      /* Folders and Threads select by the same composite ids their cards used. */
+      forPlace: (kind: 'folder' | 'thread', sourceId: string, label: string) => {
+        const id = packMixedId(kind, sourceId);
+        const selected = selection.isSelected(id);
+        return {
+          selectMode: selection.active,
+          selected,
+          checkbox: {
+            selected,
+            label,
+            onToggle: () => (selection.active ? selection.toggle(id) : selection.beginWith(id)),
+          },
+        };
+      },
     };
   }, [selection]);
+
+  const folderCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const folder of folders) if (folder.name) map.set(folder.name, folder.count);
+    return map;
+  }, [folders]);
+
+  const clusterIdBySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    if (data.isScopedSharedSpace) return map;
+    for (const cluster of clusters) map.set(threadClusterDrillSlug(cluster.id), cluster.id);
+    return map;
+  }, [data.isScopedSharedSpace, clusters]);
+
+  /* No query, so nothing is marked and each note's second line is its opening. */
+  const rowBody = useMemo(
+    () => makeLibrarySearchRowBody({ query: '', notesById: data.notesById, highlightsById }),
+    [data.notesById, highlightsById],
+  );
 
   const items = useMemo(
     () =>
@@ -377,114 +434,22 @@ export default function PrototypeLibraryAllView({ selection }: { selection?: Lib
   }
 
   return (
-    <div className="proto-library-root">
-      {/* One list holding two furnitures. Cards style themselves off
-          `.proto-collection-grid-item`, rows off `.proto-note-row-item`, and neither needs
-          anything from the container beyond a column with a gap. */}
+    <div className="proto-library-root proto-library-tile-rows">
+      {/* Every kind is the same tile row the search results draw, so the list is laid out
+          exactly as they are — see "Library rows" in prototype-shell.css. */}
       <ul className="proto-note-list proto-library-all-list" role="list">
-        {visible.map((item) => {
-          /*
-           * Each kind wears what it wears on its own tab.
-           *
-           * Folders, Threads and Scripture are cards there, so they are cards here — the same
-           * components, not a flattened imitation of them. Notes, highlights and resources are
-           * rows on their own tabs too, and they lead with their kind's glyph because in a
-           * list that interleaves everything, what a row *is* has to be legible before what it
-           * says.
-           */
-          if (item.kind === 'folder') {
-            const bucket = folders.find((f) => f.name === item.sourceId);
-            return (
-              <PrototypeSidebarFolderCard
-                key={item.id}
-                folder={{ name: item.sourceId, count: bucket?.count ?? 0 }}
-                isPinned={false}
-                showMenu={false}
-                selectMode={selection?.active ?? false}
-                selectable={Boolean(selection)}
-                selected={selection?.isSelected(packMixedId('folder', item.sourceId)) ?? false}
-                onToggleSelected={() => {
-                  const id = packMixedId('folder', item.sourceId);
-                  if (selection?.active) selection.toggle(id);
-                  else selection?.beginWith(id);
-                }}
-                onOpen={() => activate(item)}
-                onTogglePin={() => {}}
-                onDelete={() => {}}
-                isDeleting={false}
-              />
-            );
-          }
-          if (item.kind === 'thread') {
-            /*
-             * A shared space's Threads are records rather than graph clusters, so they come
-             * from a different query and wear a different card. Without this they fell through
-             * to the row renderer and were the one kind in the list not wearing its own
-             * chrome — visible only inside a shared space, which is exactly where it would
-             * have gone unnoticed.
-             */
-            const shared = data.isScopedSharedSpace
-              ? sharedThreads.find((t) => t.id === item.sourceId)
-              : undefined;
-            if (shared) {
-              return (
-                <PrototypeSidebarSharedThreadCard
-                  key={item.id}
-                  thread={shared}
-                  showMenu={false}
-                  onOpen={() => activate(item)}
-                  onSetCurrent={() => {}}
-                  onDelete={() => {}}
-                  isDeleting={false}
-                  setCurrentPending={false}
-                />
-              );
-            }
-            const cluster = clusters.find((c) => threadClusterDrillSlug(c.id) === item.sourceId);
-            if (cluster) {
-              return (
-                <PrototypeSidebarThreadCard
-                  key={item.id}
-                  cluster={cluster}
-                  title={item.title}
-                  isPinned={cluster.studyThreadPinned === true}
-                  showMenu={false}
-                  selectMode={selection?.active ?? false}
-                  selectable={Boolean(selection)}
-                  selected={selection?.isSelected(packMixedId('thread', cluster.id)) ?? false}
-                  onToggleSelected={() => {
-                    const id = packMixedId('thread', cluster.id);
-                    if (selection?.active) selection.toggle(id);
-                    else selection?.beginWith(id);
-                  }}
-                  onOpen={() => activate(item)}
-                  onTogglePin={() => {}}
-                  onDelete={() => {}}
-                  isDeleting={false}
-                />
-              );
-            }
-          }
-          if (item.kind === 'scriptureBook') {
-            const book = books.find((b) => b.bookOrder === item.scriptureBookOrder);
-            if (book) {
-              return (
-                <LibraryScriptureBookCard key={item.id} book={book} onOpen={() => activate(item)} />
-              );
-            }
-          }
-          return (
-            <PrototypeSidebarSearchResultItem
-              key={item.id}
-              result={allItemAsSearchResult(item)}
-              onActivate={() => activate(item)}
-              notesById={data.notesById}
-              highlightsById={highlightsById}
-              leadIcon={ALL_KIND_ICONS[item.kind]}
-              selection={rowSelection}
-            />
-          );
-        })}
+        {visible.map((item) => (
+          <PrototypeSidebarSearchResultItem
+            key={item.id}
+            result={allItemAsSearchResult(item, folderCounts, clusterIdBySlug)}
+            onActivate={() => activate(item)}
+            notesById={data.notesById}
+            highlightsById={highlightsById}
+            leadIcon={ALL_KIND_ICONS[item.kind]}
+            selection={rowSelection}
+            renderBody={rowBody}
+          />
+        ))}
       </ul>
       {loadMore}
     </div>

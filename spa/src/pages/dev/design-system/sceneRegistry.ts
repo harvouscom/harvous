@@ -334,7 +334,7 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
   },
   {
     id: 'ds-28-library-search-rows',
-    title: 'Library search rows',
+    title: 'Library rows',
     phase: 'Patterns',
     editFiles: [
       'spa/src/pages/prototype/library-panel/LibrarySearchRowBody.tsx',
@@ -344,7 +344,7 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
       'spa/src/pages/dev/design-system/LibrarySearchRowsScene.tsx',
     ],
     screenshotSlug: 'ds-28-library-search-rows',
-    // The glyph-tile rows, at panel and phone width, for a word query and a reference query.
+    // The glyph-tile rows the panel's browse list and search results share, at panel and phone width.
   },
 ];
 
