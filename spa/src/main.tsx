@@ -1,3 +1,16 @@
+/*
+ * First, before anything else is imported: the prototype's component stylesheet.
+ *
+ * Load order decides equal-specificity ties, and almost every other stylesheet in the app is
+ * written to override this one — prototype-shell's `.proto-note-row__main--lead { display: grid }`
+ * over `.proto-note-row__main { display: block }`, the panel's folder rows over the sidebar's
+ * tiles, tokens' `.pds-list-*` roles, the dock and pill sheets the router pulls in. That held by
+ * accident: PrototypeSyncChip was imported early and dragged this file in with it. #270 removed
+ * that chip, this file fell to the end of the cascade, and its defaults beat the rules written to
+ * replace them — the Library panel's rows lost their grid. Importing it here first makes the order
+ * a decision rather than a side effect of what some component imports.
+ */
+import './styles/prototype-components.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -127,12 +140,11 @@ import '../../src/styles/join-space-page.css';
 import '../../src/styles/study-highlight-accent-colors.css';
 import '../../src/styles/scripture-pill-accent.css';
 import '../../src/styles/mention-pill.css';
-/* Prototype design tokens on :root — needed before lazy layout paints portaled UI. */
 import '../../src/styles/html5-drag-preview.css';
+/* Prototype design tokens on :root — needed before lazy layout paints portaled UI. */
 import './styles/prototype-tokens.css';
 /* Shell + sidebar chrome (shared-space dashboard, lists) — load with entry bundle to avoid first-paint FOUC. */
 import './styles/prototype-shell.css';
-import './styles/prototype-components.css';
 
 // A `?try=1` arrival is a guest visit. `prototype-route-boot.js` already wrote the marker on a
 // real page load; this covers the cases it cannot see — dev, and any navigation that reaches
