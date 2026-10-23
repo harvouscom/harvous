@@ -1996,51 +1996,13 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 }
 
 /*
- * Everything's list, which holds two kinds of furniture at once.
- *
- * Notes, highlights and resources are rows; folders, Threads and Scripture are the cards they
- * are on their own tabs. Both style themselves from their own class, so all this has to do is
- * stack them and put air between them — the plain list it inherits from has neither, because
- * rows carry their own vertical padding and cards expected a grid's gap.
+ * Everything's list. Every kind is a tile row now (see "Library rows" below), so it is laid
+ * out exactly as the search results are: no gap, the rows' own inset and padding. It used to
+ * hold folder, Thread and Scripture cards beside the rows, and stretched the rows to the cards'
+ * edges with a gap between — both gone with the cards.
  */
 .proto-library-all-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
   padding: 0;
-}
-
-/*
- * Rows sit on the cards' edges, not inside them.
- *
- * `.proto-note-row-item` insets itself by 8px a side, which is right in a list of rows where
- * that inset *is* the gutter. Beside a card that paints a surface to the full width, it reads
- * as two lists that failed to agree: the card's glyph at 264 and the row's at 271, for no
- * reason a reader could name. Full width here, and the row's own padding matched to the
- * card's, so both furnitures share one left edge.
- */
-.proto-library-all-list > .proto-note-row-item {
-  width: 100%;
-  margin: 0;
-}
-
-.proto-library-all-list > .proto-note-row-item .proto-note-row__main {
-  padding: 10px 11px;
-}
-
-/*
- * Rows step aside for the tick exactly as far as the cards do.
- *
- * Both furnitures make room when selecting starts — the card's own rule takes it to 33px —
- * but the padding above is more specific than the shared `:has(--selectable)` rule that moves
- * a row, so rows stayed at 11px while the cards moved. The tick then sat on top of the row's
- * glyph, and the two left edges that were carefully aligned a moment ago were 22px apart.
- *
- * 33px rather than the list's usual 32: matching the card is the point, and in this one list
- * they are neighbours.
- */
-.proto-library-all-list > .proto-note-row-item--selectable .proto-note-row__main {
-  padding-left: 33px;
 }
 
 /*
@@ -2503,12 +2465,14 @@ html.harvous-prototype-route .proto-sidebar-search-results button .proto-note-ro
 }
 
 /*
- * Library search rows — glyph tiles (Oct 2026).
+ * Library rows — glyph tiles (Oct 2026). Both of the panel's lists wear them: the All tab's
+ * browse list and the search results, so a row looks the same before and after you type.
  *
  * The kind sits in a 30px neutral tile you can find at a glance; the row you are on fills its
  * tile with the accent and the glyph turns white. Title and meta (time for what you wrote, a
- * count for a place) share the first line; the second is the sentence the word was found in,
- * cut around the match by `library-search-row-decor.ts`. Chosen from five directions explored
+ * count for a place) share the first line; the second is the note's opening line, or — once you
+ * search — the sentence the word was found in, cut around the match by
+ * `library-search-row-decor.ts`. Chosen from five directions explored
  * side by side — tiles over a refined plain row, a one-line list, a breadcrumb eyebrow, and a
  * content/places split.
  *
@@ -2517,11 +2481,11 @@ html.harvous-prototype-route .proto-sidebar-search-results button .proto-note-ro
  * `:is(#proto-library-panel, .pds-gallery)`, which takes the id's weight, so the `!important`
  * rules below outrank the route overrides' blanket (every descendant of a prototype button
  * painted text-primary) without another exception in that file — and the gallery scene
- * (ds-28-library-search-rows) draws the same rows. The sidebar's search never carries
- * `.proto-library-search-rows`, so it is untouched.
+ * (ds-28-library-search-rows) draws the same rows. The sidebar never carries
+ * `.proto-library-tile-rows`, so its lists are untouched.
  */
 
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row__main--lead {
   grid-template-columns: 30px minmax(0, 1fr) auto;
   grid-template-areas:
     'icon title   meta'
@@ -2533,11 +2497,11 @@ html.harvous-prototype-route .proto-sidebar-search-results button .proto-note-ro
 }
 
 /* Nothing for a second line: one row, the title centred on its tile. */
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead:not(:has(> .proto-note-row__preview)):not(:has(> .proto-search-row__context)) {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row__main--lead:not(:has(> .proto-note-row__preview)):not(:has(> .proto-search-row__context)) {
   grid-template-areas: 'icon title meta';
 }
 
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead > .proto-note-row__lead-icon {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row__main--lead > .proto-note-row__lead-icon {
   grid-area: icon;
   width: 30px;
   height: 30px;
@@ -2545,41 +2509,41 @@ html.harvous-prototype-route .proto-sidebar-search-results button .proto-note-ro
   background: var(--pds-bg-chip);
   align-self: center;
 }
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead > .proto-note-row__title-line {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row__main--lead > .proto-note-row__title-line {
   grid-area: title;
 }
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead > .proto-search-row__meta {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row__main--lead > .proto-search-row__meta {
   grid-area: meta;
 }
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead > .proto-note-row__preview {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row__main--lead > .proto-note-row__preview {
   grid-area: excerpt;
 }
 
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__lead-icon,
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__lead-icon * {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row__lead-icon,
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row__lead-icon * {
   color: var(--pds-text-secondary) !important;
 }
 
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item[data-active='true'] .proto-note-row__main--lead > .proto-note-row__lead-icon,
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item[data-keyboard-focus='true'] .proto-note-row__main--lead > .proto-note-row__lead-icon,
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item:has(.proto-note-row__main:focus-visible) .proto-note-row__main--lead > .proto-note-row__lead-icon {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row-item[data-active='true'] .proto-note-row__main--lead > .proto-note-row__lead-icon,
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row-item[data-keyboard-focus='true'] .proto-note-row__main--lead > .proto-note-row__lead-icon,
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row-item:has(.proto-note-row__main:focus-visible) .proto-note-row__main--lead > .proto-note-row__lead-icon {
   background: var(--pds-bg-accent-button);
 }
 
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item[data-active='true'] .proto-note-row__lead-icon *,
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item[data-keyboard-focus='true'] .proto-note-row__lead-icon *,
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item:has(.proto-note-row__main:focus-visible) .proto-note-row__lead-icon * {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row-item[data-active='true'] .proto-note-row__lead-icon *,
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row-item[data-keyboard-focus='true'] .proto-note-row__lead-icon *,
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row-item:has(.proto-note-row__main:focus-visible) .proto-note-row__lead-icon * {
   color: var(--pds-on-accent) !important;
 }
 
 /* The keyboard ring is the app's blue, never the grey the row used to draw. */
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item:has(.proto-note-row__main:focus-visible),
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row-item[data-keyboard-focus='true'] {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row-item:has(.proto-note-row__main:focus-visible),
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row-item[data-keyboard-focus='true'] {
   box-shadow: inset 0 0 0 1.5px var(--pds-accent-focus-ring) !important;
 }
 
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-search-row__meta,
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-search-row__meta * {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-search-row__meta,
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-search-row__meta * {
   justify-self: end;
   white-space: nowrap;
   font-size: var(--pds-list-meta-size);
@@ -2590,11 +2554,11 @@ html.harvous-prototype-route .proto-sidebar-search-results button .proto-note-ro
 }
 
 /* Where it lives is not shown, except as the only second line a row has — a resource's site. */
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-search-row__context {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-search-row__context {
   display: none;
 }
 
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__main--lead:not(:has(> .proto-note-row__preview)) > .proto-search-row__context {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row__main--lead:not(:has(> .proto-note-row__preview)) > .proto-search-row__context {
   display: block;
   grid-area: excerpt;
   min-width: 0;
@@ -2609,22 +2573,22 @@ html.harvous-prototype-route .proto-sidebar-search-results button .proto-note-ro
 
 /* A verb or a destination has only its title and its chord; the title takes the rest of the row
    so the chord sits at the right edge. */
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows li:is([data-kind='command'], [data-kind='destination']) .proto-note-row__main--lead > .proto-note-row__title-line {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows li:is([data-kind='command'], [data-kind='destination']) .proto-note-row__main--lead > .proto-note-row__title-line {
   grid-column: 2 / -1;
 }
 
 /* Everywhere else the title hugs its text, so a lock or a pin stays beside the words it marks
    rather than drifting to the far edge. */
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows li:not([data-kind='command']):not([data-kind='destination']) .proto-note-row__title-text {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows li:not([data-kind='command']):not([data-kind='destination']) .proto-note-row__title-text {
   flex: 0 1 auto;
 }
 
 /* A match in a title is the same mark as a match in a verse. */
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-note-row__title-text mark.proto-verse-hit__match {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-note-row__title-text mark.proto-verse-hit__match {
   color: inherit !important;
 }
 
-:is(#proto-library-panel, .pds-gallery) .proto-library-search-rows .proto-library-results__heading-count {
+:is(#proto-library-panel, .pds-gallery) .proto-library-tile-rows .proto-library-results__heading-count {
   flex: 0 0 auto;
   font-size: 0.75rem;
   font-weight: 500;

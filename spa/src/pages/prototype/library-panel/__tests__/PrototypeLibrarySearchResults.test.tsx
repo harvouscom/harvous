@@ -611,7 +611,7 @@ describe('search rows', () => {
   it('counts each group and marks the matched words', () => {
     state.notes = [note('n1', 'Abide in me', 'Gospel of John')];
     const { container } = renderResults({ query: 'abide', tab: 'all' });
-    expect(container.querySelector('.proto-library-search-rows')).toBeTruthy();
+    expect(container.querySelector('.proto-library-tile-rows')).toBeTruthy();
     expect(container.querySelector('.proto-library-results__heading-count')?.textContent).toBe('1');
     const row = container.querySelector('li[data-kind="note"]')!;
     expect(row.querySelector('mark')?.textContent).toBe('Abide');

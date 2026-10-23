@@ -1,5 +1,5 @@
 /**
- * A folder card on Everything.
+ * A folder on Everything.
  *
  * It rendered, took hover and a checkbox, and did nothing when pressed: `activate` had a case
  * for every kind the tab lists except folders. The Folders tab opened the same folder fine, so
@@ -73,16 +73,29 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('a folder card on Everything', () => {
+describe('a folder row on Everything', () => {
   it('opens that folder, staying on Everything so Back returns there', () => {
     // The drill carries the tab it was opened from. Jumping to the Folders tab instead would
     // send Back somewhere the reader never visited — the rule every other drill here follows.
     render(<PrototypeLibraryAllView />);
-    screen.getByRole('button', { name: /^Sermons,/ }).click();
+    // A tile row now (the same row search draws), not a card: its name is the title and count.
+    screen.getByRole('button', { name: /^Sermons\b.*1 note/ }).click();
 
     expect(setLibraryPanelView).toHaveBeenCalledWith({
       tab: 'all',
       drill: { kind: 'folder', folderKey: 'Sermons' },
     });
+  });
+});
+
+describe('Everything wears the tile rows', () => {
+  it('draws folders and notes as the same row search does, with the count as meta', () => {
+    const { container } = render(<PrototypeLibraryAllView />);
+    expect(container.querySelector('.proto-library-tile-rows')).toBeTruthy();
+    const folder = container.querySelector('li[data-kind="folder"]');
+    expect(folder?.querySelector('.proto-search-row__meta')?.textContent).toBe('1 note');
+    expect(container.querySelector('li[data-kind="note"] .proto-note-row__lead-icon')).toBeTruthy();
+    /* No cards left in the list. */
+    expect(container.querySelector('.proto-collection-grid-item')).toBeNull();
   });
 });
