@@ -136,6 +136,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     ): {
       v?: string;
       vEnd?: string;
+      at?: string;
       t?: string;
       c?: string;
       ref?: string;
@@ -144,6 +145,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
       sanitizeReadSearch({
         v: typeof search.v === 'string' ? search.v : undefined,
         vEnd: typeof search.vEnd === 'string' ? search.vEnd : undefined,
+        at: typeof search.at === 'string' ? search.at : undefined,
         t: typeof search.t === 'string' ? search.t : undefined,
         c: typeof search.c === 'string' ? search.c : undefined,
         ref: typeof search.ref === 'string' ? search.ref : undefined,

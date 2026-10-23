@@ -30,33 +30,40 @@ type ReadingSession = {
   /** When the current visible stretch began, or null while hidden. */
   resumedAt: number | null;
   reportedBucket: ReadingDwellBucket | null;
-  /** Last verse sent for this chapter, so an unchanged position is not re-sent. */
-  reportedVerse: number | null;
+  /** Last position sent for this chapter, so an unchanged one is not re-sent. */
+  reported: ReadingPosition | null;
+};
+
+/** Where in the chapter the reader has got to. */
+export type ReadingPosition = {
+  verse: number;
+  /** The end of the chapter is on screen — what tells "read it through" from "stopped at 20". */
+  atEnd: boolean;
 };
 
 export function useReadingSession({
   canonicalReference,
   translationCode,
   enabled = true,
-  getVerse,
+  getPosition,
 }: {
   canonicalReference: string | undefined;
   translationCode: string | undefined;
   /** Pass false until the passage is actually on screen — a failed load is not a read. */
   enabled?: boolean;
   /**
-   * Where in the chapter the reader has got to, asked for when the session ends. Optional
-   * because chapter-level surfaces have no answer — they simply omit the verse.
+   * Where in the chapter the reader has got to, asked for when the session starts and when it
+   * ends. Optional because chapter-level surfaces have no answer — they simply omit the verse.
    */
-  getVerse?: () => number | undefined;
+  getPosition?: () => ReadingPosition | undefined;
 }): void {
   const sessionRef = useRef<ReadingSession | null>(null);
   const queryClient = useQueryClient();
 
   /* Held in a ref so a caller passing an inline arrow does not restart the session — and with
      it the dwell clock — on every render of the surface above. */
-  const getVerseRef = useRef(getVerse);
-  getVerseRef.current = getVerse;
+  const getPositionRef = useRef(getPosition);
+  getPositionRef.current = getPosition;
 
   /**
    * Home / Activity read this log to decide what to offer next. Reading history holds for
@@ -69,13 +76,20 @@ export function useReadingSession({
   }, [queryClient]);
 
   const markLocalPosition = useCallback(
-    (input: { book: string; chapter: number; translation: string; verse?: number }) => {
+    (input: {
+      book: string;
+      chapter: number;
+      translation: string;
+      position?: ReadingPosition;
+    }) => {
       const target = resolveScriptureChapterTarget(input.book, input.chapter);
       if (!target) return;
       patchReadingHistoryLastRead(queryClient, {
         ...target,
         translation: input.translation,
-        ...(input.verse !== undefined ? { verse: input.verse } : {}),
+        ...(input.position
+          ? { verse: input.position.verse, ...(input.position.atEnd ? { atEnd: true } : {}) }
+          : {}),
         readAt: new Date().toISOString(),
       });
       // Mark Activity stale now, not only after the POST. Returning to Home inside the
@@ -91,6 +105,14 @@ export function useReadingSession({
     const parsed = parseScriptureReference(canonicalReference.trim());
     if (!parsed) return;
 
+    /*
+     * The verse on screen as the chapter opens — a resumed chapter is already scrolled back to
+     * where it was by now (the surface's layout effects and its own measure run before this
+     * effect). Sending the chapter alone here used to wipe the stored verse, and the closing
+     * write was the only thing that put it back.
+     */
+    const opening = getPositionRef.current?.();
+
     sessionRef.current = {
       book: parsed.book,
       chapter: parsed.chapter,
@@ -98,7 +120,7 @@ export function useReadingSession({
       accumulatedMs: 0,
       resumedAt: Date.now(),
       reportedBucket: null,
-      reportedVerse: null,
+      reported: opening ?? null,
     };
 
     // Position is marked at the start of the session and the event is logged at the end,
@@ -107,11 +129,14 @@ export function useReadingSession({
       book: parsed.book,
       chapter: parsed.chapter,
       translation: translationCode,
+      position: opening,
     });
     recordLastReadPosition({
       book: parsed.book,
       chapter: parsed.chapter,
       translation: translationCode,
+      verse: opening?.verse,
+      atEnd: opening?.atEnd,
       onSynced: refreshReadingSurfaces,
     });
 
@@ -119,26 +144,29 @@ export function useReadingSession({
      * Mark the position again, now with the verse actually reached.
      *
      * Runs when the session ends rather than while scrolling: this is a write to the account,
-     * and one per chapter read is the right cost. Skipped when the verse has not moved since
-     * the last mark, so paging through a book does not send the same position twice.
+     * and one per chapter read is the right cost. Skipped when the position has not moved since
+     * the last mark, so opening a chapter and leaving does not send the same position twice.
      */
     const markVerseReached = () => {
       const session = sessionRef.current;
       if (!session) return;
-      const verse = getVerseRef.current?.();
-      if (verse === undefined || verse === session.reportedVerse) return;
-      session.reportedVerse = verse;
+      const position = getPositionRef.current?.();
+      if (!position) return;
+      const last = session.reported;
+      if (last && last.verse === position.verse && last.atEnd === position.atEnd) return;
+      session.reported = position;
       markLocalPosition({
         book: session.book,
         chapter: session.chapter,
         translation: session.translation,
-        verse,
+        position,
       });
       recordLastReadPosition({
         book: session.book,
         chapter: session.chapter,
         translation: session.translation,
-        verse,
+        verse: position.verse,
+        atEnd: position.atEnd,
         onSynced: refreshReadingSurfaces,
       });
     };

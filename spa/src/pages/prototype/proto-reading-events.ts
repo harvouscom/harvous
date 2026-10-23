@@ -58,10 +58,12 @@ export function recordLastReadPosition(input: {
   translation: string;
   /** Only when the surface tracks one — chapter-level surfaces omit it. */
   verse?: number;
+  /** The end of the chapter was on screen. Meaningful only with `verse`. */
+  atEnd?: boolean;
   /** Fires once the server has the position, so Home can refresh what it says about reading. */
   onSynced?: () => void;
 }): void {
-  const { book, chapter, translation, verse, onSynced } = input;
+  const { book, chapter, translation, verse, atEnd, onSynced } = input;
   if (isGuestModeActive()) return;
   if (!book || !translation) return;
   if (!Number.isInteger(chapter) || chapter < 1) return;
@@ -76,6 +78,7 @@ export function recordLastReadPosition(input: {
       chapter,
       translation,
       ...(verse === undefined ? {} : { verse }),
+      ...(verse !== undefined && atEnd ? { atEnd: true } : {}),
     })
     .then(() => onSynced?.())
     .catch(() => {

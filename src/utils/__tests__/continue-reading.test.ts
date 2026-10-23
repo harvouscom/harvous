@@ -108,7 +108,7 @@ describe('deriveContinueReading', () => {
     // partway into it would be inventing a position rather than restoring one.
     const out = deriveContinueReading(
       {
-        lastRead: { ...lastRead('John', 15), verse: 12 },
+        lastRead: { ...lastRead('John', 15), verse: 30, atEnd: true },
         readChapters: [{ book: 'John', chapter: 15, countsAsRead: true }],
       },
       chapterCounts,
@@ -116,6 +116,31 @@ describe('deriveContinueReading', () => {
 
     expect(out).toMatchObject({ chapter: 16, reason: 'next' });
     expect(out).not.toHaveProperty('resumeVerse');
+  });
+
+  it('resumes a long read that stopped partway, rather than skipping the rest', () => {
+    // Long enough to count as read, but left at verse 12 — offering 16 would skip the rest of 15.
+    expect(
+      deriveContinueReading(
+        {
+          lastRead: { ...lastRead('John', 15), verse: 12 },
+          readChapters: [{ book: 'John', chapter: 15, countsAsRead: true }],
+        },
+        chapterCounts,
+      ),
+    ).toMatchObject({ chapter: 15, reason: 'resume', resumeVerse: 12 });
+  });
+
+  it('still needs a real read, not only the end on screen', () => {
+    expect(
+      deriveContinueReading(
+        {
+          lastRead: { ...lastRead('John', 15), verse: 20, atEnd: true },
+          readChapters: [{ book: 'John', chapter: 15, countsAsRead: false }],
+        },
+        chapterCounts,
+      ),
+    ).toMatchObject({ chapter: 15, reason: 'resume' });
   });
 
   it('treats verse 1 as no position at all', () => {

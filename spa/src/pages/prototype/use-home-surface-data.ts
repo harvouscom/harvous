@@ -1227,8 +1227,11 @@ export function useHomeSurfaceData({
          * The verse only when picking a chapter back up. "Next in Mark" is a chapter you have
          * not read, so there is nowhere in it to return to — landing anywhere but its first
          * verse would be inventing a position rather than restoring one.
+         *
+         * `at`, not `v`: this is putting the reader back, not showing a passage. See
+         * `ReadRouteSearch.at`.
          */
-        v: continueReadingSuggestion.resumeVerse
+        at: continueReadingSuggestion.resumeVerse
           ? String(continueReadingSuggestion.resumeVerse)
           : undefined,
       },

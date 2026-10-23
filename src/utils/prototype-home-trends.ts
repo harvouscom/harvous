@@ -2042,6 +2042,8 @@ export interface ContinueReadingInput {
     translation: string;
     /** How far into the chapter they got, when the surface recorded one. */
     verse?: number;
+    /** The chapter's end was on screen. Recorded alongside `verse`, never without it. */
+    atEnd?: boolean;
   } | null;
   /** Chapters the reader has been through, from the reading log. */
   readChapters: { book: string; chapter: number; countsAsRead: boolean }[];
@@ -2054,7 +2056,7 @@ export interface ContinueReadingSuggestion {
   translation: string;
   /**
    * `resume` — the chapter they opened but did not read through, offered again.
-   * `next`   — the following chapter, because the last one was actually read.
+   * `next`   — the following chapter, because the last one was actually read to its end.
    */
   reason: 'resume' | 'next';
   /**
@@ -2073,6 +2075,12 @@ export interface ContinueReadingSuggestion {
  * got interrupted — wants that same chapter again, and offering them the one after it silently
  * skips a chapter they never read. The reading log's dwell bucket is what tells these apart;
  * nothing else in the app can.
+ *
+ * Time alone is not "read through", though. Ten minutes in John 3 that stopped at verse 20 of 36
+ * counts as a read in the log, and offering John 4 then skipped sixteen verses. So where the
+ * reader recorded a verse, the chapter also has to have reached its end (`atEnd`); a position
+ * with no verse (an older one, or a surface that tracks chapters only) is judged on dwell as
+ * before.
  *
  * Returns null once the book runs out rather than rolling into the next one. Where to go after
  * finishing a book is a real question, and answering it by silently starting Leviticus is worse
@@ -2098,7 +2106,10 @@ export function deriveContinueReading(
     translation: lastRead.translation,
   };
 
-  if (!readThrough.has(lastRead.chapter)) {
+  const finished =
+    readThrough.has(lastRead.chapter) && (lastRead.verse == null || lastRead.atEnd === true);
+
+  if (!finished) {
     return {
       ...base,
       chapter: lastRead.chapter,
