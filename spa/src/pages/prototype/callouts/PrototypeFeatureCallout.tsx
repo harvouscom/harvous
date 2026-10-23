@@ -5,17 +5,19 @@
  * Two placements of the same card:
  * - `corner` — desktop. Floating in the window's bottom-right, above an open dock, mounted once
  *   in the shell. It steps aside for the Harvous 3 welcome, the inspector and the keyboard.
- * - `inline` — phones. At the top of Home's Today band, in the flow of the page: a floating card
- *   on a phone would sit on top of the very thing it is pointing at.
+ * - `dock` — phones. Folded to one line in Home's dock band, just above the note starter, and
+ *   grown in place into the full card when tapped. It used to sit at the top of Today, in the
+ *   flow of the page — a whole card between the greeting and what you came to pick up.
  *
  * Exactly one of the two renders for a given layout, so the card is never on screen twice.
+ * (`inline` remains as a card style for the design gallery.)
  *
  * Anatomy, from Claude's own callouts: a drawing of the thing, a title, one line, one button,
  * and a round × riding the top-right corner. The button is the one blue on the card — the
  * accent gradient with white text, as everywhere. Non-modal: it does not take focus, trap it, or
  * dim anything; Tab reaches it and Escape puts it away.
  */
-import { useCallback, useEffect, useId, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import '../../../styles/prototype-callouts.css';
 import { useNavigate } from '@tanstack/react-router';
@@ -236,9 +238,10 @@ export function CalloutCard({
   exiting = false,
   onDismiss,
   onAct,
+  onFold,
 }: {
   callout: CardContent;
-  variant: 'corner' | 'inline';
+  variant: 'corner' | 'inline' | 'dock';
   /** Without the drawing, for a card that has none. */
   compact?: boolean;
   /**
@@ -250,6 +253,11 @@ export function CalloutCard({
   exiting?: boolean;
   onDismiss: () => void;
   onAct: () => void;
+  /**
+   * Fold the card back to its one-line chip, without answering it. Only the phone's dock card
+   * has one; it rides the top-left corner, opposite the ×, which puts the card away for good.
+   */
+  onFold?: () => void;
 }) {
   const titleId = useId();
   const art = !compact && callout.illustration;
@@ -269,10 +277,16 @@ export function CalloutCard({
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.stopPropagation();
-          onDismiss();
+          // Folding is the gentler answer where there is one: Escape means "away", not "never".
+          (onFold ?? onDismiss)();
         }
       }}
     >
+      {onFold ? (
+        <button type="button" className="proto-callout__fold" aria-label="Show less" onClick={onFold}>
+          <Icon name="chevron-down" size={12} aria-hidden />
+        </button>
+      ) : null}
       <button type="button" className="proto-callout__close" aria-label="Dismiss" onClick={onDismiss}>
         <Icon name="xmark" size={13} aria-hidden />
       </button>
@@ -315,13 +329,16 @@ export function CalloutStack({
   items,
   variant,
   exiting = false,
+  onFold,
 }: {
   items: readonly CalloutStackItem[];
-  variant: 'corner' | 'inline';
+  variant: 'corner' | 'inline' | 'dock';
   exiting?: boolean;
+  /** Passed to the front card. See `CalloutCard`. */
+  onFold?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const direction = variant === 'corner' ? 'up' : 'down';
+  const direction = variant === 'inline' ? 'down' : 'up';
   /* Nothing left to open once there is one card. */
   useEffect(() => {
     if (items.length < 2) setOpen(false);
@@ -387,6 +404,7 @@ export function CalloutStack({
         exiting={exiting}
         onDismiss={front!.dismiss}
         onAct={front!.act}
+        onFold={onFold}
       />
     </div>
   );
@@ -427,15 +445,88 @@ export function PrototypeFeatureCalloutCorner() {
   );
 }
 
-/** Phones: the same stack at the top of Home's Today band, opening downward. */
-export function PrototypeFeatureCalloutInline() {
+/**
+ * Phones: one line in Home's dock band, above the note starter, that grows into the card.
+ *
+ * Portalled into the band's compose slot alongside the starter, so it goes wherever the starter
+ * goes: Home's today, unfiltered, and stepping aside whenever another dock takes the band.
+ *
+ * Folded is the resting state. The card is news, not the page — at full size at the top of Today
+ * it pushed what you came back for below the fold on every visit until it was answered. Folding
+ * answers nothing, so the card stays due; × and the button put it away, as everywhere.
+ */
+export function PrototypeFeatureCalloutDock() {
   const { isMobileSidebar } = useProtoShell();
   const { items, founderLetterOpen, closeFounderLetter } = useCalloutStack();
-  useRememberShown(items, isMobileSidebar);
+  const [expanded, setExpanded] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const showing = isMobileSidebar && items.length > 0;
+  useRememberShown(items, showing);
+
+  /* Nothing left to show: come back folded next time something is due. */
+  useEffect(() => {
+    if (items.length === 0) setExpanded(false);
+  }, [items.length]);
+
+  /* A tap anywhere else folds it, the way a popover closes — it is floating over the page. */
+  useEffect(() => {
+    if (!expanded) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setExpanded(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [expanded]);
+
   if (!isMobileSidebar) return null;
   return (
     <>
-      <CalloutStack items={items} variant="inline" />
+      {items.length > 0 ? (
+        <div ref={rootRef} className="proto-callout-dock" data-expanded={expanded ? 'true' : 'false'}>
+          {expanded ? (
+            <CalloutStack items={items} variant="dock" onFold={() => setExpanded(false)} />
+          ) : (
+            /*
+             * Folded, it is the same chip whatever is behind it — "What's new" and how many —
+             * like a notifications check, rather than the first card's headline. A headline
+             * cut to one line beside the starter said less than the card and more than a
+             * nudge, and made every visit read as a different message.
+             */
+            <div className="proto-callout-chip">
+              <button
+                type="button"
+                className="proto-callout-chip__open"
+                aria-expanded={false}
+                aria-label={`What’s new, ${items.length}. Show`}
+                onClick={() => setExpanded(true)}
+              >
+                <span className="proto-callout-chip__thumb proto-callout-chip__thumb--glyph" aria-hidden>
+                  <Icon name="megaphone" size={12} />
+                </span>
+                <span className="proto-callout-chip__title">What’s new</span>
+                <span className="proto-callout-chip__count" aria-hidden>
+                  {items.length}
+                </span>
+                <span className="proto-callout-chip__chevron" aria-hidden>
+                  <Icon name="chevron-down" size={11} />
+                </span>
+              </button>
+              {/* × here puts away only what the chip stands for — every card it is holding. */}
+              <button
+                type="button"
+                className="proto-callout-chip__close"
+                aria-label="Dismiss what’s new"
+                onClick={() => {
+                  for (const item of items) item.dismiss();
+                }}
+              >
+                <Icon name="xmark" size={12} aria-hidden />
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
       <PrototypeFounderLetterSheet open={founderLetterOpen} onClose={closeFounderLetter} />
     </>
   );

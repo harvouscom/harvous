@@ -74,6 +74,167 @@
   box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-paper-panel);
 }
 
+/*
+ * Phones: folded to one line in Home's dock band, just above the note starter, and grown in place
+ * into the card (`PrototypeFeatureCalloutDock`).
+ *
+ * Sits in the band's compose slot beside the starter, so it takes the starter's width and
+ * centring, and leaves with it when another dock takes the band. The slot is
+ * `pointer-events: none` so the band never blocks the page; this takes clicks back.
+ */
+.proto-callout-dock {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: min(var(--pds-paper-column, 720px), 100%);
+  margin: 0 auto 2px;
+  /* The starter's card keeps 12px of shadow room either side; matching it lines the edges up. */
+  padding: 0 12px;
+  transform: translateX(var(--proto-study-dock-center-offset, 0px));
+  pointer-events: auto;
+}
+
+/* The chip: the band's card chrome, a step smaller than the starter under it, so it reads as a
+   note on top of the way in rather than a second way in. */
+.proto-callout-chip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border: 2px solid var(--pds-border);
+  border-radius: 16px;
+  background: var(--pds-bg-popover-solid);
+  box-shadow: var(--pds-shadow-popover);
+  animation: proto-callout-in 320ms var(--pds-ease-standard) both;
+}
+
+.proto-callout-chip__open {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0 6px 0 0;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  font: 500 14px/1.3 var(--pds-font-body);
+  color: var(--pds-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-callout-chip__thumb {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.proto-callout-chip__thumb--glyph {
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+}
+
+.proto-callout-chip__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-callout-chip__count {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-control);
+  font-size: 11px;
+  color: var(--pds-text-secondary);
+}
+
+/* Points up: the card opens above the chip. */
+.proto-callout-chip__chevron {
+  flex: none;
+  display: inline-flex;
+  color: var(--pds-text-tertiary);
+  transform: rotate(180deg);
+}
+
+.proto-callout-chip__close {
+  appearance: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-callout-chip__close:hover {
+    background: var(--pds-bg-control-hover);
+    color: var(--pds-text-primary);
+  }
+}
+
+/* Grown: the same card the corner shows, rising out of where the chip was. */
+.proto-callout--dock {
+  transform-origin: 50% 100%;
+  animation: proto-callout-grow 280ms var(--pds-ease-standard) both;
+}
+
+@keyframes proto-callout-grow {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Opposite the ×: folds the card back to its chip without answering it. */
+/* The ×'s twin, inside the art like the phone's card: at the screen's edge an overhanging
+   button would be half off the glass. */
+.proto-callout__fold {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--pds-bg-popover-solid);
+  box-shadow: 0 0 0 0.5px var(--pds-border-control), var(--pds-shadow-popover);
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
+/* The phone's opened stack scrolls inside the band rather than past the toolbar. */
+.proto-callout-dock .proto-callout-stack--open {
+  max-height: calc(100dvh - 260px);
+}
+
 /* The picture: a slice of the app on one of its own canvas images, cropped at its foot like the
    example — the sheet runs off the bottom edge rather than floating in a box. */
 .proto-callout__art {
@@ -579,9 +740,15 @@
 }
 
 /* Inline on a phone the corner chip would hang off the sheet's edge; tuck it inside. */
-.proto-callout--inline .proto-callout__close {
+.proto-callout--inline .proto-callout__close,
+.proto-callout--dock .proto-callout__close {
   top: 16px;
   right: 16px;
+}
+
+/* A card with no drawing has nothing to sit the buttons on: the title clears the fold instead. */
+.proto-callout--dock.proto-callout--compact .proto-callout__title {
+  padding-inline: 44px;
 }
 
 /*
@@ -766,6 +933,8 @@ html[data-proto-keyboard-open] .proto-callout-anchor {
 
 @media (prefers-reduced-motion: reduce) {
   .proto-callout--corner,
+  .proto-callout--dock,
+  .proto-callout-chip,
   .proto-callout--corner.proto-callout--exiting,
   .proto-callout-art__front {
     animation-duration: 120ms;

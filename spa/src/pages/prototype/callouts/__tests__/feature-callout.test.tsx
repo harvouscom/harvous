@@ -54,7 +54,15 @@ function notice(id: string): Notice {
   return { id, title: `Notice ${id}`, body: 'body', actionLabel: `Open ${id}`, act: vi.fn(), dismiss: vi.fn() };
 }
 
-const { PrototypeFeatureCalloutInline } = await import('../PrototypeFeatureCallout');
+const { PrototypeFeatureCalloutDock } = await import('../PrototypeFeatureCallout');
+
+/** The phone's dock rests folded to a chip; most of these are about the card it grows into. */
+function renderOpen() {
+  const result = render(<PrototypeFeatureCalloutDock />);
+  const chip = screen.queryByRole('button', { name: /^What’s new, \d+\. Show$/ });
+  if (chip) fireEvent.click(chip);
+  return result;
+}
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
@@ -76,19 +84,19 @@ afterEach(() => {
 
 describe('feature callout', () => {
   it('shows the current callout as a labelled card', () => {
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     expect(screen.getByRole('dialog', { name: 'Today, tidied' })).toBeTruthy();
   });
 
   it('puts it away for good from the ×', () => {
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(state.calloutsSeen?.['today-tabs-2026-10']).toBeTruthy();
     expect(navigate).not.toHaveBeenCalled();
   });
 
   it('puts it away and does its job from the button', () => {
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
     expect(state.calloutsSeen?.['today-tabs-2026-10']).toBeTruthy();
     expect(navigate).toHaveBeenCalledTimes(1);
@@ -96,19 +104,19 @@ describe('feature callout', () => {
 
   it('shows nothing once it has been seen on any device', () => {
     state = { ...emptyOnboardingState(), calloutsSeen: { 'today-tabs-2026-10': '2026-10-01T00:00:00Z' } };
-    const { container } = render(<PrototypeFeatureCalloutInline />);
+    const { container } = renderOpen();
     expect(container.textContent).toBe('');
   });
 
   it('puts the legal notice ahead of any feature callout', () => {
     legalDue = ['privacy'];
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     expect(screen.getByRole('dialog', { name: 'We’ve updated our Privacy Policy' })).toBeTruthy();
   });
 
   it('records the acknowledgment from the ×, not a seen flag', () => {
     legalDue = ['privacy', 'terms'];
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(acknowledge).toHaveBeenCalledWith({ documents: ['privacy', 'terms'], surface: 'notice' });
     expect(state.calloutsSeen).toBeUndefined();
@@ -116,7 +124,7 @@ describe('feature callout', () => {
 
   it('opens what changed and records the acknowledgment from the button', () => {
     legalDue = ['terms'];
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     fireEvent.click(screen.getByRole('button', { name: 'Review changes' }));
     expect(acknowledge).toHaveBeenCalledWith({ documents: ['terms'], surface: 'notice' });
     expect(openWindow).toHaveBeenCalledWith('https://harvous.com/legal/changes/', '_blank', 'noopener,noreferrer');
@@ -124,7 +132,7 @@ describe('feature callout', () => {
 
   it('stacks a notice behind the callout, and opens to show both', () => {
     notices = [notice('whats-new')];
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Show all 2' }));
     expect(screen.getAllByRole('dialog')).toHaveLength(2);
@@ -132,7 +140,7 @@ describe('feature callout', () => {
 
   it('holds two cards at most; the rest wait behind them', () => {
     notices = [notice('whats-new'), notice('import'), notice('founder-letter')];
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     fireEvent.click(screen.getByRole('button', { name: 'Show all 2' }));
     expect(screen.getAllByRole('dialog')).toHaveLength(2);
     expect(screen.queryByText('Notice import')).toBeNull();
@@ -144,7 +152,7 @@ describe('feature callout', () => {
     const waiting = notice('founder-letter');
     notices = [a, b, waiting];
     state = { ...emptyOnboardingState(), calloutsSeen: { 'today-tabs-2026-10': '2026-10-01T00:00:00Z' } };
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     fireEvent.click(screen.getByRole('button', { name: 'Show all 2' }));
     const dialogs = screen.getAllByRole('dialog');
     fireEvent.click(within(dialogs[0]!).getByRole('button', { name: 'Dismiss' }));
@@ -158,18 +166,18 @@ describe('feature callout', () => {
   it('does not slide a new card in within a day of one being put away', () => {
     state = { ...emptyOnboardingState(), calloutsSeen: { 'notice:import': new Date(NOW - 60_000).toISOString() } };
     notices = [notice('founder-letter')];
-    const { container, unmount } = render(<PrototypeFeatureCalloutInline />);
+    const { container, unmount } = renderOpen();
     expect(container.textContent).toBe('');
     unmount();
     /* A card that was already on screen keeps its place through the quiet day. */
     localStorage.setItem('harvous-callout-stack-shown', JSON.stringify(['founder-letter']));
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     expect(screen.getByRole('dialog', { name: 'Notice founder-letter' })).toBeTruthy();
   });
 
   it('does not announce a change to an account created after it shipped', () => {
     accountCreatedAt = Date.parse('2026-10-09T00:00:00Z');
-    const { container } = render(<PrototypeFeatureCalloutInline />);
+    const { container } = renderOpen();
     expect(container.textContent).toBe('');
   });
 
@@ -177,8 +185,48 @@ describe('feature callout', () => {
     state = { ...emptyOnboardingState(), calloutsSeen: { 'today-tabs-2026-10': '2026-10-01T00:00:00Z' } };
     const n = notice('founder-letter');
     notices = [n];
-    render(<PrototypeFeatureCalloutInline />);
+    renderOpen();
     fireEvent.click(screen.getByRole('button', { name: 'Open founder-letter' }));
     expect(n.act).toHaveBeenCalledTimes(1);
+  });
+
+  it('rests folded to a standard What’s new, not the first card’s headline', () => {
+    render(<PrototypeFeatureCalloutDock />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: 'What’s new, 1. Show' })).toBeTruthy();
+    expect(screen.queryByText('Today, tidied')).toBeNull();
+  });
+
+  it('puts away every card it holds from the chip’s own ×', () => {
+    const n = notice('whats-new');
+    notices = [n];
+    render(<PrototypeFeatureCalloutDock />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss what’s new' }));
+    expect(state.calloutsSeen?.['today-tabs-2026-10']).toBeTruthy();
+    expect(n.dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('folds back without answering it, from the fold button or Escape', () => {
+    renderOpen();
+    fireEvent.click(screen.getByRole('button', { name: 'Show less' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(state.calloutsSeen?.['today-tabs-2026-10']).toBeUndefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'What’s new, 1. Show' }));
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(state.calloutsSeen?.['today-tabs-2026-10']).toBeUndefined();
+  });
+
+  it('folds when the page around it is tapped', () => {
+    renderOpen();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('counts every card it is holding', () => {
+    notices = [notice('whats-new')];
+    render(<PrototypeFeatureCalloutDock />);
+    expect(screen.getByRole('button', { name: 'What’s new, 2. Show' })).toBeTruthy();
   });
 });
