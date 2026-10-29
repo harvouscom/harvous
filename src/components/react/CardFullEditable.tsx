@@ -21,7 +21,6 @@ import { useIsOffline } from '@/hooks/useIsOffline';
 import { isMobileDevice } from '@/utils/pwa-prompt';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
-import SharedNoteCTAFooter from './SharedNoteCTAFooter';
 import LockNoteButton from './LockNoteButton';
 import InlinePinUnlock from './InlinePinUnlock';
 import {
@@ -206,9 +205,6 @@ interface CardFullEditableProps {
     saveOptions?: { bumpUpdatedAt?: boolean; saveOrigin?: string },
   ) => Promise<any>;
   footer?: React.ReactNode;
-  // Props for shared note CTA footer
-  shareToken?: string;
-  isAuthenticated?: boolean;
   /** When true, runs iOS focus scroll fix (window.scrollTo(0,0) on focusin) so toolbar stays visible. Also run on touch devices when false. */
   inBottomSheet?: boolean;
   /** Welcome-thread pack notes (system): same as scripture — no title/body editing in the card. */
@@ -382,8 +378,6 @@ export default function CardFullEditable({
   isEditable = true,
   onSave,
   footer,
-  shareToken,
-  isAuthenticated,
   inBottomSheet = false,
   readOnlyLikeScripture = false,
   foreignSharedAnnotationMode = false,
@@ -4245,19 +4239,6 @@ export default function CardFullEditable({
             }}
           >
             {footer}
-          </div>
-        ) : shareToken ? (
-          <div 
-            style={{
-              marginTop: 'auto',
-              flexShrink: 0,
-              paddingBottom: '12px'
-            }}
-          >
-            <SharedNoteCTAFooter
-              shareToken={shareToken}
-              isAuthenticated={isAuthenticated || false}
-            />
           </div>
         ) : null}
       </div>
