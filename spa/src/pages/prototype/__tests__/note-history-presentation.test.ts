@@ -57,3 +57,33 @@ describe('note history presentation', () => {
     expect(noteHistorySessionTimeLabel(session('b', new Date(2026, 8, 13, 14, 40), at))).toContain('–');
   });
 });
+
+describe('summarizeNoteVersionChange', () => {
+  it('names the paragraphs and passages a session added and removed', async () => {
+    const { summarizeNoteVersionChange } = await import('../note-history-presentation');
+    const older = '<p>Ps Jared</p><p>What is worship?</p><p>Draft line</p>';
+    const newer =
+      '<p>Ps Jared</p><p>What is worship?</p>' +
+      '<p><span data-scripture-reference="Exodus 33:1-6">Exodus 33:1-6</span></p>' +
+      '<p>What other things do we put in place of God?</p>';
+    const change = summarizeNoteVersionChange(older, newer);
+    expect(change.added).toEqual(['Exodus 33:1-6', 'What other things do we put in place of God?']);
+    expect(change.removed).toEqual(['Draft line']);
+    expect(change.referencesAdded).toEqual(['Exodus 33:1-6']);
+    expect(change.wordDelta).toBe(17 - 7);
+  });
+
+  it('treats the oldest version as all added', async () => {
+    const { summarizeNoteVersionChange } = await import('../note-history-presentation');
+    expect(summarizeNoteVersionChange(null, '<ul><li><p>One</p></li></ul>').added).toEqual(['One']);
+  });
+});
+
+describe('noteHistorySessionSpan', () => {
+  it('says how long a session ran', async () => {
+    const { noteHistorySessionSpan } = await import('../note-history-presentation');
+    const at = (m: number) => new Date(Date.UTC(2026, 9, 25, 11, m)).toISOString();
+    expect(noteHistorySessionSpan({ startedAt: at(0), endedAt: at(1) })).toBe('A quick edit');
+    expect(noteHistorySessionSpan({ startedAt: at(0), endedAt: at(12) })).toBe('12 min of writing');
+  });
+});

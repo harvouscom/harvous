@@ -86,6 +86,10 @@ function collapseScripturePillsForPlainText(html: string): string {
     }
     out += plain;
     cursor = m.index + fullSpan.length + skipAfter;
+    // Same on the far side: `<span>John 3:16</span>For God…` must not read "NLTFor God".
+    if (plain.length > 0 && /^[\p{L}\p{N}]/u.test(html.slice(cursor))) {
+      out += ' ';
+    }
   }
   out += html.slice(cursor);
   return out;

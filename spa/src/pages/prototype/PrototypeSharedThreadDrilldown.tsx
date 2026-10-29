@@ -705,9 +705,9 @@ export default function PrototypeSharedThreadDrilldown({
         {state === 'loading' ? <ProtoSpaceLoading label="Loading Thread" /> : null}
         {state === 'error' ? (
           <div className="proto-shared-thread-state" role="alert">
-            <p>Could not load this Thread.</p>
+            <p>Couldn’t load this Thread.</p>
             <button type="button" className="proto-shared-thread-action" onClick={() => void notesQuery.refetch()}>
-              Retry
+              Try again
             </button>
           </div>
         ) : null}
@@ -884,7 +884,7 @@ export default function PrototypeSharedThreadDrilldown({
             </div>
             {notesQuery.isFetchNextPageError ? (
               <p className="proto-connect-note-sheet__error" role="alert">
-                Could not load more notes. Try again.
+                Couldn’t load more notes. Try again.
               </p>
             ) : null}
             {notesQuery.hasNextPage ? (

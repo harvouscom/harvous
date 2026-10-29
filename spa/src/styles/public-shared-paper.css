@@ -1,0 +1,278 @@
+/*
+ * Shared note and shared Thread pages (PublicSharedNotePage, PublicSharedThreadPage).
+ *
+ * Loaded with their lazy routes. Tokens (`--site-*` and the light-only `--pds-*` remap)
+ * come from public-pages.css, which is global.
+ *
+ * The shape: the page scrolls, the paper is the page on a phone (a 12px gutter, nothing
+ * else), the "Add to my Harvous" bar is its own row under the scroller, and on a wide
+ * screen the paper sits centred on its fanned leaves the way the note-card always did.
+ * The body is the app's read-only paper (ProtoReadOnlyNotePaper), so pills, quotes and
+ * highlights read exactly as they do in the app.
+ */
+
+/* ─── Page ──────────────────────────────────────────────────────────────── */
+.public-page--shared {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* The body is the scroller now, not a card inside it. */
+.public-page--shared .public-body {
+  display: block;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.public-shared {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 12px 8px;
+  box-sizing: border-box;
+}
+
+.public-shared__byline {
+  margin: 2px 0 8px;
+  text-align: center;
+}
+
+.public-shared__date {
+  letter-spacing: 0.06em;
+}
+
+/* ─── The paper ─────────────────────────────────────────────────────────── */
+.public-page--shared .public-paper-stack.public-shared__stack {
+  flex: none;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* On a phone the paper is the page: no fanned leaves eating 18px a side. */
+.public-shared__stack .public-paper-stack__leaf {
+  display: none;
+}
+
+.public-shared__sheet {
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+  background: var(--site-card);
+  box-shadow:
+    0 1px 2px rgba(20, 18, 12, 0.05),
+    0 12px 32px -18px rgba(20, 18, 12, 0.18);
+}
+
+/* The app's paper, flat inside our sheet: the sheet draws the edge and the shadow. */
+.public-shared__paper {
+  --proto-note-readonly-padding-x: 18px;
+}
+
+.public-shared__paper .proto-editor-paper {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+}
+
+.public-shared__paper .proto-note-readonly__paper.proto-editor-paper {
+  padding-top: 22px;
+  padding-bottom: 28px;
+}
+
+.public-shared__paper .proto-note-readonly__title {
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+/* Read-only here: a pill or link chip opens nothing on a public page. */
+.public-shared .scripture-pill,
+.public-shared .url-link-pill {
+  pointer-events: none;
+  cursor: default;
+}
+
+/* A link note leads with what it points at. */
+.public-shared__resource {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 18px 18px 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--pds-bg-section);
+  color: inherit;
+  text-decoration: none;
+}
+
+.public-shared__resource-image {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.public-shared__resource-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.public-shared__resource-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--site-ink);
+}
+
+.public-shared__resource-desc {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.85rem;
+  color: var(--site-ink-soft);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.public-shared__footer {
+  margin-top: 18px;
+}
+
+/* ─── Wide screens: the letter on its leaves ────────────────────────────── */
+@media (min-width: 700px) {
+  .public-shared {
+    padding: 8px 24px 16px;
+  }
+
+  .public-page--shared .public-paper-stack.public-shared__stack {
+    padding: 10px 18px;
+  }
+
+  .public-shared__stack .public-paper-stack__leaf {
+    display: block;
+  }
+
+  .public-shared__sheet {
+    transform: rotate(-0.4deg);
+    box-shadow:
+      0 2px 6px rgba(20, 18, 12, 0.04),
+      0 20px 50px -20px rgba(20, 18, 12, 0.16);
+  }
+
+  .public-shared__paper {
+    --proto-note-readonly-padding-x: 44px;
+  }
+
+  .public-shared__paper .proto-note-readonly__paper.proto-editor-paper {
+    padding-top: 40px;
+    padding-bottom: 44px;
+  }
+
+  .public-shared__paper .proto-note-readonly__title {
+    font-size: 32px;
+  }
+
+  .public-shared__resource {
+    margin: 32px 44px 0;
+  }
+}
+
+/* ─── The bar under the page ────────────────────────────────────────────── */
+.public-shared__cta-bar {
+  flex: none;
+  position: relative;
+  z-index: 20;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--site-paper) 86%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  backdrop-filter: blur(16px) saturate(1.1);
+  box-shadow: 0 -0.5px 0 var(--site-rule);
+}
+
+.public-shared__cta-inner {
+  position: relative;
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+/* The add's status floats just above the button instead of pushing it. */
+.public-shared__cta-inner .public-toast {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  text-align: center;
+}
+
+/* The OG screenshot is a preview of the note, not of a button bar. */
+.public-page--og-capture .public-shared__cta-bar {
+  display: none;
+}
+
+/* ─── Thread: header and the trail inside the same paper ────────────────── */
+.public-shared__sheet--thread {
+  padding: 22px 18px 8px;
+}
+
+.public-shared__sheet--thread .public-card__color-stripe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.public-shared__sheet--thread .public-thread-trail {
+  padding: 10px 0 0;
+}
+
+.public-thread-trail__toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.public-thread-trail__toggle:focus-visible {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.public-thread-trail__toggle .public-thread-trail__preview {
+  margin-top: 4px;
+}
+
+.public-thread-trail__more {
+  margin-top: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--site-accent);
+}
+
+/* The opened note, on the trail, at a reading size. */
+.public-thread-trail__note {
+  margin-top: 10px;
+}
+
+.public-thread-trail__note .proto-note-readonly .card-full-editable__content-html {
+  font-size: 15px;
+}
+
+@media (min-width: 700px) {
+  .public-shared__sheet--thread {
+    padding: 32px 40px 16px;
+  }
+}

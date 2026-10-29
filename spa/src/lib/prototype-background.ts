@@ -165,7 +165,7 @@ export function applyColorSchemePreference(pref: ColorSchemePreference): void {
   } else {
     root.removeAttribute('data-color-scheme');
   }
-  syncThemeColorMeta(pref);
+  syncThemeColorToCanvas(pref);
 }
 
 /**
@@ -180,6 +180,32 @@ export function syncThemeColorMeta(pref: ColorSchemePreference): void {
     // older than our build target, and there it is undefined and the layout's mount throws.
     const slot = (meta.getAttribute('media') ?? '').includes('dark') ? 'dark' : 'light';
     meta.content = canvasDefaultHexForMode(pref === 'system' ? slot : pref);
+  });
+}
+
+/**
+ * Point `theme-color` at the canvas actually on screen, not just the scheme default.
+ *
+ * Since iOS 26 an installed web app draws a soft edge effect under the status bar and over the
+ * home indicator, tinted from what it finds at the screen's edges. A custom canvas colour or a
+ * wallpaper tint left `theme-color` naming the default cream while the edges showed something
+ * else, and the effect painted a visible gradient from one into the other. Only the slot for
+ * the scheme on screen takes the canvas; the other keeps its default until it is the one shown.
+ */
+export function syncThemeColorToCanvas(pref: ColorSchemePreference = readColorSchemePreference()): void {
+  if (typeof document === 'undefined') return;
+  const canvas = document.documentElement.style.getPropertyValue('--pds-canvas-bg').trim();
+  if (!/^(#[0-9a-f]{3,8}|rgba?\(|hsla?\()/i.test(canvas)) {
+    syncThemeColorMeta(pref);
+    return;
+  }
+  const activeSlot = isDarkAppearance() ? 'dark' : 'light';
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"][media]').forEach((meta) => {
+    const slot = (meta.getAttribute('media') ?? '').includes('dark') ? 'dark' : 'light';
+    meta.content =
+      pref !== 'system' || slot === activeSlot
+        ? canvas
+        : canvasDefaultHexForMode(slot);
   });
 }
 
@@ -481,6 +507,7 @@ export function applyBackground(bg: ProtoBg): void {
     style.removeProperty('--pds-canvas-image');
     root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
     root.classList.add(WALLPAPER_COLOR_CLASS);
+    syncThemeColorToCanvas();
     return;
   }
 
@@ -493,6 +520,7 @@ export function applyBackground(bg: ProtoBg): void {
   }
   root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
   root.classList.add(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS);
+  syncThemeColorToCanvas();
 }
 
 /** Apply background and, for images, sample + persist a shell tint when missing. */
@@ -509,6 +537,7 @@ export async function applyBackgroundWithImageTint(bg: ProtoBg): Promise<void> {
   const sampledTint = rawTint ?? catalogTint ?? (await sampleImageTint(url));
   const canvasTint = tintForAppearance(sampledTint);
   document.documentElement.style.setProperty('--pds-canvas-bg', canvasTint);
+  syncThemeColorToCanvas();
 
   if (rawTint !== sampledTint) {
     const updated: ProtoBg = { kind: 'image-preset', presetId: bg.presetId, tint: sampledTint };
@@ -606,6 +635,7 @@ export function clearBackgroundVars(): void {
   root.style.removeProperty('--pds-canvas-bg');
   root.style.removeProperty('--pds-canvas-image');
   root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
+  syncThemeColorToCanvas();
 }
 
 /** Remove prototype first-paint boot (wallpaper + shell card) on public routes. */

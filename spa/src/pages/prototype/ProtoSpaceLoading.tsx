@@ -1,5 +1,25 @@
 /** Three-dot loading indicator shared by Home and other sidebar space views. */
+import { useEffect, useState } from 'react';
 import ProtoLoadingDots from './ProtoLoadingDots';
+
+/*
+ * React Query pauses a fetch while the browser is offline, so with nothing cached the dots
+ * would run forever with no word about why. While offline they say so; the line goes the
+ * moment the connection is back and the paused fetch resumes.
+ */
+function useIsOffline(): boolean {
+  const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' && navigator.onLine === false);
+  useEffect(() => {
+    const update = () => setOffline(navigator.onLine === false);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+  return offline;
+}
 
 export default function ProtoSpaceLoading({
   label = 'Loading',
@@ -27,10 +47,16 @@ export default function ProtoSpaceLoading({
   leaving?: boolean;
   grace?: boolean;
 }) {
+  const offline = useIsOffline();
   const modifier = leaving ? ' proto-home-loading--leaving' : grace ? ' proto-home-loading--grace' : '';
   return (
     <div className={`proto-home-loading${modifier}`}>
       <ProtoLoadingDots label={label} />
+      {offline && !leaving ? (
+        <p className="proto-home-loading__offline" role="status">
+          You’re offline. This will load when you’re back online.
+        </p>
+      ) : null}
     </div>
   );
 }

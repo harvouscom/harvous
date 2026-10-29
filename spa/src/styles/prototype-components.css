@@ -5005,6 +5005,24 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   font-weight: 500;
 }
 
+/* An inline "Try again" inside a caption (a failed search). A button, styled as the
+   quiet link it reads as. */
+.proto-text-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--pds-accent);
+  cursor: pointer;
+}
+
+.proto-text-link-btn:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* ─── Scripture chip (sidebar badge / inline) ────────────────────────────── */
 
 /* ─── Connect note sheet (prototype) ─────────────────────────────────────── */
@@ -5046,6 +5064,15 @@ html.harvous-prototype-route [data-side='bottom'][data-vaul-drawer].drawer-conte
   flex-direction: column;
   gap: 14px;
   overflow: hidden;
+}
+
+/* Phones: the drawer already floats 8px in from the screen, so 20px of its own put every
+   sheet's content ~28px from the glass edge. 16px keeps the same rhythm with less air. */
+@media (max-width: 600px) {
+  .proto-connect-note-sheet.proto-connect-note-sheet {
+    padding: 16px 16px 18px;
+    gap: 12px;
+  }
 }
 
 .proto-connect-note-popover {
@@ -7308,8 +7335,19 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
    the stack in flow layout instead of the floating stack. */
 .proto-home-loading {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   padding: 24px 14px 14px;
+}
+
+.proto-home-loading__offline {
+  margin: 0;
+  max-width: 28ch;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--pds-text-secondary);
 }
 
 /*
@@ -15280,6 +15318,30 @@ html.harvous-prototype-route
 .proto-shared-manage-sheet .proto-connect-note-sheet__scroll {
   padding: 12px 14px;
   max-height: none;
+}
+
+/*
+ * On a phone the manage sheet is a drawer, and three gutters stacked up: the drawer's own
+ * 20px, the scroll's 14px and the header's 14–16px, on top of the 8px the sheet already
+ * floats from the screen edge. Fields started ~42px in, which on a 375pt phone is a ninth
+ * of the width spent on air. One gutter is enough: the drawer drops its padding and the
+ * header and scroll share a single 16px inset, so fields sit 24px from the glass edge.
+ */
+.proto-shared-manage-sheet.proto-connect-note-sheet:not(.proto-connect-note-sheet--popover) {
+  padding: 4px 0 6px;
+  gap: 0;
+}
+
+.proto-shared-manage-sheet:not(.proto-connect-note-sheet--popover) .proto-study-thread-popover__header {
+  padding: 10px 12px 10px 16px;
+}
+
+.proto-shared-manage-sheet:not(.proto-connect-note-sheet--popover) .proto-connect-note-sheet__scroll {
+  padding: 8px 16px 12px;
+}
+
+.proto-shared-manage-sheet:not(.proto-connect-note-sheet--popover) .proto-shared-space-settings {
+  margin-top: 4px;
 }
 
 /* Section titles reuse the create-folder note-label's 14px side padding, but the

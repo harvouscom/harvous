@@ -711,78 +711,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     padding-left: calc(16px + min(300px, 88vw - 16px));
   }
 
-  /* Soft keyboard open: shrink the shell frame to the visual viewport (size set via
-     visualViewport in layout) so the in-flow bottom toolbar lands just above the keyboard. */
-  html[data-proto-keyboard-open],
-  html[data-proto-keyboard-open] body {
-    overflow: hidden !important;
-    overscroll-behavior: none;
-  }
-
-  /* Frame stays anchored at its normal top inset (base margin) and shrinks its height to
-     sit above the keyboard. The height (set via visualViewport in layout) subtracts the
-     inset on both ends, so the frame's bottom edge floats `frameInset` above the keyboard —
-     a blue outer-shell gap mirroring the top inset. All four corners keep the base
-     `--pds-shell-frame-radius` so the shell condenses into a complete rounded card; the
-     in-flow format bar is clipped to the rounded bottom by the frame's overflow:hidden. */
-  html[data-proto-keyboard-open] .proto-shell-frame {
-    overflow: hidden;
-    height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
-    max-height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
-  }
-
-  /* The format bar stays in normal flow at the bottom of the visual-viewport-sized
-     frame (no fixed positioning) — solid background for legibility over the keyboard. */
-  html[data-proto-keyboard-open] .proto-shell__editor-chrome-row .proto-editor-bottom-bar {
-    background: var(--pds-bg-popover-solid);
-    background-image: none;
-    box-shadow: var(--pds-glass-rim);
-  }
-
-  /* Against the keyboard the bar is a system-level strip, not a tray belonging to the
-     sheet — a floating rounded card with air down both sides would read as detached from
-     the keys it is sitting on. Full width and square here; the frame's own overflow
-     clips it to the rounded bottom corners. */
-  html[data-proto-keyboard-open]
-    .proto-shell__editor-chrome-row
-    .proto-editor-bottom-bar[data-mode='format'] {
-    left: 0;
-    right: 0;
-    border-left: none;
-    border-right: none;
-    border-radius: 0;
-  }
-
-  html[data-proto-keyboard-open]
-    .proto-shell__editor-chrome-row
-    .proto-editor-bottom-bar[data-mode='format']
-    .proto-editor-bottom-bar__format {
-    padding-left: var(--proto-format-toolbar-paper-inset, 0px);
-    padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
-  }
-
-  /*
-   * The band gets out of the keyboard's way — unless what is being typed into is in it.
-   *
-   * The Review dock has a textarea for writing down what you remember. Hiding the band while
-   * someone is mid-sentence would take the card away at the one moment it must not move.
-   */
-  html[data-proto-keyboard-open]
-    .proto-shell__study-dock-layer:not(:has(.proto-review-dock :focus-within)) {
-    display: none;
-  }
-
-  /* The editor scroll remains the scroller; the caret clears the in-flow toolbar via
-     the paper's bottom padding + scroll-padding-bottom (prototype-editor.css).
-     Paint the scroll area with the paper sheet: iOS Safari does not always stretch the
-     paper's flex box down to the format bar, which let the darker shell frame show through
-     as a disconnected "second pane". Filling the scroll makes any unfilled strip read as
-     the editor surface. */
-  html[data-proto-keyboard-open] .proto-editor-scroll {
-    overscroll-behavior: contain;
-    background: var(--pds-paper-sheet);
-  }
-
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
     position: fixed;
     top: calc(var(--pds-toolbar-h) + 8px);
@@ -1481,6 +1409,37 @@ html.harvous-prototype-route .proto-shell__editor-chrome-row {
 @media (max-width: 899px) {
   html.ios-pwa.harvous-prototype-route {
     background-attachment: scroll !important;
+  }
+}
+
+/* iOS 26+ installed web apps draw a soft edge effect under the status bar and over the home
+   indicator, tinted from what sits at the screen's edges. Our edges were the canvas showing
+   between the screen and the frame's blurred glass, so the effect faded from the glass into
+   the canvas: a visible gradient band at the top and bottom. A solid, fixed strip of exactly
+   the canvas colour at each edge (also the theme-color, see syncThemeColorToCanvas) gives
+   WebKit one flat colour to extend. It sits behind the frame and matches the canvas, so on
+   screen it adds nothing. Image wallpapers are left alone, since a flat band would cover the
+   photo. */
+@media (max-width: 899px) {
+  html.ios-pwa.harvous-prototype-route:not(.harvous-proto-wallpaper-image) body::before,
+  html.ios-pwa.harvous-prototype-route:not(.harvous-proto-wallpaper-image) body::after {
+    content: '';
+    position: fixed;
+    left: 0;
+    right: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--pds-canvas-bg, var(--pds-canvas-default));
+  }
+
+  html.ios-pwa.harvous-prototype-route:not(.harvous-proto-wallpaper-image) body::before {
+    top: 0;
+    height: calc(env(safe-area-inset-top, 0px) + var(--pds-shell-frame-inset, 8px));
+  }
+
+  html.ios-pwa.harvous-prototype-route:not(.harvous-proto-wallpaper-image) body::after {
+    bottom: 0;
+    height: calc(env(safe-area-inset-bottom, 0px) + var(--pds-shell-frame-inset, 8px));
   }
 }
 
@@ -2942,3 +2901,93 @@ html.harvous-prototype-route button[class*='proto-'].proto-accent-btn-sm {
   color: var(--pds-on-accent) !important;
 }
 
+/* ─── Soft keyboard ──────────────────────────────────────────────────────────
+ * Outside any width query: `data-proto-keyboard-open` is only ever set by
+ * useMobileKeyboardFrame, which decides for itself when a keyboard can be up — a phone-width
+ * shell or any touch screen. Gated on ≤899 here, iPad landscape and Pro Max landscape (both
+ * ≥900) got the attribute's frame sizing from JS but none of these rules, so the format bar
+ * sat under the keyboard. */
+/* Soft keyboard open: shrink the shell frame to the visual viewport (size set via
+   visualViewport in layout) so the in-flow bottom toolbar lands just above the keyboard. */
+html[data-proto-keyboard-open],
+html[data-proto-keyboard-open] body {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+/* Frame stays anchored at its normal top inset (base margin) and shrinks its height to
+   sit above the keyboard. The height (set via visualViewport in layout) subtracts the
+   inset on both ends, so the frame's bottom edge floats `frameInset` above the keyboard —
+   a blue outer-shell gap mirroring the top inset. All four corners keep the base
+   `--pds-shell-frame-radius` so the shell condenses into a complete rounded card; the
+   in-flow format bar is clipped to the rounded bottom by the frame's overflow:hidden. */
+html[data-proto-keyboard-open] .proto-shell-frame {
+  overflow: hidden;
+  height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
+  max-height: var(--proto-visible-viewport-height, calc(100dvh - 2 * var(--pds-shell-frame-inset)));
+}
+
+/* The format bar stays in normal flow at the bottom of the visual-viewport-sized
+   frame (no fixed positioning) — solid background for legibility over the keyboard. */
+html[data-proto-keyboard-open] .proto-shell__editor-chrome-row .proto-editor-bottom-bar {
+  background: var(--pds-bg-popover-solid);
+  background-image: none;
+  box-shadow: var(--pds-glass-rim);
+}
+
+/* Against the keyboard the bar is a system-level strip, not a tray belonging to the
+   sheet — a floating rounded card with air down both sides would read as detached from
+   the keys it is sitting on. Full width and square here; the frame's own overflow
+   clips it to the rounded bottom corners. */
+html[data-proto-keyboard-open]
+  .proto-shell__editor-chrome-row
+  .proto-editor-bottom-bar[data-mode='format'] {
+  left: 0;
+  right: 0;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+}
+
+html[data-proto-keyboard-open]
+  .proto-shell__editor-chrome-row
+  .proto-editor-bottom-bar[data-mode='format']
+  .proto-editor-bottom-bar__format {
+  padding-left: var(--proto-format-toolbar-paper-inset, 0px);
+  padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
+}
+
+/*
+ * The band gets out of the keyboard's way — unless what is being typed into is in it.
+ *
+ * The Review dock has a textarea for writing down what you remember. Hiding the band while
+ * someone is mid-sentence would take the card away at the one moment it must not move.
+ */
+html[data-proto-keyboard-open]
+  .proto-shell__study-dock-layer:not(:has(.proto-review-dock :focus-within)) {
+  display: none;
+}
+
+/* The editor scroll remains the scroller; the caret clears the in-flow toolbar via
+   the paper's bottom padding + scroll-padding-bottom (prototype-editor.css).
+   Paint the scroll area with the paper sheet: iOS Safari does not always stretch the
+   paper's flex box down to the format bar, which let the darker shell frame show through
+   as a disconnected "second pane". Filling the scroll makes any unfilled strip read as
+   the editor surface. */
+html[data-proto-keyboard-open] .proto-editor-scroll {
+  overscroll-behavior: contain;
+  background: var(--pds-paper-sheet);
+}
+
+/* A landscape phone (≈390pt) with the keyboard up leaves roughly two lines of note between
+   the toolbar and the format bar. While typing there, the toolbar steps aside; it returns
+   with the keyboard's dismissal. */
+@media (max-height: 500px) {
+  html[data-proto-keyboard-open] .proto-shell {
+    --pds-toolbar-h: 0px;
+  }
+
+  html[data-proto-keyboard-open] .proto-shell__toolbar-cell {
+    display: none;
+  }
+}
