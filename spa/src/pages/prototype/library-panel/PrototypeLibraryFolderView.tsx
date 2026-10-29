@@ -7,6 +7,7 @@
  * labels differing only by curly apostrophe, case or spacing land in one bucket, exactly
  * as `buildFoldersFromNotes` counted them.
  */
+import ProtoRetryAction from '../ProtoRetryAction';
 import type { LibrarySelection } from './use-library-selection';
 import { useMemo } from 'react';
 import { countNotesInFolderBucket, noteBelongsToFolderBucket } from '@/utils/note-folder-display';
@@ -38,8 +39,9 @@ export default function PrototypeLibraryFolderView({
     return (
       <PrototypeListEmptyState
         iconName="note-sticky"
-        title="Could not load notes"
-        description="This folder's notes did not load. Try again in a moment."
+        title="Couldn’t load notes"
+        description="This folder’s notes didn’t load."
+        action={<ProtoRetryAction onRetry={data.retryNotes} />}
       />
     );
   }

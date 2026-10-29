@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { THREAD_NAME_MAX_LENGTH } from '@/utils/collection-name-limits';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -116,6 +117,14 @@ export default function PrototypeCreateThreadSheet({
   };
 
   useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
+
+  // Desktop popover: focus moves in, Tab stays inside, Escape closes, and focus returns to
+  // whatever opened it.
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
 
   const content = (
     <>

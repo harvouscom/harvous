@@ -19,6 +19,8 @@ import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
 import { trackThreadOpened } from '@/utils/analytics';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
+import ProtoRetryAction from './ProtoRetryAction';
 
 interface PrototypeStudyThreadPanelProps {
   noteId: string;
@@ -34,7 +36,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
   const effectiveSpaceId =
     (spaceId && spaceId.trim().length > 0 ? spaceId : null) ?? homeSpaceId ?? null;
 
-  const { data: thread, isLoading, isError } = usePrototypeStudyThread(noteId, effectiveSpaceId);
+  const { data: thread, isLoading, isError, refetch: refetchThread } = usePrototypeStudyThread(noteId, effectiveSpaceId);
 
   const [connectOpen, setConnectOpen] = useState(false);
 
@@ -147,7 +149,11 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
         {isLoading && !thread ? (
           <ProtoSpaceLoading label="Loading Thread" />
         ) : isError || !thread?.success ? (
-          <p className="proto-inspector-muted" style={{ padding: '12px 14px' }}>Could not load thread.</p>
+          <PrototypeListEmptyState
+            iconName="arrow-right-arrow-left"
+            title="Couldn’t load this Thread"
+            action={<ProtoRetryAction onRetry={() => void refetchThread()} />}
+          />
         ) : (
           <>
             <section className="proto-inspector-section">

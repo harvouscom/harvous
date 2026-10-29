@@ -519,7 +519,20 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   
   // Cmd/Ctrl + K — Spotlight search (handle before isTypingInInput so it works in editors, like other apps)
   if (modifier && key === 'k' && !event.altKey) {
-    if (isPrototypeRoute(path)) return;
+    if (isPrototypeRoute(path)) {
+      // ⌘K is the shortcut everyone already knows for search, so it opens the Library panel
+      // here (Spotlight is Classic-only) — the same event as ⇧K. With text selected in the
+      // editor, ⌘K is the editor's link prompt; this listener runs first (capture), so it
+      // stands aside for that case rather than relying on the editor to prevent it.
+      if (event.shiftKey) return;
+      const active = document.activeElement as HTMLElement | null;
+      const selection = typeof window.getSelection === 'function' ? window.getSelection() : null;
+      if (active?.closest?.('.ProseMirror') && selection && !selection.isCollapsed) return;
+      if (shouldPassThroughToBrowser(event, 'mod-k')) return;
+      event.preventDefault();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutOpenCommandPalette'));
+      return;
+    }
     if (shouldPassThroughToBrowser(event, 'mod-k')) return;
     event.preventDefault();
     window.dispatchEvent(new CustomEvent('openSpotlightSearch'));

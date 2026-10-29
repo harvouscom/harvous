@@ -128,7 +128,6 @@ import '../../src/styles/mark-spotlight.css';
 import '../../src/styles/tiptap-editor.css';
 import '../../src/styles/card-full-editable.css';
 import '../../src/styles/auth-gradient.css';
-import '../../src/styles/shared-page.css';
 // `/site/`-inspired redesign for auth + shared pages. Imported AFTER
 // `auth-gradient.css` so its `.auth-page__*` overrides win the cascade.
 import '../../src/styles/auth-page-site.css';

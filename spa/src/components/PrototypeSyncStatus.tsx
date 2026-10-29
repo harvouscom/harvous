@@ -1,4 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { haptics } from '@/utils/haptics';
 import { toast } from '@/utils/toast';
 import { useSyncQueueStatus } from '../hooks/useSyncQueueStatus';
 import {
@@ -92,6 +93,7 @@ export default function PrototypeSyncWatcher({ userId }: { userId?: string | nul
     if (toastedRef.current) return undefined;
     const timer = setTimeout(() => {
       toastedRef.current = true;
+      haptics.error();
       toast.error("Couldn't save to the cloud", {
         persistent: true,
         id: FAILURE_TOAST_ID,

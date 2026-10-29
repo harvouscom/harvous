@@ -39,6 +39,7 @@ import {
 } from '@/utils/reference-suggestion-text';
 import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import { useIsCatholic } from '../../../spa/src/hooks/useTradition';
+import { liveSelectionRangeWithin, passageSelectionText } from '@/utils/passage-selection-text';
 import { deriveReferenceFromPassageSelection } from '@/utils/derive-passage-selection-reference';
 import { useCoarsePointer } from '../../../spa/src/lib/use-coarse-pointer';
 import { isGuestLocalNote } from '../../../spa/src/lib/guest-store';
@@ -362,7 +363,9 @@ export default function ScripturePillChromeWeb({
       setPassageSelection(null);
       return;
     }
-    const text = sel.toString().trim();
+    // The painter's own text (verse numerals, headings and screen-reader text left out), so a
+    // saved excerpt that crosses a verse boundary still paints. See passage-selection-text.ts.
+    const text = passageSelectionText(range, scrollEl, 'paint') || sel.toString().trim();
     if (!text) {
       setPassageSelection(null);
       return;
@@ -659,6 +662,13 @@ export default function ScripturePillChromeWeb({
 
   const handleCreatePassageHighlight = useCallback(async () => {
     if (!passageSelection || !sourceNoteId || creatingHighlight) return;
+    // Read the selection the reader is looking at *now*. The state copy is from the last
+    // selectionchange, and on iOS a handle drag can end without one reaching us.
+    const liveRange = liveSelectionRangeWithin(passageScrollRef.current);
+    const excerpt =
+      (liveRange && passageScrollRef.current
+        ? passageSelectionText(liveRange, passageScrollRef.current, 'paint')
+        : '') || passageSelection.text;
     /*
      * A passage highlight in a note is a study-thread row and nothing else — no mark in the note
      * body to fall back on — so a guest has nowhere to keep one. The button used to post, 401,
@@ -683,12 +693,12 @@ export default function ScripturePillChromeWeb({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           entryKind: 'scriptureLink',
-          scripturePassageExcerpt: passageSelection.text,
+          scripturePassageExcerpt: excerpt,
           scriptureReference: norm,
           scripturePassageTranslation: trans,
           highlightAccentRaw: seedAccent,
-          sourceSnippet: passageSelection.text,
-          focusTitle: passageSelection.text.slice(0, 80),
+          sourceSnippet: excerpt,
+          focusTitle: excerpt.slice(0, 80),
         }),
       });
       if (res.ok) {
@@ -701,12 +711,12 @@ export default function ScripturePillChromeWeb({
             ...prev,
             {
               id: threadId,
-              excerpt: passageSelection.text,
+              excerpt: excerpt,
               accentRaw: seedAccent,
               entryKind: 'scriptureLink',
             },
           ]);
-          onPassageHighlightCreated?.(passageSelection.text, threadId, seedAccent);
+          onPassageHighlightCreated?.(excerpt, threadId, seedAccent);
         }
       }
     } catch {
@@ -721,17 +731,21 @@ export default function ScripturePillChromeWeb({
     if (!passageSelection || !sourceNoteId || addingQuote || !onPassageQuoteToNote) return;
     setAddingQuote(true);
     try {
-      const sel = window.getSelection();
-      const domRange = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null;
+      // Text and citation from the same live range, so the quote is exactly what is selected
+      // on screen and is cited by the verses it actually covers.
+      const liveRange = liveSelectionRangeWithin(passageScrollRef.current);
+      const domRange = liveRange ? liveRange.cloneRange() : null;
       const passageHtmlEl = passageScrollRef.current?.querySelector(
         '.scripture-pill-chrome__passage-html',
       ) as HTMLElement | null;
       let quoteReference = displayRefString;
+      let excerpt = passageSelection.text;
       if (domRange && passageHtmlEl) {
         quoteReference = deriveReferenceFromPassageSelection(passageHtmlEl, domRange, displayRefString);
+        excerpt = passageSelectionText(domRange, passageHtmlEl, 'read') || excerpt;
       }
       onPassageQuoteToNote({
-        excerpt: passageSelection.text,
+        excerpt,
         reference: quoteReference,
         translation: trans,
       });
@@ -927,6 +941,7 @@ export default function ScripturePillChromeWeb({
         ref={passageScrollRef}
         className="scripture-pill-chrome__passage"
         aria-busy={loadingPassage}
+        data-passage-selecting={showMobilePassageActions ? '' : undefined}
         // tabIndex=-1 makes this a valid focus target on click so the browser
         // doesn't bounce focus back to the editor, allowing text selection.
         tabIndex={-1}

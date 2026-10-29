@@ -43,7 +43,7 @@
   color: var(--pds-text-primary);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 899px) {
   .admin-page__content-wrap {
     padding: 12px 16px 32px;
   }

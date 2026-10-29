@@ -51,17 +51,23 @@ function OverflowMenu({ children }: { children: React.ReactNode }) {
       if (popRef.current?.contains(t)) return;
       setOpen(false);
     };
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    // Handled here, so whatever else listens for Escape (the reader clears its selection on
+    // it) leaves this press alone.
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      setOpen(false);
+    };
     document.addEventListener('mousedown', dismiss);
     document.addEventListener('touchstart', dismiss, { passive: true });
-    document.addEventListener('keydown', esc);
+    document.addEventListener('keydown', esc, true);
     window.addEventListener('resize', updatePos);
     window.addEventListener('scroll', updatePos, true);
     const offSettle = onProtoViewportSettle(updatePos);
     return () => {
       document.removeEventListener('mousedown', dismiss);
       document.removeEventListener('touchstart', dismiss);
-      document.removeEventListener('keydown', esc);
+      document.removeEventListener('keydown', esc, true);
       window.removeEventListener('resize', updatePos);
       window.removeEventListener('scroll', updatePos, true);
       offSettle();

@@ -12,7 +12,7 @@
  * Every function expects rows newest-first, matching the queries' `order by createdAt desc`.
  */
 
-import { stripHtmlForPreview } from '@/utils/html-stripper';
+import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import {
   isReadingDwellBucket,
   readingDwellStrength,
@@ -59,7 +59,10 @@ function bucketStamp(iso: string): number {
  */
 export function studyFeedSnippet(content: string | null | undefined): string {
   if (!content) return '';
-  return stripHtmlForPreview(content, SNIPPET_MAX);
+  // The list-preview stripper, not the plain one: it breaks at paragraphs and `<br>`, so a
+  // pill on one line and a sentence on the next read "Exodus 32:1-35 NLT Ps Jared…" rather
+  // than running together.
+  return stripHtmlForListPreview(content, SNIPPET_MAX);
 }
 
 export interface NoteRowForFeed {
@@ -181,10 +184,33 @@ export interface HighlightRowForFeed {
   highlightAccentRaw: string;
   sourceSnippet: string;
   anchorQuote: string | null;
+  /** `resolved` when the quote still matches the note; anything else means it may be stale. */
+  anchorStatus?: string | null;
   scriptureReference: string | null;
   scripturePassageTranslation: string | null;
   scripturePassageExcerpt: string | null;
   createdAt: string | Date | null;
+}
+
+/** Below this many characters a cleaned quote is a fragment, not something worth quoting. */
+const MIN_ANCHOR_QUOTE = 12;
+
+/** Straight and curly quote marks the card adds itself, so they come off the stored quote. */
+const EDGE_QUOTES_RE = /^[\s"'\u2018\u2019\u201C\u201D\u00AB\u00BB]+|[\s"'\u2018\u2019\u201C\u201D\u00AB\u00BB]+$/g;
+
+/**
+ * The words a note highlight shows. The anchor quote is the exact selection, so it wins when
+ * it is still attached and long enough to read; a detached anchor, or a quote that cleans down
+ * to a scrap like `ship? “`, falls back to the entry's source snippet.
+ */
+export function noteHighlightExcerpt(
+  row: Pick<HighlightRowForFeed, 'anchorQuote' | 'anchorStatus' | 'sourceSnippet'>,
+): string {
+  const quote = (row.anchorQuote ?? '').replace(EDGE_QUOTES_RE, '');
+  const usable =
+    (row.anchorStatus == null || row.anchorStatus === 'resolved') && quote.length >= MIN_ANCHOR_QUOTE;
+  if (usable) return quote;
+  return (row.sourceSnippet ?? '').replace(EDGE_QUOTES_RE, '') || quote;
 }
 
 /**
@@ -204,7 +230,7 @@ export function buildHighlightItems(
     const excerpt = (
       isScripture
         ? row.scripturePassageExcerpt || row.sourceSnippet
-        : row.anchorQuote || row.sourceSnippet
+        : noteHighlightExcerpt(row)
     )?.trim();
     if (!excerpt) continue;
 

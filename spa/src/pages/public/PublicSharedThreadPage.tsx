@@ -1,4 +1,5 @@
 import { colorTokenVar } from '@/utils/space-cover';
+import { haptics } from '@/utils/haptics';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
@@ -12,7 +13,10 @@ import { api } from '../../lib/api';
 import { useAddSharedThread } from '../../hooks/mutations/useAddSharedThread';
 import { getThreadGradientCSS } from '@/utils/colors';
 import type { ThreadDetail, ThreadPrefetchData } from '../../hooks/queries/useThread';
-import { PublicTopBar, PublicErrorState } from './public-shared';
+import ProtoReadOnlyNotePaper from '../prototype/ProtoReadOnlyNotePaper';
+import { PublicTopBar, PublicErrorState, PublicSharedCtaBar, PublicSharedFooter } from './public-shared';
+import '../../styles/prototype-editor.css';
+import '../../styles/public-shared-paper.css';
 import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 
 interface SharedThreadNote {
@@ -52,9 +56,21 @@ interface SharedThreadPlanResponse {
 /**
  * One note on the Thread's trail, the way the app reads a Thread: a dot on a spine, the title,
  * and the opening lines — not a card per note. A passage leads with its reference and
- * translation; a link says it is one.
+ * translation; a link says it is one. Tapping a row opens the whole note in place, on the
+ * same paper the app reads it on: the share already carries every note's body, and a list of
+ * first lines with nothing behind them was a table of contents for a book you couldn't open.
  */
-function SharedThreadTrailRow({ note, index }: { note: SharedThreadNote; index: number }) {
+function SharedThreadTrailRow({
+  note,
+  index,
+  open,
+  onToggle,
+}: {
+  note: SharedThreadNote;
+  index: number;
+  open: boolean;
+  onToggle: () => void;
+}) {
   const preview = stripHtmlForPreview(note.content || '', 180).trim();
   const translation = note.scriptureTranslation ?? note.version ?? null;
   const kind =
@@ -62,18 +78,27 @@ function SharedThreadTrailRow({ note, index }: { note: SharedThreadNote; index: 
   return (
     <li
       className={`public-thread-trail__item public-thread-trail__item--${kind} card-enter`}
+      data-open={open ? 'true' : undefined}
       style={{ animationDelay: `${100 + index * 40}ms` }}
     >
       <span className="public-thread-trail__orb" aria-hidden />
       <div className="public-thread-trail__text">
-        <p className="public-thread-trail__title">
-          {note.title?.trim() || 'Untitled'}
-          {kind === 'scripture' && translation ? (
-            <span className="public-thread-trail__badge">{translation}</span>
-          ) : null}
-          {kind === 'resource' ? <span className="public-thread-trail__badge">Link</span> : null}
-        </p>
-        {preview ? <p className="public-thread-trail__preview">{preview}</p> : null}
+        <button type="button" className="public-thread-trail__toggle" aria-expanded={open} onClick={onToggle}>
+          <span className="public-thread-trail__title">
+            {note.title?.trim() || 'Untitled'}
+            {kind === 'scripture' && translation ? (
+              <span className="public-thread-trail__badge">{translation}</span>
+            ) : null}
+            {kind === 'resource' ? <span className="public-thread-trail__badge">Link</span> : null}
+          </span>
+          {preview && !open ? <span className="public-thread-trail__preview">{preview}</span> : null}
+          <span className="public-thread-trail__more">{open ? 'Show less' : 'Read note'}</span>
+        </button>
+        {open ? (
+          <div className="public-thread-trail__note">
+            <ProtoReadOnlyNotePaper variant="inset" html={note.content || ''} />
+          </div>
+        ) : null}
       </div>
     </li>
   );
@@ -94,6 +119,7 @@ export default function PublicSharedThreadPage() {
   const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
   const [toastVisible, setToastVisible] = useState(false);
   const [alreadyOwned, setAlreadyOwned] = useState(false);
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ogCapture =
     typeof window !== 'undefined' &&
@@ -113,6 +139,7 @@ export default function PublicSharedThreadPage() {
     try {
       const result = await addSharedThreadMutation.mutateAsync(shareToken);
       if (result.success && result.createdIds?.threadId) {
+        haptics.success();
         showToast('Added to your Harvous!', 'success', 0);
         const id = result.createdIds.threadId;
         const path = id.startsWith('thread_') ? `/thread/${id.slice(7)}` : `/${id}`;
@@ -218,11 +245,13 @@ export default function PublicSharedThreadPage() {
   return (
     <>
       {thread && <title>{`${thread.title || 'Shared Thread'} | Harvous`}</title>}
-      <div className={`public-page${ogCapture ? ' public-page--og-capture' : ''}`}>
+      <div
+        className={`public-page${plan ? '' : ' public-page--shared'}${ogCapture ? ' public-page--og-capture' : ''}`}
+      >
         <PublicTopBar isSignedIn={!!isSignedIn} />
 
         <div className="public-body">
-          <div className="public-content">
+          <div className={plan || !thread || error ? 'public-content' : 'public-shared-host'}>
             {isLoading ? (
               <div className="page-loading" />
             ) : plan ? (
@@ -299,92 +328,72 @@ export default function PublicSharedThreadPage() {
               />
             ) : (
               <SubtleContentMount variant="fade">
-                <>
-                  <p className="public-creator">
+                <div className="public-shared">
+                  <p className="public-creator public-shared__byline">
                     {creator?.isHarvousOwned
-                      ? "You're invited to add this thread on Harvous"
-                      : `Created by ${creator?.displayName || 'A Harvous User'} on Harvous`}
+                      ? 'A thread from Harvous'
+                      : `A thread from ${creator?.displayName || 'a Harvous reader'}`}
                   </p>
 
-                  <div className="public-card public-card--thread">
-                    {hasThreadColor ? (
-                      <div className="public-card__color-stripe" style={{ background: colorVar }} />
-                    ) : null}
-                    {/* The Thread's own tile — the glyph the app draws on every Thread card —
-                        beside its name, so the page says what it is before a word is read. */}
-                    <div className="public-card__header public-thread-head">
-                      <span className="public-thread-head__icon" aria-hidden>
-                        <Icon name="arrow-right-arrow-left" size={18} />
-                      </span>
-                      <div className="public-thread-head__text">
-                        <h1 className="public-card__title">{thread.title}</h1>
-                        <p className="public-card__meta">
-                          Thread · {noteCount} {noteCount === 1 ? 'note' : 'notes'}
-                          {thread.subtitle ? ` · ${thread.subtitle}` : ''}
-                        </p>
+                  <div className="public-paper-stack public-shared__stack">
+                    <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
+                    <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
+                    <div className="public-shared__sheet public-shared__sheet--thread">
+                      {hasThreadColor ? (
+                        <div className="public-card__color-stripe" style={{ background: colorVar }} />
+                      ) : null}
+                      {/* The Thread's own tile — the glyph the app draws on every Thread card —
+                          beside its name, so the page says what it is before a word is read. */}
+                      <div className="public-thread-head">
+                        <span className="public-thread-head__icon" aria-hidden>
+                          <Icon name="arrow-right-arrow-left" size={18} />
+                        </span>
+                        <div className="public-thread-head__text">
+                          <h1 className="public-card__title">{thread.title}</h1>
+                          <p className="public-card__meta">
+                            Thread · {noteCount} {noteCount === 1 ? 'note' : 'notes'}
+                            {thread.subtitle ? ` · ${thread.subtitle}` : ''}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="public-card__scroll">
                       {notes.length === 0 ? (
                         <div className="public-card__empty">No notes yet. Add this thread to start studying.</div>
                       ) : (
                         <ol className="public-thread-trail">
                           {notes.map((note, index) => (
-                            <SharedThreadTrailRow key={note.id} note={note} index={index} />
+                            <SharedThreadTrailRow
+                              key={note.id}
+                              note={note}
+                              index={index}
+                              open={openNoteId === note.id}
+                              onToggle={() => setOpenNoteId((id) => (id === note.id ? null : note.id))}
+                            />
                           ))}
                         </ol>
                       )}
                     </div>
-
-                    <div className="public-card__cta">
-                      <div
-                        className={`public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}
-                        style={{ textAlign: 'center', justifyContent: 'center' }}
-                      >
-                        {toastMessage}
-                      </div>
-                      {alreadyOwned ? (
-                        <button
-                          className="public-cta-btn"
-                          onClick={() => {
-                            void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-                            navigate({ to: prototypeHomeRouteTo() });
-                          }}
-                        >
-                          View in my Harvous
-                        </button>
-                      ) : (
-                        <button
-                          className="public-cta-btn"
-                          onClick={handleAddToHarvous}
-                          disabled={addSharedThreadMutation.isPending}
-                        >
-                          {addSharedThreadMutation.isPending ? 'Adding…' : 'Add to my Harvous'}
-                        </button>
-                      )}
-                    </div>
                   </div>
 
-                  {/* Closing kicker — the shared note's, so both pages end the same way. */}
-                  <div className="public-footer public-footer--rich">
-                    <span className="public-footer__tag">
-                      This was created in Harvous. Start creating your own study Bible.{' '}
-                      <a
-                        href="https://harvous.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="public-footer__cta"
-                      >
-                        Try free →
-                      </a>
-                    </span>
-                  </div>
-                </>
+                  <PublicSharedFooter />
+                </div>
               </SubtleContentMount>
             )}
           </div>
         </div>
+
+        {thread && !plan && !error ? (
+          <PublicSharedCtaBar
+            toast={{ message: toastMessage, type: toastType, visible: toastVisible }}
+            alreadyOwned={alreadyOwned}
+            pending={addSharedThreadMutation.isPending}
+            onAdd={handleAddToHarvous}
+            onView={() => {
+              void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+              navigate({ to: prototypeHomeRouteTo() });
+            }}
+          />
+        ) : null}
       </div>
     </>
   );

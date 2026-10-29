@@ -1,14 +1,10 @@
 /**
  * Global Haptics Handler for All Interactive Elements
  *
- * Provides haptic feedback for all tappable elements based on shadow depth.
- * Intensity levels correspond to visual depth:
- * - Light (10ms): Elements with no/minimal shadows
- * - Medium (20ms): Elements with medium shadows (-4px inset)
- * - Strong (30ms): Elements with heavy shadows (-6px to -8px inset + outer)
+ * A light selection tick when a choice control changes. Outcome haptics (success, error)
+ * are fired by the app itself through src/utils/haptics.ts.
  *
- * Uses touchstart in capture phase to fire BEFORE React's synthetic event
- * system can intercept or stopPropagation on events.
+ * Fires on click (a completed tap) for choice controls only; see CHOICE_SELECTOR.
  */
 
 (function() {
@@ -17,7 +13,9 @@
   // Check if device is mobile (iOS/Android) to prevent console errors on desktop
   function isMobileDevice() {
     if (typeof navigator === 'undefined') return false;
-    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    // iPadOS reports a Mac user agent; the touch screen gives it away.
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+      (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   }
 
   // Early bail on desktop — don't register any listeners
@@ -69,119 +67,41 @@
     }
   }
 
-  // Classify an element and return the haptic intensity (0 = no haptic)
+  /*
+   * Which taps get a tick.
+   *
+   * This used to buzz on touchstart for nearly every button, link and card, so starting a
+   * scroll on a row buzzed and every tap felt the same. Native iOS gives a selection tick
+   * when a choice *changes* — a toggle, a segment, a switch — and saves the stronger feel
+   * for outcomes, which the app fires itself (haptics.success / haptics.error in
+   * src/utils/haptics.ts). So: click, not touchstart, and only for choice controls.
+   */
+  var CHOICE_SELECTOR = [
+    '[role="switch"]',
+    '[role="radio"]',
+    '[role="tab"]',
+    '[role="menuitemradio"]',
+    '[role="menuitemcheckbox"]',
+    'button[aria-pressed]',
+    'input[type="checkbox"]',
+    'input[type="radio"]',
+    '.proto-toolbar-seg__btn',
+  ].join(', ');
+
   function classifyTarget(target) {
     if (!target || !target.closest) return 0;
-
-    // Strong haptic (30ms): Heavy shadow elements
-    if (target.closest('.card-thread, .card-thread-container, button.btn--lg, button.btn-cta, button[data-outer-shadow], .btn-chonk')) {
-      return 30;
-    }
-
-    // Medium haptic (20ms): Medium shadow elements
-    if (target.closest('button.btn--sm, .card-feat-container, .space-switcher-anchor__toggle')) {
-      return 20;
-    }
-
-    // Mobile nav space-switcher main button (medium)
-    var navLink = target.closest('.nav-link');
-    if (navLink) {
-      var inMobileDropdown = navLink.closest('.mobile-nav__dropdown-wrapper');
-      if (inMobileDropdown && navLink.closest('.space-switcher-anchor') && !target.closest('.space-switcher-anchor__toggle')) {
-        return 20;
-      }
-    }
-
-    // Fallback space-switcher anchor check
-    var mobileDropdownWrapper = target.closest('.mobile-nav__dropdown-wrapper');
-    if (mobileDropdownWrapper && target.closest('.space-switcher-anchor') && !target.closest('.space-switcher-anchor__toggle')) {
-      return 20;
-    }
-
-    // SpaceButton in space-switcher-anchor context (medium)
-    var spaceButton = target.closest('.space-button, .space-btn');
-    if (spaceButton && spaceButton.closest('.space-switcher-anchor')) {
-      return 20;
-    }
-    // nav-link inside space-switcher-anchor (desktop, medium)
-    if (navLink && navLink.closest('.space-switcher-anchor')) {
-      return 20;
-    }
-
-    // Light haptic (10ms): Minimal shadow elements
-    if (target.closest('.card-note-container, .card-note, button.btn-action, button.btn-animate-squish, .menu-item, .tab-nav__button')) {
-      return 10;
-    }
-
-    // Space buttons outside switcher (light)
-    if (spaceButton && !spaceButton.closest('.space-switcher-anchor')) {
-      return 10;
-    }
-
-    // Space switcher dropdown items (light)
-    if (target.closest('.space-switcher-dropdown__item, .space-switcher-dropdown__close-btn')) {
-      return 10;
-    }
-
-    // Navigation elements (light)
-    if (target.closest('.nav-link, .nav-link--shrink, .nav-item-container, .mobile-nav__search-btn, .mobile-nav__space-panel-item')) {
-      return 10;
-    }
-
-    // Internal links (light)
-    if (target.closest('a[href^="/"]') && !target.closest('a[href^="//"]')) {
-      return 10;
-    }
-
-    // ShareSettingsModal buttons (light)
-    if (target.closest('.share-settings-modal__access-button, .share-settings-modal__copy-button, .share-settings-modal__refresh-button, .share-settings-modal__refresh-buttons button')) {
-      return 10;
-    }
-
-    // Button group toggles (medium; align with space-button feel)
-    if (target.closest('.button-group__button')) {
-      return 20;
-    }
-
-    // Icon / overlay action buttons (light)
-    if (target.closest('.action-button-hover')) {
-      return 10;
-    }
-
-    // Role button (e.g. template picker, combobox triggers) (light)
-    if (target.closest('[role="button"]')) {
-      return 10;
-    }
-
-    // Panel footer controls (light; catch-all for footer buttons)
-    if (target.closest('.panel__footer--buttons button')) {
-      return 10;
-    }
-
-    // Fallback: any non-disabled button (light)
-    var btn = target.closest('button');
-    if (btn && !btn.disabled) {
-      return 10;
-    }
-
-    return 0;
+    var el = target.closest(CHOICE_SELECTOR);
+    if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return 0;
+    return 10;
   }
 
-  // Handler: fires on touchstart in capture phase.
-  // This runs BEFORE React's synthetic event system processes the event,
-  // so stopPropagation() in React handlers cannot block it.
-  function handleTouchStart(e) {
-    var touch = e.touches && e.touches[0];
-    if (!touch) return;
-    var target = document.elementFromPoint(touch.clientX, touch.clientY) || e.target;
-    var intensity = classifyTarget(target);
-    if (intensity > 0) {
-      vibrate(intensity);
-    }
+  // Click fires once the tap completes (never for a scroll or a cancelled press). Capture
+  // phase so a React handler's stopPropagation cannot swallow it.
+  function handleClick(e) {
+    var intensity = classifyTarget(e.target);
+    if (intensity > 0) vibrate(intensity);
   }
 
-  // Register on document in capture phase — this fires before any React handler
-  // passive: true so we never block scrolling
-  document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
+  document.addEventListener('click', handleClick, { passive: true, capture: true });
 
 })();
