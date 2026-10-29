@@ -29,6 +29,13 @@ import {
   legacySpaceNoteRedirectSearch,
   type PrototypeNoteSearch,
 } from './router-search';
+import { ENTER_SPACE_PARAM } from '@/utils/enter-space-link';
+
+/** Search for Home that puts the reader in `spaceId`; bare id, as `enterSpaceUrl` writes it. */
+export function enterSpaceSearch(spaceId: string): Record<string, string> {
+  const bare = spaceId.startsWith('space_') ? spaceId.slice('space_'.length) : spaceId;
+  return { [ENTER_SPACE_PARAM]: bare };
+}
 
 export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
   const onDedicatedHost = isDedicatedPrototypeHost();
@@ -191,9 +198,10 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
   const prototypeLegacySpaceRedirectRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'space/$spaceId',
-    beforeLoad: () => {
+    beforeLoad: ({ params }) => {
       throw redirect({
         to: prototypeHomeRouteTo(),
+        search: enterSpaceSearch(params.spaceId),
         replace: true,
       });
     },

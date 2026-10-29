@@ -7,7 +7,8 @@
     var(--study-dock-paper-width) + 2 * var(--study-dock-paper-overhang) + 24px
   );
   --study-dock-accent: #676f84;
-  --study-dock-scroll-max-height: 280px;
+  /* dvh cap so a landscape phone (≈390pt tall) keeps room for the toolbar and the card's own chrome. */
+  --study-dock-scroll-max-height: min(280px, 35dvh);
   /* Native spring approximations: expand 0.32/0.82, layer 0.32/0.72, respond 0.28/0.82 */
   --study-dock-motion-spring: 320ms cubic-bezier(0.34, 1.12, 0.64, 1);
   --study-dock-motion-spring-layer: 320ms cubic-bezier(0.34, 1.08, 0.64, 1);

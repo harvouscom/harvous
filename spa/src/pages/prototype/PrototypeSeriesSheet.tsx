@@ -20,6 +20,7 @@
  * Same presentation split as the member sheet: anchored popover on pointer
  * devices, drawer on touch.
  */
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -232,6 +233,14 @@ export default function PrototypeSeriesSheet({
   const removable = services.filter(
     (s) => !s.reference && s.title.trim() === series.title.trim(),
   );
+
+  // Desktop popover: focus moves in, Tab stays inside, Escape closes, and focus returns to
+  // whatever opened it.
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
 
   const content = (
     <>

@@ -23,6 +23,7 @@ import { useDismissOnOutside } from '../../../hooks/usePopoverDismiss';
 import PrototypeSearchInput from '../components/PrototypeSearchInput';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { useCoarsePointer } from '../../../lib/use-coarse-pointer';
+import { moveListRowFocus, SIDEBAR_LIST_ROW_SELECTOR } from '../../../hooks/useListKeyboardNavigation';
 import PrototypeLibraryPanel from './PrototypeLibraryPanel';
 import PrototypeLibraryBody from './PrototypeLibraryBody';
 import PrototypeLibraryTabs from './PrototypeLibraryTabs';
@@ -258,6 +259,25 @@ export default function PrototypeLibraryPanelHost({
            * shared flag, and the chrome stays untouched.
            */
           onKeyDown={(event) => {
+            /* ↓ steps from the field into the results, and Enter opens the top one: the
+               field has focus when the panel opens, and without these the list below it
+               was unreachable from the keyboard except by Tab-walking the tabs first. */
+            if (event.key === 'ArrowDown' || (event.key === 'Enter' && search.input.trim())) {
+              const body = event.currentTarget
+                .closest('.proto-library-panel, .proto-library-sheet')
+                ?.querySelector<HTMLElement>('.proto-library-panel__body');
+              if (!body) return;
+              if (event.key === 'ArrowDown') {
+                if (moveListRowFocus(body, 1, { jump: 'home' })) event.preventDefault();
+                return;
+              }
+              const first = body.querySelector<HTMLElement>(SIDEBAR_LIST_ROW_SELECTOR);
+              if (first) {
+                event.preventDefault();
+                first.click();
+              }
+              return;
+            }
             if (event.key !== 'Escape') return;
             if (!search.input.trim()) return;
             event.preventDefault();

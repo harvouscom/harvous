@@ -12,6 +12,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
+import { useInAppBackTarget } from '../../lib/in-app-back';
 import { toast } from '@/utils/toast';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import ShellModeSegmented from './ShellModeSegmented';
@@ -178,6 +179,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const navigate = useNavigate();
   // Select primitives only — object literals from `select` cause max-update-depth loops.
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const backTarget = useInAppBackTarget(pathname);
   const spaceSearchParam = useRouterState({
     select: (s) => {
       const search = s.location.search as Record<string, unknown>;
@@ -514,6 +516,18 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   return (
     <div className="proto-toolbar-inner">
       <div className="proto-toolbar-left">
+        {/* Back to the note or chapter you came from — the installed app has no browser back. */}
+        {backTarget ? (
+          <button
+            type="button"
+            className="proto-toolbar-icon-btn"
+            onClick={() => window.history.back()}
+            title="Back"
+            aria-label="Back to the previous page"
+          >
+            <Icon name="caret-left" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
+          </button>
+        ) : null}
         {isUnified && hasRail ? (
           <PrototypeToolbarShortcutItem shortcut="S" showShortcut={showShiftHints}>
             <button

@@ -47,6 +47,7 @@ import { noteParamSlug } from './proto-route-slugs';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeStudyFeedPart from './PrototypeStudyFeedPart';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
+import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import { useHistoryWindowStatus } from '../../hooks/queries/useHistoryWindowStatus';
 import { lockedEdgeLabel } from '../../lib/history-window-copy';
 import {
@@ -153,6 +154,8 @@ export default function PrototypeStudyFeedPage() {
     isFetchingNextPage,
     fetchNextPage,
     lockedBefore,
+    isError,
+    refetch,
   } = useStudyFeed(scope);
 
   const libraryNav = useLibraryPanelNav();
@@ -456,12 +459,22 @@ export default function PrototypeStudyFeedPage() {
 
   /* Arrow keys step the stack, so a keyboard reader is not forced through every row of a
      sheet to reach the day behind it. Ignored while typing — on this surface that means the
-     Library panel's search or another search field. */
+     Library panel's search or another search field — and whenever focus sits in something
+     else that owns the arrows: the Library panel's lists, a menu, a dialog. A key one of those
+     already handled (`defaultPrevented`) is theirs too, or the day flips behind the menu. */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+      if (
+        target?.closest(
+          '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], #proto-library-panel, .proto-library-sheet',
+        )
+      ) {
+        return;
+      }
       if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
         event.preventDefault();
         goBack();
@@ -602,6 +615,21 @@ export default function PrototypeStudyFeedPage() {
       composeLead,
     ],
   );
+
+  /* Only when there is nothing to show: a later page failing keeps the days already here. An
+     empty sheet after a failed load would claim you have done nothing, which is worse than
+     saying the load failed. */
+  if (isError && items.length === 0) {
+    return (
+      <PrototypePaneEmptyState
+        icon="circle-exclamation"
+        role="alert"
+        title="Couldn't load your study"
+        description="Check your connection and try again."
+        action={{ label: 'Try again', onClick: () => void refetch() }}
+      />
+    );
+  }
 
   if (isPending || !home.contentReady) {
     return <ProtoSpaceLoading label="Loading your study" />;
@@ -918,12 +946,18 @@ export default function PrototypeStudyFeedPage() {
             * `data-scrolled` drives the top fade — see `.proto-feed-sheet__body` in CSS. Set
             * straight on the element rather than through state: this page is large, and a
             * re-render on every scroll event would be a high price for one attribute.
+            *
+            * The fade's depth follows the scroll up to its full 28px. Switched on whole at 1px,
+            * the first row sat half-faded under a scroll nobody could see (iOS rubber-banding
+            * leaves scrollTop at a pixel or two). Inline, so it beats the attribute rule.
             */}
           <div
             className="proto-feed-sheet__body"
             onScroll={(event) => {
               const el = event.currentTarget;
-              el.toggleAttribute('data-scrolled', el.scrollTop > 0);
+              const top = Math.max(0, el.scrollTop);
+              el.toggleAttribute('data-scrolled', top > 0);
+              el.style.setProperty('--proto-feed-fade-top', `${Math.min(top, 28)}px`);
             }}
           >
             {/*

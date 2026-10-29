@@ -4,6 +4,7 @@
  * Chip tabs: All → Included → Saved → {space} (Church/org later).
  * Saved / space rows: ⋮ Edit / Delete (edit closes browse → inspector panel).
  */
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -617,6 +618,14 @@ export default function PrototypeBrowseTemplatesSheet({
           : scopeTab === 'discover'
             ? 'Discover'
             : 'Included';
+
+  // Desktop popover: focus moves in, Tab stays inside, Escape closes, and focus returns to
+  // whatever opened it.
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
 
   const content = (
     <>

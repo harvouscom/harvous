@@ -1027,9 +1027,9 @@ function PrototypeSpaceHubLive() {
   if (dashboardHasError) {
     return frame(
       <div className="proto-shared-thread-state" role="alert">
-        <p>Could not load this shared space.</p>
+        <p>Couldn’t load this shared space.</p>
         <button type="button" className="proto-shared-thread-action" onClick={retryDashboard}>
-          Retry
+          Try again
         </button>
       </div>,
     );

@@ -16,6 +16,7 @@
  * in one transaction, and the queries that show the Current Thread refresh
  * from the review mutation, so the hub behind this sheet updates itself.
  */
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -486,6 +487,14 @@ export default function PrototypeSpaceStudySuggestionsSheet({
         </div>
       </section>
     ) : null;
+
+  // Desktop popover: focus moves in, Tab stays inside, Escape closes, and focus returns to
+  // whatever opened it.
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
 
   const content = (
     <>
