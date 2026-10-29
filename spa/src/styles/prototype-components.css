@@ -4969,6 +4969,24 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   font-weight: 500;
 }
 
+/* An inline "Try again" inside a caption (a failed search). A button, styled as the
+   quiet link it reads as. */
+.proto-text-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--pds-accent);
+  cursor: pointer;
+}
+
+.proto-text-link-btn:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* ─── Scripture chip (sidebar badge / inline) ────────────────────────────── */
 
 /* ─── Connect note sheet (prototype) ─────────────────────────────────────── */
@@ -7275,8 +7293,19 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
    the stack in flow layout instead of the floating stack. */
 .proto-home-loading {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   padding: 24px 14px 14px;
+}
+
+.proto-home-loading__offline {
+  margin: 0;
+  max-width: 28ch;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--pds-text-secondary);
 }
 
 /*

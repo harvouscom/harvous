@@ -678,7 +678,7 @@ export default function PrototypeBibleReaderPane({
   referenceRequest,
   landRequestKey,
 }: PrototypeBibleReaderPaneProps) {
-  const { data, isLoading, isError, error } = usePrototypeBibleChapter(book, chapter, translation);
+  const { data, isLoading, isError, error, refetch } = usePrototypeBibleChapter(book, chapter, translation);
   const catholic = useIsCatholic();
   const printedLabels = usePrintedVerseLabels(book, chapter, translation);
   const comparePrintedLabels = usePrintedVerseLabels(book, chapter, compare?.translation);
@@ -1905,6 +1905,7 @@ export default function PrototypeBibleReaderPane({
                 ? 'Pick a chapter from this book to keep reading.'
                 : 'Check your connection and try again.'
           }
+          action={missing || outOfRange ? undefined : { label: 'Try again', onClick: () => void refetch() }}
         />
       </div>
     );

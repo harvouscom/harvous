@@ -7,6 +7,7 @@
  * panel's drill into `LibraryPanelView` is that every level is addressable from outside
  * — Activity's "3 notes in Romans" chip has to be able to name where it lands.
  */
+import ProtoRetryAction from '../ProtoRetryAction';
 import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
@@ -77,13 +78,14 @@ export default function PrototypeLibraryScriptureView({ drill }: { drill: Script
     return sortDrillNoteBriefsByLastUpdated(passage?.notes ?? [], data.notesById);
   }, [drill, book, data.notesById]);
 
-  if (scriptureQuery.isLoading) return <ProtoSpaceLoading label="Loading scripture" />;
+  if (scriptureQuery.isLoading) return <ProtoSpaceLoading label="Loading Scripture" />;
   if (scriptureQuery.isError) {
     return (
       <PrototypeListEmptyState
         iconName="book-open"
-        title="Could not load Scripture"
-        description="The scripture index did not load. Try again in a moment."
+        title="Couldn’t load Scripture"
+        description="The Scripture index didn’t load."
+        action={<ProtoRetryAction onRetry={() => void scriptureQuery.refetch()} />}
       />
     );
   }
