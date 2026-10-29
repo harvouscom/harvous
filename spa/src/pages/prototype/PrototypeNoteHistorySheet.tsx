@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -341,6 +342,14 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
       {COPY.restore}
     </button>
   ) : null;
+
+  // Desktop popover: focus moves in, Tab stays inside, Escape closes, and focus returns to
+  // whatever opened it.
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
 
   const content = (
     <div className="proto-note-history" data-layout={asSheet ? 'stacked' : 'split'}>

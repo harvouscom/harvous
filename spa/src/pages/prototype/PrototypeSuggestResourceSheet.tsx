@@ -10,6 +10,7 @@
  * to be discovered: someone should know their name goes with it before they
  * press the button, not after.
  */
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -126,6 +127,14 @@ export default function PrototypeSuggestResourceSheet({
       },
     );
   };
+
+  // Desktop popover: focus moves in, Tab stays inside, Escape closes, and focus returns to
+  // whatever opened it.
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
 
   const content = (
     <>

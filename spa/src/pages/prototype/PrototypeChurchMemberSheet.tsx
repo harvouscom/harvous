@@ -13,6 +13,7 @@
  * (demoting yourself mid-request strands the church) and the last admin's
  * (a church with no admin can't get back into its own roster).
  */
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -82,6 +83,14 @@ export default function PrototypeChurchMemberSheet({
   useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation && !pending);
 
   if (!member) return null;
+
+  // Desktop popover: focus moves in, Tab stays inside, Escape closes, and focus returns to
+  // whatever opened it.
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
 
   const content = (
     <>
