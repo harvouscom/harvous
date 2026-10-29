@@ -25,6 +25,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import Icon from '@/components/react/Icon';
+import { passageSelectionText } from '@/utils/passage-selection-text';
 import {
   nextVerseSelection,
   type ReaderColumn,
@@ -1438,7 +1439,9 @@ export default function PrototypeBibleReaderPane({
       }
       const side: ReaderColumn =
         anchorColumn.dataset.readerColumn === 'compare' ? 'compare' : 'primary';
-      const text = sel.toString().trim();
+      // Verse numerals and the screen-reader-only labels inside each verse are not part of the
+      // phrase; `toString()` swept them into the excerpt whenever a drag crossed a verse.
+      const text = passageSelectionText(range, anchorColumn, 'read') || sel.toString().trim();
       if (!text) {
         setDragText(null);
         return;

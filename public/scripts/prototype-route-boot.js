@@ -314,6 +314,20 @@
     return preset ? imagePresetUrl(preset) : '';
   }
 
+  /* Boot twin of syncThemeColorToCanvas (spa/src/lib/prototype-background.ts): a custom
+     canvas colour becomes the theme-color for the scheme on screen, so the iOS edge effect
+     under the status bar and over the home indicator doesn't fade cream into that colour. */
+  function syncThemeColorToCanvas(hex) {
+    if (!/^(#[0-9a-f]{3,8}|rgba?\(|hsla?\()/i.test(hex || '')) return;
+    var forced = root.getAttribute('data-color-scheme');
+    var activeSlot = isDarkAppearance() ? 'dark' : 'light';
+    var metas = document.querySelectorAll('meta[name="theme-color"][media]');
+    for (var m = 0; m < metas.length; m++) {
+      var slot = (metas[m].getAttribute('media') || '').indexOf('dark') >= 0 ? 'dark' : 'light';
+      if (forced || slot === activeSlot) metas[m].setAttribute('content', hex);
+    }
+  }
+
   function applyBackground(bg) {
     var style = root.style;
     root.classList.remove(WALLPAPER_CLASS, WALLPAPER_IMAGE_CLASS, WALLPAPER_COLOR_CLASS);
@@ -328,6 +342,7 @@
       style.setProperty('--pds-canvas-bg', bg.value);
       style.removeProperty('--pds-canvas-image');
       root.classList.add(WALLPAPER_COLOR_CLASS);
+      syncThemeColorToCanvas(bg.value);
       return;
     }
 

@@ -21,7 +21,7 @@ import { getMarkRange } from '@tiptap/core';
 import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { DOMSerializer } from '@tiptap/pm/model';
 import { NoteLink } from './TiptapNoteLink';
-import { ScripturePill } from './TiptapScripturePill';
+import { ScripturePill, pillDeleteKeyForInputType } from './TiptapScripturePill';
 import { MentionPill } from './TiptapMentionPill';
 import MentionPickerPanel, {
   cycleMentionKindFilter,
@@ -72,7 +72,7 @@ import {
   type FormatToolbarSelectionRange,
 } from '@/utils/prototype-format-toolbar-selection';
 import { flushCoalescedNoteHtmlOnUnmount } from '@/utils/prototype-note-content-propagation';
-import { scrollCaretClearOfFormatBar } from '@/utils/caret-clear-of-format-bar';
+import { repaintNativeCaretAfterScroll, scrollCaretClearOfFormatBar } from '@/utils/caret-clear-of-format-bar';
 import { isTiptapViewReady } from '@/utils/tiptap-helpers';
 import ScripturePillDeleteConfirm from './ScripturePillDeleteConfirm';
 
@@ -4415,6 +4415,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           : null;
     if (el && typeof el.scrollIntoView === 'function') {
       el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+      repaintNativeCaretAfterScroll(editorInstance.view);
     }
   };
 
@@ -4745,11 +4746,30 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         style: 'font-family: var(--font-sans); font-size: 16px; font-weight: 500; line-height: 1.6; color: var(--color-deep-grey); min-height: 200px;',
         tabindex: (tabindex || 0).toString(),
       },
-      // NOTE: beforeinput handler removed - using plugin's handleTextInput instead
-      // This prevents conflicts between DOM-level and ProseMirror-level handlers
+      // Text input goes through the plugins' handleTextInput, not here. The one DOM event taken
+      // is a delete-type beforeinput, and only to give the pill delete handlers a second chance.
       handleDOMEvents: {
-        // Let ProseMirror handle all DOM events naturally
-        // This ensures cursor placement works correctly on tap
+        // iOS can delete without a keydown the pill handlers recognise: the soft keyboard's
+        // Backspace may report `Unidentified`, and a held Backspace deletes by word. Route the
+        // delete input types through the same Backspace/Delete handlers so a pill is edited or
+        // confirmed the same way whichever path the deletion took. When keydown already handled
+        // it, it called preventDefault and this event never fires; when keydown declined, the
+        // handlers decline here too. Never during composition, which owns its own input.
+        beforeinput: (view, event): boolean => {
+          const inputEvent = event as InputEvent;
+          if (view.composing) return false;
+          const key = pillDeleteKeyForInputType(inputEvent.inputType);
+          if (!key) return false;
+          const asKey = { key, preventDefault: () => inputEvent.preventDefault() } as unknown as KeyboardEvent;
+          if (
+            key === 'Backspace' &&
+            editorChromeModeRef.current === 'prototypeNative' &&
+            tryEditScripturePillOnBackspace(editor, asKey, view, deleteConfirmPillRef)
+          ) {
+            return true;
+          }
+          return tryHandleScripturePillDeleteKey(editor, asKey, view, deleteConfirmPillRef, setDeleteConfirmPill);
+        },
       },
       handleClick: (view, _pos, _event) => {
         if (isDocTextEmpty(view.state.doc)) {
@@ -10229,14 +10249,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           }
 
                           const tr = editor.state.tr;
-                          tr.replaceWith(from, to, editor.state.schema.text(normRef, [
-                            markType.create({
-                              ...existingMark.attrs,
-                              reference: normRef,
-                              translation: nextTranslation,
-                              pillAccent,
-                            }),
-                          ]));
+                          const nextMark = markType.create({
+                            ...existingMark.attrs,
+                            reference: normRef,
+                            translation: nextTranslation,
+                            pillAccent,
+                          });
+                          if (refUnchanged) {
+                            // Only the translation or accent moved: keep the words the reader
+                            // wrote. Rewriting the text to `normRef` turned a chapter pill like
+                            // "Acts 21" into its expanded form just for switching NLT to ESV.
+                            tr.removeMark(from, to, markType);
+                            tr.addMark(from, to, nextMark);
+                          } else {
+                            tr.replaceWith(from, to, editor.state.schema.text(normRef, [nextMark]));
+                          }
                           tr.setMeta('addToHistory', false);
                           // The rewrite moves the caret; suppress the selectionUpdate
                           // collapse handler for this one programmatic change so editing the
