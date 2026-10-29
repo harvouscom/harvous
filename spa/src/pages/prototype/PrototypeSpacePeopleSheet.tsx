@@ -398,9 +398,9 @@ export default function PrototypeSpacePeopleSheet({
       <ProtoSpaceLoading label="Loading people" />
     ) : memberListState === 'error' ? (
       <div className="proto-shared-thread-state" role="alert">
-        <p>Could not load people.</p>
+        <p>Couldn’t load people.</p>
         <button type="button" className="proto-shared-thread-action" onClick={() => void membersQuery.refetch()}>
-          Retry
+          Try again
         </button>
       </div>
     ) : (
@@ -601,9 +601,9 @@ export default function PrototypeSpacePeopleSheet({
         })}
         {invitesQuery.isError ? (
           <div className="proto-shared-thread-state" role="alert">
-            <p>Could not load invite links.</p>
+            <p>Couldn’t load invite links.</p>
             <button type="button" className="proto-shared-thread-action" onClick={() => void invitesQuery.refetch()}>
-              Retry
+              Try again
             </button>
           </div>
         ) : invitesQuery.isLoading ? (

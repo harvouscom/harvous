@@ -2790,21 +2790,20 @@ export default function PrototypeNotePage() {
               description={
                 notFound
                   ? 'It may have been deleted, moved, or removed from this space.'
-                  : 'Your current context is unchanged. Retry when you’re ready.'
+                  : 'Your current context is unchanged. Try again when you’re ready.'
               }
               role="alert"
-              action={{
-                label: 'Retry',
-                onClick: () => {
-                  void refetchNote();
-                },
-              }}
-              secondaryAction={{
-                label: 'Go to Home',
-                onClick: () => {
-                  void navigate({ to: prototypeHomeRouteTo() });
-                },
-              }}
+              /* A note that isn't there won't appear on a retry; Home is the way on. */
+              action={
+                notFound
+                  ? { label: 'Go to Home', onClick: () => void navigate({ to: prototypeHomeRouteTo() }) }
+                  : { label: 'Try again', onClick: () => void refetchNote() }
+              }
+              secondaryAction={
+                notFound
+                  ? { label: 'Try again', onClick: () => void refetchNote() }
+                  : { label: 'Go to Home', onClick: () => void navigate({ to: prototypeHomeRouteTo() }) }
+              }
             />
           </div>
         </PrototypeMainPaneShell>

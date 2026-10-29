@@ -1,4 +1,5 @@
 import { setPwaPromptLastDismissed } from '@/utils/pwa-prompt';
+import { isIOS } from '@/utils/platform-detect';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { extractIdFromPath } from '@/utils/url-helpers';
 import { ClerkProvider, useAuth, useUser } from '@clerk/clerk-react';
@@ -186,7 +187,7 @@ function IosPwaSheetOverlayInset() {
     const isPwa =
       window.matchMedia('(display-mode: standalone)').matches ||
       window.matchMedia('(display-mode: minimal-ui)').matches;
-    const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isIos = isIOS();
     if (!isPwa || !isIos) return undefined;
 
     document.documentElement.classList.add('ios-pwa');
@@ -611,7 +612,8 @@ function SpaToaster() {
 
   const checkViewport = useCallback(() => {
     const width = window.innerWidth;
-    setIsMobile(width < 1160);
+    // The shell's own phone/desktop line (899/900), so toasts switch where the layout does.
+    setIsMobile(width < 900);
     setIsSmallScreen(width < 800);
   }, []);
 

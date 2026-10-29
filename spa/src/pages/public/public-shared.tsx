@@ -136,3 +136,59 @@ export function PublicErrorState({
     </div>
   );
 }
+
+/**
+ * The bar under a shared note or thread: "Add to my Harvous" (or "View in my Harvous" once
+ * it is yours), with the add's status just above it. Its own row in the page's column, not
+ * an overlay, so it never sits on the last lines of what was shared.
+ */
+export function PublicSharedCtaBar({
+  toast,
+  alreadyOwned,
+  pending,
+  onAdd,
+  onView,
+}: {
+  toast: { message: string; type: 'success' | 'error' | 'info'; visible: boolean };
+  alreadyOwned: boolean;
+  pending: boolean;
+  onAdd: () => void;
+  onView: () => void;
+}) {
+  return (
+    <div className="public-shared__cta-bar">
+      <div className="public-shared__cta-inner">
+        <div
+          className={`public-toast public-toast--${toast.type}${toast.visible ? ' public-toast--visible' : ''}`}
+          role="status"
+          aria-live="polite"
+        >
+          {toast.message}
+        </div>
+        {alreadyOwned ? (
+          <button type="button" className="public-cta-btn" onClick={onView}>
+            View in my Harvous
+          </button>
+        ) : (
+          <button type="button" className="public-cta-btn" onClick={onAdd} disabled={pending}>
+            {pending ? 'Adding…' : 'Add to my Harvous'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The closing line under a shared note or thread. */
+export function PublicSharedFooter() {
+  return (
+    <div className="public-footer public-footer--rich public-shared__footer">
+      <span className="public-footer__tag">
+        Made in Harvous. Start your own study Bible.{' '}
+        <a href="https://harvous.com" target="_blank" rel="noopener noreferrer" className="public-footer__cta">
+          Try free →
+        </a>
+      </span>
+    </div>
+  );
+}

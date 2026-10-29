@@ -575,7 +575,7 @@
   color: var(--pds-text-secondary);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 899px) {
   .admin-reports__month-grid {
     grid-template-columns: 1fr;
   }

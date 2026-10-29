@@ -141,6 +141,63 @@ export function createDurableNoteAnchorFromHtml(input: {
   });
 }
 
+/** Put a client-side text snapshot into the same coordinates as {@link tipTapHtmlToCanonicalText}. */
+export function canonicalizeAnchorQuote(text: string): string {
+  return normalizeRenderedTextFragment(text)
+    .replace(/\n{2,}/g, '\n')
+    .replace(/^\n+|\n+$/g, '');
+}
+
+/**
+ * Create an anchor from a client's range *hint* plus the text it saw selected.
+ *
+ * The hint is not reliably a canonical-text offset: the note editor sends a ProseMirror
+ * position, which runs ahead of the text offset by about one per block before it (and further
+ * after blank lines, which canonical text collapses). Slicing the canonical text at that number
+ * saved a quote shifted right — "wor|ship" was stored as "ship? “”". So the hint is only
+ * trusted when it lands exactly on the selected text; otherwise the selected text is looked up,
+ * and the hint picks between repeats. A ProseMirror position is never less than the text offset
+ * of the same point, so a match at or before the hint is preferred.
+ *
+ * This is creation only. Re-anchoring an existing anchor never picks a nearest match (see
+ * {@link resolveDurableNoteAnchorInText}).
+ *
+ * Throws RangeError when the selected text is not in the content at all, as the range
+ * constructor does for an empty or out-of-bounds range.
+ */
+export function createDurableNoteAnchorFromHint(input: {
+  html: string;
+  hintStart: number;
+  hintLength: number;
+  quote: string | null;
+  contextLength?: number;
+}): DurableNoteAnchor {
+  const text = tipTapHtmlToCanonicalText(input.html);
+  const quote = input.quote ? canonicalizeAnchorQuote(input.quote) : '';
+  const hintEnd = input.hintStart + input.hintLength;
+  if (!quote || text.slice(input.hintStart, hintEnd) === quote) {
+    return createDurableNoteAnchorFromText({
+      text,
+      start: input.hintStart,
+      end: hintEnd,
+      contextLength: input.contextLength,
+    });
+  }
+  const starts = allQuoteStarts(text, quote);
+  if (starts.length === 0) throw new RangeError('Selected text is not in the note content');
+  const atOrBefore = starts.filter((s) => s <= input.hintStart);
+  const pool = atOrBefore.length > 0 ? atOrBefore : starts;
+  const start = pool.reduce((best, s) =>
+    Math.abs(s - input.hintStart) < Math.abs(best - input.hintStart) ? s : best,
+  );
+  return createDurableNoteAnchorFromText({
+    text,
+    start,
+    end: start + quote.length,
+    contextLength: input.contextLength,
+  });
+}
+
 function allQuoteStarts(content: string, quote: string): number[] {
   const starts: number[] = [];
   let fromIndex = 0;

@@ -33,6 +33,7 @@ import {
   discoverTopicIcon,
 } from './discover-display';
 import { PrototypeListEmptyState } from './design-system';
+import ProtoRetryAction from './ProtoRetryAction';
 import { toast } from '@/utils/toast';
 import {
   DISCOVER_CATEGORIES,
@@ -333,6 +334,14 @@ export default function PrototypeExpandedDiscover({
         <div className="proto-planner__main">
         {listings.isLoading ? (
           <ProtoSpaceLoading label="Loading Discover" />
+        ) : listings.isError && rows.length === 0 ? (
+          /* A catalog that didn't load is not an empty one. */
+          <PrototypeListEmptyState
+            iconName="circle-exclamation"
+            title="Couldn’t load Discover"
+            description="The catalog didn’t load."
+            action={<ProtoRetryAction onRetry={() => void listings.refetch()} />}
+          />
         ) : rows.length === 0 ? (
           /* "Nothing shared yet" is only true of an empty catalog. With a kind
              selected it is the filter that is empty, and saying otherwise sends

@@ -44,7 +44,7 @@ import {
 } from '../utils/shared-study-thread-access';
 import { SpaceAccessError, requireSpaceAccess } from '../utils/space-access';
 import {
-  createDurableNoteAnchorFromHtml,
+  createDurableNoteAnchorFromHint,
   createDurableNoteAnchorFromText,
   resolveDurableNoteAnchorInText,
   tipTapHtmlToCanonicalText,
@@ -265,10 +265,11 @@ function durableAnchorValues(input: {
   try {
     let anchor;
     if (input.start != null && input.length != null) {
-      anchor = createDurableNoteAnchorFromHtml({
+      anchor = createDurableNoteAnchorFromHint({
         html: input.html,
-        start: input.start,
-        end: input.start + input.length,
+        hintStart: input.start,
+        hintLength: input.length,
+        quote: input.quote,
       });
     } else if (input.quote?.length) {
       const canonicalText = tipTapHtmlToCanonicalText(input.html);

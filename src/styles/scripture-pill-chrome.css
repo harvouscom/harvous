@@ -539,7 +539,33 @@ button .scripture-pill-chrome__trans-chip {
 }
 
 /* Mobile: sticky actions under the passage (study dock replaces format toolbar). */
+/*
+ * Touch selection footer (Highlight · Quote). It overlays the bottom of the passage rather
+ * than joining the flow: mounted in flow, it grew the bottom-anchored card the moment a
+ * selection began, so the text slid up under the finger mid-drag and the handle landed
+ * somewhere else, which is most of why selecting in a dock felt twitchy. The passage takes
+ * the footer's height as padding at the *end* of its scroll content, which moves nothing on
+ * screen but lets the last lines scroll clear of it.
+ */
+.scripture-pill-chrome .study-dock-card__body {
+  position: relative;
+}
+
+.scripture-pill-chrome__passage[data-passage-selecting] .scripture-pill-chrome__passage-inner {
+  padding-bottom: 68px;
+}
+
+/* A sideways handle drag must move the selection, not swipe to the next dock. */
+.study-dock-carousel__track:has(.scripture-pill-chrome__passage[data-passage-selecting]) {
+  overflow-x: hidden;
+}
+
 .scripture-pill-chrome__passage-mobile-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: stretch;
