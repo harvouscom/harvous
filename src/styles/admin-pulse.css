@@ -562,7 +562,7 @@
   flex-shrink: 0;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 899px) {
   .admin-pulse__canon-wrap {
     grid-template-columns: 1fr;
   }

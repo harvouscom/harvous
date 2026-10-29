@@ -7,6 +7,7 @@
  * own files; the remaining four are small enough to stay here beside the switch that picks
  * them.
  */
+import ProtoRetryAction from '../ProtoRetryAction';
 import { useMemo, useState, type ReactNode } from 'react';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
 import PrototypeLibrarySegmented from './PrototypeLibrarySegmented';
@@ -69,8 +70,9 @@ function NotesSection({ selection }: { selection: LibrarySelection }) {
     return (
       <PrototypeListEmptyState
         iconName="note-sticky"
-        title="Could not load notes"
-        description="Your notes did not load. Try again in a moment."
+        title="Couldn’t load notes"
+        description="Your notes didn’t load."
+        action={<ProtoRetryAction onRetry={data.retryNotes} />}
       />
     );
   }
@@ -113,8 +115,9 @@ function ThreadsSection({ selection }: { selection: LibrarySelection }) {
     return (
       <PrototypeListEmptyState
         iconName="arrow-right-arrow-left"
-        title="Could not load Threads"
-        description="Your Threads did not load. Try again in a moment."
+        title="Couldn’t load Threads"
+        description="Your Threads didn’t load."
+        action={<ProtoRetryAction onRetry={() => void query.refetch()} />}
       />
     );
   }
@@ -158,8 +161,9 @@ function HighlightsSection({ selection }: { selection: LibrarySelection }) {
     return (
       <PrototypeListEmptyState
         iconName="highlighter"
-        title="Could not load highlights"
-        description="Your highlights did not load. Try again in a moment."
+        title="Couldn’t load highlights"
+        description="Your highlights didn’t load."
+        action={<ProtoRetryAction onRetry={() => void highlightsQuery.refetch()} />}
       />
     );
   }

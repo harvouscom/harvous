@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
+import { isIOS as isAppleIOS } from '@/utils/platform-detect';
 import { isGuestNoteId } from '../../../spa/src/lib/guest-store';
 import { isGuestModeActive } from '../../../spa/src/lib/guest-session';
 import { TextSelection } from '@tiptap/pm/state';
@@ -1132,7 +1133,7 @@ export default function CardFullEditable({
     if (editorChromeMode === 'prototypeNative') return; // prototype: the shell owns this
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     if (!vv) return;
-    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isIOS = isAppleIOS();
 
     const clearOverrides = (element: HTMLDivElement | null) => {
       if (!element) return;

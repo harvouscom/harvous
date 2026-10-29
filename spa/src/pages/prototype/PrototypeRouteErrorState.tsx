@@ -83,7 +83,7 @@ export default function PrototypeRouteErrorState({ error, reset }: Props) {
             <p className="pds-list-preview proto-detail-card__text">{detail}</p>
           </div>
         }
-        title="Whoops..."
+        title="Something went wrong"
         description={
           <p className="proto-editor-empty-state__line">
             We&apos;ve noted this error and sent this anonymously to us to help fix ASAP.
@@ -92,7 +92,7 @@ export default function PrototypeRouteErrorState({ error, reset }: Props) {
         action={{ label: 'Try again', onClick: reset }}
         secondaryAction={{ label: 'Get support', onClick: () => setSupportOpen(true) }}
         tertiaryAction={{
-          label: 'Go home',
+          label: 'Go to Home',
           onClick: () => {
             void navigate({ to: prototypeHomeRouteTo() });
           },
