@@ -48,7 +48,7 @@ import { loadSharedStudyThread } from '../utils/study-thread-share';
 const route = new Hono();
 
 /** Cache-bust for iMessage / social after OG generator changes */
-const OG_IMAGE_VERSION = '7';
+const OG_IMAGE_VERSION = '8';
 
 /**
  * Referral OG image generation is disabled — returns 404, not a 200 text

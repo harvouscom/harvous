@@ -4,11 +4,13 @@ import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { noteUrlForCurrentSurface } from '@/utils/url-helpers';
 import { useAuth } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
-import CardFullEditable from '@/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
-import { api, APIError } from '../../lib/api';
+import { api } from '../../lib/api';
 import { useAddSharedNote } from '../../hooks/mutations/useAddSharedNote';
-import { PublicTopBar, PublicErrorState } from './public-shared';
+import ProtoReadOnlyNotePaper from '../prototype/ProtoReadOnlyNotePaper';
+import { PublicTopBar, PublicErrorState, PublicSharedCtaBar, PublicSharedFooter } from './public-shared';
+import '../../styles/prototype-editor.css';
+import '../../styles/public-shared-paper.css';
 import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 
 interface SharedNoteResponse {
@@ -135,103 +137,101 @@ export default function PublicSharedNotePage() {
     ? (() => { const d = new Date(note.createdAt); return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`; })()
     : '';
 
+  const byline = creator?.isHarvousOwned
+    ? 'A note from Harvous'
+    : `A note from ${creator?.displayName || 'a Harvous reader'}`;
+  const resourceUrl = resourceMetadata?.sourceUrl;
+
+  /*
+   * The note on the app's own read-only paper, and the page itself scrolls.
+   *
+   * It used to be the whole editor component (read-only) inside a tilted card that was itself
+   * the only scroller, with the button floating over the bottom of it: on a phone the note
+   * got a small window between two margins and a gradient, and the last lines sat under the
+   * button. Now the paper runs the width of the phone, the body reads like it does in the app,
+   * and "Add to my Harvous" lives in a bar of its own under the page.
+   */
   return (
     <>
       {note && <title>{`${note.title || 'Shared Note'} | Harvous`}</title>}
-      <div className={`public-page${ogCapture ? ' public-page--og-capture' : ''}`}>
+      <div
+        className={`public-page public-page--shared${ogCapture ? ' public-page--og-capture' : ''}`}
+      >
         <PublicTopBar isSignedIn={!!isSignedIn} />
 
         <div className="public-body">
-          <div className="public-content">
-            {isLoading ? (
+          {isLoading ? (
+            <div className="public-content">
               <div className="page-loading" />
-            ) : (error || !note) ? (
+            </div>
+          ) : (error || !note) ? (
+            <div className="public-content">
               <PublicErrorState
                 title="This note isn't available"
                 message="Hmm, we can't find this note. The link might have expired or the owner made it private."
               />
-            ) : (
-              <SubtleContentMount variant="fade">
-                <>
-                  {/* Eyebrow kicker — mirrors `/site/` "A LETTER FROM DEREK". */}
-                  <p className="public-creator">
-                    {creator?.isHarvousOwned
-                      ? 'A note from Harvous'
-                      : `A note from ${creator?.displayName || 'a Harvous reader'}`}
-                  </p>
+            </div>
+          ) : (
+            <SubtleContentMount variant="fade">
+              <div className="public-shared">
+                <p className="public-creator public-shared__byline">
+                  {byline}
+                  {formattedDate ? <span className="public-shared__date"> · {formattedDate}</span> : null}
+                </p>
 
-                  {/* Paper-stack — two background leaves fan out behind a main
-                      letter card. CSS-driven (see `.public-paper-stack` in
-                      `public-pages.css`); JSX just supplies the three siblings. */}
-                  <div className="public-paper-stack">
-                    <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
-                    <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
-                    <CardFullEditable
-                      title={note.title ?? ''}
-                      content={note.content ?? ''}
-                      date={formattedDate}
-                      noteId={note.id}
-                      noteType={note.noteType}
-                      version={scriptureMetadata?.translation}
-                      resourceTitle={resourceMetadata?.sourceTitle}
-                      resourceDescription={resourceMetadata?.sourceDescription}
-                      resourceImage={resourceMetadata?.sourceImage}
-                      resourceUrl={resourceMetadata?.sourceUrl}
-                      isEditable={false}
-                      isAuthenticated={!!isSignedIn}
-                      contentEncrypted={false}
-                      className="public-note-card"
-                      footer={
-                      <div className="public-card__cta">
-                        <div
-                          className={`public-toast public-toast--${toastType}${toastVisible ? ' public-toast--visible' : ''}`}
-                          style={{ textAlign: 'center', justifyContent: 'center' }}
-                        >
-                          {toastMessage}
-                        </div>
-                        {alreadyOwned ? (
-                          <button
-                            className="public-cta-btn"
-                            onClick={() => {
-                              void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-                              navigate({ to: prototypeHomeRouteTo() });
-                            }}
-                          >
-                            View in my Harvous
-                          </button>
-                        ) : (
-                          <button
-                            className="public-cta-btn"
-                            onClick={handleAddToHarvous}
-                            disabled={addSharedNoteMutation.isPending}
-                          >
-                            {addSharedNoteMutation.isPending ? 'Adding…' : 'Add to my Harvous'}
-                          </button>
-                        )}
-                      </div>
-                    }
-                  />
-                  </div>
-
-                  {/* Closing kicker */}
-                  <div className="public-footer public-footer--rich">
-                    <span className="public-footer__tag">
-                      This was created in Harvous. Start creating your own study Bible.{' '}
+                {/* `.public-paper-stack` is what the OG screenshotter waits for. The leaves
+                    only show on wide screens; on a phone the paper is the page. */}
+                <div className="public-paper-stack public-shared__stack">
+                  <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
+                  <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
+                  <div className="public-shared__sheet">
+                    {resourceUrl ? (
                       <a
-                        href="https://harvous.com"
+                        className="public-shared__resource"
+                        href={resourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="public-footer__cta"
                       >
-                        Try free →
+                        {resourceMetadata?.sourceImage ? (
+                          <img className="public-shared__resource-image" src={resourceMetadata.sourceImage} alt="" />
+                        ) : null}
+                        <span className="public-shared__resource-text">
+                          <span className="public-shared__resource-title">
+                            {resourceMetadata?.sourceTitle || resourceUrl}
+                          </span>
+                          {resourceMetadata?.sourceDescription ? (
+                            <span className="public-shared__resource-desc">{resourceMetadata.sourceDescription}</span>
+                          ) : null}
+                        </span>
                       </a>
-                    </span>
+                    ) : null}
+                    <ProtoReadOnlyNotePaper
+                      className="public-shared__paper"
+                      title={note.title || null}
+                      html={note.content ?? ''}
+                      displayPills={{ noteId: note.id, fallbackTranslation: scriptureMetadata?.translation ?? null }}
+                    />
                   </div>
-                </>
-              </SubtleContentMount>
-            )}
-          </div>
+                </div>
+
+                <PublicSharedFooter />
+              </div>
+            </SubtleContentMount>
+          )}
         </div>
+
+        {note && !error ? (
+          <PublicSharedCtaBar
+            toast={{ message: toastMessage, type: toastType, visible: toastVisible }}
+            alreadyOwned={alreadyOwned}
+            pending={addSharedNoteMutation.isPending}
+            onAdd={handleAddToHarvous}
+            onView={() => {
+              void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+              navigate({ to: prototypeHomeRouteTo() });
+            }}
+          />
+        ) : null}
       </div>
     </>
   );
