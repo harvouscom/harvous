@@ -1,7 +1,7 @@
 /**
  * Inline scripture pill accent surface — native ScripturePillAttachment parity.
  * Fill 7.5%, gradient 10%→6.5%, border 20%, neutral default tint.
- * Scoped to prototype editor + shared note pages (see selectors below).
+ * Scoped to the prototype editor surface (see selectors below).
  */
 
 :root {
@@ -14,10 +14,7 @@
 
 /* Surfaces that use native-parity pill accent styling */
 .proto-editor-surface .card-full-editable__content-html .scripture-pill,
-.proto-editor-surface .ProseMirror .scripture-pill,
-#shared-note-content .card-full-editable__content-html .scripture-pill,
-#shared-thread-content .card-full-editable__content-html .scripture-pill,
-.public-note-card .card-full-editable__content-html .scripture-pill {
+.proto-editor-surface .ProseMirror .scripture-pill {
   --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
   background-color: color-mix(in srgb, var(--scripture-pill-accent-tint) var(--scripture-pill-fill-mix), transparent);
   background-image: linear-gradient(
@@ -30,50 +27,32 @@
 }
 
 .proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
-.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="neutral"],
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"],
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="neutral"] {
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="neutral"] {
   --scripture-pill-accent-tint: var(--study-dock-scripture-pill-neutral);
 }
 
 .proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
-.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="warmAmber"],
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"],
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="warmAmber"] {
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="warmAmber"] {
   --scripture-pill-accent-tint: var(--study-dock-accent-warmAmber);
 }
 
 .proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
-.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="skyBlue"],
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"],
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="skyBlue"] {
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="skyBlue"] {
   --scripture-pill-accent-tint: var(--study-dock-accent-skyBlue);
 }
 
 .proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
-.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="violet"],
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"],
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="violet"] {
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="violet"] {
   --scripture-pill-accent-tint: var(--study-dock-accent-violet);
 }
 
 .proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
-.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="mintGreen"],
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"],
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="mintGreen"] {
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="mintGreen"] {
   --scripture-pill-accent-tint: var(--study-dock-accent-mintGreen);
 }
 
 .proto-editor-surface .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
-.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="coralRose"],
-#shared-note-content .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
-#shared-thread-content .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"],
-.public-note-card .card-full-editable__content-html .scripture-pill[data-pill-accent="coralRose"] {
+.proto-editor-surface .ProseMirror .scripture-pill[data-pill-accent="coralRose"] {
   --scripture-pill-accent-tint: var(--study-dock-accent-coralRose);
 }
 
@@ -91,10 +70,7 @@
 /* ─── Scripture passage quotes — accent border + deeper accent text ─────────── */
 
 .proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent],
-.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent],
-#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent],
-#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent],
-.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent] {
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent] {
   --scripture-quote-accent: var(--study-dock-scripture-pill-neutral);
   border-left: 2.5px solid var(--scripture-quote-accent);
   margin: 0 0 0.75em;
@@ -103,49 +79,31 @@
 }
 
 .proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="neutral"],
-.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="neutral"],
-#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="neutral"],
-#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="neutral"],
-.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="neutral"] {
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="neutral"] {
   --scripture-quote-accent: var(--study-dock-scripture-pill-neutral);
 }
 
 .proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="warmAmber"],
-.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="warmAmber"],
-#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="warmAmber"],
-#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="warmAmber"],
-.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="warmAmber"] {
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="warmAmber"] {
   --scripture-quote-accent: var(--study-dock-accent-warmAmber);
 }
 
 .proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="skyBlue"],
-.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="skyBlue"],
-#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="skyBlue"],
-#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="skyBlue"],
-.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="skyBlue"] {
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="skyBlue"] {
   --scripture-quote-accent: var(--study-dock-accent-skyBlue);
 }
 
 .proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="violet"],
-.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="violet"],
-#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="violet"],
-#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="violet"],
-.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="violet"] {
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="violet"] {
   --scripture-quote-accent: var(--study-dock-accent-violet);
 }
 
 .proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="mintGreen"],
-.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="mintGreen"],
-#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="mintGreen"],
-#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="mintGreen"],
-.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="mintGreen"] {
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="mintGreen"] {
   --scripture-quote-accent: var(--study-dock-accent-mintGreen);
 }
 
 .proto-editor-surface .ProseMirror blockquote[data-scripture-quote-accent="coralRose"],
-.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="coralRose"],
-#shared-note-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="coralRose"],
-#shared-thread-content .card-full-editable__content-html blockquote[data-scripture-quote-accent="coralRose"],
-.public-note-card .card-full-editable__content-html blockquote[data-scripture-quote-accent="coralRose"] {
+.proto-editor-surface .card-full-editable__content-html blockquote[data-scripture-quote-accent="coralRose"] {
   --scripture-quote-accent: var(--study-dock-accent-coralRose);
 }
