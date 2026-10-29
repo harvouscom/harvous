@@ -591,3 +591,20 @@ button .scripture-pill-chrome__trans-chip {
   white-space: nowrap;
   border: 0;
 }
+
+/*
+ * Expanded on a phone, the header said "Exodus 33:1-6 NLT" directly above a picker strip
+ * reading NLT · Exodus · 33 — the same reference twice, a line of the passage given away to
+ * it. The strip is the reference while the card is open, so the header's copy steps aside
+ * (kept for screen readers). Collapsed, the header is the only label and stays.
+ */
+@media (max-width: 899px) {
+  .scripture-pill-chrome .study-dock-card__card[data-expanded='true'] .scripture-pill-chrome__header-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
