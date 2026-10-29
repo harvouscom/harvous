@@ -21222,7 +21222,18 @@ button.pds-reader-inset__toggle {
   flex-direction: column;
   min-height: 0;
   transform-origin: top center;
-  transform: translateY(var(--pds-paper-stack-peek));
+  /*
+   * At rest the sheet is placed with `top`, not held there by a transform.
+   *
+   * It used to sit at `transform: translateY(peek)` for as long as it was up, and that put
+   * every note opened from the reader or a Home card under a live transform the whole time
+   * you typed in it. iOS paints the caret wrongly inside a transformed ancestor (it drew a
+   * line off from where text was landing). Moves still use `transform` — the enter, the flip,
+   * the nudge — but the sheet you are writing on is untransformed once it settles. `top`
+   * also ends the layer at the stack's foot instead of 40–48px past it.
+   */
+  top: var(--pds-paper-stack-peek);
+  transform: none;
   /*
    * Two moves on one element, on two properties, at two speeds.
    *
@@ -21487,8 +21498,9 @@ button.pds-reader-inset__toggle {
  * the band would be part canvas and only part paper.
  */
 .pds-paper-stack__sheet[data-stacked='false'] {
+  /* Measured from its resting `top` (the peek), so the parked sheet lands where it always did. */
   transform:
-    translateY(calc(-1 * var(--pds-editor-paper-inset-top)))
+    translateY(calc(-1 * var(--pds-editor-paper-inset-top) - var(--pds-paper-stack-peek)))
     scale(var(--pds-paper-stack-back-scale));
   z-index: var(--pds-z-base);
   pointer-events: none;
@@ -21676,8 +21688,9 @@ button.pds-reader-inset__toggle {
 }
 
 @keyframes pds-paper-stack-enter {
+  /* From its resting top, one sheet-height down is the stack's foot, where it always began. */
   from { transform: translateY(100%); }
-  to { transform: translateY(var(--pds-paper-stack-peek)); }
+  to { transform: none; }
 }
 
 @keyframes pds-paper-stack-recede {
