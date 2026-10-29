@@ -1479,6 +1479,37 @@ html.harvous-prototype-route .proto-shell__editor-chrome-row {
   }
 }
 
+/* iOS 26+ installed web apps draw a soft edge effect under the status bar and over the home
+   indicator, tinted from what sits at the screen's edges. Our edges were the canvas showing
+   between the screen and the frame's blurred glass, so the effect faded from the glass into
+   the canvas: a visible gradient band at the top and bottom. A solid, fixed strip of exactly
+   the canvas colour at each edge (also the theme-color, see syncThemeColorToCanvas) gives
+   WebKit one flat colour to extend. It sits behind the frame and matches the canvas, so on
+   screen it adds nothing. Image wallpapers are left alone, since a flat band would cover the
+   photo. */
+@media (max-width: 899px) {
+  html.ios-pwa.harvous-prototype-route:not(.harvous-proto-wallpaper-image) body::before,
+  html.ios-pwa.harvous-prototype-route:not(.harvous-proto-wallpaper-image) body::after {
+    content: '';
+    position: fixed;
+    left: 0;
+    right: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--pds-canvas-bg, var(--pds-canvas-default));
+  }
+
+  html.ios-pwa.harvous-prototype-route:not(.harvous-proto-wallpaper-image) body::before {
+    top: 0;
+    height: calc(env(safe-area-inset-top, 0px) + var(--pds-shell-frame-inset, 8px));
+  }
+
+  html.ios-pwa.harvous-prototype-route:not(.harvous-proto-wallpaper-image) body::after {
+    bottom: 0;
+    height: calc(env(safe-area-inset-bottom, 0px) + var(--pds-shell-frame-inset, 8px));
+  }
+}
+
 .proto-popover-shell__content {
   position: relative;
   z-index: 1;

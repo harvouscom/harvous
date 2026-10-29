@@ -37,10 +37,45 @@ export function scrollCaretClearOfFormatBar(view: EditorView): boolean {
   const visibleBottom = Math.min(scrollerRect.bottom, barTop) - CARET_CLEARANCE_PX;
   const visibleTop = scrollerRect.top + CARET_TOP_CLEARANCE_PX;
 
+  const before = scroller.scrollTop;
   if (caret.bottom > visibleBottom) {
     scroller.scrollTop += Math.ceil(caret.bottom - visibleBottom);
   } else if (caret.top < visibleTop) {
     scroller.scrollTop -= Math.ceil(visibleTop - caret.top);
   }
+  if (scroller.scrollTop !== before) repaintNativeCaretAfterScroll(view);
   return true;
+}
+
+function isAppleTouchDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return true;
+  // iPadOS reports a desktop UA.
+  return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints ?? 0) > 1;
+}
+
+let repaintRaf: number | null = null;
+
+/**
+ * iOS WebKit does not move the *painted* caret when an `overflow: auto` scroller is scrolled
+ * from script — the text moves, the caret stays where it was drawn, so it sits a line or two
+ * off from where typing lands (worst right above the format bar, where this helper scrolls
+ * most). Re-asserting the same DOM selection on the next frame makes WebKit repaint it. The
+ * selection is read back from the DOM rather than ProseMirror so nothing about it changes.
+ */
+export function repaintNativeCaretAfterScroll(view: EditorView): void {
+  if (!isAppleTouchDevice() || typeof requestAnimationFrame === 'undefined') return;
+  if (repaintRaf != null) cancelAnimationFrame(repaintRaf);
+  repaintRaf = requestAnimationFrame(() => {
+    repaintRaf = null;
+    try {
+      if ((view as EditorView & { isDestroyed?: boolean }).isDestroyed || !view.hasFocus()) return;
+      const sel = view.dom.ownerDocument.getSelection();
+      if (!sel || sel.rangeCount === 0 || !sel.anchorNode || !sel.focusNode) return;
+      if (!view.dom.contains(sel.anchorNode) || !view.dom.contains(sel.focusNode)) return;
+      sel.setBaseAndExtent(sel.anchorNode, sel.anchorOffset, sel.focusNode, sel.focusOffset);
+    } catch {
+      /* a detached node mid-patch: the next keystroke repaints anyway */
+    }
+  });
 }
