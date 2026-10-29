@@ -1873,7 +1873,13 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   font-weight: 500;
 }
 
-.proto-menu-item:hover {
+@media (hover: hover) {
+  .proto-menu-item:hover {
+    background: var(--pds-bg-subtle);
+  }
+}
+
+.proto-menu-item:active {
   background: var(--pds-bg-subtle);
 }
 
@@ -2802,7 +2808,14 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   transition: color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
 }
 
-.proto-chip:hover {
+@media (hover: hover) {
+  .proto-chip:hover {
+    color: var(--pds-text-muted-strong);
+  }
+}
+
+.proto-chip:active:not(.proto-chip--selected) {
+  background: var(--pds-bg-control);
   color: var(--pds-text-muted-strong);
 }
 
@@ -9567,8 +9580,18 @@ button.proto-appearance-hero__card {
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-.proto-side-panel__action-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
+/* Hover only where there is hover: on iPhone a tap left the close button grey until the
+   next tap elsewhere. Touch gets a pressed fill instead. Token, not black-alpha, so it still
+   reads in dark mode. */
+@media (hover: hover) {
+  .proto-side-panel__action-btn:hover {
+    background: var(--pds-bg-control-hover, rgba(0, 0, 0, 0.06));
+    color: var(--pds-text-primary);
+  }
+}
+
+.proto-side-panel__action-btn:active:not(:disabled) {
+  background: var(--pds-bg-control-hover, rgba(0, 0, 0, 0.08));
   color: var(--pds-text-primary);
 }
 
@@ -26524,4 +26547,66 @@ button.proto-feed-sheet__stat:hover {
 
 .pds-reader__book-menu .pds-reader__book-menu-footer .proto-menu-item__icon {
   color: var(--pds-text-tertiary);
+}
+
+/* ─── Native touch feel (installed iPhone and iPad) ─────────────────────────── */
+
+/* Each scroller keeps its own bounce but never hands it to the page behind it. */
+.proto-feed-sheet__body,
+.pds-reader__scroll,
+.proto-editor-scroll,
+.proto-sidebar-scroll,
+.proto-main-pane {
+  overscroll-behavior-y: contain;
+}
+
+/*
+ * Long-press on chrome: no link preview, no "Save Image", no dragging a ghost of the
+ * avatar. Text the reader came for (the editor, the reader column) keeps the system menu.
+ */
+.proto-theme :is(a, img, button, [role='button']),
+.proto-toolbar-inner {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+
+.proto-theme :is(.ProseMirror, .pds-reader__column) :is(a, img) {
+  -webkit-touch-callout: default;
+}
+
+@media (pointer: coarse) {
+  /*
+   * Small controls, finger-sized targets. Sheet closes, dock header buttons, toolbar orbs,
+   * chips and callout closes draw at 26–32px; an invisible apron brings the target to ~44px
+   * tall without changing how anything looks. Only 3px to the sides: these sit ~6px apart in
+   * rows, and a wider apron would take taps meant for the neighbour.
+   */
+  .proto-side-panel__action-btn,
+  .study-dock-card__header-btn,
+  .proto-toolbar-icon-btn,
+  .proto-chip,
+  .proto-callout-chip__close {
+    /* `.proto-callout__close` is already absolutely positioned, which anchors its apron. */
+    position: relative;
+  }
+
+  .proto-side-panel__action-btn::before,
+  .study-dock-card__header-btn::before,
+  .proto-toolbar-icon-btn::before,
+  .proto-chip::before,
+  .proto-callout__close::before,
+  .proto-callout-chip__close::before {
+    content: '';
+    position: absolute;
+    inset: -8px -3px;
+  }
+
+  /*
+   * Fields at 16px or more: iOS zooms the page in when a smaller field takes focus, and
+   * several settings, sheet and dock fields were 12–15px.
+   */
+  .proto-theme :is(input:not([type='checkbox'], [type='radio'], [type='range']), textarea, select),
+  html.harvous-prototype-route :is(input:not([type='checkbox'], [type='radio'], [type='range']), textarea, select) {
+    font-size: max(16px, 1em);
+  }
 }
