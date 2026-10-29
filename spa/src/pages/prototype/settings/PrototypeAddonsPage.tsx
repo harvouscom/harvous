@@ -87,7 +87,7 @@ export default function PrototypeAddonsPage() {
   const cancelBilling = useBillingCancel();
   const hasSharedSpaces = Boolean(subscription?.hasSharedSpaces);
   const canManageBilling = Boolean(subscription?.canManageBilling);
-  const { data: manage, isLoading: manageLoading } = useBillingManage(
+  const { data: manage, isLoading: manageLoading, isError: manageFailed, refetch: refetchManage } = useBillingManage(
     hasSharedSpaces && canManageBilling,
   );
   const isFounding = Boolean(subscription?.isFounding);
@@ -171,7 +171,9 @@ export default function PrototypeAddonsPage() {
                     ? formatBillingStatusLine(billing)
                     : manageLoading
                       ? 'Loading…'
-                      : 'Active'
+                      : manageFailed
+                        ? 'Couldn’t load'
+                        : 'Active'
                 }
                 trailing="none"
               />
@@ -216,6 +218,14 @@ export default function PrototypeAddonsPage() {
             <SettingsGroup>
               {manageLoading && orders.length === 0 ? (
                 <SettingsRow label="Loading charges…" trailing="none" />
+              ) : manageFailed && orders.length === 0 ? (
+                /* "No charges yet" would be a claim about someone's money we can't back. */
+                <SettingsRow
+                  label="Couldn’t load billing"
+                  sublabel="Tap to try again."
+                  trailing="chevron"
+                  onClick={() => void refetchManage()}
+                />
               ) : orders.length === 0 ? (
                 <SettingsRow label="No charges yet" trailing="none" />
               ) : (

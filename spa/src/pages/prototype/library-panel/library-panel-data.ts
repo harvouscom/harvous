@@ -102,6 +102,8 @@ export type LibraryPanelData = {
   hasMoreNotes: boolean;
   isFetchingMoreNotes: boolean;
   fetchMoreNotes: () => void;
+  /** Ask again after the notes list failed to load. */
+  retryNotes: () => void;
   /** The note open in the main pane, so a row can mark itself current. */
   activeNoteFullId: string | undefined;
   prefetchNote: (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => void;
@@ -163,6 +165,7 @@ export function useLibraryPanelData(): LibraryPanelData {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    refetch: refetchNotes,
   } = useSpaceNotes(spaceId ?? '', 20);
 
   const membersQuery = useSpaceMembers(isScopedSharedSpace && spaceId ? spaceId : '');
@@ -450,6 +453,10 @@ export function useLibraryPanelData(): LibraryPanelData {
     void fetchNextPage();
   }, [fetchNextPage]);
 
+  const retryNotes = useCallback(() => {
+    void refetchNotes();
+  }, [refetchNotes]);
+
   return {
     spaceId,
     isScopedSharedSpace,
@@ -468,6 +475,7 @@ export function useLibraryPanelData(): LibraryPanelData {
     hasMoreNotes: Boolean(hasNextPage),
     isFetchingMoreNotes: isFetchingNextPage,
     fetchMoreNotes,
+    retryNotes,
     activeNoteFullId,
     prefetchNote,
     openNote,

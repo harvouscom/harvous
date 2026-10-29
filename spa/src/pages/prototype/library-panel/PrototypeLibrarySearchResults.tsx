@@ -611,6 +611,13 @@ export default function PrototypeLibrarySearchResults({
   const settledCount =
     visibleResults.length + elsewhereRest.length + homeResults.length + verseHits.length;
   const verseLoading = verseSearch.isLoading || verseSearch.isPlaceholderData;
+  /* A failed search is not "no matches" — say so, and offer the retry. */
+  const ftsFailed =
+    (ftsSearch.isError && Boolean(ftsQuery)) || (homeFtsSearch.isError && Boolean(homeFtsQuery));
+  const retryFts = () => {
+    if (ftsQuery) void ftsSearch.refetch();
+    if (homeFtsQuery) void homeFtsSearch.refetch();
+  };
 
   /*
    * My Harvous or the Bible — see `library-search-source.ts`. Only where a verse can answer:
@@ -866,6 +873,8 @@ export default function PrototypeLibrarySearchResults({
             </ul>
           ) : ftsLoading ? (
             <p className="proto-caption proto-sidebar-search-section__empty">Searching notes…</p>
+          ) : ftsFailed ? (
+            <SearchFailed what="notes" onRetry={retryFts} />
           ) : (
             /* Unreachable while a leading result exists — see `visibleResults`. */
             <PrototypeListNoMatchEmptyState title={emptyTitleForTab(tab)} />
@@ -895,6 +904,8 @@ export default function PrototypeLibrarySearchResults({
               <LibraryVerseResults hits={verseHits} onOpen={openVerse} />
             ) : verseLoading ? (
               <p className="proto-caption proto-sidebar-search-section__empty">Searching the Bible…</p>
+            ) : verseSearch.isError ? (
+              <SearchFailed what="the Bible" onRetry={() => void verseSearch.refetch()} />
             ) : (
               <PrototypeListNoMatchEmptyState title="No verses found" />
             )}
@@ -942,5 +953,16 @@ export default function PrototypeLibrarySearchResults({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function SearchFailed({ what, onRetry }: { what: string; onRetry: () => void }) {
+  return (
+    <p className="proto-caption proto-sidebar-search-section__empty" role="status">
+      Couldn’t search {what}.{' '}
+      <button type="button" className="proto-text-link-btn" onClick={onRetry}>
+        Try again
+      </button>
+    </p>
   );
 }

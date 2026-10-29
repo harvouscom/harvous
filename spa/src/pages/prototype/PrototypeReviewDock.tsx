@@ -27,6 +27,7 @@
 import { maxAttemptsFor, type ReviewOutcome } from '@/utils/review-item-kinds';
 import { describeNextDue } from '@/utils/review-scheduling';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
+import ProtoRetryAction from './ProtoRetryAction';
 import {
   echoMatchesAnswer,
   reviewAnswerEcho,
@@ -1511,6 +1512,15 @@ export default function PrototypeReviewDock() {
             <div className="proto-review-dock__loading">
               <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
             </div>
+          ) : sessionQuery.isError && sessionItems.length === 0 ? (
+            /* A queue that failed to load is not an empty queue: "You are up to date" there
+               would tell someone with questions due that they have none. */
+            <PrototypeListEmptyState
+              iconName="circle-exclamation"
+              title="Couldn’t load your review"
+              description="Your questions didn’t load."
+              action={<ProtoRetryAction onRetry={() => void sessionQuery.refetch()} />}
+            />
           ) : (
             /*
              * An empty card is a card that has to explain itself. This one used to be a single
