@@ -7,10 +7,12 @@
  * handler (public/scripts/haptics-handler.js).
  */
 
+import { isIOS } from './platform-detect';
+
 // Check if device is mobile (iOS/Android) to prevent console errors on desktop
 function isMobileDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  return isIOS() || /Android/i.test(navigator.userAgent);
 }
 
 function vibrate(duration: number | number[]) {

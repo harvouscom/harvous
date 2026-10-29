@@ -1,4 +1,5 @@
 import appearancePresetsCatalog from '../../../shared/appearance-presets.json';
+import { isIOS } from '@/utils/platform-detect';
 import appearanceImagePresetsCatalog, {
   type AppearanceImagePresetsCatalog as ImagePresetsCatalogJson,
 } from './appearance-image-presets-data';
@@ -437,7 +438,7 @@ export function readBackgroundForMode(mode: 'light' | 'dark'): ProtoBg {
 /** iOS home-screen PWA — WebKit is prone to renderer kills with image wallpapers + blur. */
 export function isIosStandalonePwa(): boolean {
   if (typeof window === 'undefined') return false;
-  const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const isIos = isIOS();
   const isPwa =
     window.matchMedia('(display-mode: standalone), (display-mode: minimal-ui)').matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true;

@@ -1038,6 +1038,15 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   min-width: 0;
 }
 
+/* iPhone SE width: the note toolbar's right side alone took the room the Search chip needs,
+   and the chip was squeezed to nothing. It goes icon-only (the magnifier) there; the button
+   keeps its accessible name. */
+@media (max-width: 360px) {
+  .proto-toolbar-folder-chip__labels {
+    display: none;
+  }
+}
+
 .proto-toolbar-folder-chip__label {
   flex-shrink: 1;
   min-width: 0;
@@ -1260,7 +1269,14 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
    * tracks are equal by construction, whatever they contain, and tracks cannot overlap — so
    * when the row runs out of room the chip truncates, which is what it was always built to do
    * (`flex-shrink: 1`, `overflow: hidden`).
+   *
+   * Through the whole mobile shell (≤899), not just phones: at 601–899 (iPad Split View,
+   * Stage Manager, a narrow window) the chip was still absolutely centred and could slide
+   * over the button groups the same way.
    */
+}
+
+@media (max-width: 899px) {
   .proto-toolbar-inner {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -1488,6 +1504,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   top: calc(100% + 5px);
   left: 0;
   min-width: 260px;
+  /* Never wider than a 320pt phone can show. */
+  max-width: calc(100vw - 24px);
   /* Raised with the row height. At 38px rows the old 360px cap held eight
      items, so the space switcher started scrolling for a church with a couple
      of extra rooms — a menu that fits today should keep fitting. The `vh`
@@ -2598,7 +2616,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
  * a row the reader was no longer looking at. `:focus-visible` matches keyboard
  * focus only, so tabbing still reveals it and clicking no longer strands it.
  */
-@media (hover: hover) and (pointer: fine) {
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   .proto-note-row-item .proto-note-row__menu-trigger {
     opacity: 0;
     pointer-events: none;
@@ -4949,6 +4967,24 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   opacity: 1;
 }
 
+/*
+ * Hover-revealed controls stay visible on any touch screen. The old reveals keyed on width
+ * (a phone layout) or on `hover: none`, but a touch iPad is wide and, with a trackpad
+ * attached, reports hover too — so the planner's add button, the inspector's disconnect and
+ * the space-switcher handle were invisible to a finger there. `any-pointer: coarse` is true
+ * whenever a touch screen exists, whatever else is plugged in.
+ */
+@media (any-pointer: coarse) {
+  .proto-planner-day__add,
+  .proto-inspector-disconnect-btn {
+    opacity: 1;
+  }
+
+  .proto-space-switcher__row--reorderable .proto-space-switcher__drag-handle {
+    opacity: 0.45;
+  }
+}
+
 .proto-inspector-disconnect-btn:hover {
   background: rgba(0, 0, 0, 0.06);
   color: var(--pds-text-secondary);
@@ -5001,16 +5037,20 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
    Beats the `[data-side='bottom']` pin in global.css, which is `!important`. Because the
    sheet now stops above the home indicator, sheets no longer pad for it themselves. */
 html.harvous-prototype-route [data-side='bottom'][data-vaul-drawer].drawer-content-bottom {
-  left: var(--pds-shell-frame-inset) !important;
-  right: var(--pds-shell-frame-inset) !important;
+  left: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-left, 0px)) !important;
+  right: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-right, 0px)) !important;
   bottom: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-bottom, 0px)) !important;
   /* The insets set the width. A sheet's own `width: 100%` (several have one, from when they
      ran edge to edge) would push it past the right inset. */
   width: auto;
-  max-height: calc(
+  /* The room a sheet has. Sheets size against this, not `vh`: on iOS `vh` is taller than
+     the visible screen, and on a landscape phone (≈390pt) a 92vh sheet ran past the
+     drawer's own cap and lost its bottom to `overflow: hidden`. */
+  --proto-drawer-max-h: calc(
     100dvh - 2 * var(--pds-shell-frame-inset) - env(safe-area-inset-top, 0px) -
       env(safe-area-inset-bottom, 0px) - 24px
   );
+  max-height: var(--proto-drawer-max-h);
   overflow: hidden;
   border-radius: var(--pds-shell-frame-radius);
   background: var(--pds-bg-popover-solid);
@@ -5019,7 +5059,7 @@ html.harvous-prototype-route [data-side='bottom'][data-vaul-drawer].drawer-conte
 
 .proto-connect-note-sheet.proto-connect-note-sheet {
   padding: 20px 20px 22px;
-  max-height: min(640px, 85vh);
+  max-height: min(640px, 85dvh, var(--proto-drawer-max-h, 100dvh));
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -6100,8 +6140,8 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
      and then the body arrives and it re-settles — the sheet visibly grows a beat after it
      lands. A floor means it measures the same height whether or not the pane has painted yet.
      min() with vh so short viewports still get a sheet rather than an overflowing one. */
-  min-height: min(60vh, 520px);
-  max-height: min(92vh, 820px);
+  min-height: min(60dvh, 520px, var(--proto-drawer-max-h, 100dvh));
+  max-height: min(92dvh, 820px, var(--proto-drawer-max-h, 100dvh));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -7266,7 +7306,9 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   color: var(--pds-text-primary);
 }
 
-@media (hover: none) {
+/* `any-pointer: coarse` too: a touch iPad with a trackpad reports hover, and a finger
+   could then never reach the dismiss. */
+@media (hover: none), (any-pointer: coarse) {
   .proto-daily-passage-pill__dismiss {
     opacity: 1;
     pointer-events: auto;
@@ -7867,8 +7909,9 @@ button.proto-home-card--tappable:hover {
   color: var(--pds-text-primary);
 }
 
-/* No hover to reveal it on a touch screen, so it simply stays. */
-@media (hover: none) {
+/* No hover to reveal it on a touch screen, so it simply stays (a trackpad iPad reports
+   hover, hence `any-pointer: coarse`). */
+@media (hover: none), (any-pointer: coarse) {
   .proto-space-passage__rest {
     opacity: 1;
     pointer-events: auto;
@@ -8197,7 +8240,9 @@ button.proto-home-card--tappable:hover {
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
-@media (min-width: 900px) {
+/* Hidden on a desktop computer, not on a wide screen: iPad landscape is ≥900 and is
+   exactly where installing to the home screen helps. */
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   .proto-install-web-app-card {
     display: none;
   }
@@ -8704,7 +8749,7 @@ button.proto-home-greeting__chip--passage {
   display: none;
 }
 
-@media (hover: hover) and (pointer: fine) {
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   .proto-collection-grid-item .proto-collection-card__menu-trigger {
     opacity: 0;
     pointer-events: none;
@@ -10071,7 +10116,7 @@ button.proto-appearance-hero__card {
   pointer-events: auto;
 }
 
-@media (hover: hover) and (pointer: fine) {
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   .proto-sidebar-thread-trail .proto-thread-trail__step .proto-note-row__menu-trigger {
     opacity: 0;
     pointer-events: none;
@@ -10152,7 +10197,7 @@ button.proto-appearance-hero__card {
   transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease !important;
 }
 
-@media (hover: hover) and (pointer: fine) {
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   .proto-side-panel__disconnect-row-btn {
     opacity: 0;
   }
@@ -10267,7 +10312,7 @@ button.proto-appearance-hero__card {
 
 /* Drawer (mobile) */
 .proto-study-thread-drawer {
-  max-height: 85vh;
+  max-height: min(85dvh, var(--proto-drawer-max-h, 100dvh));
   display: flex;
   flex-direction: column;
 }
@@ -11120,7 +11165,7 @@ html.harvous-prototype-route button.proto-toolbar-icon-btn.proto-sync-status--er
   position: relative;
   width: 100%;
   max-width: 910px;
-  max-height: min(90vh, 860px);
+  max-height: min(90dvh, 860px, var(--proto-drawer-max-h, 100dvh));
   --proto-founder-letter-paper: var(--pds-paper-desk);
   background: transparent;
   overflow: visible;
@@ -14489,7 +14534,7 @@ p.proto-teaching-plan__divider {
    otherwise boxed the cover in instead of letting it run to the sheet's edges. */
 .proto-shared-space-about--sheet.proto-shared-space-about--sheet {
   width: 100%;
-  max-height: 92vh;
+  max-height: min(92dvh, var(--proto-drawer-max-h, 100dvh));
   border-radius: 16px 16px 0 0;
   padding: 0;
   gap: 0;
@@ -24130,7 +24175,10 @@ button.proto-feed-sheet__stat:hover {
   display: flex;
   align-items: center;
   gap: var(--pds-space-2);
-  flex: 0 0 auto;
+  /* Shrinkable, so on a 320pt phone a long space name in the scope trigger truncates
+     instead of squeezing "Today" down to a sliver. */
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /*
@@ -24141,7 +24189,9 @@ button.proto-feed-sheet__stat:hover {
  */
 .proto-feed-sheet__scope.proto-select-menu__trigger {
   width: auto;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45cqi;
 }
 
 /* ── A part of the day: Home's section anatomy ── */

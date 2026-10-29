@@ -20,7 +20,8 @@
 }
 
 .proto-note-history-sheet .proto-note-history {
-  height: calc(100dvh - 72px);
+  /* The drawer's own cap, so it never runs 2px past it (portrait PWA) or far past it (landscape). */
+  height: var(--proto-drawer-max-h, calc(100dvh - 72px));
 }
 
 .proto-note-history__header-actions {
