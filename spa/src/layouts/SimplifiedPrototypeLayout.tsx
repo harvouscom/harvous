@@ -31,6 +31,7 @@ import {
   type PointerEvent,
 } from 'react';
 import { useAuthReady } from '../hooks/useAuthReady';
+import { useStandaloneEdgeSwipeBack } from '../lib/in-app-back';
 import { api } from '../lib/api';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
@@ -570,6 +571,9 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
 
   // A compose draft started from the reader stays on `/read/...` until it saves, so the
   // editor has to mount there too — otherwise the sheet slides up empty.
+  // Left-edge swipe back in the installed iOS app (no browser back there).
+  useStandaloneEdgeSwipeBack();
+
   const isNoteRoute =
     isPrototypeNotePath(pathname) ||
     (composeDraftActive && (isPrototypeHomePath(pathname) || isPrototypeReadPath(pathname)));

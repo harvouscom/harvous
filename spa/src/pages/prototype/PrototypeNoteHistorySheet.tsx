@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { haptics } from '@/utils/haptics';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -127,6 +128,7 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
         onSuccess: () => {
           setConfirmRect(null);
           onOpenChange(false);
+          haptics.success();
           toast.success(
             COPY.restored(formatNoteHistoryMoment(target.endedAt)),
             previousId

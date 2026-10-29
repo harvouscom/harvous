@@ -1,4 +1,5 @@
 import { colorTokenVar } from '@/utils/space-cover';
+import { haptics } from '@/utils/haptics';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
@@ -113,6 +114,7 @@ export default function PublicSharedThreadPage() {
     try {
       const result = await addSharedThreadMutation.mutateAsync(shareToken);
       if (result.success && result.createdIds?.threadId) {
+        haptics.success();
         showToast('Added to your Harvous!', 'success', 0);
         const id = result.createdIds.threadId;
         const path = id.startsWith('thread_') ? `/thread/${id.slice(7)}` : `/${id}`;

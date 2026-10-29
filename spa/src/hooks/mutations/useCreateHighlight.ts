@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { haptics } from '@/utils/haptics';
 import { api } from '../../lib/api';
 import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 import type { StudyThreadEntryDetail } from '../queries/useNote';
@@ -65,6 +66,7 @@ export function useCreateHighlight() {
      * key list always drifts into.
      */
     onSuccess: (_data, variables) => {
+      haptics.success();
       markOnboardingStep('highlight');
       invalidatePrototypeStudyThreadListQueries(
         queryClient,

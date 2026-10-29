@@ -11620,7 +11620,7 @@ html.harvous-prototype-route
 .proto-bulk-share__popover {
   position: fixed;
   left: 50%;
-  bottom: 84px;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   max-width: min(300px, calc(100vw - 32px));
   max-height: min(360px, 60vh);
@@ -11683,6 +11683,24 @@ html.harvous-prototype-route
 }
 
 /* Feedback toasts (copy, migration, shared space) — wrap long copy inside the pill */
+/* Typing on a phone: the bottom of the screen is the keyboard, and a toast fired mid-sentence
+   ("Saved", a sync error) landed behind it. While the keyboard is up, toasts sit just under
+   the toolbar instead. */
+html[data-proto-keyboard-open] .proto-update-toast {
+  top: calc(var(--pds-shell-frame-inset, 14px) + var(--pds-toolbar-h, 46px) + 8px);
+  bottom: auto;
+}
+
+/* The update notice and a feedback toast share one spot; when both are up, the feedback
+   toast steps aside (up from the bottom, down from the top) instead of covering it. */
+body:has(.proto-update-toast:not(.proto-feedback-toast)) .proto-feedback-toast {
+  translate: 0 calc(-100% - 10px);
+}
+
+html[data-proto-keyboard-open] body:has(.proto-update-toast:not(.proto-feedback-toast)) .proto-feedback-toast {
+  translate: 0 calc(100% + 10px);
+}
+
 .proto-feedback-toast {
   /* Fixed usable width: inline-flex + min-width:0 on the label otherwise shrinks
      the message to ~1ch (overflow-wrap:anywhere then shows "C" / "o.."). */

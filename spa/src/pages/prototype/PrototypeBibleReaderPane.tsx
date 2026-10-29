@@ -25,6 +25,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import Icon from '@/components/react/Icon';
+import { EDGE_SWIPE_ZONE_PX } from '../../lib/in-app-back';
 import {
   nextVerseSelection,
   type ReaderColumn,
@@ -1645,6 +1646,8 @@ export default function PrototypeBibleReaderPane({
   const handleVersesPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (e.pointerType === 'mouse' || !compare) return;
+      // The screen's left edge belongs to the installed app's swipe-back gesture.
+      if (e.clientX <= EDGE_SWIPE_ZONE_PX) return;
       swipeStart.current = { x: e.clientX, y: e.clientY };
     },
     [compare],
