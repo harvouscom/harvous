@@ -541,6 +541,7 @@ html.harvous-prototype-route .proto-history-v .proto-history-v__tag {
 
 .proto-history-v__expand-foot {
   display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -548,6 +549,8 @@ html.harvous-prototype-route .proto-history-v .proto-history-v__tag {
 }
 
 .proto-history-v__hint {
+  /* Shrinks and wraps so Restore always fits beside it on a phone. */
+  flex: 1 1 0;
   min-width: 0;
   font-size: 0.8rem;
   color: var(--pds-text-muted);
