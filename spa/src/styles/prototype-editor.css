@@ -654,15 +654,17 @@
   }
 }
 
+/* `backwards`, not `both`, and no `will-change`: a filled final frame and a standing
+   will-change keep the bar a transformed, composited layer for as long as you type, sitting
+   right over the line being typed. iOS paints the caret badly next to such a layer. Once the
+   entrance ends, the bar is plain flow again. */
 .proto-editor-bottom-bar[data-mode='format'] {
-  animation: proto-editor-bottom-bar-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: transform, opacity;
+  animation: proto-editor-bottom-bar-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .proto-editor-bottom-bar[data-mode='format'] {
     animation: none;
-    will-change: auto;
   }
 }
 

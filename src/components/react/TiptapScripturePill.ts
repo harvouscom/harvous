@@ -1,9 +1,11 @@
 import { Mark, getMarkRange } from '@tiptap/core';
-import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state';
+import type { Mark as ProseMirrorMark, Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
-import { isResolvableScriptureReference } from '@/utils/scripture-detector';
+import { isResolvableScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
+import { Mapping } from '@tiptap/pm/transform';
 
 /**
  * A saved pill span is only honored if BOTH its `data-scripture-reference` attribute and its
@@ -23,6 +25,131 @@ export function pillSpanIsValidReference(reference: string | null, text: string 
   const t = (text || '').trim();
   if (t && !isResolvableScriptureReference(t)) return false;
   return true;
+}
+
+/**
+ * Pills never break: a pill whose text stops being a real reference is unwrapped to plain text.
+ *
+ * Every path the editor owns keeps a pill's text valid — Backspace turns the pill into a draft,
+ * Delete confirms first, a continuation key only grows the pill when the result resolves. iOS
+ * goes around all of them: autocorrect and predictive text replace a word in place, and a held
+ * Backspace deletes by word, none of which arrive as a keydown. They used to leave a pill
+ * reading "Exod 32:1-" that still pointed at Exodus 32:1-35 and looked like one — or, worse,
+ * "Exodus 32:1", a real reference that opened a different passage from the one it named.
+ *
+ * So after the fact, for the pills a transaction touched: a pill whose text no longer resolves
+ * loses its mark, and so does one whose text *this transaction changed* to a different
+ * reference than the one it carries. The words stay where the reader left them, and detection
+ * re-pills them as what they now say. A pill whose text did not change is never judged on
+ * agreement, so an old pill that happens to sit next to a keystroke is left as it was.
+ */
+export const scripturePillIntegrityKey = new PluginKey('scripturePillIntegrity');
+
+function changedRangesInNewDoc(transactions: readonly Transaction[]): Array<[number, number]> {
+  let ranges: Array<[number, number]> = [];
+  for (const tr of transactions) {
+    if (!tr.docChanged) continue;
+    ranges = ranges.map(([a, b]) => [tr.mapping.map(a, -1), tr.mapping.map(b, 1)]);
+    tr.mapping.maps.forEach((map, index) => {
+      const rest = tr.mapping.slice(index + 1);
+      map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
+        ranges.push([rest.map(newStart, -1), rest.map(newEnd, 1)]);
+      });
+    });
+  }
+  return ranges;
+}
+
+function sameReference(a: string, b: string): boolean {
+  const na = normalizeScriptureReference(a) ?? a.trim();
+  const nb = normalizeScriptureReference(b) ?? b.trim();
+  return na.toLowerCase() === nb.toLowerCase();
+}
+
+/**
+ * Pill runs in `doc`, among those touching `ranges`, that no longer stand for what they show.
+ * With `previous`, a run whose text differs from what it read before is also checked for
+ * agreement with its `reference`.
+ */
+export function brokenScripturePillRuns(
+  doc: ProseMirrorNode,
+  ranges: Array<[number, number]>,
+  previous?: { doc: ProseMirrorNode; map: (pos: number, assoc: number) => number },
+): Array<{ from: number; to: number; mark: ProseMirrorMark }> {
+  const markType = doc.type.schema.marks.scripturePill;
+  if (!markType) return [];
+  const seen = new Set<string>();
+  const out: Array<{ from: number; to: number; mark: ProseMirrorMark }> = [];
+  const size = doc.content.size;
+  for (const [a, b] of ranges) {
+    const from = Math.max(0, Math.min(a, b) - 1);
+    const to = Math.min(size, Math.max(a, b) + 1);
+    doc.nodesBetween(from, to, (node, pos) => {
+      if (!node.isText) return;
+      const mark = node.marks.find((m) => m.type === markType);
+      if (!mark) return;
+      const range = getMarkRange(doc.resolve(pos), markType, mark.attrs);
+      if (!range) return;
+      const key = `${range.from}:${range.to}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const text = doc.textBetween(range.from, range.to);
+      const reference = mark.attrs.reference as string | null;
+      if (!pillSpanIsValidReference(reference, text)) {
+        out.push({ from: range.from, to: range.to, mark });
+        return;
+      }
+      if (!previous || !reference) return;
+      const oldFrom = previous.map(range.from, -1);
+      const oldTo = previous.map(range.to, 1);
+      const oldText = oldFrom < oldTo ? previous.doc.textBetween(oldFrom, oldTo) : '';
+      if (oldText !== text && !sameReference(text, reference)) {
+        out.push({ from: range.from, to: range.to, mark });
+      }
+    });
+  }
+  return out;
+}
+
+function scripturePillIntegrityPlugin(): Plugin {
+  return new Plugin({
+    key: scripturePillIntegrityKey,
+    appendTransaction(transactions, oldState, newState) {
+      if (!transactions.some((tr) => tr.docChanged)) return null;
+      const toOld = new Mapping();
+      for (let i = transactions.length - 1; i >= 0; i--) toOld.appendMapping(transactions[i]!.mapping.invert());
+      const broken = brokenScripturePillRuns(newState.doc, changedRangesInNewDoc(transactions), {
+        doc: oldState.doc,
+        map: (pos, assoc) => toOld.map(pos, assoc),
+      });
+      if (broken.length === 0) return null;
+      const tr = newState.tr;
+      for (const run of broken) tr.removeMark(run.from, run.to, run.mark);
+      return tr.setMeta(scripturePillIntegrityKey, true);
+    },
+  });
+}
+
+/**
+ * The keystroke a delete-type `beforeinput` stands for, when iOS sends one without a usable
+ * keydown (soft-keyboard Backspace can arrive as `Unidentified`, a held Backspace deletes by
+ * word). Null for everything else.
+ */
+export function pillDeleteKeyForInputType(inputType: string): 'Backspace' | 'Delete' | null {
+  switch (inputType) {
+    case 'deleteContentBackward':
+    case 'deleteWordBackward':
+    case 'deleteSoftLineBackward':
+    case 'deleteHardLineBackward':
+      return 'Backspace';
+    case 'deleteContentForward':
+    case 'deleteWordForward':
+    case 'deleteSoftLineForward':
+    case 'deleteHardLineForward':
+      return 'Delete';
+    default:
+      return null;
+  }
 }
 
 /**
@@ -222,6 +349,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
 
   addProseMirrorPlugins() {
     return [
+      scripturePillIntegrityPlugin(),
       // Safety net: strip scripturePill from stored marks when cursor is after a pill
       // This prevents the mark from "sticking" to newly typed text
       new Plugin({

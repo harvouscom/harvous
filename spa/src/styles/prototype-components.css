@@ -5026,6 +5026,15 @@ html.harvous-prototype-route [data-side='bottom'][data-vaul-drawer].drawer-conte
   overflow: hidden;
 }
 
+/* Phones: the drawer already floats 8px in from the screen, so 20px of its own put every
+   sheet's content ~28px from the glass edge. 16px keeps the same rhythm with less air. */
+@media (max-width: 600px) {
+  .proto-connect-note-sheet.proto-connect-note-sheet {
+    padding: 16px 16px 18px;
+    gap: 12px;
+  }
+}
+
 .proto-connect-note-popover {
   width: min(360px, calc(100vw - 24px));
   background: var(--pds-bg-popover-solid);
@@ -15264,6 +15273,30 @@ html.harvous-prototype-route
 .proto-shared-manage-sheet .proto-connect-note-sheet__scroll {
   padding: 12px 14px;
   max-height: none;
+}
+
+/*
+ * On a phone the manage sheet is a drawer, and three gutters stacked up: the drawer's own
+ * 20px, the scroll's 14px and the header's 14–16px, on top of the 8px the sheet already
+ * floats from the screen edge. Fields started ~42px in, which on a 375pt phone is a ninth
+ * of the width spent on air. One gutter is enough: the drawer drops its padding and the
+ * header and scroll share a single 16px inset, so fields sit 24px from the glass edge.
+ */
+.proto-shared-manage-sheet.proto-connect-note-sheet:not(.proto-connect-note-sheet--popover) {
+  padding: 4px 0 6px;
+  gap: 0;
+}
+
+.proto-shared-manage-sheet:not(.proto-connect-note-sheet--popover) .proto-study-thread-popover__header {
+  padding: 10px 12px 10px 16px;
+}
+
+.proto-shared-manage-sheet:not(.proto-connect-note-sheet--popover) .proto-connect-note-sheet__scroll {
+  padding: 8px 16px 12px;
+}
+
+.proto-shared-manage-sheet:not(.proto-connect-note-sheet--popover) .proto-shared-space-settings {
+  margin-top: 4px;
 }
 
 /* Section titles reuse the create-folder note-label's 14px side padding, but the
