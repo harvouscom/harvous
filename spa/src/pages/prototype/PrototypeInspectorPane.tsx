@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-react';
+import { preferredScrollBehavior } from '@/utils/scroll-behavior';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import PrototypeNoteCoEditToggle, { type CoEditSpaceRef } from './PrototypeNoteCoEditToggle';
@@ -327,7 +328,7 @@ export default function PrototypeInspectorPane({
             type="button"
             className="proto-inspector-started-in proto-inspector-started-in--link"
             onClick={() =>
-              document.getElementById('note-chat-origin')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              document.getElementById('note-chat-origin')?.scrollIntoView({ behavior: preferredScrollBehavior(), block: 'center' })
             }
           >
             <Icon name="puzzle-piece" size={11} aria-hidden />

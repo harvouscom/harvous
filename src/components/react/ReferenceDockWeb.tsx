@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { preferredScrollBehavior } from '@/utils/scroll-behavior';
 import { useQuery } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
 import DockAccentSwatchButton, { SCRIPTURE_DOCK_ACCENT_COLORS } from '@/components/react/DockAccentSwatchButton';
@@ -167,7 +168,7 @@ export default function ReferenceDockWeb({
   useEffect(() => {
     if (showScriptureRefs && !prevShowScriptureRefs.current) {
       requestAnimationFrame(() => {
-        scriptureRefsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scriptureRefsRef.current?.scrollIntoView({ behavior: preferredScrollBehavior(), block: 'start' });
       });
     }
     prevShowScriptureRefs.current = showScriptureRefs;

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { preferredScrollBehavior } from '@/utils/scroll-behavior';
 import { isIOS } from '@/utils/platform-detect';
 import { createPortal } from 'react-dom';
 import { markOnboardingStep } from '../../../spa/src/lib/proto-onboarding-sync';
@@ -6322,7 +6323,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const root = editor.view.dom as HTMLElement;
           const blockquotes = root.querySelectorAll('blockquote[data-scripture-quote-accent]');
           const last = blockquotes[blockquotes.length - 1];
-          last?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          last?.scrollIntoView({ behavior: preferredScrollBehavior(), block: 'nearest' });
         } catch {
           /* ignore */
         }

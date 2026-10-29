@@ -97,7 +97,7 @@ export default function PrototypeSyncWatcher({ userId }: { userId?: string | nul
       toast.error("Couldn't save to the cloud", {
         persistent: true,
         id: FAILURE_TOAST_ID,
-        action: { label: 'Retry', onAction: () => retryRef.current() },
+        action: { label: 'Try again', onAction: () => retryRef.current() },
       });
     }, FAILURE_TOAST_DELAY_MS);
     return () => clearTimeout(timer);
