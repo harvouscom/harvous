@@ -26,6 +26,7 @@ import {
 } from 'react';
 import Icon from '@/components/react/Icon';
 import { EDGE_SWIPE_ZONE_PX } from '../../lib/in-app-back';
+import { passageSelectionText } from '@/utils/passage-selection-text';
 import {
   nextVerseSelection,
   type ReaderColumn,
@@ -678,7 +679,7 @@ export default function PrototypeBibleReaderPane({
   referenceRequest,
   landRequestKey,
 }: PrototypeBibleReaderPaneProps) {
-  const { data, isLoading, isError, error } = usePrototypeBibleChapter(book, chapter, translation);
+  const { data, isLoading, isError, error, refetch } = usePrototypeBibleChapter(book, chapter, translation);
   const catholic = useIsCatholic();
   const printedLabels = usePrintedVerseLabels(book, chapter, translation);
   const comparePrintedLabels = usePrintedVerseLabels(book, chapter, compare?.translation);
@@ -1439,7 +1440,9 @@ export default function PrototypeBibleReaderPane({
       }
       const side: ReaderColumn =
         anchorColumn.dataset.readerColumn === 'compare' ? 'compare' : 'primary';
-      const text = sel.toString().trim();
+      // Verse numerals and the screen-reader-only labels inside each verse are not part of the
+      // phrase; `toString()` swept them into the excerpt whenever a drag crossed a verse.
+      const text = passageSelectionText(range, anchorColumn, 'read') || sel.toString().trim();
       if (!text) {
         setDragText(null);
         return;
@@ -1905,6 +1908,7 @@ export default function PrototypeBibleReaderPane({
                 ? 'Pick a chapter from this book to keep reading.'
                 : 'Check your connection and try again.'
           }
+          action={missing || outOfRange ? undefined : { label: 'Try again', onClick: () => void refetch() }}
         />
       </div>
     );

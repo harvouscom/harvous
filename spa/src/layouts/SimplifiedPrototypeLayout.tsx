@@ -108,7 +108,7 @@ import { useShellModeNav } from '../hooks/useShellModeNav';
 import { useActiveSpace } from '../hooks/useActiveSpace';
 import { useSharedSpaceVisitStamp } from '../hooks/useSharedSpaceVisit';
 import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
-import { emitProtoViewportSettle } from '@/utils/proto-viewport-settle';
+import { useMobileKeyboardFrame } from '../hooks/useMobileKeyboardFrame';
 import { isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
 import { prototypeToolbarNoteDetailsAvailable } from '../pages/prototype/prototype-toolbar-note-details';
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
@@ -972,157 +972,8 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     };
   }, [userId, pathname, queryClient, homeSpaceId]);
 
-  // Mobile soft keyboard: shrink the shell frame to the visual viewport (above the keyboard)
-  // so the in-flow editor chrome row (format toolbar) lands just above the keyboard, and hide
-  // the study docks while typing. Scoped to note routes on the mobile breakpoint.
-  useEffect(() => {
-    if (!isNoteRoute) return undefined;
-    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-    if (!vv) return undefined;
-    const mq = window.matchMedia('(max-width: 899px)');
-    const root = document.documentElement;
-    let settleTimers: ReturnType<typeof setTimeout>[] = [];
-    // Last committed frame geometry. `apply()` re-runs several times per settle window and is
-    // usually a no-op; only announce the passes that actually moved the chrome, so overlay
-    // consumers don't re-measure three times for nothing. See utils/proto-viewport-settle.ts.
-    let appliedGeometry: string | null = null;
-    const announceGeometry = (next: string | null) => {
-      if (appliedGeometry === next) return;
-      appliedGeometry = next;
-      emitProtoViewportSettle();
-    };
-    const clearSettleTimers = () => {
-      settleTimers.forEach((t) => clearTimeout(t));
-      settleTimers = [];
-    };
-
-    const pinPageScroll = () => {
-      if (window.scrollY !== 0 || vv.offsetTop !== 0) {
-        window.scrollTo(0, 0);
-      }
-    };
-
-    /*
-     * The lock itself is `data-proto-keyboard-open`, set in `apply()` below — that is the
-     * attribute `prototype-shell.css` hangs `overflow: hidden` on. There used to be a second
-     * attribute here, `data-proto-page-scroll-locked`, which no stylesheet ever read: it
-     * looked like the mechanism while doing nothing, so anyone debugging a scroll problem
-     * started at the wrong end. What these two functions actually contribute is the *pinning*
-     * — iOS can still pan the visual viewport to chase the caret while document scroll is
-     * held, and that pan is what leaves a white strip under the format bar.
-     */
-    const lockPageScroll = () => {
-      pinPageScroll();
-    };
-
-    const unlockPageScroll = () => {
-      window.scrollTo(0, 0);
-    };
-
-    const clearKeyboardState = () => {
-      root.style.removeProperty('--proto-visible-viewport-height');
-      root.removeAttribute('data-proto-keyboard-open');
-      unlockPageScroll();
-      document
-        .querySelectorAll<HTMLElement>('.proto-shell-frame')
-        .forEach((frame) => {
-          frame.style.removeProperty('height');
-          frame.style.removeProperty('max-height');
-          frame.style.removeProperty('margin-top');
-        });
-      announceGeometry(null);
-    };
-
-    const clear = () => {
-      root.style.removeProperty('--proto-dock-expanded-max-height');
-      clearKeyboardState();
-    };
-
-    const updateDockMaxHeight = () => {
-      updateStudyDockExpandedMaxHeight();
-    };
-
-    // Size the shell frame to exactly the visual viewport (above the keyboard) and let the
-    // editor chrome row (format toolbar) stay in normal flow at the frame's bottom edge.
-    // No fixed positioning / content max-height reserve — the editor and toolbar then read
-    // as one continuous surface sitting just above the keyboard.
-    const apply = () => {
-      updateDockMaxHeight();
-      if (!mq.matches) {
-        clearKeyboardState();
-        return;
-      }
-      const innerH = window.innerHeight;
-      const effectiveHeight = vv.height;
-      const keyboardOpen = effectiveHeight < innerH * 0.75;
-      if (keyboardOpen) {
-        const visibleHeight = Math.round(effectiveHeight);
-        const frameInset =
-          parseFloat(getComputedStyle(root).getPropertyValue('--pds-shell-frame-inset')) || 8;
-        // Anchor the frame to the *visual* viewport, not the layout top. The frame is normal
-        // flow rooted at the layout top, but iOS can pan the visual viewport (vv.offsetTop > 0)
-        // to reveal the caret even while document scroll is locked — leaving a white strip
-        // below the in-flow format bar. Push the frame's top down by offsetTop so its top still
-        // sits `frameInset` below the visual top. Height subtracts the inset on BOTH ends
-        // (`visibleHeight - frameInset * 2`) so the frame's bottom edge sits `frameInset` above
-        // the keyboard — a blue outer-shell gap that mirrors the top inset, condensing the shell
-        // into a complete rounded card above the keyboard. Growing margin-top does not clip the
-        // header. A stale offsetTop mid-animation could over-push (gap above the top toolbar), so
-        // apply() is re-run across the keyboard/Safari-bar settle window below; the committed
-        // value uses the settled offsetTop.
-        const offsetTop = Math.max(0, Math.round(vv.offsetTop));
-        const frameHeight = Math.max(120, visibleHeight - frameInset * 2);
-        root.style.setProperty('--proto-visible-viewport-height', `${frameHeight}px`);
-        root.setAttribute('data-proto-keyboard-open', '');
-        lockPageScroll();
-        document.querySelectorAll<HTMLElement>('.proto-shell-frame').forEach((frame) => {
-          frame.style.height = `${frameHeight}px`;
-          frame.style.maxHeight = `${frameHeight}px`;
-          frame.style.marginTop = `${frameInset + offsetTop}px`;
-        });
-        announceGeometry(`${frameHeight}:${frameInset + offsetTop}`);
-      } else {
-        clearKeyboardState();
-      }
-    };
-
-    apply();
-    const raf = requestAnimationFrame(() => apply());
-    const onViewportChange = () => {
-      apply();
-      if (root.hasAttribute('data-proto-keyboard-open')) {
-        pinPageScroll();
-      }
-    };
-    // visualViewport resize/scroll is the primary signal; focus nudges a re-apply across the
-    // settle window. iOS finishes the keyboard animation AND collapses the Safari bottom bar
-    // (which grows vv.height) over a few hundred ms — without re-applying past that, the frame
-    // stays sized to the pre-collapse height and leaves a white strip below the format bar.
-    const scheduleSettle = () => {
-      requestAnimationFrame(apply);
-      clearSettleTimers();
-      settleTimers = [setTimeout(apply, 150), setTimeout(apply, 450)];
-    };
-    vv.addEventListener('resize', onViewportChange);
-    vv.addEventListener('scroll', onViewportChange);
-    // Layout-viewport resize also shifts vv.height (Safari bottom-bar collapse, rotation) and
-    // does not always emit a vv resize — route it through apply() so the frame re-anchors, not
-    // just the dock height. vv 'scroll' already covers visual-viewport offset (offsetTop) changes.
-    window.addEventListener('resize', onViewportChange);
-    document.addEventListener('focusin', scheduleSettle);
-    document.addEventListener('focusout', scheduleSettle);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      clearSettleTimers();
-      vv.removeEventListener('resize', onViewportChange);
-      vv.removeEventListener('scroll', onViewportChange);
-      window.removeEventListener('resize', onViewportChange);
-      document.removeEventListener('focusin', scheduleSettle);
-      document.removeEventListener('focusout', scheduleSettle);
-      clear();
-    };
-  }, [isNoteRoute]);
+  // Mobile soft keyboard: size the shell frame to the visual viewport while an editor is hosted.
+  useMobileKeyboardFrame(isNoteRoute);
 
   const clampSidebarWidth = useCallback(
     (width: number) => Math.min(sidebarWidthMax, Math.max(sidebarWidthMin, width)),

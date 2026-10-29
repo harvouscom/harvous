@@ -37,6 +37,7 @@ import { useChurchChannels, type ChurchChannel } from '../../hooks/queries/useCh
 import { useFollowChannel } from '../../hooks/mutations/useFollowChannel';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
+import ProtoRetryAction from './ProtoRetryAction';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
 import PrototypeChurchPlanRow from './PrototypeChurchPlanRow';
@@ -648,7 +649,24 @@ export default function PrototypeChurchHub() {
     half-built catalog and animated it a beat later — one load state read as
     two.
   */
-  const content = !contentReady ? (
+  /* The hub's spine is the navigation and channel lists. If either failed, the sections
+     below would render as an empty church rather than a failed load. */
+  const spineFailed = (navQuery.isError && nav == null) || (channelsQuery.isError && channelsData == null);
+  const content = spineFailed ? (
+    <PrototypeListEmptyState
+      iconName="circle-exclamation"
+      title="Couldn’t load your church"
+      description="Your church didn’t load."
+      action={
+        <ProtoRetryAction
+          onRetry={() => {
+            if (navQuery.isError) void navQuery.refetch();
+            if (channelsQuery.isError) void channelsQuery.refetch();
+          }}
+        />
+      }
+    />
+  ) : !contentReady ? (
     // Withheld for the first 150ms so a warm remount shows nothing rather than a flash of
     // dots. See useProtoSpaceLoaderState.
     showLoader ? <ProtoSpaceLoading label="Loading church" /> : null

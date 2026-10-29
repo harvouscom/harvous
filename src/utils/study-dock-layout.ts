@@ -376,11 +376,16 @@ export function updateStudyDockExpandedMaxHeight(track?: HTMLElement | null): vo
   const chromeRow = document.querySelector('.proto-shell__editor-chrome-row');
   if (!chromeRow) return;
   const rect = chromeRow.getBoundingClientRect();
-  const available = Math.round(rect.top - 16);
+  // Room between the toolbar and the chrome row, not between the top of the screen and it:
+  // measured from 0, a landscape phone (≈390pt tall) gave the dock the toolbar's height too,
+  // and the expanded card slid up under the toolbar. No floor: the old 180px minimum was
+  // exactly what pushed it past the room it had.
+  const top = document.querySelector('.proto-shell__main-cell')?.getBoundingClientRect().top ?? 0;
+  const available = Math.round(rect.top - Math.max(0, top) - 16);
   if (available > 0) {
     document.documentElement.style.setProperty(
       '--proto-dock-expanded-max-height',
-      `${Math.max(180, available)}px`,
+      `${available}px`,
     );
   }
 }

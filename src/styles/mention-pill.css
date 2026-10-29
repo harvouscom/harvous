@@ -13,10 +13,7 @@
 
 /* Geometry mirrors scripture pills: inline-flex keeps pad in-layout so tops aren’t clipped. */
 .proto-editor-surface .card-full-editable__content-html .mention-pill,
-.proto-editor-surface .ProseMirror .mention-pill,
-#shared-note-content .card-full-editable__content-html .mention-pill,
-#shared-thread-content .card-full-editable__content-html .mention-pill,
-.public-note-card .card-full-editable__content-html .mention-pill {
+.proto-editor-surface .ProseMirror .mention-pill {
   position: relative !important;
   display: inline-flex !important;
   align-items: baseline !important;

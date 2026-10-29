@@ -26,7 +26,7 @@ import PublicJoinSpacePage from './pages/public/PublicJoinSpacePage';
 import PublicInvitationPage from './pages/public/PublicInvitationPage';
 import { noteParamSlug } from './pages/prototype/proto-route-slugs';
 import { parsePrototypeSearch } from './router-search';
-import { buildPrototypeRouteBranch } from './router-prototype';
+import { buildPrototypeRouteBranch, enterSpaceSearch } from './router-prototype';
 
 function RootRouteComponent() {
   useEffect(() => {
@@ -100,8 +100,10 @@ const joinSpaceRoute = createRoute({
 const sharedNoteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/note/$shareToken',
-  // Lazy: it renders the note with the full editor, and imported statically it put TipTap
-  // in the initial payload of every route, sign-in included.
+  // Lazy: it renders the note on the read-only paper, and imported statically it put the
+  // note renderer and its styles in the initial payload of every route, sign-in included.
+  // Remount per token so a 404 for one link does not stick when the token changes.
+  remountDeps: ({ params }) => params,
   component: lazyRouteComponent(() => import('./pages/public/PublicSharedNotePage')),
 });
 
@@ -110,6 +112,7 @@ const sharedThreadRoute = createRoute({
   path: '/shared/thread/$shareToken',
   /* Lazy, like the shared note above: a public page someone reaches from a link should not
      put its code and styles in every other route's initial payload. */
+  remountDeps: ({ params }) => params,
   component: lazyRouteComponent(() => import('./pages/public/PublicSharedThreadPage')),
 });
 
@@ -261,8 +264,10 @@ function buildClassicRedirectRoutes() {
   const classicSpaceRedirect = createRoute({
     getParentRoute: () => rootRoute,
     path: '/space/$spaceId',
-    beforeLoad: () => {
-      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
+    // Home honours `?enterSpace=` (use-enter-space-param.ts), so the old link still lands in
+    // the space it named rather than dropping the id.
+    beforeLoad: ({ params }) => {
+      throw redirect({ to: prototypeHomeRouteTo(), search: enterSpaceSearch(params.spaceId), replace: true });
     },
   });
 

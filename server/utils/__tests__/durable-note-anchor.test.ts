@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canonicalizeAnchorQuote,
+  createDurableNoteAnchorFromHint,
   buildLegacyAnchorMigrationPatch,
   createDurableNoteAnchorFromHtml,
   createDurableNoteAnchorFromText,
@@ -309,5 +311,61 @@ describe('durable note anchors', () => {
         { id: 'nver_1', noteId: 'note_1', content: '<p>grace remains</p>' },
       ),
     ).toBe('detached-anchor-resolves');
+  });
+
+  describe('creating from a client range hint', () => {
+    // Two paragraphs: the ProseMirror position of a point in the second runs 2 ahead of its
+    // canonical-text offset (one for each paragraph boundary token), which is what saved
+    // "wor|ship" as a quote shifted right.
+    const html = '<p>Ps Jared</p><p>What is worship? \u201cMy response to what I value most.\u201d</p>';
+    const pmStartOfShip = 1 + 'Ps Jared'.length + 2 + 'What is wor'.length; // 22
+
+    it('keeps the hint when it lands exactly on the selected text', () => {
+      const text = tipTapHtmlToCanonicalText(html);
+      const start = text.indexOf('ship');
+      const anchor = createDurableNoteAnchorFromHint({ html, hintStart: start, hintLength: 4, quote: 'ship' });
+      expect(anchor).toMatchObject({ quote: 'ship', start });
+    });
+
+    it('stores the selected text, not the shifted slice, when the hint is a ProseMirror position', () => {
+      const anchor = createDurableNoteAnchorFromHint({
+        html,
+        hintStart: pmStartOfShip,
+        hintLength: 4,
+        quote: 'ship',
+      });
+      expect(anchor.quote).toBe('ship');
+      expect(tipTapHtmlToCanonicalText(html).slice(anchor.start!, anchor.end!)).toBe('ship');
+    });
+
+    it('picks the repeat at or just before the hint', () => {
+      const repeated = '<p>worship</p><p></p><p>more worship</p><p>last worship</p>';
+      // PM position of "worship" in the third paragraph: 9 + 2 + 2 + "more ".length + 1.
+      const pm = 1 + 7 + 2 + 2 + 'more '.length;
+      const anchor = createDurableNoteAnchorFromHint({ html: repeated, hintStart: pm, hintLength: 7, quote: 'worship' });
+      const text = tipTapHtmlToCanonicalText(repeated);
+      expect(anchor.start).toBe(text.indexOf('more worship') + 'more '.length);
+    });
+
+    it('matches a multi-paragraph selection copied with blank lines', () => {
+      const multi = '<p>Anxiety steals worship</p><p></p><p>We can either focus</p>';
+      const anchor = createDurableNoteAnchorFromHint({
+        html: multi,
+        hintStart: 30,
+        hintLength: 30,
+        quote: 'worship\n\nWe can',
+      });
+      expect(anchor.quote).toBe('worship\nWe can');
+    });
+
+    it('throws when the selected text is not in the content, so the caller stores it detached', () => {
+      expect(() =>
+        createDurableNoteAnchorFromHint({ html, hintStart: 3, hintLength: 4, quote: 'not here' }),
+      ).toThrow(RangeError);
+    });
+
+    it('canonicalizes snapshot whitespace like the content', () => {
+      expect(canonicalizeAnchorQuote('a\u00a0b\r\n\r\nc\n')).toBe('a b\nc');
+    });
   });
 });

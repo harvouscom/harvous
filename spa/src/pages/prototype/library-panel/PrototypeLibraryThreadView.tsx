@@ -18,6 +18,7 @@
  * is the exception: it is how the Thread reads, not administration of it, and the
  * sequence endpoint accepts `orderedNoteIds` on its own without touching `mode`.
  */
+import ProtoRetryAction from '../ProtoRetryAction';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { arrayMove } from '@dnd-kit/sortable';
 import { orderStudyThreadNodesByIds, resolveStudyThreadMemberOrder } from '@/utils/study-thread-trail';
@@ -177,8 +178,9 @@ function PersonalThreadMembers({
     return (
       <PrototypeListEmptyState
         iconName="arrow-right-arrow-left"
-        title="Could not load Thread"
-        description="This Thread did not load. Try again in a moment."
+        title="Couldn’t load Thread"
+        description="This Thread didn’t load."
+        action={<ProtoRetryAction onRetry={() => void threadQuery.refetch()} />}
       />
     );
   }
@@ -373,8 +375,9 @@ function SharedThreadMembers({ threadId, data }: { threadId: string; data: Libra
     return (
       <PrototypeListEmptyState
         iconName="arrow-right-arrow-left"
-        title="Could not load Thread"
-        description="This Thread did not load. Try again in a moment."
+        title="Couldn’t load Thread"
+        description="This Thread didn’t load."
+        action={<ProtoRetryAction onRetry={() => void notesQuery.refetch()} />}
       />
     );
   }

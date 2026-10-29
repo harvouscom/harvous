@@ -3,6 +3,8 @@
  * Only run when !isPWA() (caller must check).
  */
 
+import { isIOS } from './platform-detect';
+
 export const PWA_PROMPT_FROM_JOIN_KEY = 'harvous_show_pwa_prompt_from_join';
 export const PWA_PROMPT_LAST_DISMISSED_KEY = 'harvous_pwa_prompt_last_dismissed';
 
@@ -59,5 +61,5 @@ export function isMobileDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
   if (ua.userAgentData?.mobile === true) return true;
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  return isIOS() || /Android/i.test(navigator.userAgent);
 }

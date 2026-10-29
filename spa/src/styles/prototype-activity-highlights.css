@@ -20,3 +20,21 @@ html.harvous-prototype-route .proto-feed-said__quote {
   white-space: normal;
   max-height: calc(1.45em * 2);
 }
+
+/*
+ * The clock never gives way. On a phone the head row's title or quote took the width and the
+ * time wrapped or clipped mid-word ("11:43 AI"). The text side grows from zero and shrinks
+ * to nothing before the time does; scoped under the head so it outranks `.pds-list-title`
+ * and the route resets.
+ */
+html.harvous-prototype-route .proto-feed-said__head .proto-feed-said__time,
+html.harvous-prototype-route .proto-feed-said__time {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+html.harvous-prototype-route .proto-feed-said__head .proto-feed-said__title,
+html.harvous-prototype-route .proto-feed-said__head .proto-feed-said__quote {
+  flex: 1 1 0;
+  min-width: 0;
+}
