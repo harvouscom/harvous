@@ -91,7 +91,10 @@ function showToast(
 ) {
   if (shouldSuppressAppToasts()) {
     if (proto?.message && typeof window !== 'undefined' && isPrototypeShellPath(window.location.pathname)) {
-      showPrototypeFeedbackToast(proto.message, proto.variant);
+      // Not persistent: in the 2.0 shell an error left this way stayed up until dismissed,
+      // while the same failure through `toast.error()` cleared itself. One failure, one
+      // behaviour — persistence is opt-in (see src/utils/toast.ts showError).
+      showPrototypeFeedbackToast(proto.message, proto.variant, { persistent: false });
     }
     return;
   }

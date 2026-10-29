@@ -213,9 +213,10 @@
   flex-shrink: 0;
   margin: 0;
   padding: 4px 8px;
-  border: 0.5px solid rgba(0, 0, 0, 0.1);
+  /* Control tokens, not black-alpha, so the chip still shows in dark mode. */
+  border: 0.5px solid var(--pds-border-control, rgba(0, 0, 0, 0.1));
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--pds-bg-control, rgba(0, 0, 0, 0.06));
   font-family: var(--pds-font-body, inherit);
   font-size: 12px;
   font-weight: 400;
@@ -227,7 +228,7 @@
 }
 
 .highlight-dock-web__prompt-chip:hover {
-  background: rgba(0, 0, 0, 0.09);
+  background: var(--pds-bg-control-hover, rgba(0, 0, 0, 0.09));
   color: var(--pds-text-primary, #1d1d1f);
 }
 

@@ -238,7 +238,8 @@
    `display: inline-flex !important` + `user-select: none` from the committed-pill rules above.
    That combination is not a valid caret host: iOS has nowhere to paint the caret and strands it at
    the end of the line. The draft is editable text, so it must be `display: inline` and selectable.
-   The COMMITTED pill deliberately stays inline-flex + user-select:none — do not change it. */
+   The COMMITTED pill stays inline-flex and `user-select: all` (tiptap-editor.css), so a drag
+   selects it whole and a selection can run across it — do not change it. */
 .proto-editor-surface .scripture-pill-draft,
 .proto-editor-surface .ProseMirror .scripture-pill-draft {
   display: inline !important;

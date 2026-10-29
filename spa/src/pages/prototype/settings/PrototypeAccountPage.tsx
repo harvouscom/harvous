@@ -17,7 +17,7 @@ type AccountView = 'hub' | 'profile' | 'emails' | 'password' | 'security';
  * Account hub — identity header + one-tap rows for each Clerk setting
  * (edit profile, email addresses, change password, security). Sub-screens are
  * rendered in-pane via local view state (not router routes) so the back button
- * works the same in the wide two-pane modal and the mobile sheet. Log out lives
+ * works the same in the wide two-pane modal and the mobile sheet. Sign out lives
  * in the account toolbar menu.
  */
 export default function PrototypeAccountPage() {

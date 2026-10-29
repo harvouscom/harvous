@@ -142,7 +142,7 @@ export default function PrototypeHomeGreeting({
           <span className="proto-home-greeting__hello">{hello}</span>{' '}
           Welcome to Harvous. Write {introListChip('notes')} as you add{' '}
           {introListChip('scripture')}, open {todaysPassageChip}, and create{' '}
-          {introListChip('highlights')} and {introListChip('threads')}.
+          {introListChip('highlights')} and {introListChip('threads')}
         </p>
       </>
     );

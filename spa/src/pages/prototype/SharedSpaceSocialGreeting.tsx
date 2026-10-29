@@ -126,7 +126,7 @@ export default function SharedSpaceSocialGreeting({
       </>
     );
   } else if (intro.totalNoteCount > 0) {
-    body = <>This shared space has {notesChip}.</>;
+    body = <>This shared space has {notesChip}</>;
   } else {
     return null;
   }

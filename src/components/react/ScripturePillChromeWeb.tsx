@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { preferredScrollBehavior } from '@/utils/scroll-behavior';
 import { markOnboardingStep } from '../../../spa/src/lib/proto-onboarding-sync';
 import { createPortal } from 'react-dom';
 // @ts-ignore — JSON resolveJsonModule
@@ -756,7 +757,7 @@ export default function ScripturePillChromeWeb({
   const handleContextStripReady = useCallback(() => {
     requestAnimationFrame(() => {
       const strip = passageScrollRef.current?.querySelector('.passage-context-strip');
-      if (strip) strip.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (strip) strip.scrollIntoView({ behavior: preferredScrollBehavior(), block: 'start' });
     });
   }, []);
 
@@ -810,7 +811,7 @@ export default function ScripturePillChromeWeb({
     <StudyDockCardShell
       rootClassName="scripture-pill-chrome"
       ariaLabel="Scripture reference editor"
-      accentColor={scriptureDockChromeAccent(initialPillAccent)}
+      accentColor={scriptureDockChromeAccent(selectedSwatchKey)}
       expanded={isExpanded}
       onToggleExpanded={toggleExpanded}
       onDismiss={onDone}

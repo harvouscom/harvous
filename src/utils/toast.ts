@@ -176,7 +176,12 @@ export const toast = {
         label: action.label,
         onClick: action.onClick,
       },
-    }), 'error', cleanedMessage);
+    }), 'error', cleanedMessage, {
+      // Carried into the 2.0 shell's toast too — without it the action button was dropped
+      // there and the error had nothing to press.
+      persistent: true,
+      action: { label: action.label, onAction: action.onClick },
+    });
   },
 
   // Persistent upgrade prompt: message + Upgrade (primary) and Not now (secondary). Stays open until user acts.
