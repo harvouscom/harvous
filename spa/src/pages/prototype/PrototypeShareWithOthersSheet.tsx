@@ -17,6 +17,7 @@
  * thing; the history is a list of every kind of sharing, and it lives in
  * Settings › Sharing, which the sent state points to.
  */
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
@@ -309,6 +310,14 @@ export default function PrototypeShareWithOthersSheet({
   useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation);
 
   const close = () => onOpenChange(false);
+
+  // Desktop popover: focus moves in, Tab stays inside, Escape closes, and focus returns to
+  // whatever opened it.
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
 
   const content = (
     <ShareWithOthersForm

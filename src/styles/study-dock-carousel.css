@@ -292,9 +292,15 @@
   background: var(--pds-bg-popover-solid, var(--pds-bg-page));
 }
 
-.study-dock-carousel__drag-handle:focus,
-.study-dock-carousel__drag-handle:focus-visible {
+.study-dock-carousel__drag-handle:focus {
   outline: none;
+}
+
+/* The handle is focusable (keyboard reorder), so a keyboard focus needs the accent ring. */
+.study-dock-carousel__drag-handle:focus-visible {
+  outline: var(--focus-ring-width, 2px) solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 .study-dock-carousel__item-inner {

@@ -2434,23 +2434,24 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
    keyboard/programmatic focus but not pointer clicks. */
 .proto-note-row-item:has(.proto-note-row__main:focus-visible) {
   background: var(--pds-bg-row-hover);
-  box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
+  box-shadow: inset 0 0 0 var(--focus-ring-width, 2px) var(--pds-accent-focus-ring);
 }
-/* Selected row — same hover fill, no inset ring, even when the row button has focus. */
+/* Selected row with keyboard focus — the same accent ring: a Tab that lands on the selected
+   row used to show nothing at all, so the focus seemed to vanish. One ring, everywhere. */
 .proto-note-row-item[data-active='true']:has(.proto-note-row__main:focus-visible) {
   background: var(--pds-bg-row-hover);
-  box-shadow: none;
+  box-shadow: inset 0 0 0 var(--focus-ring-width, 2px) var(--pds-accent-focus-ring);
 }
 
 .proto-note-row-item[data-active='true'][data-keyboard-focus='true']:has(.proto-note-row__main:focus-visible) {
   background: var(--pds-bg-row-hover);
-  box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
+  box-shadow: inset 0 0 0 var(--focus-ring-width, 2px) var(--pds-accent-focus-ring);
 }
 
 /* Programmatic keyboard nav (Shift+↑/↓) — :focus-visible is unreliable after .focus(). */
 .proto-note-row-item[data-keyboard-focus='true'] {
   background: var(--pds-bg-row-hover);
-  box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
+  box-shadow: inset 0 0 0 var(--focus-ring-width, 2px) var(--pds-accent-focus-ring);
   scroll-margin-top: 8px;
   scroll-margin-bottom: 8px;
 }
@@ -2458,7 +2459,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 /* Keyboard focus uses the same hover chrome as middle rows (not the subtler selected fill). */
 .proto-note-row-item[data-active='true'][data-keyboard-focus='true'] {
   background: var(--pds-bg-row-hover);
-  box-shadow: inset 0 0 0 1.5px var(--pds-border-control-strong);
+  box-shadow: inset 0 0 0 var(--focus-ring-width, 2px) var(--pds-accent-focus-ring);
 }
 
 .proto-note-row-item[data-keyboard-focus='true'] .proto-note-row__main:focus,
@@ -8814,7 +8815,7 @@ button.proto-home-greeting__chip--passage {
   box-shadow:
     var(--pds-paper-shadow-subtle),
     var(--pds-glass-rim),
-    inset 0 0 0 1.5px var(--pds-border-control-strong);
+    inset 0 0 0 var(--focus-ring-width, 2px) var(--pds-accent-focus-ring);
 }
 
 .proto-collection-grid > li[data-keyboard-focus='true'] .proto-collection-card {
@@ -8822,7 +8823,7 @@ button.proto-home-greeting__chip--passage {
   box-shadow:
     var(--pds-paper-shadow-subtle),
     var(--pds-glass-rim),
-    inset 0 0 0 1.5px var(--pds-border-control-strong);
+    inset 0 0 0 var(--focus-ring-width, 2px) var(--pds-accent-focus-ring);
   scroll-margin-top: 8px;
   scroll-margin-bottom: 8px;
 }
@@ -26667,4 +26668,26 @@ button.proto-feed-sheet__stat:hover {
 
 .pds-reader__book-menu .pds-reader__book-menu-footer .proto-menu-item__icon {
   color: var(--pds-text-tertiary);
+}
+
+/*
+ * One accent keyboard ring, everywhere. These controls removed the outline and put back
+ * only a background change (menu items, the list-view trigger, banner and popover-header
+ * buttons, pairing and church-picker options, the people button) or nothing at all (search
+ * clear), so Tab landed on them invisibly. Inset, since most sit flush in a row or a bar.
+ */
+:where(.proto-theme, html.harvous-prototype-route)
+  :is(
+    .proto-menu-item,
+    .proto-sidebar-list-view__trigger,
+    .proto-sidebar-search__clear,
+    .proto-purpose-banner__action,
+    .proto-purpose-banner__dismiss,
+    .proto-study-thread-popover__header-action,
+    .proto-channel-pairing__option,
+    .hmc-church-picker__result,
+    .proto-shared-space-header__people
+  ):focus-visible {
+  outline: var(--focus-ring-width, 2px) solid var(--pds-accent-focus-ring);
+  outline-offset: -2px;
 }

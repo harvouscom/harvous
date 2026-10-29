@@ -5,6 +5,7 @@
  * fields plus a primary button sat under the list at all times and pushed it
  * down, so the pane read as a form with a list attached rather than a team.
  */
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useRef, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -70,6 +71,14 @@ export default function PrototypeChurchInviteSheet({
     if (!email.trim() || pending) return;
     onSubmit();
   };
+
+  // Desktop popover: focus moves in, Tab stays inside, Escape closes, and focus returns to
+  // whatever opened it.
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
 
   const content = (
     <>

@@ -1371,7 +1371,8 @@ export default function PrototypeBibleReaderPane({
       setLanding(null);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      // An open menu or popover that closed on this press already handled it.
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
       setPinnedKey(null);
       setActiveKey(null);
       setSelection(null);

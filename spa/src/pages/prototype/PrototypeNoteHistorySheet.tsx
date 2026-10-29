@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { haptics } from '@/utils/haptics';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
@@ -358,6 +359,13 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
     </button>
   ) : null;
 
+  // Desktop popover: focus moves in, Tab stays inside, Escape closes, and focus returns to
+  // whatever opened it.
+  useProtoDialogFocus({
+    open: open && showPopoverPortal,
+    dialogRef: cardRef,
+    onDismiss: () => onOpenChange(false),
+  });
   // What follows the last version in the list layouts: the empty note, older pages, Plus.
   const variantTail = (
     <>
