@@ -18,6 +18,31 @@ describe('studyFeedSnippet', () => {
     expect(studyFeedSnippet('<p>No condemnation</p>')).toBe('No condemnation');
     expect(studyFeedSnippet(null)).toBe('');
   });
+
+  const pill = (ref: string, translation = 'NLT') =>
+    `<span data-scripture-reference="${ref}" data-note-id="n1" data-scripture-translation="${translation}" class="scripture-pill">${ref}</span>`;
+
+  it('keeps a pill and the next paragraph apart', () => {
+    // The row Derek saw: "Exodus 32:1-35 NLTPs JaredWhat is w…"
+    const html = `<p>${pill('Exodus 32:1-35')}</p><p>Ps Jared</p><p>What is worship?</p>`;
+    expect(studyFeedSnippet(html)).toBe('Exodus 32:1-35 NLT Ps Jared What is worship?');
+  });
+
+  it('keeps a pill and the words straight after it apart', () => {
+    expect(studyFeedSnippet(`<p>${pill('John 3:16')}For God so loved</p>`)).toBe(
+      'John 3:16 NLT For God so loved',
+    );
+  });
+
+  it('does not push a space before punctuation after a pill', () => {
+    expect(studyFeedSnippet(`<p>Read ${pill('John 3:16')}, then pray</p>`)).toBe(
+      'Read John 3:16 NLT, then pray',
+    );
+  });
+
+  it('treats a hard break as a space', () => {
+    expect(studyFeedSnippet('<p>First line<br>Second line</p>')).toBe('First line Second line');
+  });
 });
 
 describe('buildNoteCreatedItems', () => {
@@ -112,6 +137,57 @@ describe('buildHighlightItems', () => {
     expect(items.map((i) => i.kind)).toEqual(['highlight-scripture', 'highlight-note']);
     expect(items[0]).toMatchObject({ reference: 'John 15:5', excerpt: 'I am the vine' });
     expect(items[1]).toMatchObject({ noteId: 'n1', noteTitle: 'On abiding' });
+  });
+
+  it('takes the curly quote marks off a stored quote', () => {
+    const [item] = buildHighlightItems(
+      [{ ...base, id: 'h4', parentNoteId: 'n1', anchorQuote: '“abiding is ordinary”', anchorStatus: 'resolved' }],
+      new Map(),
+    );
+    expect(item.excerpt).toBe('abiding is ordinary');
+  });
+
+  it('falls back to the snippet when the quote cleans down to a scrap', () => {
+    // The row Derek saw: `“ship? “”`.
+    const [item] = buildHighlightItems(
+      [
+        {
+          ...base,
+          id: 'h5',
+          parentNoteId: 'n1',
+          anchorQuote: 'ship? “',
+          anchorStatus: 'resolved',
+          sourceSnippet: 'Who is steering this ship? Not me.',
+        },
+      ],
+      new Map(),
+    );
+    expect(item.excerpt).toBe('Who is steering this ship? Not me.');
+  });
+
+  it('falls back to the snippet when the anchor is detached', () => {
+    const [item] = buildHighlightItems(
+      [
+        {
+          ...base,
+          id: 'h6',
+          parentNoteId: 'n1',
+          anchorQuote: 'words that were since rewritten',
+          anchorStatus: 'detached',
+          sourceSnippet: 'what the note said when it was kept',
+        },
+      ],
+      new Map(),
+    );
+    expect(item.excerpt).toBe('what the note said when it was kept');
+  });
+
+  it('keeps a short quote when there is no snippet to fall back to', () => {
+    const [item] = buildHighlightItems(
+      [{ ...base, id: 'h7', parentNoteId: 'n1', anchorQuote: '“Selah”', anchorStatus: 'resolved' }],
+      new Map(),
+    );
+    expect(item.excerpt).toBe('Selah');
   });
 
   it('drops a highlight with nothing to quote', () => {

@@ -254,6 +254,7 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
             highlightAccentRaw: StudyThreadEntries.highlightAccentRaw,
             sourceSnippet: StudyThreadEntries.sourceSnippet,
             anchorQuote: StudyThreadEntries.anchorQuote,
+            anchorStatus: StudyThreadEntries.anchorStatus,
             scriptureReference: StudyThreadEntries.scriptureReference,
             scripturePassageTranslation: StudyThreadEntries.scripturePassageTranslation,
             scripturePassageExcerpt: StudyThreadEntries.scripturePassageExcerpt,
