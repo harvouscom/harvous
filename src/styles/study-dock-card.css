@@ -310,7 +310,13 @@
   transition: background-color 0.1s ease;
 }
 
-.study-dock-card__header-btn:hover {
+@media (hover: hover) {
+  .study-dock-card__header-btn:hover {
+    background: var(--pds-bg-control, rgba(0, 0, 0, 0.055));
+  }
+}
+
+.study-dock-card__header-btn:active:not(:disabled) {
   background: var(--pds-bg-control, rgba(0, 0, 0, 0.055));
 }
 
