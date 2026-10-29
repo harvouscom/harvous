@@ -6,9 +6,14 @@
 /* ─── Viewport inset frame (Figma outer padding + shell corner radius) ─────── */
 .proto-shell-frame {
   margin: var(--pds-shell-frame-inset);
+  /* Clear the notch on a landscape phone and the iPad's home indicator. All zero on a
+     desktop browser, so this is the same frame there. */
+  margin-left: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-left, 0px));
+  margin-right: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-right, 0px));
+  margin-bottom: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
-  height: calc(100vh - 2 * var(--pds-shell-frame-inset));
-  height: calc(100dvh - 2 * var(--pds-shell-frame-inset));
+  height: calc(100vh - 2 * var(--pds-shell-frame-inset) - env(safe-area-inset-bottom, 0px));
+  height: calc(100dvh - 2 * var(--pds-shell-frame-inset) - env(safe-area-inset-bottom, 0px));
   border-radius: var(--pds-shell-frame-radius);
   border: none;
   overflow: hidden;

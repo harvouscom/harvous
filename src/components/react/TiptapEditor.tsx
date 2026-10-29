@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { isIOS } from '@/utils/platform-detect';
 import { createPortal } from 'react-dom';
 import { markOnboardingStep } from '../../../spa/src/lib/proto-onboarding-sync';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -4008,7 +4009,7 @@ function TiptapToolbarTrack({
 // On mobile, we don't want to interfere with native keyboard behavior (e.g., double-space-to-period)
 const isMobileDevice = (): boolean => {
   if (typeof window === 'undefined') return false;
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  return isIOS() || /Android/i.test(navigator.userAgent);
 };
 
 type SelectionActionBarState = {
@@ -4421,8 +4422,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const scheduleScrollSelectionIntoViewAboveToolbar = (editorInstance: any) => {
     const run = () => scrollSelectionIntoViewAboveToolbar(editorInstance);
     setTimeout(run, 350);
-    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isIOS) {
+    if (isIOS()) {
       setTimeout(run, 400);
       setTimeout(run, 600);
     }
