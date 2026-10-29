@@ -2,7 +2,10 @@ import { useEffect } from 'react';
 import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
 import { emitProtoViewportSettle } from '@/utils/proto-viewport-settle';
 
-const MOBILE_QUERY = '(max-width: 899px)';
+/* A phone-width shell, or any touch screen: iPad landscape and Pro Max landscape are ≥900
+   wide but still get a soft keyboard that overlays the page. `any-pointer`, because a
+   trackpad iPad reports a fine primary pointer. */
+const MOBILE_QUERY = '(max-width: 899px), (any-pointer: coarse)';
 
 /** True when the focused element can raise the soft keyboard. */
 export function hasEditableFocus(doc: Document = document): boolean {
