@@ -72,7 +72,7 @@ import {
   type FormatToolbarSelectionRange,
 } from '@/utils/prototype-format-toolbar-selection';
 import { flushCoalescedNoteHtmlOnUnmount } from '@/utils/prototype-note-content-propagation';
-import { scrollCaretClearOfFormatBar } from '@/utils/caret-clear-of-format-bar';
+import { repaintNativeCaretAfterScroll, scrollCaretClearOfFormatBar } from '@/utils/caret-clear-of-format-bar';
 import { isTiptapViewReady } from '@/utils/tiptap-helpers';
 import ScripturePillDeleteConfirm from './ScripturePillDeleteConfirm';
 
@@ -4415,6 +4415,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           : null;
     if (el && typeof el.scrollIntoView === 'function') {
       el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+      repaintNativeCaretAfterScroll(editorInstance.view);
     }
   };
 
