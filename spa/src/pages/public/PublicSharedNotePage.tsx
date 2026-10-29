@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { haptics } from '@/utils/haptics';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { noteUrlForCurrentSurface } from '@/utils/url-helpers';
@@ -93,6 +94,7 @@ export default function PublicSharedNotePage() {
     try {
       const result = await addSharedNoteMutation.mutateAsync(shareToken);
       if (result.success && result.createdIds?.noteId) {
+        haptics.success();
         showToast('Added to your Harvous!', 'success', 0);
         const id = result.createdIds.noteId;
         const path = noteUrlForCurrentSurface(id);
