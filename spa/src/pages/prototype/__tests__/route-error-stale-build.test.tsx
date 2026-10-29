@@ -44,7 +44,7 @@ describe('a route crash', () => {
     render(<PrototypeRouteErrorState error={error} reset={vi.fn()} />);
 
     await waitFor(() => expect(reportRouteBoundaryError).toHaveBeenCalledWith(error, null));
-    expect(screen.getByText(/Whoops/)).toBeTruthy();
+    expect(screen.getByText(/Something went wrong/)).toBeTruthy();
     expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy();
     expect(screen.queryByText(/Harvous was updated/)).toBeNull();
   });

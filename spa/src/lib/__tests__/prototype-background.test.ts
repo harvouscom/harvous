@@ -44,6 +44,9 @@ import {
   readColorSchemePreference,
   shouldReducePrototypeCompositorOnMobile,
   syncThemeColorMeta,
+  syncThemeColorToCanvas,
+  applyBackground,
+  clearBackgroundVars,
   writeBackgroundForMode,
   writeColorSchemePreference,
 } from '../prototype-background';
@@ -145,6 +148,31 @@ describe('prototype color scheme preference', () => {
       expect(metas[1].getAttribute('content')).toBe(forced[1]);
     } finally {
       metas.forEach((m) => m.remove());
+    }
+  });
+
+  it('theme-color follows a custom canvas colour, so the iOS edge effect has nothing to fade between', () => {
+    const metas = (['light', 'dark'] as const).map((scheme) => {
+      const meta = document.createElement('meta');
+      meta.setAttribute('name', 'theme-color');
+      meta.setAttribute('media', `(prefers-color-scheme: ${scheme})`);
+      document.head.appendChild(meta);
+      return meta;
+    });
+    try {
+      localStorage.setItem(PROTO_COLOR_SCHEME_KEY, 'light');
+      applyBackground({ kind: 'color', value: '#e8f0ea' } as Parameters<typeof applyBackground>[0]);
+      expect(metas.map((m) => m.getAttribute('content'))).toEqual(['#e8f0ea', '#e8f0ea']);
+      localStorage.removeItem(PROTO_COLOR_SCHEME_KEY);
+      // System scheme: only the slot on screen (light in jsdom) takes the canvas.
+      syncThemeColorToCanvas('system');
+      expect(metas[0].getAttribute('content')).toBe('#e8f0ea');
+      expect(metas[1].getAttribute('content')).not.toBe('#e8f0ea');
+      clearBackgroundVars();
+      expect(metas[0].getAttribute('content')).not.toBe('#e8f0ea');
+    } finally {
+      metas.forEach((m) => m.remove());
+      clearBackgroundVars();
     }
   });
 });

@@ -232,7 +232,7 @@
 
 /* The phone's opened stack scrolls inside the band rather than past the toolbar. */
 .proto-callout-dock .proto-callout-stack--open {
-  max-height: calc(100dvh - 260px);
+  max-height: max(160px, calc(100dvh - 260px));
 }
 
 /* The picture: a slice of the app on one of its own canvas images, cropped at its foot like the
@@ -856,7 +856,7 @@
 }
 
 .proto-callout-stack--open[data-direction='up'] {
-  max-height: calc(100vh - 2 * var(--pds-shell-frame-inset, 14px) - 120px);
+  max-height: calc(100dvh - 2 * var(--pds-shell-frame-inset, 14px) - 120px);
 }
 
 .proto-callout-stack__bar {

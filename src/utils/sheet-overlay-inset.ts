@@ -9,7 +9,8 @@
  * @see docs/troubleshooting/IOS_PWA_SHEET_OVERLAY_SAFE_AREA.md
  */
 
-const MOBILE_MQ = '(max-width: 1159px)';
+/* The shell's mobile line. At 900–1159 the desktop shell is showing, with no bottom sheets. */
+const MOBILE_MQ = '(max-width: 899px)';
 
 function isIosPwa(): boolean {
   return typeof document !== 'undefined' && document.documentElement.classList.contains('ios-pwa');

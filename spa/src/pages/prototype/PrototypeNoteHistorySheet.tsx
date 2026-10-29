@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
+import { haptics } from '@/utils/haptics';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -31,6 +32,13 @@ import {
   noteHistoryDayLabel,
   noteHistorySessionTimeLabel,
 } from './note-history-presentation';
+import { useHarvousAdminCheck } from '@/hooks/queries/useVotdPreview';
+import PrototypeNoteHistoryVariant, {
+  NoteHistoryLayoutSwitch,
+  readNoteHistoryLayout,
+  writeNoteHistoryLayout,
+  type NoteHistoryLayout,
+} from './PrototypeNoteHistoryVariants';
 import '../../styles/prototype-note-history.css';
 
 export type PrototypeNoteHistorySheetProps = {
@@ -71,6 +79,11 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
   const restore = useRestoreNoteVersion();
   const fullHistory = useHasFeature('full_history');
   const defaultTranslation = useProfile().data?.defaultTranslation ?? null;
+  // Phone layouts on trial (see PrototypeNoteHistoryVariants): admins pick one per device,
+  // everyone else keeps the strip until one is chosen.
+  const isAdmin = useHarvousAdminCheck().data?.isAdmin === true;
+  const [layoutChoice, setLayoutChoice] = useState<NoteHistoryLayout>(() => readNoteHistoryLayout());
+  const layout: NoteHistoryLayout = asSheet && isAdmin ? layoutChoice : 'strip';
 
   const sessions = useMemo(() => history.data?.pages.flatMap((page) => page.sessions) ?? [], [history.data]);
   const days = useMemo(() => groupNoteHistoryByDay(sessions), [sessions]);
@@ -128,6 +141,7 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
         onSuccess: () => {
           setConfirmRect(null);
           onOpenChange(false);
+          haptics.success();
           toast.success(
             COPY.restored(formatNoteHistoryMoment(target.endedAt)),
             previousId
@@ -335,7 +349,9 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
   const restoreButton = canRestore ? (
     <button
       type="button"
-      className="proto-note-history__restore"
+      className={
+        layout === 'strip' ? 'proto-note-history__restore' : 'proto-note-history__restore proto-ink-on-accent'
+      }
       disabled={restore.isPending}
       onClick={(event) => setConfirmRect(event.currentTarget.getBoundingClientRect())}
     >
@@ -350,6 +366,32 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
     dialogRef: cardRef,
     onDismiss: () => onOpenChange(false),
   });
+  // What follows the last version in the list layouts: the empty note, older pages, Plus.
+  const variantTail = (
+    <>
+      {sessions.length <= 1 && !locked ? (
+        <div className="proto-note-history__empty">
+          <p className="proto-note-history__empty-title">{COPY.empty}</p>
+          <p className="proto-note-history__empty-detail">{COPY.emptyDetail}</p>
+        </div>
+      ) : null}
+      {history.hasNextPage ? (
+        <button
+          type="button"
+          className="proto-note-history__text-btn"
+          disabled={history.isFetchingNextPage}
+          onClick={() => void history.fetchNextPage()}
+        >
+          {COPY.loadMore}
+        </button>
+      ) : null}
+      {showUpsell && locked ? (
+        <button type="button" className="proto-note-history__text-btn" onClick={openUpgrade}>
+          {COPY.lockedTitle} <span className="proto-menu-item__badge">{PLUS_BADGE_COPY}</span>
+        </button>
+      ) : null}
+    </>
+  );
 
   const content = (
     <div className="proto-note-history" data-layout={asSheet ? 'stacked' : 'split'}>
@@ -371,8 +413,36 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
           </button>
         </div>
       </div>
-      {asSheet ? strip : null}
-      <div className="proto-note-history__panes">
+      {asSheet && isAdmin ? (
+        <NoteHistoryLayoutSwitch
+          value={layoutChoice}
+          onChange={(next) => {
+            setLayoutChoice(next);
+            writeNoteHistoryLayout(next);
+          }}
+        />
+      ) : null}
+      {layout !== 'strip' ? (
+        <div className="proto-note-history__panes" data-history-layout={layout}>
+          <PrototypeNoteHistoryVariant
+            layout={layout}
+            noteId={noteId}
+            sessions={sessions}
+            days={days}
+            selected={selected}
+            onSelect={setSelectedId}
+            detailFor={(session) => rowDetail(session, currentTitle)}
+            preview={preview}
+            selectedHtml={version.isSuccess ? version.data.version.content : null}
+            restoreButton={restoreButton}
+            tail={variantTail}
+            pending={history.isPending}
+            errorNotice={history.isError ? loadError : null}
+          />
+        </div>
+      ) : null}
+      {asSheet && layout === 'strip' ? strip : null}
+      {layout !== 'strip' ? null : <div className="proto-note-history__panes">
         {asSheet ? null : <div className="proto-note-history__list">{timeline}</div>}
         <div className="proto-note-history__preview">
           <div className="proto-note-history__preview-scroll">{preview}</div>
@@ -392,7 +462,7 @@ export default function PrototypeNoteHistorySheet({ open, noteId, onOpenChange }
             </div>
           ) : null}
         </div>
-      </div>
+      </div>}
       {confirmRect && selected ? (
         <ProtoConfirmDialog
           anchorRect={confirmRect}
