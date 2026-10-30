@@ -246,6 +246,85 @@ export async function hmcGetChurchById(id: string): Promise<HmcLeanChurch | null
   }
 }
 
+/** One recurring service from HMC's profile: 0 = Sunday, 24h `HH:MM` on the church's wall clock. */
+export type HmcServiceSlot = { dayOfWeek: number; startTime: string; label: string | null };
+
+/**
+ * `GET /v1/churches/:id/profile` — the listing fields beyond the lean ref. Only what Harvous
+ * reads is normalized; HMC sends more (contact, campuses) and adding a field here is the whole
+ * cost of using it.
+ */
+export type HmcChurchProfile = HmcLeanChurch & {
+  serviceTimes: { raw: string; slots: HmcServiceSlot[]; parsed: boolean } | null;
+  website: string | null;
+  ministries: string[];
+  languages: string[];
+};
+
+const HMC_SLOT_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Pure: keep only well-formed slots, one per day + time. HMC is a partner, not a trusted input. */
+export function normalizeHmcServiceSlots(raw: unknown): HmcServiceSlot[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: HmcServiceSlot[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const day = row.dayOfWeek;
+    const time = typeof row.startTime === 'string' ? row.startTime.trim() : '';
+    if (typeof day !== 'number' || !Number.isInteger(day) || day < 0 || day > 6) continue;
+    if (!HMC_SLOT_TIME.test(time)) continue;
+    const key = `${day}@${time}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const label = typeof row.label === 'string' && row.label.trim() ? row.label.trim().slice(0, 80) : null;
+    out.push({ dayOfWeek: day, startTime: time, label });
+  }
+  return out.sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
+}
+
+const stringList = (raw: unknown): string[] =>
+  Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).map((v) => v.trim()) : [];
+
+/** Pure: normalize a profile payload; null when it is not a church. */
+export function normalizeHmcChurchProfile(raw: unknown): HmcChurchProfile | null {
+  const lean = normalizeLeanChurch(raw);
+  if (!lean) return null;
+  const row = raw as Record<string, unknown>;
+  const svc = row.serviceTimes && typeof row.serviceTimes === 'object' ? (row.serviceTimes as Record<string, unknown>) : null;
+  const slots = normalizeHmcServiceSlots(svc?.slots);
+  return {
+    ...lean,
+    serviceTimes:
+      svc && typeof svc.raw === 'string' && svc.raw.trim()
+        ? { raw: svc.raw.trim(), slots, parsed: slots.length > 0 }
+        : null,
+    website: typeof row.website === 'string' && row.website.trim() ? row.website.trim() : null,
+    ministries: stringList(row.ministries),
+    languages: stringList(row.languages),
+  };
+}
+
+/**
+ * The church's HMC profile, or null when HMC has no such church — **or has no profile route
+ * yet**. An HMC deploy without the route does not 404: `/churches/IA-1/profile` matches its
+ * `/churches/:state/:shortId` route and answers **400** "Invalid state or shortId" (seen against
+ * production, Oct 29 2026). Callers treat null as "the directory has nothing more to say", which
+ * is true either way.
+ */
+export async function hmcGetChurchProfile(id: string): Promise<HmcChurchProfile | null> {
+  const churchId = id.trim();
+  if (!churchId) return null;
+  try {
+    const data = await hmcFetchJson<{ church?: unknown }>(`/churches/${encodeURIComponent(churchId)}/profile`);
+    return normalizeHmcChurchProfile(data.church);
+  } catch (error) {
+    if (error instanceof HmcPartnerError && (error.status === 404 || error.status === 400)) return null;
+    throw error;
+  }
+}
+
 /** Partner change-feed row from `GET /v1/churches/changes`. */
 export type HmcChurchChange = {
   churchId: string;
@@ -607,8 +686,17 @@ export async function hmcAddChurch(options: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      // Writes are never retried (see hmcFetchJson), but they still must not hang a save.
+      signal: AbortSignal.timeout(HMC_REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
+    if (isTimeoutError(error)) {
+      throw new HmcPartnerError(
+        `Here’s My Church did not answer within ${HMC_REQUEST_TIMEOUT_MS / 1000}s`,
+        'HMC_UPSTREAM_TIMEOUT',
+        504,
+      );
+    }
     throw new HmcPartnerError(
       error instanceof Error ? error.message : 'Here’s My Church request failed',
       'HMC_NETWORK_ERROR',

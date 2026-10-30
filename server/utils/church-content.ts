@@ -23,8 +23,12 @@ import {
   eq,
   inArray,
   isNull,
+  isNotNull,
+  gt,
   lte,
+  or,
 } from '../db';
+import { CHURCH_LAPSED_CODE, CHURCH_LAPSED_ERROR, getChurchSponsorshipByOrgId } from './church-entitlement';
 import { capabilitiesForChurchRole } from './church-role-capabilities';
 import { fetchClerkOrgMemberships } from './clerk-org';
 import { associateAuthoredNoteWithSpace, SharedSpaceLifecycleError } from './shared-space-lifecycle';
@@ -169,6 +173,23 @@ export async function publishSubmission(
   now: Date,
   fromStatuses: SubmissionStatus[] = OPEN_SUBMISSION_STATUSES,
 ): Promise<PublishOutcome> {
+  /*
+   * A lapsed church's waiting posts hold rather than go live. Publishing is a staff write, and
+   * lapse stops staff writes (church-entitlement.ts); a post scheduled before the plan ended is
+   * still that. The row is left exactly as it was, so renewing the plan publishes it on the next
+   * tick, and an approval tapped while lapsed can be tapped again.
+   */
+  const orgRow = first(
+    await db
+      .select({ orgId: ChurchContentSubmissions.orgId })
+      .from(ChurchContentSubmissions)
+      .where(eq(ChurchContentSubmissions.id, submissionId))
+      .limit(1),
+  );
+  if (orgRow) {
+    const { sponsorship } = await getChurchSponsorshipByOrgId(orgRow.orgId);
+    if (!sponsorship.sponsored) return { ok: false, error: CHURCH_LAPSED_ERROR, code: CHURCH_LAPSED_CODE };
+  }
   let claimed: SubmissionRow | undefined;
   try {
     claimed = await db.transaction(async (tx) => {
@@ -237,12 +258,25 @@ const TICK_BATCH = 50;
  * Publish every scheduled submission whose time has come. Runs every five minutes on the Fly
  * process (server/scheduler.ts). Each row is claimed independently, so a second machine or an
  * overlapping run publishes nothing twice.
+ *
+ * Only sponsored churches' rows are picked up: a lapsed church's posts hold (see
+ * `publishSubmission`), and selecting them anyway would let a church with fifty held posts fill
+ * every batch and starve everyone else. This is `churchSponsorship` written as SQL.
  */
 export async function runChurchContentTick(now: Date = new Date()): Promise<{ published: number; failed: number }> {
   const due = await db
     .select({ id: ChurchContentSubmissions.id })
     .from(ChurchContentSubmissions)
-    .where(and(eq(ChurchContentSubmissions.status, 'scheduled'), lte(ChurchContentSubmissions.publishAt, now)))
+    .innerJoin(Churches, eq(Churches.orgId, ChurchContentSubmissions.orgId))
+    .where(
+      and(
+        eq(ChurchContentSubmissions.status, 'scheduled'),
+        lte(ChurchContentSubmissions.publishAt, now),
+        eq(Churches.isActive, true),
+        isNull(Churches.deletedAt),
+        or(isNotNull(Churches.billingPlan), gt(Churches.pilotUntil, now)),
+      ),
+    )
     .limit(TICK_BATCH);
   let published = 0;
   let failed = 0;

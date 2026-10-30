@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { churchPushCopy, churchPushUrl, churchPushWindowOpen } from '../church-publish-push';
+import { churchPushCopy, churchPushUrl, churchPushWindowOpen, duringMyService } from '../church-publish-push';
 import { TITLE_MAX } from '../reminder-payload';
 import { parseReminderSettings, serializeReminderSettings, validateReminderSettingsInput, DEFAULT_REMINDER_SETTINGS } from '@/utils/reminder-settings';
 
@@ -17,6 +17,27 @@ describe('churchPushWindowOpen', () => {
   it('holds church news overnight', () => {
     expect(churchPushWindowOpen({ localHour: 7, localDate: '2026-09-18', lastSentLocalDate: null })).toBe(false);
     expect(churchPushWindowOpen({ localHour: 22, localDate: '2026-09-18', lastSentLocalDate: null })).toBe(false);
+  });
+});
+
+describe('duringMyService', () => {
+  const nine = { dayOfWeek: 0, startTime: '09:00' };
+  const sunday = '2026-11-01';
+  it('is quiet from half an hour before the service until ninety minutes after', () => {
+    expect(duringMyService({ churchDate: sunday, churchTime: '08:29', service: nine })).toBe(false);
+    expect(duringMyService({ churchDate: sunday, churchTime: '08:30', service: nine })).toBe(true);
+    expect(duringMyService({ churchDate: sunday, churchTime: '10:30', service: nine })).toBe(true);
+    expect(duringMyService({ churchDate: sunday, churchTime: '10:31', service: nine })).toBe(false);
+  });
+  it('only on that weekday, and only for someone who chose a service', () => {
+    expect(duringMyService({ churchDate: '2026-11-04', churchTime: '09:15', service: nine })).toBe(false);
+    expect(duringMyService({ churchDate: sunday, churchTime: '09:15', service: null })).toBe(false);
+  });
+  it('is read on the church clock, which the tick resolves from Churches.timezone', () => {
+    const tick = source('server/utils/church-publish-push.ts');
+    expect(tick).toContain('churchClockNow(await churchTimezoneFor(row.connectedOrgId, row.timezone), now)');
+    // After the daily window check, so a closed window never costs a choice lookup.
+    expect(tick.indexOf('resolveViewerServiceChoice(row.userId)')).toBeGreaterThan(tick.indexOf('if (!churchPushWindowOpen('));
   });
 });
 

@@ -106,5 +106,33 @@ sermon-started notes (a privacy decision, not a feature) · `FeaturedItems.conte
 - Done: all four church core tables exist in the database, so `church-core:schema:apply` has
   nothing to add.
 - Done: the Clerk roles `org:pastor`, `org:coordinator` and `org:teacher` exist (confirmed by Derek).
-- Done: New Hope Assembly of God's pilot was extended to 2026-10-18.
+- Done: New Hope Assembly of God's pilot was extended to 2026-10-18. **It has since lapsed**;
+  extend it again before walking anything.
 - Open: two Clerk dev test users for the pilot-loop spec (see above).
+
+## First real pilot church (Oct 2026 checklist)
+
+Nothing here touches production without Derek's OK. Local `.env` points at the production
+database, so "apply the schema" means production.
+
+1. Confirm that **Organizations** and the custom roles (`org:pastor`, `org:coordinator`,
+   `org:teacher`) are on the **production** Clerk instance, not just dev. Approving a church
+   request creates its org through the Clerk API (`createClerkOrganization`), which answers
+   `CLERK_ORGS_NOT_ENABLED` when it is off.
+2. Run each church schema script against production and note the date. The code can't tell
+   whether they ran:
+   `church-core`, `church-join`, `church-review`, `church-ministries`, `church-content`,
+   `leader-kit`, and the new `church-pilot` (three tables: service choices, what meets during a
+   service, church requests). `church-pilot` was applied on Oct 29 2026.
+3. Send **one real staff invite** and accept it on a fresh account. Invites carry no
+   `redirect_url`, on purpose: Clerk's hosted page consumes the invitation ticket, and Harvous's
+   own sign-up form does not handle `__clerk_ticket`.
+4. Deploy the HMC `/v1/churches/:id/profile` branch, so directory service times and seeding work.
+   Until then, choosing a service works only for churches whose times are entered in Harvous.
+5. Have the church's staff member send a request from `/churches/start`, approve it in
+   `/admin/churches`, and walk the full lifecycle:
+   1. service times, a channel tagged to a service, a post, the join link;
+   2. a congregant joins, picks a service, follows the suggested ministry, and sees This Sunday at
+      their time.
+6. Point harvous.com's churches page CTA at `https://app.harvous.com/churches/start`. That's the
+   sibling repo, a one-line change.

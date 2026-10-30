@@ -1,0 +1,136 @@
+/*
+ * /admin/churches — the concierge view of church pilots. Built on admin-publish.css and
+ * admin-usage.css; only what those two don't already cover lives here.
+ */
+
+.admin-churches {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.admin-churches section > h3 {
+  margin: 0 0 4px;
+}
+
+.admin-churches__intro {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+}
+
+.admin-churches__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-churches__inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-churches__inline > [data-grow] {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+[data-align-start] {
+  align-self: flex-start;
+}
+
+.admin-churches__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+.admin-churches__hint--spaced {
+  margin-bottom: 8px;
+}
+
+.admin-churches__strong {
+  margin: 0;
+  font-weight: 600;
+}
+
+.admin-churches__h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-churches__flush,
+.admin-churches__note {
+  margin: 0;
+}
+
+.admin-churches__warnings {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+/* A row header: title + badges on one line, the health line under it, an action at the end. */
+.admin-churches__row-head {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+
+.admin-churches__row-head > .admin-publish__space-meta {
+  grid-column: 1;
+}
+
+.admin-churches__row-head--static {
+  cursor: default;
+}
+
+.admin-churches__row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-churches__row-action {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.admin-churches__row--inactive {
+  opacity: 0.6;
+}
+
+.admin-churches__plan {
+  margin: 0;
+}
+
+.admin-churches__register {
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--pds-text-primary) 18%, transparent);
+  padding: 14px 16px;
+}
+
+.admin-churches__register > summary {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+}
+
+.admin-churches__register > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-churches__register[open] > summary {
+  margin-bottom: 14px;
+}

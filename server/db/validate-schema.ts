@@ -212,6 +212,13 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'updatedAt',
   ],
   ChurchServiceTimeAssignments: ['id', 'serviceId', 'serviceTimeId', 'serviceDate', 'createdAt'],
+  ChurchServiceChoices: ['userId', 'churchId', 'hmcChurchId', 'dayOfWeek', 'startTime', 'createdAt', 'updatedAt'],
+  ChurchServiceTimeSpaces: ['id', 'churchId', 'serviceTimeId', 'spaceId', 'createdByUserId', 'createdAt'],
+  ChurchApplications: [
+    'id', 'hmcChurchId', 'name', 'city', 'state', 'country', 'applicantUserId', 'applicantRole',
+    'contactEmail', 'timezone', 'notes', 'status', 'decidedByUserId', 'decidedAt', 'decisionNote',
+    'churchId', 'createdAt', 'updatedAt',
+  ],
   ChurchSeries: [
     'id',
     'churchId',
@@ -312,6 +319,8 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   ],
   /** The one-answer guarantee, moved here from ChurchServices_church_date_unique. */
   ChurchServiceTimeAssignments: ['ChurchServiceTimeAssignments_slot_date_unique'],
+  ChurchServiceTimeSpaces: ['ChurchServiceTimeSpaces_time_space_unique'],
+  ChurchApplications: ['ChurchApplications_hmc_pending_unique'],
   /** Both halves required — one index per plan scope, neither optional. */
   ChurchSeries: ['ChurchSeries_church_title_run_unique', 'ChurchSeries_space_title_run_unique'],
   UserMetadata: ['UserMetadata_connectedChurchIdIndex', 'UserMetadata_hmcChurchIdIndex'],

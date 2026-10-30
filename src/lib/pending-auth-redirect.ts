@@ -27,6 +27,8 @@ const ALLOWED_PENDING_PATHS = [
   /^\/discover\/[A-Za-z0-9_-]+\/?$/,
   /** A church's join link → sign-up → back, to connect to the church they scanned. */
   /^\/churches\/join\/[A-Za-z0-9_-]+\/?$/,
+  // "Bring your church to Harvous" — forwards a signed-in visitor on to Settings › My Church.
+  /^\/churches\/start\/?$/,
   /** Marketing / pricing → Harvous Plus checkout after sign-in or sign-up. */
   /^\/upgrade\/?$/,
   /** Legacy upgrade alias. */

@@ -50,6 +50,7 @@ import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
 import PrototypeChurchSetupCard from './PrototypeChurchSetupCard';
 import { churchSetupSteps, type ChurchSetupStepId } from '../../lib/church-setup-steps';
 import { useChurchSettings } from '../../hooks/queries/useChurchSettings';
+import { useChurchJoinLink } from '../../hooks/queries/useChurchJoin';
 import { useNoteTemplates } from '../../hooks/queries/useNoteTemplates';
 import { useChurchTeachingPlan } from '../../hooks/queries/useChurchTeachingPlan';
 import PrototypeChurchSettingsSection from './PrototypeChurchSettingsSection';
@@ -205,8 +206,12 @@ export default function PrototypeChurchHub() {
   const orgId = activeChurchOrgId ?? church?.orgId ?? null;
   const churchName = church?.churchName ?? 'My Church';
   const churchLocation = church ? formatChurchLocation(church) : null;
-  const { isStaff: isOrgStaff, can: canChurch, isLoading: staffStatusLoading } =
-    useChurchStaffStatus(orgId);
+  const {
+    isStaff: isOrgStaff,
+    can: canChurch,
+    isLoading: staffStatusLoading,
+    sponsorship: managedChurchSponsorship,
+  } = useChurchStaffStatus(orgId);
   /*
     The planner's own gates come from the shared hook, because the expanded
     planner reads the same verdicts: a board that lets you drag a card this
@@ -264,9 +269,12 @@ export default function PrototypeChurchHub() {
   /**
    * Lapsed gates *writes* only. The plan stays listed and the congregation
    * keeps its Sunday — losing a church's study is never how a lapse shows up.
-   * Read off the channels payload rather than adding a billing request.
+   * Staff read it for the church they manage (staff-status, keyed by `orgId`); the channels
+   * payload describes the viewer's *home* church, which for staff connected elsewhere is a
+   * different church, so it is only the fallback.
    */
-  const churchPlanLapsed = channelsData?.sponsorship?.state === 'lapsed';
+  const churchPlanLapsed =
+    (managedChurchSponsorship ?? channelsData?.sponsorship)?.state === 'lapsed';
   /**
    * A church with ministries shows each one first — its groups, then its channels — and what
    * belongs to none stays in the two lanes below. The nav payload deliberately carries no
@@ -473,6 +481,8 @@ export default function PrototypeChurchHub() {
   const settingsQuery = useChurchSettings(orgId, { enabled: canManageChurchSettings });
   const templatesQuery = useNoteTemplates();
   const setupPlanQuery = useChurchTeachingPlan(orgId, { enabled: plannerAccess.canWrite });
+  // Same key the Invite link pane reads, so opening it after this is a cache hit.
+  const setupJoinLinkQuery = useChurchJoinLink(orgId, { enabled: canCreateChurchContent });
   const setupSteps = useMemo(
     () =>
       churchSetupSteps({
@@ -481,6 +491,7 @@ export default function PrototypeChurchHub() {
           createChannel: canCreateChurchContent && !churchPlanLapsed,
           manageTemplates: canManageChurchTemplates && !churchPlanLapsed,
           managePlan: plannerAccess.canWrite,
+          shareInvite: canCreateChurchContent,
         },
         has: {
           serviceTimes: (settingsQuery.data?.serviceTimes?.length ?? 0) > 0,
@@ -488,6 +499,7 @@ export default function PrototypeChurchHub() {
           starter: (templatesQuery.data?.org?.length ?? 0) > 0,
           plannedService: (setupPlanQuery.data?.services?.length ?? 0) > 0,
           published: ministryChannels.some((channel) => Boolean(channel.lastCurriculumAt)),
+          joinedByLink: (setupJoinLinkQuery.data?.link?.useCount ?? 0) > 0,
         },
       }),
     [
@@ -500,6 +512,7 @@ export default function PrototypeChurchHub() {
       ministryChannels,
       templatesQuery.data?.org?.length,
       setupPlanQuery.data?.services?.length,
+      setupJoinLinkQuery.data?.link?.useCount,
     ],
   );
   const openSetupStep = (id: ChurchSetupStepId) => {
@@ -507,6 +520,7 @@ export default function PrototypeChurchHub() {
     else if (id === 'channel') openCreateSheet('ministry');
     else if (id === 'starter') setToolsView('starters');
     else if (id === 'plan') setToolsView('teaching-plan');
+    else if (id === 'invite') setToolsView('join-link');
     else if (ministryChannels[0]) openSpace(ministryChannels[0].id);
     else openCreateSheet('ministry');
   };

@@ -45,6 +45,8 @@ export default function PrototypeChurchPlanRow({
 
   const monthly = plans.find((plan) => plan.interval === 'month') ?? plans[0];
   const lapsed = sponsorship.state === 'lapsed';
+  // The last week of a pilot is the time to decide, so it reads as a warning, not a countdown.
+  const endingSoon = !lapsed && sponsorship.pilotDaysLeft !== null && sponsorship.pilotDaysLeft <= 7;
 
   const startCheckout = async () => {
     setStarting(true);
@@ -65,20 +67,25 @@ export default function PrototypeChurchPlanRow({
   return (
     <div className="proto-church-tools__row proto-church-tools__row--status">
       <span className="proto-church-tools__row-icon" aria-hidden>
-        <Icon name={lapsed ? 'circle-exclamation' : 'clock'} size={13} />
+        <Icon name={lapsed || endingSoon ? 'circle-exclamation' : 'clock'} size={13} />
       </span>
       <span className="proto-church-tools__row-text">
         <span className="pds-list-title proto-church-tools__row-title">
           {lapsed ? 'Plan ended' : pilotCopy(sponsorship.pilotDaysLeft)}
         </span>
         <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
+          {/* What a lapse actually does (church-entitlement.ts): staff posting stops and
+              scheduled posts hold, while everything published stays readable. The old
+              "Congregation unaffected" was only true until the day the pilot ended. */}
           {error
             ? error
-            : !monthly
-              ? 'Contact Harvous to subscribe'
-              : lapsed
-                ? 'Published study stays readable'
-                : 'Congregation unaffected'}
+            : lapsed
+              ? 'Posts on hold · study stays readable'
+              : endingSoon
+                ? 'Posting pauses when it ends'
+                : !monthly
+                  ? 'Contact Harvous to continue'
+                  : 'Everything is on'}
         </span>
       </span>
       {monthly ? (

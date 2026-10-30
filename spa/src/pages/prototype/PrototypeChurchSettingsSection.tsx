@@ -214,6 +214,71 @@ export default function PrototypeChurchSettingsSection({
         </div>
       )}
 
+      {canWrite && data.serviceTimes.length > 0 && (data.spaces?.length ?? 0) > 0 ? (
+        <>
+          <p className="proto-church-settings__section-label">What meets during each service</p>
+          <p className="proto-caption proto-church-settings__hint">
+            Someone who picks a service sees these first when choosing what to follow. Nobody is
+            followed into anything.
+          </p>
+          <div className="proto-shared-space-settings">
+            {data.serviceTimes.map((slot) => {
+              const tagged = new Set(slot.spaceIds ?? []);
+              const spaces = data.spaces ?? [];
+              const untagged = spaces.filter((space) => !tagged.has(space.id));
+              const tag = (spaceId: string, on: boolean) =>
+                actions.mutate(
+                  { kind: 'tagServiceSpace', serviceTimeId: slot.id, spaceId, on },
+                  { onError: (e) => fail(e, 'Could not change that service') },
+                );
+              const selectId = `proto-church-settings-during-${slot.id}`;
+              return (
+                <div key={slot.id} className="proto-shared-space-settings__field">
+                  <label htmlFor={selectId}>
+                    {weekdayShortLabel(slot.dayOfWeek)} · {formatServiceTime(slot.startTime)}
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                    {spaces
+                      .filter((space) => tagged.has(space.id))
+                      .map((space) => (
+                        <button
+                          key={space.id}
+                          type="button"
+                          className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                          disabled={busy}
+                          aria-label={`Remove ${space.title} from this service`}
+                          onClick={() => tag(space.id, false)}
+                        >
+                          <span className="proto-glass-action__label">{space.title}</span>
+                          <Icon name="xmark" size={10} aria-hidden />
+                        </button>
+                      ))}
+                  </div>
+                  {untagged.length > 0 ? (
+                    <select
+                      id={selectId}
+                      value=""
+                      disabled={busy}
+                      onChange={(e) => {
+                        if (e.target.value) tag(e.target.value, true);
+                      }}
+                    >
+                      <option value="">Add a channel or group…</option>
+                      {untagged.map((space) => (
+                        <option key={space.id} value={space.id}>
+                          {space.title}
+                          {space.kind === 'group' ? ' (group)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
+
       {canWrite ? (
         <div className="proto-shared-space-settings" style={{ marginTop: 12 }}>
           <div className="proto-shared-space-settings__field">

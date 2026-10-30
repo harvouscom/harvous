@@ -31,6 +31,7 @@ import {
   CLEARED_CHURCH_CONNECTION,
   connectionFieldsForHmcChurchId,
   findActiveChurchByHmcId,
+  isManualResaveOfDirectoryChurch,
   shouldKeepLinkOnlyConnection,
 } from '../church-connection';
 
@@ -117,5 +118,51 @@ describe('shouldKeepLinkOnlyConnection', () => {
     expect(shouldKeepLinkOnlyConnection({ ...linkOnly, isActive: false }, 'New Hope Assembly')).toBe(false);
     expect(shouldKeepLinkOnlyConnection({ ...linkOnly, deletedAt: new Date() }, 'New Hope Assembly')).toBe(false);
     expect(shouldKeepLinkOnlyConnection(null, 'New Hope Assembly')).toBe(false);
+  });
+});
+
+describe('isManualResaveOfDirectoryChurch', () => {
+  const stored = {
+    hmcChurchId: 'TX-123',
+    churchName: 'Grace Community Church',
+    churchCity: 'Austin',
+    churchState: 'TX',
+  };
+
+  it('treats the same church typed back (any case or spacing) as no change', () => {
+    expect(
+      isManualResaveOfDirectoryChurch(stored, {
+        churchName: '  grace  community church ',
+        churchCity: 'austin',
+        churchState: 'TX',
+      }),
+    ).toBe(true);
+  });
+
+  it('accepts a save that omits state (native sends what it has)', () => {
+    expect(
+      isManualResaveOfDirectoryChurch(stored, { churchName: 'Grace Community Church', churchCity: 'Austin', churchState: null }),
+    ).toBe(true);
+  });
+
+  it('is a real change when the name or city differs', () => {
+    expect(
+      isManualResaveOfDirectoryChurch(stored, { churchName: 'Grace Bible Church', churchCity: 'Austin', churchState: 'TX' }),
+    ).toBe(false);
+    expect(
+      isManualResaveOfDirectoryChurch(stored, { churchName: 'Grace Community Church', churchCity: 'Dallas', churchState: 'TX' }),
+    ).toBe(false);
+  });
+
+  it('only protects a directory church, and never a clear', () => {
+    expect(
+      isManualResaveOfDirectoryChurch({ ...stored, hmcChurchId: null }, {
+        churchName: 'Grace Community Church',
+        churchCity: 'Austin',
+        churchState: 'TX',
+      }),
+    ).toBe(false);
+    expect(isManualResaveOfDirectoryChurch(stored, { churchName: null, churchCity: null, churchState: null })).toBe(false);
+    expect(isManualResaveOfDirectoryChurch(null, { churchName: 'x', churchCity: null, churchState: null })).toBe(false);
   });
 });

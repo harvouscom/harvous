@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { churchSetupSteps, shouldShowChurchSetup } from '../church-setup-steps';
 
-const all = { manageSettings: true, createChannel: true, manageTemplates: true, managePlan: true };
-const none = { serviceTimes: false, channel: false, starter: false, plannedService: false, published: false };
+const all = { manageSettings: true, createChannel: true, manageTemplates: true, managePlan: true, shareInvite: true };
+const none = { serviceTimes: false, channel: false, starter: false, plannedService: false, published: false, joinedByLink: false };
 
 describe('churchSetupSteps', () => {
   it('orders an admin’s steps the way a church needs them', () => {
@@ -12,13 +12,14 @@ describe('churchSetupSteps', () => {
       'starter',
       'plan',
       'publish',
+      'invite',
     ]);
   });
 
   it('only offers steps the person can do', () => {
     // A teacher: publishes, but sets neither the clock, the starters nor the plan.
-    const teacher = { manageSettings: false, createChannel: true, manageTemplates: false, managePlan: false };
-    expect(churchSetupSteps({ can: teacher, has: none }).map((s) => s.id)).toEqual(['channel', 'publish']);
+    const teacher = { manageSettings: false, createChannel: true, manageTemplates: false, managePlan: false, shareInvite: true };
+    expect(churchSetupSteps({ can: teacher, has: none }).map((s) => s.id)).toEqual(['channel', 'publish', 'invite']);
   });
 
   it('ticks what is already true', () => {
@@ -38,7 +39,7 @@ describe('shouldShowChurchSetup', () => {
   it('goes away by itself when everything is done, or when nothing applies', () => {
     const done = churchSetupSteps({
       can: all,
-      has: { serviceTimes: true, channel: true, starter: true, plannedService: true, published: true },
+      has: { serviceTimes: true, channel: true, starter: true, plannedService: true, published: true, joinedByLink: true },
     });
     expect(shouldShowChurchSetup(done, false)).toBe(false);
     expect(shouldShowChurchSetup([], false)).toBe(false);

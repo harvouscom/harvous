@@ -118,16 +118,25 @@ left a paying church reading "pilot" forever.
 
 ## Watch: pilot expiry
 
-**"New Hope Assembly of God" is on a pilot through 2026-10-18** (extended from 2026-09-02). When a pilot lapses:
+**"New Hope Assembly of God"'s pilot ended on 2026-10-18** (extended from 2026-09-02). Extend it
+before the next walk. When a pilot lapses (one policy, enforced in `church-entitlement.ts` and
+`church-content.ts`):
 
-- Staff **writes** are refused with `402 CHURCH_NOT_SPONSORED` — no new channels, church
-  shared spaces, or staff invites.
-- **Reads are untouched.** Everything already published stays readable, and congregants keep
-  their followed channels. Lapsing must never take a congregation's study away.
-- The hub shows the lapsed banner with a Subscribe button (which, until Polar products exist,
-  falls back to "Contact Harvous").
+- Staff **writes** are refused with `402 CHURCH_NOT_SPONSORED`: no new posts, channels, church
+  shared spaces or staff invites.
+- **Scheduled and approved posts hold.** They stay `scheduled` and are not published, and the
+  five-minute tick skips them. Renewing the plan publishes them on the next tick.
+- **New follows stop**, and so do **new church Review questions**. The ministry picker hides
+  Follow rather than offering a button that 402s. A join link still connects people and tells
+  them channels "aren't open to follow right now".
+- **Everything already published stays readable**, and congregants keep their followed channels.
+  Lapsing must never take a congregation's study away.
+- The hub's plan row says this in one line ("Posts on hold · study stays readable"). In the
+  pilot's last seven days it turns into a warning ("Posting pauses when it ends"). The admin
+  list sorts lapsed and ending churches first.
 
-Extend or end a pilot at `/admin/churches`. `pilotUntil` is never shortened by a cancel — a
+Extend or end a pilot at `/admin/churches`. **Add 30 days** extends from the current end, or from today if the pilot has
+already lapsed (it used to reset to today, which cut a running pilot short). `pilotUntil` is never shortened by a cancel: a
 church that cancels keeps whatever remains of its window.
 
 ---

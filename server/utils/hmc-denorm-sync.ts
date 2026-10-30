@@ -184,7 +184,12 @@ export type HmcDenormSyncResult = {
   refreshedUsers: number;
   refreshedChurches: number;
   unlinkedUsers: number;
-  unlinkedChurches: number;
+  /**
+   * Registered churches whose directory listing is gone (removed, merged, or not found). Their
+   * `hmcChurchId` is kept: it is how congregants who pick the church are connected to it, and an
+   * upstream duplicate merge or relocation must not quietly cut a church off. An admin re-links.
+   */
+  churchesNeedingAttention: string[];
   missingOnHmc: number;
   errors: string[];
 };
@@ -226,7 +231,7 @@ export async function runHmcDenormSync(deps?: Partial<SyncDeps>): Promise<HmcDen
   let refreshedUsers = 0;
   let refreshedChurches = 0;
   let unlinkedUsers = 0;
-  let unlinkedChurches = 0;
+  const churchesNeedingAttention: string[] = [];
   let missingOnHmc = 0;
 
   if (dirtyIds.length > 0) {
@@ -236,7 +241,7 @@ export async function runHmcDenormSync(deps?: Partial<SyncDeps>): Promise<HmcDen
         .from(UserMetadata)
         .where(and(isNotNull(UserMetadata.hmcChurchId), inArray(UserMetadata.hmcChurchId, dirtyIds))),
       db
-        .select({ hmcChurchId: Churches.hmcChurchId })
+        .select({ id: Churches.id, hmcChurchId: Churches.hmcChurchId })
         .from(Churches)
         .where(and(isNotNull(Churches.hmcChurchId), inArray(Churches.hmcChurchId, dirtyIds))),
     ]);
@@ -263,12 +268,9 @@ export async function runHmcDenormSync(deps?: Partial<SyncDeps>): Promise<HmcDen
             .returning({ id: UserMetadata.id });
           unlinkedUsers += userResult.length;
 
-          const churchResult = await db
-            .update(Churches)
-            .set({ hmcChurchId: null, updatedAt: stamp })
-            .where(eq(Churches.hmcChurchId, hmcId))
-            .returning({ id: Churches.id });
-          unlinkedChurches += churchResult.length;
+          for (const row of churchRows) {
+            if (row.hmcChurchId === hmcId) churchesNeedingAttention.push(row.id);
+          }
           continue;
         }
 
@@ -282,12 +284,9 @@ export async function runHmcDenormSync(deps?: Partial<SyncDeps>): Promise<HmcDen
             .where(eq(UserMetadata.hmcChurchId, hmcId))
             .returning({ id: UserMetadata.id });
           unlinkedUsers += userResult.length;
-          const churchResult = await db
-            .update(Churches)
-            .set({ hmcChurchId: null, updatedAt: stamp })
-            .where(eq(Churches.hmcChurchId, hmcId))
-            .returning({ id: Churches.id });
-          unlinkedChurches += churchResult.length;
+          for (const row of churchRows) {
+            if (row.hmcChurchId === hmcId) churchesNeedingAttention.push(row.id);
+          }
           continue;
         }
 
@@ -346,7 +345,7 @@ export async function runHmcDenormSync(deps?: Partial<SyncDeps>): Promise<HmcDen
     refreshedUsers,
     refreshedChurches,
     unlinkedUsers,
-    unlinkedChurches,
+    churchesNeedingAttention,
     missingOnHmc,
     errors,
   };

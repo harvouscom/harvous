@@ -1133,8 +1133,9 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
             size, and holds the toast back while it is up so they never stack. */}
         <PrototypeWelcome3 enabled={Boolean(userId) && !isGuest} />
         {/* One feature callout at a time, in the window's corner on desktop (phones get it
-            inline on Home instead). Steps aside for the welcome above. */}
-        {userId && !isGuest ? (
+            inline on Home instead). Steps aside for the welcome above. Never over admin
+            screens: "Where you've been in Scripture" covered the church registry's buttons. */}
+        {userId && !isGuest && !isAdminRoute ? (
           <Suspense fallback={null}>
             <PrototypeFeatureCalloutCorner />
           </Suspense>

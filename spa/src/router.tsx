@@ -129,6 +129,13 @@ const churchJoinRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/public/PublicJoinChurchPage')),
 });
 
+// "Bring your church to Harvous" — where harvous.com's churches page sends staff. Lazy.
+const churchStartRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/churches/start',
+  component: lazyRouteComponent(() => import('./pages/public/PublicStartChurchPage')),
+});
+
 // A family invite from Settings › Family. Lazy, like the church join page.
 const familyJoinRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -335,6 +342,7 @@ function buildRouteTree() {
     sharedThreadRoute,
     discoverListingRoute,
     churchJoinRoute,
+    churchStartRoute,
     familyJoinRoute,
     invitationRoute,
     statusRoute,

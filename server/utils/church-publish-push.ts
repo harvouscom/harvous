@@ -26,6 +26,7 @@ import {
   isNull,
   ne,
   sql,
+  Churches,
   Notes,
   PushSubscriptions,
   ReminderDeliveries,
@@ -41,6 +42,8 @@ import { localPartsFor } from './push-reminders';
 import { REMINDER_BADGE, REMINDER_ICON, TITLE_MAX } from './reminder-payload';
 import { isPushConfigured, sendToUser, type ReminderNotificationPayload } from './web-push-client';
 import { reconcileViewerChannelAudience } from './church-channel-audience';
+import { resolveViewerServiceChoice } from './church-service-choice';
+import { churchClockNow } from './church-service-times';
 
 export const CHURCH_PUSH_KIND = 'church';
 export const CHURCH_PUSH_TAG = 'harvous-church';
@@ -61,6 +64,37 @@ export function churchPushWindowOpen(input: {
 }): boolean {
   if (input.localHour < CHURCH_PUSH_HOUR_MIN || input.localHour > CHURCH_PUSH_HOUR_MAX) return false;
   return input.lastSentLocalDate !== input.localDate;
+}
+
+/** Quiet from this long before someone's service starts… */
+export const SERVICE_QUIET_BEFORE_MIN = 30;
+/** …until this long after: the service itself, and the drive home. */
+export const SERVICE_QUIET_AFTER_MIN = 90;
+
+const toMinutes = (hhmm: string): number | null => {
+  const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
+/**
+ * Whether it is the person's own service right now, on the church's wall clock — when a "New from
+ * your church" buzz would land in the middle of the sermon. Pure.
+ *
+ * Read on the church's clock (`Churches.timezone`), not the person's: the service happens where
+ * the church is. A choice-less person has no service to be quiet through.
+ */
+export function duringMyService(input: {
+  churchDate: string;
+  churchTime: string;
+  service: { dayOfWeek: number; startTime: string } | null;
+}): boolean {
+  if (!input.service) return false;
+  const weekday = new Date(`${input.churchDate}T00:00:00Z`).getUTCDay();
+  if (Number.isNaN(weekday) || weekday !== input.service.dayOfWeek) return false;
+  const now = toMinutes(input.churchTime);
+  const start = toMinutes(input.service.startTime);
+  if (now === null || start === null) return false;
+  return now >= start - SERVICE_QUIET_BEFORE_MIN && now <= start + SERVICE_QUIET_AFTER_MIN;
 }
 
 /**
@@ -183,6 +217,17 @@ async function newsFor(userId: string, orgId: string, lastPushAt: Date | null): 
     .map((f) => ({ spaceId: f.id, title: f.title, count: counts.get(f.id)! }));
 }
 
+/** The church's own zone, or the person's when the church never set one. Cached per tick. */
+const churchZoneCache = new Map<string, { at: number; zone: string | null }>();
+async function churchTimezoneFor(orgId: string, fallback: string): Promise<string> {
+  const cached = churchZoneCache.get(orgId);
+  if (cached && Date.now() - cached.at < 10 * 60_000) return cached.zone || fallback;
+  const [church] = await db.select({ timezone: Churches.timezone }).from(Churches).where(eq(Churches.orgId, orgId)).limit(1);
+  const zone = church?.timezone && isValidIanaTimeZone(church.timezone) ? church.timezone : null;
+  churchZoneCache.set(orgId, { at: Date.now(), zone });
+  return zone || fallback;
+}
+
 export type ChurchPushTickSummary = {
   considered: number;
   sent: number;
@@ -210,6 +255,13 @@ export async function runChurchPublishTick(
     const lastAt = await lastChurchPushAt(row.userId);
     const lastSentLocalDate = lastAt ? localPartsFor(row.timezone, lastAt).localDate : null;
     if (!churchPushWindowOpen({ localHour: parts.hour, localDate: parts.localDate, lastSentLocalDate })) continue;
+
+    // Never during their own service. The hourly tick tries again after it, same day.
+    const myService = (await resolveViewerServiceChoice(row.userId)).slot;
+    if (myService) {
+      const clock = churchClockNow(await churchTimezoneFor(row.connectedOrgId, row.timezone), now);
+      if (duringMyService({ churchDate: clock.date, churchTime: clock.time, service: myService })) continue;
+    }
 
     const news = await newsFor(row.userId, row.connectedOrgId, lastAt);
     const copy = churchPushCopy(news);

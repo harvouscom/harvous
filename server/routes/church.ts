@@ -100,6 +100,7 @@ import {
   listServiceTimesForChurch,
   serviceTimeIdsByService,
 } from '../utils/church-service-times';
+import { resolveViewerServiceChoice } from '../utils/church-service-choice';
 import { seriesTitlesByServiceRows } from '../utils/church-series';
 import { publishedMaterialForServices } from '../utils/church-published-material';
 import {
@@ -163,6 +164,22 @@ function serviceGraceWindowStart(): string {
   const cutoff = new Date();
   cutoff.setUTCDate(cutoff.getUTCDate() - (SERVICE_GRACE_DAYS + 1));
   return cutoff.toISOString().slice(0, 10);
+}
+
+/**
+ * Pure: the viewer's service time, if this sermon is preached at it — same weekday, and the time
+ * among the sermon's. `serviceDate` is a church wall-calendar day, so its weekday is read in UTC.
+ */
+export function myServiceTimeFor(
+  serviceDate: string | null,
+  times: readonly string[],
+  myService: { dayOfWeek: number; startTime: string } | null,
+): string | null {
+  // An undated idea has no day for a service to fall on.
+  if (!myService || !serviceDate) return null;
+  const day = new Date(`${serviceDate}T00:00:00Z`).getUTCDay();
+  if (Number.isNaN(day) || day !== myService.dayOfWeek) return null;
+  return times.includes(myService.startTime) ? myService.startTime : null;
 }
 
 /** The caller's home church, or null when they haven't connected one. */
@@ -683,6 +700,12 @@ app.get('/api/church/services', requireAuth, async (c) => {
       services.map((service) => ({ id: service.id, seriesId: service.seriesId })),
       church.orgId,
     );
+    /*
+      The viewer's own service, when they chose one (church-service-choice.ts). It only picks
+      which of a sermon's times the card shows — never hides a sermon, so someone whose service
+      has no sermon planned still sees the church's Sunday.
+    */
+    const myService = (await resolveViewerServiceChoice(auth.userId)).slot;
 
     return c.json({
       connected: true,
@@ -732,7 +755,9 @@ app.get('/api/church/services', requireAuth, async (c) => {
             `serviceTimes` array below stays the church card's own answer; this
             is the one a context card puts on its meta line.
           */
-          serviceTime: times[0] ?? null,
+          serviceTime: myServiceTimeFor(service.serviceDate, times, myService) ?? times[0] ?? null,
+          /** This row's time is the viewer's own service — the card can say "your service". */
+          isMyService: myServiceTimeFor(service.serviceDate, times, myService) !== null,
           viewerNoteId: viewerNotes.get(service.id) ?? null,
           /*
             A list, never a button — several ministries can speak to the same

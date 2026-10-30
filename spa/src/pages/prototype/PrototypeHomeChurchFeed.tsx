@@ -19,6 +19,7 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { noteParamSlug } from './proto-route-slugs';
 import PrototypeMinistryPicker from './PrototypeMinistryPicker';
+import PrototypeHomeServicePrompt from './PrototypeHomeServicePrompt';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 
 /** Rows shown on Home; the channel itself holds the full history. */
@@ -79,7 +80,15 @@ export default function PrototypeHomeChurchFeed() {
     explains itself. The picker renders nothing when there is nothing to offer,
     so a church with no channels still collapses to the old empty behaviour.
   */
-  if (items.length === 0) return <PrototypeMinistryPicker />;
+  if (items.length === 0) {
+    // Service first: what someone attends decides which ministries the picker leads with.
+    return (
+      <>
+        <PrototypeHomeServicePrompt />
+        <PrototypeMinistryPicker />
+      </>
+    );
+  }
 
   const openItem = (item: ChurchFeedItem) => {
     ensureSidebarExpanded();

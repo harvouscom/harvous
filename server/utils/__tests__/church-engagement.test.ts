@@ -7,6 +7,10 @@ const spaceRows = vi.fn();
 const membershipRows = vi.fn();
 const metadataRows = vi.fn();
 
+vi.mock('../church-service-choice', () => ({
+  serviceHeadcount: async () => [],
+}));
+
 vi.mock('../church-org-access', () => ({
   resolveChurchOrgAccess: (...args: unknown[]) => resolveChurchOrgAccess(...args),
 }));

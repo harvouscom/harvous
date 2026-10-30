@@ -81,7 +81,7 @@ Staff copy the link or download the QR as SVG or PNG for bulletins and slides. A
 rotate or revoke it. The hub shows "N joined via link", a count only.
 
 - **Table:** `ChurchJoinLinks`.
-- **Server:** `server/utils/church-connection.ts` (`connectUserToChurch`, lifted out of
+- **Server:** `server/utils/church-selection-write.ts` (`connectUserToChurch`, lifted out of
   `update-church` so both paths write a connection the same way) and
   `server/routes/church-join.ts`.
 - **Page:** `/churches/join/$token` (`PublicJoinChurchPage.tsx`).
@@ -226,9 +226,8 @@ list.**
 - Bulk actions and per-item counts in the Content list.
 - Filtering the list by ministry.
 - Native handling of `CONTENT_APPROVAL_REQUIRED`; all native church work is deferred.
-- **Planner content becomes published material.** A `kind='content'` entry already reaches
-  followers' Home as a card, but its note isn't attached. Next: schedule the entry's note for
-  its date, and claim the entry through `ChurchServicePublishedNotes` when it publishes.
+- ~~Planner content becomes published material.~~ Built (#206): a submission carries the
+  entry's `serviceId`, and publishing claims it through `ChurchServicePublishedNotes`.
 
 ## E. Group leader kit
 
@@ -278,10 +277,63 @@ There is **no attendance and no RSVP**. That is ChMS work.
 
 ---
 
+## G. Pilot readiness and Here's My Church
+
+**Built Oct 29 2026, on branch `claude/church-features-hmc-api-2223f6`, not merged.** The aim is one
+real church running on Harvous. The plan file is `~/.claude/plans/i-really-want-to-dazzling-pebble.md`.
+Schema: `npm run church-pilot:schema:apply`, **applied to production Oct 29 2026**. It adds three
+new tables and no column on any existing table, so the code also runs safely without it.
+
+**Hardening.**
+- One lapse policy (see CHURCH_ORG_ONBOARDING_AND_BILLING.md).
+- "Add 30 days" now adds to the current end.
+- The hub reads the plan state of the church being managed, not the staffer's home church.
+- A native re-save of the current directory church changes nothing; it used to clear
+  `hmcChurchId` and drop every follow.
+- A timeout on the HMC add call.
+- The HMC sync keeps a registered church's directory link when the listing disappears, and reports
+  it.
+- A "Share your join link" setup step, and a "Following N channels · Nothing posted yet" row.
+
+**Your service** (`ChurchServiceChoices`, `church-service-choice.ts`). A congregant may choose
+one service, stored as day + time (a natural key, not a row id).
+- Where the times come from: the church's `ChurchServiceTimes`, or its Here's My Church listing
+  when the church isn't on Harvous yet.
+- What a choice drives: This Sunday shows that service's time; the church push stays quiet from
+  30 minutes before to 90 minutes after it; staff see a per-service headcount in Engagement (one or
+  two people read "A few"); and the ministries that meet during it come first. They are labelled,
+  never preselected.
+- Staff tag what meets during a service in church settings (`ChurchServiceTimeSpaces`).
+- Asked in Settings › My Church, and on Home in the empty-feed slot.
+
+**Church sign-up, request then approve** (`ChurchApplications`).
+- Staff go to `/churches/start` (for harvous.com to link to), then Settings › My Church, pick their
+  church, and send a role and email.
+- Approving it in `/admin/churches` › Churches asking to join:
+  - creates the Clerk organization with the applicant as admin;
+  - registers the church with a 30-day pilot;
+  - seeds service times from the HMC profile;
+  - connects the applicant.
+- Everyone who had already picked the church connects on their next load.
+
+**Here's My Church.**
+- HMC branch `claude/partner-church-profile` adds `GET /v1/churches/:id/profile`: structured
+  service-time slots, contact, ministries, languages and campuses.
+- Harvous calls it through `hmcGetChurchProfile`, which degrades to null until that branch is
+  deployed.
+- Trusted write-back without review is a contract sketch in HMC's `docs/future/public-api.md`,
+  written for the hackathon; it is not built. It needs the consensus tie-break fix first.
+
+**Not done here:**
+- the join page doesn't ask for a service;
+- there is no "From this morning's sermon" push copy (only the quiet window);
+- no email to applicants (concierge reaches out by hand);
+- service times don't write back to HMC (that's the hackathon).
+
 ## Still out
 
 These are unchanged from V1:
-- self-serve church creation and Polar checkout;
+- ~~self-serve church creation~~ (request then approve, Lane G) and Polar checkout;
 - multi-church (`ChurchMemberships`, no writers; the join link deliberately does not write it);
 - `ChurchConnectionRequests`;
 - ChMS sync;

@@ -120,6 +120,23 @@ describe('content lifecycle — wiring', () => {
     }
   });
 
+  it('holds a lapsed church\'s posts: sponsorship is checked before the claim, the row is left waiting', () => {
+    const text = src('server/utils/church-content.ts');
+    const fn = text.slice(text.indexOf('export async function publishSubmission'));
+    const gate = fn.indexOf('getChurchSponsorshipByOrgId(');
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(fn.indexOf('db.transaction('));
+    expect(fn.slice(gate, fn.indexOf('db.transaction('))).toContain('CHURCH_LAPSED_CODE');
+  });
+
+  it('the tick only picks up sponsored churches\' rows, so held posts never fill a batch', () => {
+    const text = src('server/utils/church-content.ts');
+    const tick = text.slice(text.indexOf('export async function runChurchContentTick'));
+    expect(tick).toContain('innerJoin(Churches');
+    expect(tick).toContain('isNotNull(Churches.billingPlan)');
+    expect(tick).toContain('gt(Churches.pilotUntil, now)');
+  });
+
   it('the tick runs every five minutes on the scheduler', () => {
     const scheduler = src('server/scheduler.ts');
     expect(scheduler).toContain('runChurchContentTick()');

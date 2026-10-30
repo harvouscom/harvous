@@ -82,9 +82,10 @@ import {
 import { calculateSessionXP, type SessionData } from '../utils/session-tracker';
 import { canCreateSharedSpace, getUserLimitsInfo, getSpaceMemberCount } from '../utils/tier-limits';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
-import { connectionFieldsForHmcChurchId, keepLinkOnlyConnection } from '../utils/church-connection';
+import { connectionFieldsForHmcChurchId, isManualResaveOfDirectoryChurch, keepLinkOnlyConnection } from '../utils/church-connection';
 import { persistChurchSelection } from '../utils/church-selection-write';
 import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-staff';
+import { churchSponsorship } from '../utils/church-entitlement';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { addImportedNotesToSpace, decideImportSpaceTarget } from '../utils/import-space-target';
 import { fetchClerkOrgMemberships } from '../utils/clerk-org';
@@ -668,6 +669,25 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       normalizedChurchCity = readOptionalString(body.churchCity);
       normalizedChurchState = readOptionalString(body.churchState);
       normalizedChurchCountry = readOptionalString(body.churchCountry);
+      // A native re-save of the directory church they already have is no change at all — not a
+      // new free-text church that drops the link. See isManualResaveOfDirectoryChurch.
+      const storedChurch = first(
+        await db
+          .select({
+            hmcChurchId: UserMetadata.hmcChurchId,
+            churchName: UserMetadata.churchName,
+            churchCity: UserMetadata.churchCity,
+            churchState: UserMetadata.churchState,
+          })
+          .from(UserMetadata)
+          .where(eq(UserMetadata.userId, auth.userId))
+          .limit(1),
+      );
+      const isResave = isManualResaveOfDirectoryChurch(storedChurch, {
+        churchName: normalizedChurchName,
+        churchCity: normalizedChurchCity,
+        churchState: normalizedChurchState,
+      });
       const clearingManual =
         !normalizedChurchName &&
         !normalizedChurchCity &&
@@ -678,6 +698,7 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       }
 
       if (
+        !isResave &&
         !clearingManual &&
         normalizedChurchName &&
         isUsChurchLocation({
@@ -723,7 +744,7 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
           // Geocode / add failures fall through to free-text save.
         }
       }
-      applyChurchUpdate = true;
+      applyChurchUpdate = !isResave;
     }
 
     const existingRecord = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1);
@@ -1157,7 +1178,19 @@ app.get('/api/user/church-staff-status', requireAuth, async (c) => {
       });
     }
 
-    return c.json({ orgId, isStaff: true, role, capabilities: capabilitiesForChurchRole(role) });
+    /*
+     * The managed church's plan state, for staff only — after the staff proof, never before it
+     * (church-org-access.ts explains the order). The hub used to read this off the staffer's own
+     * home-church connection, so staff connected elsewhere never saw their church had lapsed.
+     */
+    const church = await getActiveChurchByOrgId(orgId);
+    return c.json({
+      orgId,
+      isStaff: true,
+      role,
+      capabilities: capabilitiesForChurchRole(role),
+      sponsorship: church ? churchSponsorship(church) : null,
+    });
   } catch (error) {
     const e = handleAPIError(error, {
       endpoint: '/api/user/church-staff-status',

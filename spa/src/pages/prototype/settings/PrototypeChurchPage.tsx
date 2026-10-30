@@ -10,6 +10,9 @@ import { ErrorText } from './account/accountShared';
 import HmcChurchPicker, { type HmcChurchPick } from '@/components/react/HmcChurchPicker';
 import Icon from '@/components/react/Icon';
 import { api } from '../../../lib/api';
+import { useChurchServiceChoice, useSetChurchServiceChoice } from '../../../hooks/queries/useChurchServiceChoice';
+import { formatServiceSlot } from '../../../lib/church-services';
+import PrototypeChurchApplication from './PrototypeChurchApplication';
 import {
   HMC_COUNTRIES,
   getHmcCountry,
@@ -118,6 +121,15 @@ export default function PrototypeChurchPage() {
   });
 
   const hasChurch = Boolean(hmcChurchId || name);
+  /* Arrived from /churches/start ("Bring your church to Harvous"): pick the church, then the
+     request form is already open under it. Read once — nothing writes it back. */
+  const [bringRequested] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('bring') === '1';
+    } catch {
+      return false;
+    }
+  });
 
   const unlistedRegionNoun = getHmcCountry(draftCountry)?.regionNoun.one ?? 'region';
   const unlistedAddressPlaceholder = `Street, city, ${unlistedRegionNoun}`;
@@ -288,7 +300,9 @@ export default function PrototypeChurchPage() {
       <SectionLabel>My church</SectionLabel>
       {!hasChurch ? (
         <p className="proto-caption" style={{ margin: '0 0 12px', color: 'var(--pds-text-secondary)' }}>
-          {introCopy}
+          {bringRequested
+            ? 'Find your church first. Then you can ask to bring it to Harvous.'
+            : introCopy}
         </p>
       ) : null}
 
@@ -316,6 +330,14 @@ export default function PrototypeChurchPage() {
               disabled
             />
           </SettingsGroup>
+          {!profile?.connectedChurchInactive ? <YourServiceGroup /> : null}
+          {/* A church that isn't on Harvous yet: its staff can ask for it. */}
+          {!profile?.connectedChurchId ? (
+            <PrototypeChurchApplication
+              church={{ hmcChurchId, name: name || 'your church', city: city || null, state: state || null, country: country || null }}
+              startOpen={bringRequested}
+            />
+          ) : null}
           {profile?.connectedChurchInactive ? (
             /* Otherwise the church just goes quiet and nothing says why. What they
                already read or copied stays theirs; clearing lets them pick again. */
@@ -584,5 +606,54 @@ export default function PrototypeChurchPage() {
         </div>
       </aside>
     </SettingsShell>
+  );
+}
+
+/**
+ * "Your service" — which of the church's services this person goes to.
+ *
+ * Optional, and nothing nags: no choice is a fine answer. What choosing does is said in the
+ * caption so it is not a mystery setting — This Sunday shows that time, and church
+ * notifications stay quiet while it is on. Times come from the church, or from its Here's My
+ * Church listing when the church is not on Harvous yet.
+ */
+function YourServiceGroup() {
+  const { data } = useChurchServiceChoice();
+  const setChoice = useSetChurchServiceChoice();
+  if (!data || data.slots.length === 0) return null;
+
+  const chosenKey = data.choice ? `${data.choice.dayOfWeek}@${data.choice.startTime}` : null;
+  return (
+    <>
+      <p className="proto-caption" style={{ margin: '4px 0 8px', color: 'var(--pds-text-secondary)' }}>
+        {data.choiceStale
+          ? 'The service you chose isn’t listed anymore. Which one do you go to now?'
+          : 'Which service do you go to? This Sunday shows its time, and church notifications wait until it’s over.'}
+      </p>
+      <SettingsGroup>
+        {data.slots.map((slot) => {
+          const key = `${slot.dayOfWeek}@${slot.startTime}`;
+          const chosen = key === chosenKey;
+          return (
+            <SettingsRow
+              key={key}
+              label={formatServiceSlot(slot)}
+              badge={chosen ? 'Your service' : undefined}
+              leadingIcon={chosen ? 'circle-check' : 'clock'}
+              trailing="none"
+              disabled={setChoice.isPending}
+              onClick={() =>
+                setChoice.mutate(chosen ? null : { dayOfWeek: slot.dayOfWeek, startTime: slot.startTime })
+              }
+            />
+          );
+        })}
+      </SettingsGroup>
+      {data.source === 'directory' ? (
+        <p className="proto-caption" style={{ margin: '0 0 12px', color: 'var(--pds-text-secondary)' }}>
+          Times from Here’s My Church
+        </p>
+      ) : null}
+    </>
   );
 }

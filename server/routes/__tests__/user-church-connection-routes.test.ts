@@ -34,6 +34,16 @@ describe('user church connection route contracts', () => {
     expect(guard).toBeLessThan(text.indexOf('await persistChurchSelection('));
   });
 
+  it('a native re-save of the current directory church changes nothing (no HMC add, no unlink)', () => {
+    const text = updateChurch();
+    const check = text.indexOf('isManualResaveOfDirectoryChurch(storedChurch');
+    expect(check).toBeGreaterThan(-1);
+    // Decided before the unlisted-church submit, which is what replaced hmcChurchId.
+    expect(check).toBeLessThan(text.indexOf('hmcSubmitUnlistedChurch({\n            name: normalizedChurchName'));
+    expect(text).toContain('!isResave &&');
+    expect(text).toContain('applyChurchUpdate = !isResave;');
+  });
+
   it('reconciles connected* on get-profile when HMC is set but org is missing', () => {
     const text = route();
     expect(text).toContain('churchData.hmcChurchId && !churchData.connectedOrgId');

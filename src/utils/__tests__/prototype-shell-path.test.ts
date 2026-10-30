@@ -114,6 +114,8 @@ describe('public app paths', () => {
   it('treats a church join link as a public route, and reserves the bare segment', () => {
     expect(isPublicAppPath('/churches/join/AbCdEf123456')).toBe(true);
     expect(isPrototypeShellPath('/churches/join/AbCdEf123456')).toBe(false);
+    expect(isPublicAppPath('/churches/start')).toBe(true);
+    expect(isPrototypeShellPath('/churches/start')).toBe(false);
     expect(isPublicAppPath('/churches')).toBe(false);
     expect(isReservedPrototypeSegment('churches')).toBe(true);
     expect(isPrototypeNotePath('/churches')).toBe(false);
@@ -141,6 +143,8 @@ describe('boot-script mirror (public/scripts/prototype-shell-path.js)', () => {
     };
     expect(mirror.isPublicAppPath('/churches/join/AbCdEf123456')).toBe(true);
     expect(mirror.isPrototypeShellPath('/churches/join/AbCdEf123456', 'localhost')).toBe(false);
+    expect(mirror.isPublicAppPath('/churches/start')).toBe(true);
+    expect(mirror.isPrototypeShellPath('/churches/start', 'localhost')).toBe(false);
     expect(mirror.isPrototypeNotePath('/churches', 'localhost')).toBe(false);
   });
 });

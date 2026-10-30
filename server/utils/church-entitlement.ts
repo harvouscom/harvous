@@ -77,6 +77,23 @@ export function churchSponsorship(
   return lapsed;
 }
 
+/**
+ * The new pilot end when an admin extends by `days`. Pure.
+ *
+ * Extends from whichever is later, the current end or now: "extend 30 days" on a
+ * church with 12 days left means 42, not 30. A lapsed pilot restarts from today
+ * rather than adding days that have already passed.
+ */
+export function extendedPilotUntil(
+  current: Date | string | null | undefined,
+  days: number,
+  now: Date = new Date(),
+): Date {
+  const end = toDate(current);
+  const from = end && end.getTime() > now.getTime() ? end.getTime() : now.getTime();
+  return new Date(from + days * MS_PER_DAY);
+}
+
 /** Convenience boolean for gates that don't need the reason. */
 export function churchIsSponsored(
   church: Pick<ChurchRow, 'isActive' | 'deletedAt' | 'billingPlan' | 'pilotUntil'> | null | undefined,
