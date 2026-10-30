@@ -13,6 +13,7 @@ import { api } from '../../../lib/api';
 import { useChurchServiceChoice, useSetChurchServiceChoice } from '../../../hooks/queries/useChurchServiceChoice';
 import { formatServiceSlot } from '../../../lib/church-services';
 import PrototypeChurchApplication from './PrototypeChurchApplication';
+import { clearChurchBringRequested, readChurchBringRequested } from '../../../lib/church-bring-flag';
 import {
   HMC_COUNTRIES,
   getHmcCountry,
@@ -122,14 +123,12 @@ export default function PrototypeChurchPage() {
 
   const hasChurch = Boolean(hmcChurchId || name);
   /* Arrived from /churches/start ("Bring your church to Harvous"): pick the church, then the
-     request form is already open under it. Read once — nothing writes it back. */
-  const [bringRequested] = useState(() => {
-    try {
-      return new URLSearchParams(window.location.search).get('bring') === '1';
-    } catch {
-      return false;
-    }
-  });
+     request form is already open under it. A sessionStorage flag, read and cleared once — the
+     shell's path canonicalisation drops query strings, so `?bring=1` never survived. */
+  const [bringRequested] = useState(readChurchBringRequested);
+  useEffect(() => {
+    if (bringRequested) clearChurchBringRequested();
+  }, [bringRequested]);
 
   const unlistedRegionNoun = getHmcCountry(draftCountry)?.regionNoun.one ?? 'region';
   const unlistedAddressPlaceholder = `Street, city, ${unlistedRegionNoun}`;
