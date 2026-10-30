@@ -23486,8 +23486,14 @@ p.proto-my-bible__usage {
  */
 @media (max-width: 600px) {
   .proto-feed-sheet {
-    border-bottom-left-radius: calc(var(--pds-shell-frame-radius) - var(--pds-shell-gutter));
-    border-bottom-right-radius: calc(var(--pds-shell-frame-radius) - var(--pds-shell-gutter));
+    /* The frame's *bottom* radius, which on an installed Face ID phone follows the display's
+       curve rather than the 18px card corner (see `.proto-shell-frame` in prototype-shell.css). */
+    border-bottom-left-radius: calc(
+      var(--pds-shell-frame-radius-bottom, var(--pds-shell-frame-radius)) - var(--pds-shell-gutter)
+    );
+    border-bottom-right-radius: calc(
+      var(--pds-shell-frame-radius-bottom, var(--pds-shell-frame-radius)) - var(--pds-shell-gutter)
+    );
   }
 }
 
@@ -23628,49 +23634,22 @@ p.proto-my-bible__usage {
   padding-bottom: calc(var(--pds-space-5) + var(--proto-study-dock-band-height, 0px));
   --proto-feed-fade: 14px;
   /*
-   * Bottom always; top only once there is something under it.
+   * Bottom only.
    *
    * The bottom fade says "there is more below", and at the bottom that is always true — the
-   * content runs to the sheet's edge and the softening is what tells you so. A top fade that
-   * was on all the time said nothing: `.proto-feed-sheet__head` is a static row above this
-   * box, not a sticky overlay, so at rest the first line never passes beneath anything, and
-   * all a permanent top fade did was dim whatever came first — the greeting. That is why it
-   * was removed.
+   * content runs to the sheet's edge and the softening is what tells you so.
    *
-   * The case it was removed for is `scrollTop === 0`. Once you have scrolled, the top edge is
-   * exactly a place content passes under, and the same softening is exactly as informative
-   * there as it is at the bottom — "there is more above". So the top fade keys on
-   * `data-scrolled`, which Activity's scroller sets on itself. At rest the top stop is 0 and
-   * the gradient starts hard, which is the same as no fade; scrolled, it opens to the fade.
+   * There was a top fade too, opening to 28px once the day had scrolled, to say "there is more
+   * above". Derek read it as rows going faint under the header (Oct 2026), twice, on an
+   * iPhone — the word was "fading". Rows now meet the header's edge plainly, the way they
+   * meet a note's title.
    */
-  --proto-feed-fade-top: 0px;
   -webkit-mask-image: linear-gradient(
     to bottom,
-    transparent 0,
-    #000 var(--proto-feed-fade-top),
     #000 calc(100% - var(--proto-feed-fade)),
     transparent 100%
   );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--proto-feed-fade-top),
-    #000 calc(100% - var(--proto-feed-fade)),
-    transparent 100%
-  );
-}
-
-.proto-feed-sheet__body[data-scrolled] {
-  /*
-   * Deeper than the bottom's 14px, on purpose.
-   *
-   * The two edges are not doing the same job. At the bottom the content simply runs out, and
-   * a hairline of softening is enough to say so. At the top a row is passing *under* the
-   * header, and at 14px that reads as a row clipped by a hard edge rather than as a fade —
-   * which is how it went unnoticed. 28px is enough depth for the eye to see a gradient and
-   * not an accident.
-   */
-  --proto-feed-fade-top: 28px;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--proto-feed-fade)), transparent 100%);
 }
 
 /*

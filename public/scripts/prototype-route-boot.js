@@ -202,6 +202,12 @@
       'html.' +
       PROTO_ROUTE_CLASS +
       ' #root::before{content:"";position:fixed;inset:var(--pds-shell-frame-inset);z-index:-1;border-radius:var(--pds-shell-frame-radius);background:var(--pds-bg-page);box-shadow:var(--pds-shadow-shell);pointer-events:none}' +
+      /* Phones: the frame's bottom corners follow the display's curve (prototype-shell.css,
+         `--pds-shell-frame-radius-bottom`). This card sits right behind it, so with 18px corners
+         its white would show past the frame's wider ones. */
+      '@media (max-width:899px){html.' +
+      PROTO_ROUTE_CLASS +
+      ' #root::before{border-bottom-left-radius:max(var(--pds-shell-frame-radius),calc(env(safe-area-inset-bottom,0px) + 12px));border-bottom-right-radius:max(var(--pds-shell-frame-radius),calc(env(safe-area-inset-bottom,0px) + 12px))}}' +
       /*
        * The guest row sits above the shell on the background layer, so the placeholder card has
        * to start below it too. Without this the card is still pinned at the frame inset and its
