@@ -6,7 +6,7 @@
  * never shown the taxonomy — and declining asks for a reason, because the
  * person who offered something reads it back in their own sheet.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import AdminShell from '@/components/react/AdminShell';
 import ProtoStatusChip from '@/components/react/ProtoStatusChip';
@@ -20,14 +20,45 @@ import {
 import { useReviewDiscoverSubmission } from '../hooks/mutations/useDiscoverMutations';
 import ProtoChipBar from './prototype/components/ProtoChipBar';
 import '@/styles/admin-usage.css';
+import '@/styles/admin-discover.css';
+
+/** What each kind looks like at a glance — the same glyphs the catalog uses for them. */
+const KIND: Record<string, { label: string; icon: 'list-check' | 'note-sticky' | 'layer-group' | 'link' }> = {
+  template: { label: 'Template', icon: 'list-check' },
+  note: { label: 'Note', icon: 'note-sticky' },
+  pack: { label: 'Study pack', icon: 'layer-group' },
+  resource: { label: 'Resource', icon: 'link' },
+};
+
+function submittedAgo(at: string | Date): string {
+  const days = Math.floor((Date.now() - new Date(at).getTime()) / 86_400_000);
+  if (Number.isNaN(days)) return '';
+  return days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+}
 
 function SubmissionCard({ row }: { row: DiscoverSubmissionForReview }) {
   const review = useReviewDiscoverSubmission();
   const [category, setCategory] = useState('');
   const [reviewNote, setReviewNote] = useState('');
   const [official, setOfficial] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const headings = row.preview?.headings ?? [];
+  const preview = row.preview;
+  const headings = preview?.headings ?? [];
+  const titles = preview?.titles ?? [];
+  const kind = KIND[row.kind] ?? { label: row.kind, icon: 'note-sticky' as const };
+  /*
+    The sanitized body (server-side, the same HTML a listing page renders) beats the excerpt:
+    the excerpt is the body with its line breaks collapsed, so headings and verses ran into one
+    sentence. Memoized — an inline {__html} object re-applies innerHTML on every render.
+  */
+  const bodyMarkup = useMemo(() => (preview?.bodyHtml ? { __html: preview.bodyHtml } : null), [preview?.bodyHtml]);
+  /*
+    For a resource the excerpt is filled from its own description (`snapshotResource`), so the
+    two would print the same sentence twice; compared rather than special-cased by kind.
+  */
+  const excerpt =
+    preview?.excerpt && preview.excerpt.trim() !== (row.description ?? '').trim() ? preview.excerpt : null;
 
   const act = (action: 'approve' | 'decline') => {
     if (review.isPending) return;
@@ -49,119 +80,131 @@ function SubmissionCard({ row }: { row: DiscoverSubmissionForReview }) {
   };
 
   return (
-    <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
-      <div className="proto-church-tools__row">
-        <span className="proto-church-tools__row-icon" aria-hidden>
-          <Icon name={row.staffReadAt ? 'circle-check' : 'circle-info'} size={13} />
+    <article className="proto-glass-surface proto-glass-surface--panel admin-discover-card">
+      <header className="admin-discover-card__head">
+        <span className="admin-discover-card__glyph" aria-hidden>
+          <Icon name={kind.icon} size={15} />
         </span>
-        <span className="proto-church-tools__row-text">
-          <span className="pds-list-title proto-church-tools__row-title">{row.title}</span>
-          <span className="proto-caption proto-church-tools__row-meta">
-            {row.kind} · shared by {row.authorDisplayName ?? 'a Harvous user'}
+        <span className="admin-discover-card__heading">
+          <span className="pds-list-title admin-discover-card__title">{row.title}</span>
+          <span className="proto-caption admin-discover-card__meta">
+            {[
+              kind.label,
+              `shared by ${row.authorDisplayName ?? 'a Harvous user'}`,
+              submittedAgo(row.createdAt),
+              row.staffReadAt ? 'opened before' : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </span>
         </span>
-      </div>
+      </header>
 
       {/*
-        Above the artifact, not beside the buttons: this changes whether the
-        thing below is the submitter's to give away at all, so it has to be read
-        before anything else about the row.
+        Above the artifact, not beside the buttons: this changes whether the thing below is the
+        submitter's to give away at all, so it has to be read before anything else about the row.
       */}
       {(row.reviewFlags ?? []).map((flag) => (
-        <p key={flag} className="proto-caption proto-admin-discover__flag" role="note">
-          ⚠ {flag}
+        <p key={flag} className="admin-discover-card__flag" role="note">
+          <Icon name="circle-exclamation" size={12} aria-hidden />
+          <span>{flag}</span>
         </p>
       ))}
 
-      {row.description ? (
-        <p className="proto-caption proto-service-editor__starter-hint">{row.description}</p>
+      {row.description ? <p className="admin-discover-card__description">{row.description}</p> : null}
+
+      {/* The thing being offered is what a reviewer reads, so it gets the room. */}
+      <div className={`admin-discover-card__preview${expanded ? ' admin-discover-card__preview--open' : ''}`}>
+        {titles.length > 0 ? (
+          <>
+            <p className="admin-discover-card__label">
+              {preview?.noteCount ?? titles.length} {(preview?.noteCount ?? titles.length) === 1 ? 'note' : 'notes'}
+            </p>
+            <ol className="admin-discover-card__titles">
+              {titles.map((title, index) => (
+                <li key={`${index}:${title}`}>{title}</li>
+              ))}
+            </ol>
+          </>
+        ) : null}
+        {headings.length > 0 ? (
+          <div className="admin-discover-card__chips" aria-label="Sections">
+            {headings.map((heading) => (
+              <span key={heading} className="admin-discover-card__chip">
+                {heading}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {bodyMarkup ? (
+          <div className="admin-discover-card__body" dangerouslySetInnerHTML={bodyMarkup} />
+        ) : excerpt ? (
+          <p className="admin-discover-card__body">{excerpt}</p>
+        ) : null}
+      </div>
+      {bodyMarkup || (excerpt && excerpt.length > 240) ? (
+        <button
+          type="button"
+          className="proto-sheet-quiet-action admin-discover-card__more"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? 'Show less' : 'Read it all'}
+        </button>
       ) : null}
 
-      {/* The scaffold is the thing being offered, so it is what a reviewer reads. */}
-      {headings.length > 0 ? (
-        <p className="proto-caption proto-service-editor__starter-hint">
-          Sections: {headings.join(' · ')}
-        </p>
-      ) : null}
-      {/*
-        The excerpt is a *different* view of the artifact for most kinds — the
-        opening of a note, the first lines of a template. For a resource it is
-        not: `snapshotResource` fills `preview.excerpt` from the item's own
-        description, so the card printed the same sentence twice in a row.
-        Compared rather than special-cased by kind, because any snapshotter that
-        makes the two agree should collapse the same way.
-      */}
-      {row.preview?.excerpt && row.preview.excerpt.trim() !== (row.description ?? '').trim() ? (
-        <p className="proto-caption proto-service-editor__starter-hint">{row.preview.excerpt}</p>
-      ) : null}
+      <div className="admin-discover-card__form">
+        <label className="admin-discover-card__field">
+          <span className="admin-discover-card__label">Category</span>
+          <select
+            className="proto-create-folder-sheet__name-input"
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setError(null);
+            }}
+          >
+            <option value="">Choose one…</option>
+            {DISCOVER_CATEGORIES.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      <label
-        className="proto-inspector-section-title proto-create-folder-sheet__field-label"
-        htmlFor={`discover-category-${row.id}`}
-      >
-        Category
-      </label>
-      <select
-        id={`discover-category-${row.id}`}
-        className="proto-create-folder-sheet__name-input"
-        value={category}
-        onChange={(e) => {
-          setCategory(e.target.value);
-          setError(null);
-        }}
-      >
-        <option value="">Choose one…</option>
-        {DISCOVER_CATEGORIES.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+        {/* Provenance the reviewer asserts, never the submitter — a built-in template lives in
+            code and never gets a row to check "is this ours" against. */}
+        <label className="admin-discover-card__check">
+          <input type="checkbox" checked={official} onChange={(e) => setOfficial(e.target.checked)} />
+          <span>
+            <span className="admin-discover-card__check-title">Made by Harvous</span>
+            <span className="admin-discover-card__check-meta">Credit Harvous instead of the person who shared it</span>
+          </span>
+        </label>
 
-      {/* Provenance the reviewer asserts, never the submitter — a built-in
-          template lives in code and never gets a row to check "is this ours"
-          against, so nothing can derive this automatically. */}
-      <label className="proto-inspector-templates__check">
-        <input
-          type="checkbox"
-          checked={official}
-          onChange={(e) => setOfficial(e.target.checked)}
-        />
-        <span className="pds-caption">Included with Harvous (not a submitter's work)</span>
-      </label>
-
-      <label
-        className="proto-inspector-section-title proto-create-folder-sheet__field-label"
-        htmlFor={`discover-note-${row.id}`}
-      >
-        <span>Note back</span>
-        <span className="proto-service-editor__optional">optional</span>
-      </label>
-      <input
-        id={`discover-note-${row.id}`}
-        type="text"
-        className="proto-create-folder-sheet__name-input"
-        value={reviewNote}
-        placeholder="Why, if you are turning it down"
-        maxLength={500}
-        onChange={(e) => setReviewNote(e.target.value)}
-      />
+        <label className="admin-discover-card__field">
+          <span className="admin-discover-card__label">
+            Note back <span className="admin-discover-card__optional">· optional, they see it</span>
+          </span>
+          <input
+            type="text"
+            className="proto-create-folder-sheet__name-input"
+            value={reviewNote}
+            placeholder="Why, if you’re turning it down"
+            maxLength={500}
+            onChange={(e) => setReviewNote(e.target.value)}
+          />
+        </label>
+      </div>
 
       {error ? (
-        <p className="proto-connect-note-sheet__error" role="alert">
+        <p className="proto-connect-note-sheet__error admin-discover-card__error" role="alert">
           {error}
         </p>
       ) : null}
 
-      <div className="proto-add-notes-sheet__footer proto-sheet-footer--stacked">
-        <button
-          type="button"
-          className="proto-share-popover__primary"
-          disabled={review.isPending}
-          onClick={() => act('approve')}
-        >
-          {review.isPending ? 'Saving…' : 'Approve and list'}
-        </button>
+      <footer className="admin-discover-card__footer">
         <button
           type="button"
           className="proto-sheet-quiet-action"
@@ -170,8 +213,16 @@ function SubmissionCard({ row }: { row: DiscoverSubmissionForReview }) {
         >
           Decline
         </button>
-      </div>
-    </div>
+        <button
+          type="button"
+          className="proto-share-popover__primary proto-ink-on-accent"
+          disabled={review.isPending}
+          onClick={() => act('approve')}
+        >
+          {review.isPending ? 'Saving…' : 'Approve and list'}
+        </button>
+      </footer>
+    </article>
   );
 }
 
@@ -220,33 +271,40 @@ export default function AdminDiscoverPage() {
       />
 
       {queue.isLoading ? (
-        <p className="proto-caption proto-service-editor__starter-hint">Loading…</p>
+        <p className="proto-caption admin-discover__empty">Loading…</p>
       ) : submissions.length === 0 ? (
-        <p className="proto-caption proto-service-editor__starter-hint">
+        <p className="proto-caption admin-discover__empty">
           {status === 'submitted' ? 'Nothing waiting.' : 'Nothing here.'}
         </p>
       ) : (
-        submissions.map((row) =>
+        <div className="admin-discover__list">
+        {submissions.map((row) =>
           status === 'submitted' ? (
             <SubmissionCard key={row.id} row={row} />
           ) : (
-            <div
-              key={row.id}
-              className="proto-glass-surface proto-glass-surface--panel proto-church-tools"
-            >
-              <div className="proto-church-tools__row">
-                <span className="proto-church-tools__row-text">
-                  <span className="pds-list-title proto-church-tools__row-title">{row.title}</span>
-                  <span className="proto-caption proto-church-tools__row-meta">
-                    {row.status}
-                    {row.category ? ` · ${row.category}` : ''}
-                    {row.installCount > 0 ? ` · saved by ${row.installCount}` : ''}
+            <article key={row.id} className="proto-glass-surface proto-glass-surface--panel admin-discover-card">
+              <header className="admin-discover-card__head">
+                <span className="admin-discover-card__glyph" aria-hidden>
+                  <Icon name={(KIND[row.kind] ?? KIND.note).icon} size={15} />
+                </span>
+                <span className="admin-discover-card__heading">
+                  <span className="pds-list-title admin-discover-card__title">{row.title}</span>
+                  <span className="proto-caption admin-discover-card__meta">
+                    {[
+                      (KIND[row.kind] ?? { label: row.kind }).label,
+                      DISCOVER_CATEGORIES.find((c) => c.id === row.category)?.label ?? row.category,
+                      row.installCount > 0 ? `saved by ${row.installCount}` : null,
+                      row.status === 'declined' && row.reviewNote ? `“${row.reviewNote}”` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </span>
                 </span>
-              </div>
-            </div>
+              </header>
+            </article>
           ),
-        )
+        )}
+        </div>
       )}
     </AdminShell>
   );

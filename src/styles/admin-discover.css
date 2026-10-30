@@ -1,0 +1,288 @@
+/*
+ * /admin/discover — the review queue. One card per submission: who and what (head), the thing
+ * itself (an inset preview, faded until opened), then the reviewer's three decisions and the two
+ * buttons. Every block shares the card's inset so nothing runs to the edge.
+ */
+
+.admin-discover__list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.admin-discover__empty {
+  margin: 24px 0;
+  text-align: center;
+  color: var(--pds-text-secondary);
+}
+
+.admin-discover-card {
+  --admin-discover-inset: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: var(--admin-discover-inset);
+}
+
+.admin-discover-card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.admin-discover-card__glyph {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--pds-text-secondary);
+  background: color-mix(in srgb, var(--pds-text-primary) 6%, transparent);
+}
+
+.admin-discover-card__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-discover-card__title {
+  overflow-wrap: anywhere;
+}
+
+.admin-discover-card__meta {
+  color: var(--pds-text-secondary);
+}
+
+.admin-discover-card__flag {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--pds-text-primary);
+  background: color-mix(in srgb, var(--pds-text-primary) 6%, transparent);
+}
+
+.admin-discover-card__flag > :first-child {
+  margin-top: 3px;
+  flex: none;
+}
+
+.admin-discover-card__description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pds-text-primary);
+}
+
+/* The artifact, inset like a page, faded at the bottom until "Read it all". */
+.admin-discover-card__preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 200px;
+  overflow: hidden;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--pds-text-primary) 4%, transparent);
+}
+
+.admin-discover-card__preview:empty {
+  display: none;
+}
+
+.admin-discover-card__preview:not(.admin-discover-card__preview--open)::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 56px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--pds-paper-sheet) 92%, transparent));
+}
+
+.admin-discover-card__preview--open {
+  max-height: none;
+}
+
+.admin-discover-card__body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--pds-text-primary);
+  white-space: pre-line;
+}
+
+.admin-discover-card__body :is(h1, h2, h3, h4) {
+  margin: 0.6em 0 0.2em;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-discover-card__body :is(p, ul, ol, blockquote) {
+  margin: 0 0 0.5em;
+}
+
+.admin-discover-card__body > :first-child {
+  margin-top: 0;
+}
+
+.admin-discover-card__titles {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.admin-discover-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-discover-card__chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+  background: color-mix(in srgb, var(--pds-text-primary) 7%, transparent);
+}
+
+.admin-discover-card__more {
+  align-self: flex-start;
+  margin-top: -6px;
+}
+
+.admin-discover-card__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--pds-text-primary) 8%, transparent);
+}
+
+.admin-discover-card__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-discover-card__field > :is(select, input) {
+  width: 100%;
+  margin: 0;
+}
+
+.admin-discover-card__label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+}
+
+.admin-discover-card__optional {
+  font-weight: 400;
+}
+
+.admin-discover-card__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.admin-discover-card__check > input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--pds-accent, #2f7cf6);
+}
+
+.admin-discover-card__check > span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.admin-discover-card__check-title {
+  font-size: 14px;
+  color: var(--pds-text-primary);
+}
+
+.admin-discover-card__check-meta {
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+.admin-discover-card__error {
+  margin: 0;
+}
+
+.admin-discover-card__footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .admin-discover-card__form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .admin-discover-card__form > .admin-discover-card__check {
+    margin-top: 22px;
+  }
+
+  .admin-discover-card__form > .admin-discover-card__field:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Drawn, not native: the native box renders as a dark square on this paper. Selected is the
+   accent gradient with a white mark — the one way the app marks "on". */
+.admin-discover-card__check > input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: static;
+  opacity: 1;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid color-mix(in srgb, var(--pds-text-primary) 28%, transparent);
+  background: var(--pds-paper-sheet);
+  cursor: pointer;
+}
+
+.admin-discover-card__check > input[type='checkbox']:checked {
+  border-color: transparent;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      center / 12px no-repeat,
+    var(--pds-bg-accent-button);
+}
+
+.admin-discover-card__titles {
+  list-style: decimal;
+}
+
+.admin-discover-card .proto-sheet-quiet-action {
+  width: auto;
+  flex: none;
+}
+
+.admin-discover-card__footer > .proto-share-popover__primary {
+  width: auto;
+  flex: none;
+}
