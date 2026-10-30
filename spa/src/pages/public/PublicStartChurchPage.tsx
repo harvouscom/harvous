@@ -12,9 +12,17 @@ import { useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 import { PublicTopBar } from './public-shared';
+import Icon from '@/components/react/Icon';
 import { markChurchBringRequested } from '../../lib/church-bring-flag';
 
 const DESTINATION = '/prototype/settings/church';
+
+/** What happens, in the order it happens — the paragraph this replaced said all three at once. */
+const STEPS = [
+  { title: 'Create your account', meta: 'Free, and yours whether or not your church joins' },
+  { title: 'Find your church and tell us your role', meta: 'From the Here’s My Church directory' },
+  { title: 'We set it up with you', meta: 'Your team, channels and service times, on a 30-day pilot' },
+] as const;
 export default function PublicStartChurchPage() {
   const { isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
@@ -46,20 +54,51 @@ export default function PublicStartChurchPage() {
             ) : (
               <>
                 <p className="public-creator">For pastors and church staff</p>
-                <div className="public-card public-join-church">
-                  <h1 className="public-card__title">Bring your church to Harvous</h1>
+                <div className="public-card public-join-church public-start-church">
+                  {/* The same head the join page wears, so the two church doors look like one place. */}
+                  <div className="public-join-church__head">
+                    <span className="public-join-church__glyph" aria-hidden>
+                      <Icon name="church" size={20} />
+                    </span>
+                    <div className="public-join-church__head-text">
+                      <h1 className="public-card__title">Bring your church to Harvous</h1>
+                      <p className="public-card__meta">Set up with you · 30-day pilot</p>
+                    </div>
+                  </div>
+
                   <p className="public-join-church__lede">
-                    Create your account, find your church in the directory, and tell us who you are.
-                    We set each church up personally and start you on a 30-day pilot. Then you invite
-                    your team and share a link with your congregation.
+                    Plan what each ministry teaches, publish it to the people who attend, and let
+                    them study it in their own notes.
                   </p>
-                  <button type="button" className="public-cta-btn" onClick={() => signUp(false)}>
-                    Get started
-                  </button>
-                  <button type="button" className="public-join-church__text-btn" onClick={() => signUp(true)}>
-                    I already have an account
-                  </button>
+
+                  <ol className="public-start-church__steps">
+                    {STEPS.map((step, index) => (
+                      <li key={step.title} className="public-start-church__step">
+                        <span className="public-start-church__num" aria-hidden>
+                          {index + 1}
+                        </span>
+                        <span className="public-start-church__step-text">
+                          <span className="public-start-church__step-title">{step.title}</span>
+                          <span className="public-start-church__step-meta">{step.meta}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+
+                  <div className="public-join-church__foot">
+                    <button type="button" className="public-cta-btn" onClick={() => signUp(false)}>
+                      Get started
+                    </button>
+                    <button type="button" className="public-join-church__text-btn" onClick={() => signUp(true)}>
+                      I already have an account
+                    </button>
+                  </div>
                 </div>
+
+                <p className="public-start-church__aside">
+                  Questions first?{' '}
+                  <a href="https://harvous.com/for/churches/#interest">Tell us about your church</a>
+                </p>
               </>
             )}
           </div>
