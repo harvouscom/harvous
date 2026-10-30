@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { canWithdraw, cleanApplicationInput } from '../church-applications';
+import { canWithdraw, cleanApplicationInput, cleanSiteIntake } from '../church-applications';
 
 const src = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
 
@@ -58,7 +58,7 @@ describe('approve — wiring', () => {
   });
 
   it('makes the applicant the church’s creator and starts the pilot', () => {
-    expect(fn).toContain('createdBy: claimed.applicantUserId');
+    expect(fn).toContain('createdBy: applicantUserId');
     expect(fn).toContain('pilotUntil: extendedPilotUntil(null, APPLICATION_PILOT_DAYS, now)');
   });
 
@@ -69,5 +69,52 @@ describe('approve — wiring', () => {
       expect(at).toBeGreaterThan(-1);
       expect(routes.slice(at, at + 200)).toContain('requireHarvousAdmin(c)');
     }
+  });
+});
+
+describe('cleanSiteIntake (harvous.com form)', () => {
+  const base = { name: ' Jane  Doe ', email: 'Jane@Grace.org', role: 'pastor', churchName: 'Grace Church' };
+  it('reads the site form into a request', () => {
+    const r = cleanSiteIntake({ ...base, interests: 'church-org-curriculum,getting-set-up', churchDenomination: 'Baptist', churchCountry: 'US' });
+    expect(r.ok && r.value).toMatchObject({
+      applicantName: 'Jane Doe',
+      contactEmail: 'jane@grace.org',
+      applicantRole: 'Pastor',
+      churchName: 'Grace Church',
+      churchCountry: 'US',
+      notes: 'Interested in: Church curriculum, Help getting set up\nDenomination: Baptist',
+    });
+  });
+  it('uses "other" role text, and drops the OTHER country sentinel', () => {
+    const r = cleanSiteIntake({ ...base, role: 'other', roleOther: 'Elder', churchCountry: 'OTHER' });
+    expect(r.ok && r.value.applicantRole).toBe('Elder');
+    expect(r.ok && r.value.churchCountry).toBeNull();
+  });
+  it('needs a name, a real email and a church', () => {
+    expect(cleanSiteIntake({ ...base, name: '' }).ok).toBe(false);
+    expect(cleanSiteIntake({ ...base, email: 'nope' }).ok).toBe(false);
+    expect(cleanSiteIntake({ ...base, churchName: ' ' }).ok).toBe(false);
+  });
+});
+
+describe('site requests — wiring', () => {
+  const text = src('server/utils/church-applications.ts');
+  it('approval refuses a request with no account, and puts it back', () => {
+    const fn = text.slice(text.indexOf('export async function approveApplication'));
+    const guard = fn.indexOf("'NO_ACCOUNT_YET'");
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(fn.indexOf('createClerkOrganization('));
+  });
+  it('claims only by verified email, only unowned pending requests', () => {
+    expect(text).toContain("entry.verification?.status === 'verified'");
+    const fn = text.slice(text.indexOf('export async function claimSiteApplications'));
+    expect(fn).toContain('isNull(ChurchApplications.applicantUserId)');
+    expect(fn).toContain("eq(ChurchApplications.status, 'pending')");
+  });
+  it('the intake route checks a shared secret in constant time', () => {
+    const routes = src('server/routes/church-applications.ts');
+    const at = routes.indexOf("app.post('/api/church-applications/intake'");
+    expect(routes.slice(at, at + 600)).toContain('intakeSecretMatches(');
+    expect(routes).toContain('timingSafeEqual(a, b)');
   });
 });

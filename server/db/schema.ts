@@ -1251,7 +1251,8 @@ export const ChurchServiceTimeSpaces = pgTable('ChurchServiceTimeSpaces', {
  *
  * Approval is a Harvous admin's: it creates the Clerk organization (applicant as admin), the
  * `Churches` row, and the pilot, and points `churchId` at the result. Nothing here grants
- * anything while pending.
+ * anything while pending. A request from the harvous.com form arrives without an account and
+ * waits for one before it can be approved.
  *
  * Row ids: `capp_${crypto.randomUUID()}`.
  */
@@ -1264,7 +1265,16 @@ export const ChurchApplications = pgTable('ChurchApplications', {
   city: text('city'),
   state: text('state'),
   country: text('country'),
-  applicantUserId: text('applicantUserId').notNull(),
+  /**
+   * The Harvous account asking. Null for a request sent from harvous.com by someone without an
+   * account yet; it attaches to their account the first time they sign in with `contactEmail`
+   * (church-applications.ts, `claimSiteApplications`), and only then can it be approved.
+   */
+  applicantUserId: text('applicantUserId'),
+  /** 'app' (Settings › My Church) or 'site' (the harvous.com form). */
+  source: text('source').notNull().default('app'),
+  /** As typed on the site form; app requests carry the account's own name instead. */
+  applicantName: text('applicantName'),
   /** "Senior pastor", "Discipleship director" — free text, for the concierge. */
   applicantRole: text('applicantRole'),
   contactEmail: text('contactEmail'),
