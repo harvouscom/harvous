@@ -75,7 +75,7 @@ export type ServiceEngagement = {
   dayOfWeek: number;
   startTime: string;
   label: string | null;
-  /** People who chose this as their service. Null when fewer than three — small enough to name. */
+  /** People who chose this as their service. Null for one to four — small enough to name. */
   count: number | null;
 };
 

@@ -300,8 +300,8 @@ one service, stored as day + time (a natural key, not a row id).
 - Where the times come from: the church's `ChurchServiceTimes`, or its Here's My Church listing
   when the church isn't on Harvous yet.
 - What a choice drives: This Sunday shows that service's time; the church push stays quiet from
-  30 minutes before to 90 minutes after it; staff see a per-service headcount in Engagement (one or
-  two people read "A few"); and the ministries that meet during it come first. They are labelled,
+  30 minutes before to 90 minutes after it; staff see a per-service headcount in Engagement (one to four
+  people read "A few"); and the ministries that meet during it come first. They are labelled,
   never preselected.
 - Staff tag what meets during a service in church settings (`ChurchServiceTimeSpaces`).
 - Asked in Settings › My Church, and on Home in the empty-feed slot.

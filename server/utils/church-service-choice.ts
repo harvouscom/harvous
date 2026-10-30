@@ -99,8 +99,11 @@ export function resolveChoiceSlot(
   return slots.find((slot) => slotKey(slot) === key) ?? null;
 }
 
-/** Fewer than this many people at a service is reported as "a few", never a number. */
-export const SERVICE_HEADCOUNT_MIN = 3;
+/**
+ * Fewer than this many people at a service is reported as "a few", never a number. Five, the
+ * same floor church Review answer counts use — one promise to a congregation, not two.
+ */
+export const SERVICE_HEADCOUNT_MIN = 5;
 
 /** Pure: per-service counts with small groups suppressed. Zero is not a group, so it stays 0. */
 export function suppressSmallCounts<T extends { count: number }>(
