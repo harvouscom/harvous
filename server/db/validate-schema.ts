@@ -215,7 +215,7 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
   ChurchServiceChoices: ['userId', 'churchId', 'hmcChurchId', 'dayOfWeek', 'startTime', 'createdAt', 'updatedAt'],
   ChurchServiceTimeSpaces: ['id', 'churchId', 'serviceTimeId', 'spaceId', 'createdByUserId', 'createdAt'],
   ChurchApplications: [
-    'id', 'hmcChurchId', 'name', 'city', 'state', 'country', 'applicantUserId', 'applicantRole',
+    'id', 'hmcChurchId', 'name', 'city', 'state', 'country', 'applicantUserId', 'source', 'applicantName', 'applicantRole',
     'contactEmail', 'timezone', 'notes', 'status', 'decidedByUserId', 'decidedAt', 'decisionNote',
     'churchId', 'createdAt', 'updatedAt',
   ],
