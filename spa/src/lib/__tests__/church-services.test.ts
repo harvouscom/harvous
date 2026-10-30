@@ -6,6 +6,7 @@ import {
   buildStarterContent,
   currentSeriesTitle,
   currentSermonFor,
+  formatServiceSlot,
   formatServiceTime,
   formatServiceTimes,
   nextOccurrenceOfDay,
@@ -649,6 +650,13 @@ describe('currentSermonFor with two sermons on one date', () => {
     expect(pick?.title).toBe('Morning');
   });
 
+  it('shows the viewer’s own service’s sermon, whatever the clock says', () => {
+    // They go to the evening service: Sunday morning still shows what they will hear tonight.
+    const mine = { ...evening, isMyService: true, serviceTime: '18:00' };
+    const pick = currentSermonFor([morning, mine], '2026-08-09', { date: '2026-08-09', time: '07:30' });
+    expect(pick?.title).toBe('Evening');
+  });
+
   it('prefers the earliest when no church clock is available', () => {
     // No timezone set, or a payload cached before churchNow shipped.
     expect(currentSermonFor([evening, morning], '2026-08-09', null)?.title).toBe('Morning');
@@ -761,5 +769,12 @@ describe('planSermonNoteLink', () => {
     const actions = planSermonNoteLink({ previousNoteId: 'n1', nextNoteId: 'n2', serviceId });
     expect(actions[0].serviceId).toBeNull();
     expect(actions[1].serviceId).toBe(serviceId);
+  });
+});
+
+describe('formatServiceSlot', () => {
+  it('names a service as a weekly habit', () => {
+    expect(formatServiceSlot({ dayOfWeek: 0, startTime: '09:00' })).toBe('Sundays at 9:00 AM');
+    expect(formatServiceSlot({ dayOfWeek: 3, startTime: '19:00', label: 'Evening' })).toBe('Wednesdays at 7:00 PM · Evening');
   });
 });

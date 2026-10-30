@@ -14,7 +14,12 @@ export type ChurchServiceTime = {
   startTime: string;
   label: string | null;
   sortOrder?: number;
+  /** Channels and groups that meet during this service (suggested to whoever chooses it). */
+  spaceIds?: string[];
 };
+
+/** A channel or group a service can be tagged with. */
+export type ChurchTaggableSpace = { id: string; title: string; kind: 'channel' | 'group' };
 
 export type ChurchSettingsResponse = {
   church: { id: string; name: string; orgId: string };
@@ -28,6 +33,7 @@ export type ChurchSettingsResponse = {
     contentApproval?: boolean;
   };
   serviceTimes: ChurchServiceTime[];
+  spaces?: ChurchTaggableSpace[];
 };
 
 export function churchSettingsQueryKey(
@@ -63,7 +69,8 @@ type SettingsAction =
   | { kind: 'timezone'; timezone: string | null }
   | { kind: 'contentApproval'; contentApproval: boolean }
   | { kind: 'addServiceTime'; dayOfWeek: number; startTime: string; label?: string | null }
-  | { kind: 'removeServiceTime'; serviceTimeId: string };
+  | { kind: 'removeServiceTime'; serviceTimeId: string }
+  | { kind: 'tagServiceSpace'; serviceTimeId: string; spaceId: string; on: boolean };
 
 /** Change the church's clock or its service times. Server-gated on `manage_church_settings`. */
 export function useChurchSettingsActions(orgId: string | null | undefined) {
@@ -83,6 +90,8 @@ export function useChurchSettingsActions(orgId: string | null | undefined) {
           return api.post('/api/church/settings/service-times/create', body);
         case 'removeServiceTime':
           return api.post('/api/church/settings/service-times/delete', body);
+        case 'tagServiceSpace':
+          return api.post('/api/church/settings/service-times/spaces', body);
       }
     },
     onSettled: () => {

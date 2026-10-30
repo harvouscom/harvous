@@ -36,6 +36,7 @@ import {
 } from '../db';
 import { isMinistryBroadcastSpaceRow } from './channel-publish-cadence';
 import { resolveChurchOrgAccess, type ChurchOrgAccessResult } from './church-org-access';
+import { serviceHeadcount } from './church-service-choice';
 
 /**
  * Who may see it: `manage_staff`, i.e. a Clerk `org:admin`.
@@ -70,10 +71,20 @@ export type ChannelEngagement = {
   ministryId: string | null;
 };
 
+export type ServiceEngagement = {
+  dayOfWeek: number;
+  startTime: string;
+  label: string | null;
+  /** People who chose this as their service. Null when fewer than three — small enough to name. */
+  count: number | null;
+};
+
 export type ChurchEngagement = {
   /** Congregants who have made this church their home church. */
   connectedCount: number;
   channels: ChannelEngagement[];
+  /** One row per service time, in order. Empty for a church with no service times. */
+  services: ServiceEngagement[];
 };
 
 /**
@@ -140,14 +151,15 @@ async function countFollowersByChannel(orgId: string): Promise<ChannelEngagement
   }));
 }
 
-/** The whole payload. Two numbers and a per-channel list of numbers. */
+/** The whole payload. A number, a per-channel list of numbers, and a per-service one. */
 export async function getChurchEngagement(church: {
   id: string;
   orgId: string;
 }): Promise<ChurchEngagement> {
-  const [connectedCount, channels] = await Promise.all([
+  const [connectedCount, channels, services] = await Promise.all([
     countConnectedCongregants(church.id),
     countFollowersByChannel(church.orgId),
+    serviceHeadcount(church),
   ]);
-  return { connectedCount, channels };
+  return { connectedCount, channels, services };
 }

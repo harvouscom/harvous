@@ -28,7 +28,7 @@ function PrototypeAdminChurchesPage() {
   }
 
   return (
-    <AdminShell title="Churches" subtitle="Church org registry, ministry education channels, and staff sync.">
+    <AdminShell title="Churches" subtitle="Requests, pilots, and leads — who is using Harvous, and who is next.">
       <AdminChurchesPanel />
     </AdminShell>
   );

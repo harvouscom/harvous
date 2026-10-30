@@ -313,6 +313,38 @@ export async function fetchClerkOrgPendingInvitations(
     }));
 }
 
+/**
+ * Create a church's staff organization, with `createdByUserId` as its first member and admin
+ * (Clerk makes the creator `org:admin`). The one org write outside invites and roles: approving
+ * a church application used to mean a Harvous admin building the org by hand in the Clerk
+ * dashboard first. Membership is capped at the staff ceiling from the start.
+ */
+export async function createClerkOrganization(input: {
+  name: string;
+  createdByUserId: string;
+}): Promise<ClerkOrgSummary> {
+  const response = await clerkFetch('/organizations', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: input.name,
+      created_by: input.createdByUserId,
+      max_allowed_memberships: CLERK_ORG_STAFF_CAP,
+    }),
+  });
+  if (!response.ok) throw classifyClerkFailure(response.status);
+  const data = (await response.json()) as ClerkOrgRow;
+  if (!data.id || !data.name) {
+    throw new ClerkOrgError('CLERK_UNAVAILABLE', 'Clerk organization response missing id/name');
+  }
+  return { id: data.id, name: data.name, slug: data.slug ?? null };
+}
+
+/** Undo `createClerkOrganization` when the rest of an approval fails. Best-effort. */
+export async function deleteClerkOrganization(orgId: string): Promise<void> {
+  const response = await clerkFetch(`/organizations/${orgId}`, { method: 'DELETE' });
+  if (!response.ok && response.status !== 404) throw classifyClerkFailure(response.status);
+}
+
 /** Invite one person to the staff org. `inviterUserId` must be an org admin. */
 export async function createClerkOrgInvitation(input: {
   orgId: string;

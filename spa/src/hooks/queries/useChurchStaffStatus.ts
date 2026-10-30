@@ -2,6 +2,7 @@ import { useAuth, useOrganizationList } from '@clerk/clerk-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthReady } from '../useAuthReady';
 import { api } from '../../lib/api';
+import type { ChurchSponsorship } from './useChurchChannels';
 
 /**
  * Church capabilities the server may grant. Mirrors
@@ -23,6 +24,8 @@ export type ChurchStaffStatusResponse = {
   isStaff: boolean;
   role: string | null;
   capabilities: ChurchCapability[];
+  /** This church's plan state. Staff only (absent for everyone else). */
+  sponsorship?: ChurchSponsorship | null;
 };
 
 /**
@@ -66,6 +69,8 @@ export function useChurchStaffStatus(orgId: string | null | undefined) {
      * drift and a congregant ends up seeing pastor tooling.
      */
     capabilities: query.data?.capabilities ?? [],
+    /** Plan state of *this* church (not the viewer's home church). Null until known. */
+    sponsorship: query.data?.sponsorship ?? null,
     can: (capability: ChurchCapability) =>
       Array.isArray(query.data?.capabilities) && query.data.capabilities.includes(capability),
     isLoading: Boolean(trimmedOrgId) && (query.isLoading || !clerkOrgsLoaded),

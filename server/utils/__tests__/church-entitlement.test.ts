@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { churchIsSponsored, churchSponsorship } from '../church-entitlement';
+import { churchIsSponsored, churchSponsorship, extendedPilotUntil } from '../church-entitlement';
 
 const NOW = new Date('2026-08-03T12:00:00.000Z');
 const FUTURE = new Date('2026-09-02T12:00:00.000Z');
@@ -96,5 +96,23 @@ describe('churchSponsorship truth table', () => {
   it('lapses exactly at the boundary, not after', () => {
     expect(churchIsSponsored(church({ pilotUntil: NOW }), NOW)).toBe(false);
     expect(churchIsSponsored(church({ pilotUntil: new Date(NOW.getTime() + 1) }), NOW)).toBe(true);
+  });
+});
+
+describe('extendedPilotUntil', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('adds to a pilot that is still running instead of restarting from today', () => {
+    const twelveLeft = new Date(NOW.getTime() + 12 * DAY);
+    expect(extendedPilotUntil(twelveLeft, 30, NOW).getTime()).toBe(NOW.getTime() + 42 * DAY);
+  });
+
+  it('restarts a lapsed pilot from today, not from its old end', () => {
+    expect(extendedPilotUntil(PAST, 30, NOW).getTime()).toBe(NOW.getTime() + 30 * DAY);
+  });
+
+  it('starts a first pilot from today', () => {
+    expect(extendedPilotUntil(null, 30, NOW).getTime()).toBe(NOW.getTime() + 30 * DAY);
+    expect(extendedPilotUntil('not-a-date', 30, NOW).getTime()).toBe(NOW.getTime() + 30 * DAY);
   });
 });

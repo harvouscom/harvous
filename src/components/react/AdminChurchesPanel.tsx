@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   useAdminChurches,
   useAdminHmcInterest,
+  useAdminChurchApplications,
+  useDecideChurchApplication,
   useClerkOrgs,
   useRegisterChurch,
-  useCreateChurchSpace,
   useSyncChurchStaff,
   useSetChurchActive,
   useSetChurchPilot,
@@ -13,12 +14,13 @@ import {
   useRefreshAdminChurchHmc,
   searchAdminHmcChurches,
   type AdminChurch,
+  type AdminChurchAttention,
   type AdminHmcInterestRow,
 } from '@/hooks/queries/useAdminChurches';
 import HmcChurchPicker, { type HmcChurchPick } from './HmcChurchPicker';
-import { THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-publish.css';
+import '@/styles/admin-churches.css';
 
 function copyToClipboard(text: string) {
   void navigator.clipboard.writeText(text).then(() => {
@@ -26,11 +28,18 @@ function copyToClipboard(text: string) {
   });
 }
 
-function RegisterChurchForm({ onRegistered }: { onRegistered: () => void }) {
+function RegisterChurchForm({
+  onRegistered,
+  initialPick = null,
+}: {
+  onRegistered: () => void;
+  /** From a lead row: the directory church to register, already picked. */
+  initialPick?: HmcChurchPick | null;
+}) {
   const register = useRegisterChurch();
   const clerkOrgs = useClerkOrgs();
   const [orgId, setOrgId] = useState('');
-  const [hmcPick, setHmcPick] = useState<HmcChurchPick | null>(null);
+  const [hmcPick, setHmcPick] = useState<HmcChurchPick | null>(initialPick);
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
@@ -130,13 +139,13 @@ function RegisterChurchForm({ onRegistered }: { onRegistered: () => void }) {
 
       <div className="admin-publish__field">
         <span className="admin-publish__label">Here’s My Church (source of truth)</span>
-        <p style={{ margin: '0 0 8px', opacity: 0.72, fontSize: 12 }}>
+        <p className="admin-churches__hint admin-churches__hint--spaced">
           Prefer linking a directory church so name and location stay accurate for same-name campuses.
         </p>
         {hmcPick ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <p style={{ margin: 0, fontWeight: 600 }}>{hmcPick.name}</p>
-            <p style={{ margin: 0, opacity: 0.75, fontSize: 12 }}>
+          <div className="admin-churches__stack">
+            <p className="admin-churches__strong">{hmcPick.name}</p>
+            <p className="admin-churches__hint">
               {[hmcPick.city, hmcPick.state].filter(Boolean).join(', ')} · <code>{hmcPick.id}</code>
             </p>
             <button type="button" className="admin-action-btn" onClick={() => setHmcPick(null)}>
@@ -167,18 +176,18 @@ function RegisterChurchForm({ onRegistered }: { onRegistered: () => void }) {
             <label className="admin-publish__label" htmlFor="church-city">
               City / State / Country
             </label>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="admin-churches__inline">
               <input
                 id="church-city"
                 className="admin-publish__input"
-                style={{ flex: '1 1 0', minWidth: 0 }}
+                data-grow=""
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 placeholder="City"
               />
               <input
                 className="admin-publish__input"
-                style={{ flex: '1 1 0', minWidth: 0 }}
+                data-grow=""
                 value={state}
                 onChange={(e) => setState(e.target.value)}
                 placeholder="State"
@@ -186,7 +195,7 @@ function RegisterChurchForm({ onRegistered }: { onRegistered: () => void }) {
               />
               <input
                 className="admin-publish__input"
-                style={{ flex: '1 1 0', minWidth: 0 }}
+                data-grow=""
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
                 placeholder="Country"
@@ -204,82 +213,6 @@ function RegisterChurchForm({ onRegistered }: { onRegistered: () => void }) {
       >
         {register.isPending ? 'Registering…' : 'Register church'}
       </button>
-    </form>
-  );
-}
-
-function CreateChurchSpaceForm({ churchId }: { churchId: string }) {
-  const create = useCreateChurchSpace(churchId);
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [ownerUserId, setOwnerUserId] = useState('');
-  const [color, setColor] = useState<ThreadColor>('paper');
-
-  if (!open) {
-    return (
-      <button type="button" className="admin-action-btn" onClick={() => setOpen(true)}>
-        Create ministry channel
-      </button>
-    );
-  }
-
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !ownerUserId.trim()) return;
-    create.mutate(
-      { title: title.trim(), ownerUserId: ownerUserId.trim(), color },
-      {
-        onSuccess: (data) => {
-          window.toast?.success(`Ministry channel created: ${data.space.title}`);
-          setTitle('');
-          setOwnerUserId('');
-          setOpen(false);
-        },
-        onError: (err) => window.toast?.error(err.message),
-      },
-    );
-  };
-
-  return (
-    <form className="admin-publish__form" onSubmit={onSubmit}>
-      <input
-        className="admin-publish__input"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Space title"
-        required
-        maxLength={100}
-      />
-      <input
-        className="admin-publish__input"
-        value={ownerUserId}
-        onChange={(e) => setOwnerUserId(e.target.value)}
-        placeholder="Owner Clerk userId (must be in the org — yours: user_…)"
-        required
-      />
-      <p style={{ margin: 0, fontSize: 12, opacity: 0.72 }}>
-        Must be a Clerk org member. Sync staff first if create fails with “not in organization.”
-      </p>
-      <select
-        className="admin-publish__select"
-        value={color}
-        onChange={(e) => setColor(e.target.value as ThreadColor)}
-        aria-label="Color"
-      >
-        {THREAD_COLORS.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </select>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button type="submit" className="admin-action-btn admin-action-btn--emphasis" disabled={create.isPending}>
-          {create.isPending ? 'Creating…' : 'Create'}
-        </button>
-        <button type="button" className="admin-action-btn" onClick={() => setOpen(false)}>
-          Cancel
-        </button>
-      </div>
     </form>
   );
 }
@@ -327,21 +260,21 @@ function EditChurchDetailsForm({ church }: { church: AdminChurch }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Church details</h4>
+    <div className="admin-churches__stack">
+      <h4 className="admin-churches__h4">Church details</h4>
       {linked ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={{ margin: 0, opacity: 0.72, fontSize: 12 }}>
+        <div className="admin-churches__stack">
+          <p className="admin-churches__hint">
             Linked to Here’s My Church — name and location refresh from the directory.
           </p>
-          <p style={{ margin: 0 }}>
+          <p className="admin-churches__flush">
             <strong>{church.name}</strong>
           </p>
-          <p style={{ margin: 0, opacity: 0.75, fontSize: 12 }}>
+          <p className="admin-churches__hint">
             {[church.city, church.state].filter(Boolean).join(', ') || 'No location'} ·{' '}
             <code>{church.hmcChurchId}</code>
           </p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="admin-churches__inline">
             <button
               type="button"
               className="admin-action-btn admin-action-btn--emphasis"
@@ -375,7 +308,7 @@ function EditChurchDetailsForm({ church }: { church: AdminChurch }) {
         </div>
       ) : (
         <>
-          <p style={{ margin: 0, opacity: 0.72, fontSize: 12 }}>
+          <p className="admin-churches__hint">
             Link a Here’s My Church record (preferred) or edit name/location manually.
           </p>
           <HmcChurchPicker
@@ -392,7 +325,7 @@ function EditChurchDetailsForm({ church }: { church: AdminChurch }) {
               )
             }
           />
-          <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <form onSubmit={onSubmit} className="admin-churches__stack">
             <div className="admin-publish__field">
               <label className="admin-publish__label" htmlFor={`church-edit-name-${church.id}`}>
                 Church name
@@ -410,18 +343,18 @@ function EditChurchDetailsForm({ church }: { church: AdminChurch }) {
               <label className="admin-publish__label" htmlFor={`church-edit-city-${church.id}`}>
                 City / State / Country
               </label>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="admin-churches__inline">
                 <input
                   id={`church-edit-city-${church.id}`}
                   className="admin-publish__input"
-                  style={{ flex: '1 1 0', minWidth: 0 }}
+                  data-grow=""
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   placeholder="City"
                 />
                 <input
                   className="admin-publish__input"
-                  style={{ flex: '1 1 0', minWidth: 0 }}
+                  data-grow=""
                   value={state}
                   onChange={(e) => setState(e.target.value)}
                   placeholder="State"
@@ -429,7 +362,7 @@ function EditChurchDetailsForm({ church }: { church: AdminChurch }) {
                 />
                 <input
                   className="admin-publish__input"
-                  style={{ flex: '1 1 0', minWidth: 0 }}
+                  data-grow=""
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
                   placeholder="Country"
@@ -441,7 +374,7 @@ function EditChurchDetailsForm({ church }: { church: AdminChurch }) {
               type="submit"
               className="admin-action-btn admin-action-btn--emphasis"
               disabled={!dirty || update.isPending || !name.trim()}
-              style={{ alignSelf: 'flex-start' }}
+              data-align-start=""
             >
               {update.isPending ? 'Saving…' : 'Save details'}
             </button>
@@ -450,6 +383,46 @@ function EditChurchDetailsForm({ church }: { church: AdminChurch }) {
       )}
     </div>
   );
+}
+
+/** The words a concierge reads on a row; neutral badges, never a coloured dot. */
+const ATTENTION_LABEL: Record<AdminChurchAttention, string> = {
+  lapsed: 'Plan ended',
+  pilot_ending: 'Pilot ending',
+  never_posted: 'Never posted',
+  quiet: 'Quiet 2+ weeks',
+  no_service_times: 'No service times',
+  no_one_connected: 'No one connected',
+};
+
+function relativeDays(iso: string | null): string | null {
+  if (!iso) return null;
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / DAY_MS);
+  if (Number.isNaN(days)) return null;
+  return days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`;
+}
+
+/** One line: plan, then reach, then activity — what a pilot check-in asks, in that order. */
+function healthLine(church: AdminChurch, location: string): string {
+  const plan = church.billingPlan
+    ? 'Paid'
+    : pilotDaysLeft(church) !== null
+      ? `Pilot · ${pilotDaysLeft(church)}d left`
+      : church.isActive
+        ? 'Plan ended'
+        : null;
+  const h = church.health;
+  const parts = [
+    plan,
+    h ? `${h.connectedCount} connected` : null,
+    h ? `${h.staffCount} staff` : null,
+    h ? `${h.channelCount} channel${h.channelCount === 1 ? '' : 's'}` : null,
+    h ? (h.lastPostAt ? `last post ${relativeDays(h.lastPostAt)}` : null) : null,
+    h && h.joinedByLinkCount ? `${h.joinedByLinkCount} by link` : null,
+    h && h.serviceTimeCount ? `${h.serviceTimeCount} service time${h.serviceTimeCount === 1 ? '' : 's'}` : null,
+    location || null,
+  ];
+  return parts.filter(Boolean).join(' · ');
 }
 
 function ChurchRow({ church }: { church: AdminChurch }) {
@@ -506,10 +479,10 @@ function ChurchRow({ church }: { church: AdminChurch }) {
     pilotUntilDate && !Number.isNaN(pilotUntilDate.getTime()) && pilotUntilDate.getTime() > Date.now(),
   );
   const sponsorshipLabel = church.billingPlan
-    ? `Paid · ${church.billingPlan}${church.billingStatus ? ` (${church.billingStatus})` : ''}`
+    ? `Paid · ${church.billingStatus === 'manual' ? 'invoice' : church.billingPlan}`
     : pilotActive
       ? `Pilot until ${pilotUntilDate!.toLocaleDateString()}`
-      : 'Not sponsored — staff cannot create channels';
+      : 'Plan ended — staff can’t post, scheduled posts are on hold, follows are paused. Everything published stays readable.';
 
   const onSetPilot = (days: number | null) => {
     if (days === null && !window.confirm(`End the pilot for ${church.name} now?`)) return;
@@ -521,27 +494,29 @@ function ChurchRow({ church }: { church: AdminChurch }) {
   };
 
   return (
-    <article className="admin-publish__space-card">
+    <article className={`admin-publish__space-card admin-churches__row${church.isActive ? '' : ' admin-churches__row--inactive'}`}>
       <button
         type="button"
-        className="admin-publish__space-header"
+        className="admin-publish__space-header admin-churches__row-head"
+        aria-expanded={expanded}
         onClick={() => setExpanded((v) => !v)}
-        style={{ width: '100%', textAlign: 'left' }}
       >
-        <span className="admin-publish__space-title">{church.name}</span>
-        <span className="admin-publish__space-meta">
-          {!church.isActive ? 'inactive · ' : ''}
-          {church.hmcChurchId ? 'HMC · ' : ''}
-          {location ? `${location} · ` : ''}
-          {church.spaceCount} space{church.spaceCount === 1 ? '' : 's'}
+        <span className="admin-churches__row-title">
+          <span className="admin-publish__space-title">{church.name}</span>
+          {!church.isActive ? <span className="admin-publish__badge">Inactive</span> : null}
+          {(church.attention ?? []).map((reason) => (
+            <span key={reason} className="admin-publish__badge">
+              {ATTENTION_LABEL[reason]}
+            </span>
+          ))}
         </span>
+        <span className="admin-publish__space-meta">{healthLine(church, location)}</span>
       </button>
       {expanded ? (
-        <div className="admin-publish__space-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <code>{church.orgId}</code>
+        <div className="admin-publish__space-body admin-churches__stack">
+          <div className="admin-churches__inline">
             <button type="button" className="admin-action-btn" onClick={() => copyToClipboard(church.orgId)}>
-              Copy org id
+              Copy Clerk org id
             </button>
             <button type="button" className="admin-action-btn" onClick={onSync} disabled={sync.isPending}>
               {sync.isPending ? 'Syncing…' : 'Sync staff'}
@@ -551,9 +526,9 @@ function ChurchRow({ church }: { church: AdminChurch }) {
             </button>
           </div>
 
-          {/* Sponsorship — a church can create channels only while paid or in-pilot. */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span className="admin-publish__space-meta">{sponsorshipLabel}</span>
+          {/* Plan — while paid or in a pilot, staff can publish; otherwise posts hold. */}
+          <p className="admin-publish__space-meta admin-churches__plan">{sponsorshipLabel}</p>
+          <div className="admin-churches__inline">
             {church.billingPlan ? null : (
               <>
                 <button
@@ -562,7 +537,7 @@ function ChurchRow({ church }: { church: AdminChurch }) {
                   onClick={() => onSetPilot(30)}
                   disabled={setPilot.isPending}
                 >
-                  {pilotActive ? 'Extend pilot 30d' : 'Start 30-day pilot'}
+                  {pilotActive ? 'Add 30 days' : 'Start 30-day pilot'}
                 </button>
                 <button
                   type="button"
@@ -603,15 +578,21 @@ function ChurchRow({ church }: { church: AdminChurch }) {
               </button>
             ) : null}
           </div>
+          {church.health?.inReviewCount ? (
+            <p className="admin-publish__space-meta">
+              {church.health.inReviewCount === 1
+                ? '1 post waiting for a pastor’s approval'
+                : `${church.health.inReviewCount} posts waiting for a pastor’s approval`}
+            </p>
+          ) : null}
           {syncSummary ? (
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
+            <ul className="admin-churches__warnings">
               {syncSummary.map((warning) => (
                 <li key={warning}>{warning}</li>
               ))}
             </ul>
           ) : null}
           <EditChurchDetailsForm church={church} />
-          <CreateChurchSpaceForm churchId={church.id} />
         </div>
       ) : null}
     </article>
@@ -622,16 +603,104 @@ function interestLocation(row: AdminHmcInterestRow): string {
   return [row.churchCity, row.churchState].filter(Boolean).join(', ');
 }
 
-function HmcInterestSection() {
-  const interest = useAdminHmcInterest();
-  const rows = interest.data?.interest ?? [];
+/**
+ * Churches asking to join. Approve creates the Clerk org (applicant as admin), registers the
+ * church with a 30-day pilot, seeds service times from Here's My Church, and connects the
+ * applicant — the four hand steps this list replaces.
+ */
+function ChurchApplicationsSection() {
+  const applications = useAdminChurchApplications();
+  const decide = useDecideChurchApplication();
+  const rows = applications.data?.applications ?? [];
+
+  const approve = (row: { id: string; name: string }) => {
+    if (!window.confirm(`Approve ${row.name}? This creates its Clerk organization and starts a 30-day pilot.`)) return;
+    decide.mutate(
+      { id: row.id, decision: 'approve' },
+      {
+        onSuccess: (result) =>
+          window.toast?.success(
+            `${row.name} is on Harvous` +
+              (result.seededServiceTimes ? ` · ${result.seededServiceTimes} service times from the directory` : '') +
+              (result.alreadyPickedCount ? ` · ${result.alreadyPickedCount} already picked it` : ''),
+          ),
+        onError: (err) => window.toast?.error(err.message),
+      },
+    );
+  };
+  const decline = (row: { id: string; name: string }) => {
+    const note = window.prompt(`Decline ${row.name}? Optional note the applicant will see:`, '');
+    if (note === null) return;
+    decide.mutate(
+      { id: row.id, decision: 'decline', note: note.trim() || null },
+      { onError: (err) => window.toast?.error(err.message) },
+    );
+  };
 
   return (
     <section>
-      <h3>Churches users selected</h3>
-      <p style={{ margin: '4px 0 12px', opacity: 0.75 }}>
-        Here’s My Church picks from Settings → My Church — outreach demand (user counts only; not registered
-        church orgs).
+      <h3>Requests</h3>
+      {applications.isLoading ? <p>Loading…</p> : null}
+      {applications.isError ? (
+        <p className="admin-publish__message admin-publish__message--error">Failed to load requests.</p>
+      ) : null}
+      {!applications.isLoading && !applications.isError && rows.length === 0 ? (
+        <p className="admin-publish__empty">No requests waiting.</p>
+      ) : null}
+      <div className="admin-publish__space-list">
+        {rows.map((row) => (
+          <article key={row.id} className="admin-publish__space-card">
+            <div className="admin-publish__space-header admin-churches__row-head admin-churches__row-head--static">
+              <span className="admin-publish__space-title">{row.name}</span>
+              <span className="admin-publish__space-meta">
+                {[row.city, row.state].filter(Boolean).join(', ') || 'No location'}
+                {row.hmcChurchId ? ' · HMC' : ' · not in directory'}
+                {row.interestCount ? ` · ${row.interestCount} already picked it` : ''}
+              </span>
+            </div>
+            <div className="admin-publish__space-body admin-churches__stack">
+              <span className="admin-publish__space-meta">
+                {row.applicantRole ?? 'Role not given'}
+                {row.contactEmail ? ` · ${row.contactEmail}` : ''}
+                {row.timezone ? ` · ${row.timezone}` : ''}
+                {` · ${new Date(row.createdAt).toLocaleDateString()}`}
+              </span>
+              {row.notes ? <p className="admin-churches__note">{row.notes}</p> : null}
+              <div className="admin-churches__inline">
+                <button
+                  type="button"
+                  className="admin-action-btn admin-action-btn--emphasis"
+                  disabled={decide.isPending}
+                  onClick={() => approve(row)}
+                >
+                  Approve
+                </button>
+                <button type="button" className="admin-action-btn" disabled={decide.isPending} onClick={() => decline(row)}>
+                  Decline
+                </button>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HmcInterestSection({ onRegister }: { onRegister: (pick: HmcChurchPick) => void }) {
+  const interest = useAdminHmcInterest();
+  // Leads first: unregistered, most picked. Registered churches are context, at the end.
+  const rows = [...(interest.data?.interest ?? [])].sort(
+    (a, b) =>
+      Number(Boolean(a.registeredChurchId)) - Number(Boolean(b.registeredChurchId)) || b.userCount - a.userCount,
+  );
+
+  return (
+    <section>
+      <h3>Leads</h3>
+      <p className="admin-churches__intro">
+        Churches people picked in Settings › My Church that aren’t on Harvous yet, most picked first.
+        Counts only. Everyone who picked one is connected the moment it’s registered.
       </p>
       {interest.isLoading ? <p>Loading…</p> : null}
       {interest.isError ? (
@@ -646,15 +715,32 @@ function HmcInterestSection() {
           const registered = Boolean(row.registeredChurchId);
           return (
             <article key={row.hmcChurchId} className="admin-publish__space-card">
-              <div className="admin-publish__space-header" style={{ width: '100%', textAlign: 'left' }}>
-                <span className="admin-publish__space-title">{row.churchName || row.hmcChurchId}</span>
-                <span className="admin-publish__space-meta">
-                  {registered ? 'Registered · ' : ''}
-                  {location ? `${location} · ` : ''}
-                  {row.userCount} user{row.userCount === 1 ? '' : 's'}
-                  {' · '}
-                  <code style={{ fontSize: '0.85em' }}>{row.hmcChurchId}</code>
+              <div className="admin-publish__space-header admin-churches__row-head admin-churches__row-head--static">
+                <span className="admin-churches__row-title">
+                  <span className="admin-publish__space-title">{row.churchName || row.hmcChurchId}</span>
+                  {registered ? <span className="admin-publish__badge">On Harvous</span> : null}
                 </span>
+                <span className="admin-publish__space-meta">
+                  {row.userCount === 1 ? '1 person picked it' : `${row.userCount} people picked it`}
+                  {location ? ` · ${location}` : ''}
+                </span>
+                {!registered ? (
+                  <button
+                    type="button"
+                    className="admin-action-btn admin-churches__row-action"
+                    onClick={() =>
+                      onRegister({
+                        id: row.hmcChurchId,
+                        shortId: '',
+                        name: row.churchName || row.hmcChurchId,
+                        city: row.churchCity ?? '',
+                        state: row.churchState ?? '',
+                      })
+                    }
+                  >
+                    Register
+                  </button>
+                ) : null}
               </div>
             </article>
           );
@@ -664,33 +750,114 @@ function HmcInterestSection() {
   );
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+type PlanFields = { isActive: boolean; billingPlan: string | null; pilotUntil?: string | null };
+
+/** Whole days left in a pilot (rounded up), or null when there is no live pilot. Mirrors churchSponsorship(). */
+function pilotDaysLeft(church: PlanFields, now = Date.now()): number | null {
+  if (church.billingPlan || !church.pilotUntil) return null;
+  const end = new Date(church.pilotUntil).getTime();
+  if (Number.isNaN(end) || end <= now) return null;
+  return Math.ceil((end - now) / DAY_MS);
+}
+
+/** Lapsed first, then pilots by days left, then everything else in the server's order. */
+function byPlanUrgency(a: PlanFields, b: PlanFields): number {
+  const rank = (church: PlanFields) => {
+    if (!church.isActive || church.billingPlan) return Number.POSITIVE_INFINITY;
+    return pilotDaysLeft(church) ?? -1;
+  };
+  const ra = rank(a);
+  const rb = rank(b);
+  return ra === rb ? 0 : ra < rb ? -1 : 1;
+}
+
 export default function AdminChurchesPanel() {
   const churches = useAdminChurches();
+  const applications = useAdminChurchApplications();
+  const [registerPick, setRegisterPick] = useState<HmcChurchPick | null>(null);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const registerRef = useRef<HTMLDetailsElement | null>(null);
+
+  const list = [...(churches.data?.churches ?? [])].sort(byPlanUrgency);
+  const active = list.filter((church) => church.isActive);
+  const inPilot = active.filter((church) => !church.billingPlan && pilotDaysLeft(church) !== null).length;
+  const paid = active.filter((church) => church.billingPlan).length;
+  const needsLook = active.filter((church) => (church.attention ?? []).length > 0).length;
+  const connected = active.reduce((sum, church) => sum + (church.health?.connectedCount ?? 0), 0);
+  const waiting = applications.data?.applications.length ?? 0;
+
+  const registerLead = (pick: HmcChurchPick) => {
+    setRegisterPick(pick);
+    setRegisterOpen(true);
+    requestAnimationFrame(() => registerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <section>
-        <h3>Register a church</h3>
-        <p style={{ margin: '4px 0 12px', opacity: 0.75 }}>
-          Create the Clerk organization first (staff/volunteers only, ≤20 — congregants never join the org), then
-          register it here and link a Here’s My Church directory record for name/location.
-        </p>
-        <RegisterChurchForm onRegistered={() => void churches.refetch()} />
-      </section>
+    <div className="admin-churches">
+      <div className="admin-publish__hero" aria-label="Churches summary">
+        <Stat value={waiting} label={waiting === 1 ? 'request waiting' : 'requests waiting'} />
+        <Stat value={inPilot} label="in a pilot" />
+        <Stat value={paid} label="paid" />
+        <Stat value={needsLook} label="need a look" />
+        <Stat value={connected} label="people connected" />
+      </div>
 
-      <HmcInterestSection />
+      <ChurchApplicationsSection />
 
       <section>
         <h3>Churches</h3>
+        <p className="admin-churches__intro">Churches that need a look come first.</p>
         {churches.isLoading ? <p>Loading…</p> : null}
         {churches.isError ? <p className="admin-publish__message admin-publish__message--error">Failed to load churches.</p> : null}
         {churches.data?.churches.length === 0 ? <p className="admin-publish__empty">No churches registered yet.</p> : null}
         <div className="admin-publish__space-list">
-          {churches.data?.churches.map((church) => (
+          {[...active.sort(byAttention), ...list.filter((church) => !church.isActive)].map((church) => (
             <ChurchRow key={church.id} church={church} />
           ))}
         </div>
       </section>
+
+      <HmcInterestSection onRegister={registerLead} />
+
+      <details
+        ref={registerRef}
+        className="admin-churches__register"
+        open={registerOpen}
+        onToggle={(e) => setRegisterOpen((e.target as HTMLDetailsElement).open)}
+      >
+        <summary>
+          <span className="admin-publish__space-title">Register a church by hand</span>
+          <span className="admin-publish__space-meta">
+            For a church that didn’t send a request. Create its Clerk organization first (staff only, 20 at most;
+            congregants never join it), then link its Here’s My Church listing.
+          </span>
+        </summary>
+        <RegisterChurchForm
+          key={registerPick?.id ?? 'blank'}
+          initialPick={registerPick}
+          onRegistered={() => {
+            setRegisterPick(null);
+            setRegisterOpen(false);
+            void churches.refetch();
+          }}
+        />
+      </details>
     </div>
   );
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="admin-publish__hero-stat">
+      <div className="admin-publish__hero-value">{value}</div>
+      <div className="admin-publish__hero-label">{label}</div>
+    </div>
+  );
+}
+
+/** Most reasons to look first; then the plan order `byPlanUrgency` already gave. Stable. */
+function byAttention(a: AdminChurch, b: AdminChurch): number {
+  return (b.attention?.length ?? 0) - (a.attention?.length ?? 0);
 }

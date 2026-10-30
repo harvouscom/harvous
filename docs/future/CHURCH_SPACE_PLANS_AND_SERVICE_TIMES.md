@@ -1,3 +1,13 @@
+> **Amended October 29, 2026: service times are a list, and a congregant can choose one.**
+> `Churches.defaultServiceDay` / `defaultServiceTime` (§2.2, P1 below) were never built.
+> `ChurchServiceTimes` replaced them: one row per recurring service, and sermons claim slots
+> through `ChurchServiceTimeAssignments`. Read the old columns in this doc as "the church's
+> service times".
+> A congregant may now choose **their** service (`ChurchServiceChoices`). That choice picks the
+> time This Sunday shows and keeps the church push quiet through it, which is the one place a
+> service time reaches notifications (Derek's decision). Nothing schedules people; rosters stay
+> the anti-goal. See CHURCH_V2_ROADMAP.md, Lane G.
+
 # Church space plans, service times, and the Home card stack
 
 > **Amended September 10, 2026 — the room lane's noun is now *study*.**

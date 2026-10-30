@@ -124,6 +124,8 @@
     "church-content:schema:apply": "tsx server/scripts/add-church-content-schema.ts --apply",
     "leader-kit:schema": "tsx server/scripts/add-leader-kit-schema.ts",
     "leader-kit:schema:apply": "tsx server/scripts/add-leader-kit-schema.ts --apply",
+    "church-pilot:schema": "tsx server/scripts/add-church-pilot-schema.ts",
+    "church-pilot:schema:apply": "tsx server/scripts/add-church-pilot-schema.ts --apply",
     "space-suggestions:schema:apply": "tsx server/scripts/add-space-study-suggestions-schema.ts --apply",
     "thread-copy:schema": "tsx server/scripts/add-thread-copy-attribution-schema.ts",
     "thread-copy:schema:apply": "tsx server/scripts/add-thread-copy-attribution-schema.ts --apply",

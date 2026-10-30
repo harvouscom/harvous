@@ -143,10 +143,12 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
       const eyebrow = sermonEyebrow(service);
       const hasNote = Boolean(service.viewerNoteId);
       /* A context row carries the single resolved reading; the church row keeps
-         `serviceTimes`, which can legitimately hold both morning services. */
-      const timeLabel = contextTitle
-        ? formatServiceTime(service.serviceTime ?? null)
-        : formatServiceTimes(service.serviceTimes);
+         `serviceTimes`, which can legitimately hold both morning services — unless
+         the viewer chose their service, and then it is the one they go to. */
+      const timeLabel =
+        contextTitle || service.isMyService
+          ? formatServiceTime(service.serviceTime ?? null)
+          : formatServiceTimes(service.serviceTimes);
 
       return [
         <PrototypeHomeRow

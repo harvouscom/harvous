@@ -45,6 +45,8 @@ import {
   ChurchMemberships,
   ChurchMinistryStaff,
   ChurchContentSubmissions,
+  ChurchServiceChoices,
+  ChurchApplications,
   Comments,
   ConnectorApiKeys,
   ConnectorClients,
@@ -196,6 +198,13 @@ function databaseSteps(userId: string): Step[] {
     ['discover installs', () => byUser(DiscoverInstalls)],
     ['church memberships', () => byUser(ChurchMemberships)],
     ['ministry staff', () => byUser(ChurchMinistryStaff)],
+    ['church service choice', () => byUser(ChurchServiceChoices)],
+    // A request to bring a church carries the applicant's role, email and notes. An approved one
+    // has already done its job (the church exists and stays); none of them outlives its sender.
+    [
+      'church applications',
+      () => db.delete(ChurchApplications).where(eq(ChurchApplications.applicantUserId, userId)),
+    ],
     [
       'church submissions',
       () => db.delete(ChurchContentSubmissions).where(eq(ChurchContentSubmissions.authorUserId, userId)),

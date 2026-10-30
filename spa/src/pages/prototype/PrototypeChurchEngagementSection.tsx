@@ -17,6 +17,7 @@ import Icon from '@/components/react/Icon';
 import { useChurchEngagement, type ChannelEngagement } from '../../hooks/queries/useChurchEngagement';
 import { useChurchMinistries } from '../../hooks/queries/useChurchMinistries';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import { formatServiceSlot } from '../../lib/church-services';
 
 export default function PrototypeChurchEngagementSection({
   orgId,
@@ -86,6 +87,40 @@ export default function PrototypeChurchEngagementSection({
           No channels yet. Once you have one, its reach shows here.
         </p>
       )}
+
+      {/*
+        Who goes when — as each person chose it in Settings, never inferred. "A few" under three:
+        at a small church "2 at the evening service" is two names.
+      */}
+      {(data.services?.length ?? 0) > 0 ? (
+        <div className="proto-church-engagement__group">
+          <p className="proto-caption proto-church-engagement__group-name">By service</p>
+          <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+            {data.services!.map((service) => (
+              <div
+                key={`${service.dayOfWeek}@${service.startTime}`}
+                className="proto-church-tools__row proto-church-tools__row--status"
+              >
+                <span className="proto-church-tools__row-icon" aria-hidden>
+                  <Icon name="clock" size={13} />
+                </span>
+                <span className="proto-church-tools__row-text">
+                  <span className="pds-list-title proto-church-tools__row-title">{formatServiceSlot(service)}</span>
+                  <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
+                    {service.count === null
+                      ? 'A few people'
+                      : service.count === 0
+                        ? 'Nobody yet'
+                        : service.count === 1
+                        ? '1 person'
+                        : `${service.count} people`}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/*
         The promise, stated where it matters. Staff who read "42 connected" will

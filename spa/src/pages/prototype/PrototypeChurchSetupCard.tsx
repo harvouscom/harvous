@@ -25,12 +25,13 @@ import {
 
 /* The same glyph each step's destination wears in Church tools, so the row and the
    place it leads to look like one thing. */
-const STEP_ICON: Record<ChurchSetupStepId, 'gear' | 'rss' | 'list-check' | 'calendar-week' | 'note-sticky'> = {
+const STEP_ICON: Record<ChurchSetupStepId, 'gear' | 'rss' | 'list-check' | 'calendar-week' | 'note-sticky' | 'link'> = {
   times: 'gear',
   channel: 'rss',
   starter: 'list-check',
   plan: 'calendar-week',
   publish: 'note-sticky',
+  invite: 'link',
 };
 
 export default function PrototypeChurchSetupCard({

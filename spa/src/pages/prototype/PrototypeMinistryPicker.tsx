@@ -29,6 +29,8 @@ import Icon from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { useChurchChannels } from '../../hooks/queries/useChurchChannels';
 import { useFollowChannel } from '../../hooks/mutations/useFollowChannel';
+import { useChurchServiceChoice } from '../../hooks/queries/useChurchServiceChoice';
+import { formatServiceTime } from '../../lib/church-services';
 
 /** Enough to answer the question; more than this is a browse, and the hub does that. */
 const MAX_OFFERED = 4;
@@ -36,6 +38,17 @@ const MAX_OFFERED = 4;
 export default function PrototypeMinistryPicker() {
   const { data } = useChurchChannels();
   const followChannel = useFollowChannel();
+  const { data: service } = useChurchServiceChoice({ enabled: Boolean(data?.connected) });
+
+  /*
+    What meets during the viewer's own service comes first, and says so — "During your 9:00".
+    Ordering and a label, never a preselection: each row still waits for its own tap.
+  */
+  const duringMine = new Set(service?.meetsDuringSpaceIds ?? []);
+  const myTime = service?.choice ? formatServiceTime(service.choice.startTime) : null;
+  const duringLabel = myTime ? `During your ${myTime} service` : null;
+  const leadsWithMine = <T,>(ids: (row: T) => string[]) => (a: T, b: T) =>
+    Number(ids(b).some((id) => duringMine.has(id))) - Number(ids(a).some((id) => duringMine.has(id)));
 
   /*
     Only channels the viewer could actually join. Staff already author in
@@ -52,14 +65,40 @@ export default function PrototypeMinistryPicker() {
   */
   const ministryRows = (data?.ministries ?? [])
     .map((ministry) => ({ ...ministry, openIds: ministry.channelIds.filter((id) => openIds.has(id)) }))
-    .filter((ministry) => ministry.openIds.length > 0);
+    .filter((ministry) => ministry.openIds.length > 0)
+    .sort(leadsWithMine((ministry) => ministry.openIds));
   const inMinistry = new Set((data?.ministries ?? []).flatMap((ministry) => ministry.channelIds));
-  const channelRows = open.filter((channel) => !inMinistry.has(channel.id));
+  const channelRows = open
+    .filter((channel) => !inMinistry.has(channel.id))
+    .sort(leadsWithMine((channel) => [channel.id]));
   const offeredMinistries = ministryRows.slice(0, MAX_OFFERED);
   const offeredChannels = channelRows.slice(0, Math.max(0, MAX_OFFERED - offeredMinistries.length));
 
-  // Nothing to ask about — a church with no channels, or one already answered for.
-  if (!data?.connected || offeredMinistries.length + offeredChannels.length === 0) return null;
+  if (!data?.connected) return null;
+
+  /*
+    A lapsed church refuses new follows (402), so a Follow here could only fail. Nothing to act
+    on is nothing to show; what is already followed stays readable.
+  */
+  const followsOpen = data.sponsorship?.state !== 'lapsed';
+
+  if (!followsOpen || offeredMinistries.length + offeredChannels.length === 0) {
+    /*
+      Following, but nothing has been posted yet — a church that just set up its channels. Without
+      this the slot was blank, which read as "connecting did nothing". One quiet row says the follow
+      worked and the wait is the church's, not a bug.
+    */
+    const followedCount = (data.channels ?? []).filter((channel) => channel.isFollowing).length;
+    if (followedCount === 0) return null;
+    return (
+      <PrototypeHomeRow
+        icon="rss"
+        title={followedCount === 1 ? 'Following 1 channel' : `Following ${followedCount} channels`}
+        meta={['From your church', 'Nothing posted yet']}
+        chevron={false}
+      />
+    );
+  }
 
   async function followAll(ids: string[]) {
     for (const spaceId of ids) {
@@ -75,7 +114,7 @@ export default function PrototypeMinistryPicker() {
           icon="layer-group"
           title={ministry.name}
           meta={[
-            'From your church',
+            ministry.openIds.some((id) => duringMine.has(id)) && duringLabel ? duringLabel : 'From your church',
             ministry.openIds.length === 1 ? '1 channel' : `${ministry.openIds.length} channels`,
           ]}
           chevron={false}
@@ -98,7 +137,7 @@ export default function PrototypeMinistryPicker() {
           icon="rss"
           title={channel.title}
           /* Says why the row is here, and that following is the viewer's call. */
-          meta={['From your church', channel.description]}
+          meta={[duringMine.has(channel.id) && duringLabel ? duringLabel : 'From your church', channel.description]}
           chevron={false}
           trailing={
             <button

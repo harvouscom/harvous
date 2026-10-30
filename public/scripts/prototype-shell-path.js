@@ -18,6 +18,7 @@
     '/discover/',
     // `/churches/join/{token}` only — see the note in src/lib/prototype-path.ts.
     '/churches/join/',
+    '/churches/start',
     // `/family/join/{token}` only — see the note in src/lib/prototype-path.ts.
     '/family/join/',
     '/api/',
@@ -89,6 +90,7 @@
         logical.indexOf('/shared/') === 0 ||
         logical.indexOf('/discover/') === 0 ||
         logical.indexOf('/churches/join/') === 0 ||
+        logical === '/churches/start' ||
         logical.indexOf('/family/join/') === 0 ||
         logical.indexOf('/invitations/') === 0 ||
         logical === '/upgrade' ||

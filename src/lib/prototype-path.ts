@@ -85,6 +85,8 @@ const NON_PROTOTYPE_PREFIXES = [
   // A church's join link, `/churches/join/{token}`. Trailing slash on purpose, for
   // the reason `/discover/` gives: there is no `/churches` page to claim.
   '/churches/join/',
+  // "Bring your church to Harvous" — the one page under `/churches` itself.
+  '/churches/start',
   // A family invite, `/family/join/{token}` — same reasoning; there is no `/family` page.
   '/family/join/',
   '/api/',
@@ -121,6 +123,7 @@ export function isPublicAppPath(pathname: string): boolean {
       logical.startsWith('/invitations/') ||
       logical.startsWith('/discover/') ||
       logical.startsWith('/churches/join/') ||
+      logical === '/churches/start' ||
       logical.startsWith('/family/join/') ||
       logical === '/upgrade' ||
       logical.startsWith('/upgrade/') ||

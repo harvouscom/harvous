@@ -95,6 +95,11 @@ export type ChurchSermon = {
    */
   serviceTime?: string | null;
   /**
+   * `serviceTime` is the viewer's own service ("I go to the 9:00"), so the card shows that one
+   * time rather than every service the sermon is preached at. Absent on older payloads.
+   */
+  isMyService?: boolean;
+  /**
    * Every time this sermon is preached, ascending 'HH:MM' on the church's own
    * wall clock, resolved by the server — never re-derived here. A church with
    * 9:00 and 10:45 morning services sends both. Optional for the same reason
@@ -128,7 +133,7 @@ export function localTodayIso(now: Date = new Date()): string {
  * helpers to what they actually touch lets the church card and a ministry's
  * "coming up" strip share one definition of "next".
  */
-export type SelectableSermon = { serviceDate: string; serviceTimes?: string[] };
+export type SelectableSermon = { serviceDate: string; serviceTimes?: string[]; isMyService?: boolean };
 
 /** A sermon's earliest time, or null when it has none. Used only to order same-day sermons. */
 function earliestTime(service: SelectableSermon): string | null {
@@ -155,6 +160,8 @@ function preferredSameDay<T extends SelectableSermon>(
   clock: ChurchClock | null,
   dateIso: string,
 ): T {
+  // Two sermons on one day (a different one at each service): the viewer's own service wins.
+  if (Boolean(a.isMyService) !== Boolean(b.isMyService)) return a.isMyService ? a : b;
   const aTime = earliestTime(a);
   const bTime = earliestTime(b);
   if (aTime === null) return bTime === null ? a : b;
@@ -286,7 +293,7 @@ export function selectHomeCards(
   return { church, contexts };
 }
 
-/** Index = `Date.getDay()`, the same 0 = Sunday model as `Churches.defaultServiceDay`. */
+/** Index = `Date.getDay()`, the same 0 = Sunday model as `ChurchServiceTimes.dayOfWeek`. */
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -445,6 +452,16 @@ export function formatServiceTime(value: string | null | undefined): string | nu
   const suffix = hour24 < 12 ? 'AM' : 'PM';
   const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
   return `${hour12}:${match[2]} ${suffix}`;
+}
+
+/**
+ * A recurring service, the way a person names theirs: "Sundays at 9:00 AM", "Wednesdays at
+ * 7:00 PM · Evening". Plural weekday, because it is a habit, not a date.
+ */
+export function formatServiceSlot(slot: { dayOfWeek: number; startTime: string; label?: string | null }): string {
+  const time = formatServiceTime(slot.startTime) ?? slot.startTime;
+  const base = `${weekdayLabel(slot.dayOfWeek)}s at ${time}`;
+  return slot.label ? `${base} · ${slot.label}` : base;
 }
 
 /**

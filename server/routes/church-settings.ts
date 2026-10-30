@@ -11,8 +11,10 @@
  * from the request. A staff route needs one, so landing it in that window would
  * either break the arithmetic or weaken the assertion.
  *
- * Scope discipline: a service time labels a card and seeds a picker. Nothing
- * here schedules, reminds, or notifies — "scheduling" is a named anti-goal. See
+ * Scope discipline: a service time labels a card, seeds a picker, and is what a
+ * congregant chooses as "my service" (church-service-choice.ts), which keeps the
+ * Sunday church push quiet through it. It never schedules people — volunteer or
+ * service rosters are the named anti-goal. See
  * docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
  *
  * Endpoints:
@@ -20,17 +22,27 @@
  *   POST /api/church/settings/update              — time zone
  *   POST /api/church/settings/service-times/create
  *   POST /api/church/settings/service-times/delete
+ *   POST /api/church/settings/service-times/spaces — what meets during a service
  */
 
 import { Hono } from 'hono';
 import {
   db,
+  first,
   Churches,
   ChurchServiceTimes,
   ChurchServiceTimeAssignments,
+  Spaces,
   and,
   eq,
+  inArray,
+  isNull,
 } from '../db';
+import {
+  clearServiceTimeSpaces,
+  setServiceTimeSpace,
+  spacesByServiceTime,
+} from '../utils/church-service-choice';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
@@ -53,9 +65,11 @@ const app = new Hono();
 
 const LABEL_MAX = 40;
 
-function serializeServiceTime(row: ChurchServiceTimeRow) {
+function serializeServiceTime(row: ChurchServiceTimeRow, spaceIds: readonly string[] = []) {
   return {
     id: row.id,
+    /** Channels and groups that meet during this service — suggested first to whoever chooses it. */
+    spaceIds: [...spaceIds],
     dayOfWeek: row.dayOfWeek,
     startTime: row.startTime,
     label: row.label,
@@ -73,7 +87,11 @@ async function settingsPayload(church: {
   state: string | null;
   contentApproval?: boolean | null;
 }) {
-  const serviceTimes = await listServiceTimesForChurch(church.id);
+  const [serviceTimes, tagged, spaces] = await Promise.all([
+    listServiceTimesForChurch(church.id),
+    spacesByServiceTime(church.id),
+    taggableSpaces(church.orgId),
+  ]);
   return {
     church: { id: church.id, name: church.name, orgId: church.orgId },
     /*
@@ -90,8 +108,22 @@ async function settingsPayload(church: {
       /** Teachers' channel material needs a pastor's approval (CHURCH_V2_ROADMAP.md §D). */
       contentApproval: church.contentApproval === true,
     },
-    serviceTimes: serviceTimes.map(serializeServiceTime),
+    serviceTimes: serviceTimes.map((row) => serializeServiceTime(row, tagged.get(row.id) ?? [])),
+    /** What a service time can be tagged with: this church's live channels and groups. */
+    spaces,
   };
+}
+
+/** The church's live channels (`public`) and church groups (`shared`) — what can meet during a service. */
+async function taggableSpaces(orgId: string) {
+  const rows = await db
+    .select({ id: Spaces.id, title: Spaces.title, type: Spaces.type, isActive: Spaces.isActive })
+    .from(Spaces)
+    .where(and(eq(Spaces.orgId, orgId), inArray(Spaces.type, ['public', 'shared']), isNull(Spaces.deletedAt)));
+  return rows
+    .filter((row) => row.isActive !== false)
+    .map(({ id, title, type }) => ({ id, title, kind: type === 'public' ? ('channel' as const) : ('group' as const) }))
+    .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
 }
 
 // ─── GET /api/church/settings ───────────────────────────────────────────────
@@ -264,12 +296,71 @@ app.post('/api/church/settings/service-times/delete', requireAuth, rateLimit('wr
     await db
       .delete(ChurchServiceTimeAssignments)
       .where(eq(ChurchServiceTimeAssignments.serviceTimeId, serviceTimeId));
+    // And what met during it. Congregants who chose it are asked again (their choice no longer
+    // resolves) rather than being moved to another service on a guess.
+    await clearServiceTimeSpaces(serviceTimeId);
 
     return c.json({ success: true, serviceTimeId });
   } catch (error) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/settings/service-times/delete',
       action: 'church_service_time_delete',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/settings/service-times/spaces ──────────────────────────
+/**
+ * Tag (or untag) a channel or group as meeting during a service: "Kids meets during the 11:00".
+ * A suggestion for whoever chooses that service, never a follow. Both ends are checked against
+ * this church — a time or space from another church is not found, not an error that says so.
+ */
+app.post('/api/church/settings/service-times/spaces', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      orgId?: string;
+      serviceTimeId?: string;
+      spaceId?: string;
+      on?: boolean;
+    };
+
+    const gate = await assertCanManageChurchSettings(auth.userId, (body.orgId ?? '').trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    const serviceTimeId = (body.serviceTimeId ?? '').trim();
+    const spaceId = (body.spaceId ?? '').trim();
+    if (!serviceTimeId || !spaceId || typeof body.on !== 'boolean') {
+      return c.json({ error: 'serviceTimeId, spaceId and on are required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const time = first(
+      await db
+        .select({ id: ChurchServiceTimes.id })
+        .from(ChurchServiceTimes)
+        .where(and(eq(ChurchServiceTimes.id, serviceTimeId), eq(ChurchServiceTimes.churchId, gate.church.id)))
+        .limit(1),
+    );
+    if (!time) return c.json({ error: 'That service time was not found', code: 'SERVICE_TIME_NOT_FOUND' }, 404);
+
+    const allowed = await taggableSpaces(gate.church.orgId);
+    if (!allowed.some((space) => space.id === spaceId)) {
+      return c.json({ error: 'That channel or group was not found', code: 'SPACE_NOT_FOUND' }, 404);
+    }
+
+    await setServiceTimeSpace({
+      churchId: gate.church.id,
+      serviceTimeId,
+      spaceId,
+      on: body.on,
+      actorUserId: auth.userId,
+    });
+    return c.json(await settingsPayload(gate.church));
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/settings/service-times/spaces',
+      action: 'church_service_time_spaces',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

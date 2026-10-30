@@ -5,9 +5,11 @@
  * step appears only for someone who holds the capability to do it, so a teacher
  * never sees "Set your service times" they cannot act on. Order is the order a
  * church actually needs things in: the clock sermons are scheduled into, a room
- * to publish in, what people write from, the plan, then the first thing sent.
+ * to publish in, what people write from, the plan, the first thing sent, then
+ * the congregation invited to read it — inviting before anything is published
+ * would land people on an empty feed.
  */
-export type ChurchSetupStepId = 'times' | 'channel' | 'starter' | 'plan' | 'publish';
+export type ChurchSetupStepId = 'times' | 'channel' | 'starter' | 'plan' | 'publish' | 'invite';
 
 export type ChurchSetupStep = {
   id: ChurchSetupStepId;
@@ -22,6 +24,8 @@ export type ChurchSetupInput = {
     createChannel: boolean;
     manageTemplates: boolean;
     managePlan: boolean;
+    /** Any staff member may hand out the join link (making one is admin-only, inside the pane). */
+    shareInvite: boolean;
   };
   has: {
     serviceTimes: boolean;
@@ -29,6 +33,8 @@ export type ChurchSetupInput = {
     starter: boolean;
     plannedService: boolean;
     published: boolean;
+    /** Someone has joined through the church's link — the only proof it reached anyone. */
+    joinedByLink: boolean;
   };
 };
 
@@ -48,6 +54,9 @@ export function churchSetupSteps({ can, has }: ChurchSetupInput): ChurchSetupSte
   }
   if (can.createChannel) {
     steps.push({ id: 'publish', title: 'Publish something', meta: 'A note in a channel reaches every follower', done: has.published });
+  }
+  if (can.shareInvite) {
+    steps.push({ id: 'invite', title: 'Invite your congregation', meta: 'Share the link or QR code', done: has.joinedByLink });
   }
   return steps;
 }

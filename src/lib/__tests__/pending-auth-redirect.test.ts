@@ -52,6 +52,8 @@ describe('pending auth redirect validation', () => {
       '/churches/join/AbCdEf123456',
     );
     expect(validatePendingAuthDestination('/churches/join/AbC/extra', origin)).toBe(null);
+    expect(validatePendingAuthDestination('/churches/start', origin)).toBe('/churches/start');
+    expect(validatePendingAuthDestination('/churches/start/x', origin)).toBe(null);
     expect(validatePendingAuthDestination('/churches', origin)).toBe(null);
   });
 

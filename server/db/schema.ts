@@ -1108,8 +1108,10 @@ export const ChurchJoinLinks = pgTable('ChurchJoinLinks', {
  * inexpressible — a church preaching one sermon at 9:00 and 10:45 had to
  * pretend it had a single service.
  *
- * Display and defaults only: these label a card and seed a picker. Nothing here
- * schedules, reminds, or notifies — "scheduling" is a named anti-goal. See
+ * Display and defaults, plus one thing a person opts into: a congregant may choose
+ * one as *their* service (`ChurchServiceChoices`), which picks the time This Sunday
+ * shows and keeps the church push quiet through it (Derek, Oct 2026). Nothing here
+ * schedules people — volunteer and service rosters are the named anti-goal. See
  * docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
  *
  * Row ids: `cstm_${crypto.randomUUID()}`.
@@ -1174,6 +1176,117 @@ export const ChurchServiceTimeAssignments = pgTable('ChurchServiceTimeAssignment
   ),
   index('ChurchServiceTimeAssignments_serviceIdIndex').on(table.serviceId),
   index('ChurchServiceTimeAssignments_serviceDateIndex').on(table.serviceDate),
+]);
+
+// ─── ChurchServiceChoices (which service a congregant attends) ───────────────
+
+/**
+ * The one service a person goes to — "I'm at the 9:00". At most one row per person.
+ *
+ * A natural key (day + time), not a `ChurchServiceTimes.id`, on purpose:
+ *   - A person can choose before their church is on Harvous, from the directory's times
+ *     (Here's My Church profile). When the church registers and its times are seeded from that
+ *     same listing, the choice still lines up — there was never a row id to point at.
+ *   - Staff deleting and re-adding "Sunday 9:00" must not silently drop everyone who chose it.
+ * `ChurchServiceTimes_church_day_time_unique` is what makes day + time a key.
+ *
+ * The choice belongs to the church it was made for (`churchId` and/or `hmcChurchId`). Reads
+ * honour it only while the person is still at that church, and resolve it against the current
+ * times — a choice whose service no longer exists reads as no choice, and the person is asked
+ * again. Never shown to anyone else; staff see per-service counts with small groups suppressed.
+ *
+ * Its own table rather than columns on UserMetadata: a column there must exist before any code
+ * that declares it runs (every full-row read selects it), and this ships ahead of its schema.
+ */
+export const ChurchServiceChoices = pgTable('ChurchServiceChoices', {
+  userId: text('userId').primaryKey(),
+  /** Churches.id when the choice was made against a registered church. */
+  churchId: text('churchId'),
+  /** The directory id the choice was made against, when there was one. */
+  hmcChurchId: text('hmcChurchId'),
+  /** 0–6, 0 = Sunday. */
+  dayOfWeek: integer('dayOfWeek').notNull(),
+  /** 'HH:MM' 24h on the church's wall clock. */
+  startTime: text('startTime').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('ChurchServiceChoices_churchIdIndex').on(table.churchId),
+]);
+
+// ─── ChurchServiceTimeSpaces (what meets during a service) ───────────────────
+
+/**
+ * "Kids meets during the 11:00" — a church's channels and groups tied to one of its services.
+ *
+ * Only ever a suggestion: someone choosing the 11:00 sees Kids first, labelled as part of their
+ * service, and still taps Follow themselves. Connecting never follows anything on its own.
+ *
+ * A join table, never a pointer column on either side: one group can meet during two services,
+ * and one service holds several groups — the single-pointer shape is how the removed
+ * `ChurchServices.channelSpaceId` went wrong.
+ *
+ * Row ids: `csts_${crypto.randomUUID()}`.
+ */
+export const ChurchServiceTimeSpaces = pgTable('ChurchServiceTimeSpaces', {
+  id: text('id').primaryKey(),
+  churchId: text('churchId').notNull(),
+  /** ChurchServiceTimes.id. Rows go when the service time does. */
+  serviceTimeId: text('serviceTimeId').notNull(),
+  /** Spaces.id — an org channel or church group of this church. */
+  spaceId: text('spaceId').notNull(),
+  createdByUserId: text('createdByUserId').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  uniqueIndex('ChurchServiceTimeSpaces_time_space_unique').on(table.serviceTimeId, table.spaceId),
+  index('ChurchServiceTimeSpaces_churchIdIndex').on(table.churchId),
+]);
+
+// ─── ChurchApplications (a church asking to join Harvous) ────────────────────
+
+/**
+ * A church staff member asking to bring their church to Harvous — the front half of concierge
+ * onboarding. Starts from the Here's My Church listing when there is one, so the church's
+ * identity, location and service times arrive with it.
+ *
+ * Approval is a Harvous admin's: it creates the Clerk organization (applicant as admin), the
+ * `Churches` row, and the pilot, and points `churchId` at the result. Nothing here grants
+ * anything while pending.
+ *
+ * Row ids: `capp_${crypto.randomUUID()}`.
+ */
+export const ChurchApplications = pgTable('ChurchApplications', {
+  id: text('id').primaryKey(),
+  /** Null for a church the directory does not have. */
+  hmcChurchId: text('hmcChurchId'),
+  /** As the applicant (or the directory) gave it. */
+  name: text('name').notNull(),
+  city: text('city'),
+  state: text('state'),
+  country: text('country'),
+  applicantUserId: text('applicantUserId').notNull(),
+  /** "Senior pastor", "Discipleship director" — free text, for the concierge. */
+  applicantRole: text('applicantRole'),
+  contactEmail: text('contactEmail'),
+  /** IANA zone the church's service times are on; prefilled from the applicant's browser. */
+  timezone: text('timezone'),
+  notes: text('notes'),
+  /** 'pending' | 'approved' | 'declined' | 'withdrawn'. */
+  status: text('status').notNull(),
+  decidedByUserId: text('decidedByUserId'),
+  decidedAt: ts('decidedAt'),
+  decisionNote: text('decisionNote'),
+  /** Churches.id once approved. */
+  churchId: text('churchId'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('ChurchApplications_statusIndex').on(table.status),
+  index('ChurchApplications_applicantIndex').on(table.applicantUserId),
+  /** One open request per directory church, whoever sent it. */
+  uniqueIndex('ChurchApplications_hmc_pending_unique')
+    .on(table.hmcChurchId)
+    .where(sql`${table.status} = 'pending' AND ${table.hmcChurchId} IS NOT NULL`),
 ]);
 
 // ─── ChurchSeries (the study a run of sermons belongs to) ────────────────────

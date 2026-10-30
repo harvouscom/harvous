@@ -101,3 +101,30 @@ export async function keepLinkOnlyConnection(
   );
   return shouldKeepLinkOnlyConnection(church ?? null, typedName);
 }
+
+/**
+ * Pure: is a manual (free-text) church save just the person's current directory church typed
+ * back unchanged?
+ *
+ * The native app has no directory search; every save it makes is a manual one carrying the name,
+ * city and state it was shown. Treated as new input, that path clears `hmcChurchId` — and with it
+ * the connection and every channel follow — whenever HMC's add does not hand back the same
+ * record. Name and city must match the stored copy; state must match when both sides have one.
+ */
+export function isManualResaveOfDirectoryChurch(
+  stored: {
+    hmcChurchId: string | null;
+    churchName: string | null;
+    churchCity: string | null;
+    churchState: string | null;
+  } | null | undefined,
+  typed: { churchName: string | null; churchCity: string | null; churchState: string | null },
+): boolean {
+  if (!stored?.hmcChurchId) return false;
+  const name = normalizeChurchName(typed.churchName);
+  if (!name || name !== normalizeChurchName(stored.churchName)) return false;
+  if (normalizeChurchName(typed.churchCity) !== normalizeChurchName(stored.churchCity)) return false;
+  const typedState = normalizeChurchName(typed.churchState);
+  const storedState = normalizeChurchName(stored.churchState);
+  return !typedState || !storedState || typedState === storedState;
+}

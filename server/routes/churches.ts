@@ -53,7 +53,8 @@ import {
   hmcSearchChurches,
 } from '../utils/hmc-partner';
 import { listHmcChurchInterest } from '../utils/hmc-church-interest';
-import { CHURCH_PLAN_SLUG, churchSponsorship } from '../utils/church-entitlement';
+import { churchAttention, loadChurchHealth } from '../utils/church-admin-health';
+import { CHURCH_PLAN_SLUG, churchSponsorship, extendedPilotUntil } from '../utils/church-entitlement';
 
 const app = new Hono();
 
@@ -86,17 +87,27 @@ app.get('/api/admin/churches', async (c) => {
     const churches = await db.select().from(Churches).orderBy(Churches.createdAt);
 
     // Per-church org-space counts (small admin list; churches are few)
-    const rows = await Promise.all(
-      churches.map(async (church) => {
-        const spaces = await db
-          .select({ id: Spaces.id })
-          .from(Spaces)
-          .where(and(eq(Spaces.orgId, church.orgId), isNull(Spaces.deletedAt)));
-        return { ...church, spaceCount: spaces.length };
-      }),
-    );
+    const [rows, health] = await Promise.all([
+      Promise.all(
+        churches.map(async (church) => {
+          const spaces = await db
+            .select({ id: Spaces.id })
+            .from(Spaces)
+            .where(and(eq(Spaces.orgId, church.orgId), isNull(Spaces.deletedAt)));
+          return { ...church, spaceCount: spaces.length };
+        }),
+      ),
+      loadChurchHealth(churches),
+    ]);
 
-    return c.json({ success: true, churches: rows.reverse() });
+    const now = new Date();
+    return c.json({
+      success: true,
+      churches: rows.reverse().map((church) => {
+        const h = health.get(church.id) ?? null;
+        return { ...church, health: h, attention: h ? churchAttention(church, h, now) : [] };
+      }),
+    });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/admin/churches', action: 'list_churches' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -539,7 +550,11 @@ app.post('/api/admin/churches/:churchId/pilot', async (c) => {
       if (!Number.isFinite(days) || days <= 0 || days > 365) {
         return c.json({ error: 'days must be between 1 and 365, or null to end', code: 'INVALID_PILOT_DAYS' }, 400);
       }
-      pilotUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      const existing = first(
+        await db.select({ pilotUntil: Churches.pilotUntil }).from(Churches).where(eq(Churches.id, churchId)).limit(1),
+      );
+      if (!existing) return c.json({ error: 'Church not found', code: 'CHURCH_NOT_FOUND' }, 404);
+      pilotUntil = extendedPilotUntil(existing.pilotUntil, days);
     }
 
     const church = first(

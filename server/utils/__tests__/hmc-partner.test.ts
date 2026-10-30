@@ -242,12 +242,12 @@ describe('hmcDenormFields', () => {
 
   it('returns exactly the four HMC-owned columns, and nothing else', () => {
     /*
-      Churches now also carries a self-serve config block — timezone,
-      defaultServiceDay, defaultServiceTime — written only by
-      POST /api/church/settings/update. Every Churches writer spreads these four
-      keys field-by-field rather than `...denorm`, so a directory refresh cannot
-      reach the config. If this ever grew a fifth key, or a writer switched to a
-      spread, a name sync would silently wipe a church's own service time.
+      Churches also carries the church's own config — `timezone`, written only by
+      POST /api/church/settings/update (its service times live in
+      ChurchServiceTimes). Every Churches writer spreads these four keys
+      field-by-field rather than `...denorm`, so a directory refresh cannot reach
+      the config. If this ever grew a fifth key, or a writer switched to a spread,
+      a name sync could silently wipe what the church set for itself.
     */
     expect(
       Object.keys(hmcDenormFields({ id: 'TX-1', shortId: '1', name: 'Hope', city: 'Austin', state: 'TX' })),
@@ -542,5 +542,46 @@ describe('hmcFetchChurchChanges', () => {
       nextSince: '2026-07-27T19:00:00.000Z',
       hasMore: false,
     });
+  });
+});
+
+describe('HMC church profile', () => {
+  it('keeps only well-formed service slots, one per day + time, in order', async () => {
+    const { normalizeHmcServiceSlots } = await import('../hmc-partner');
+    expect(
+      normalizeHmcServiceSlots([
+        { dayOfWeek: 3, startTime: '19:00', label: null },
+        { dayOfWeek: 0, startTime: '11:00', label: ' Traditional ' },
+        { dayOfWeek: 0, startTime: '09:00' },
+        { dayOfWeek: 0, startTime: '09:00', label: 'dup' },
+        { dayOfWeek: 7, startTime: '09:00' },
+        { dayOfWeek: 0, startTime: '9:00' },
+        { dayOfWeek: '0', startTime: '10:00' },
+        'nonsense',
+      ]),
+    ).toEqual([
+      { dayOfWeek: 0, startTime: '09:00', label: null },
+      { dayOfWeek: 0, startTime: '11:00', label: 'Traditional' },
+      { dayOfWeek: 3, startTime: '19:00', label: null },
+    ]);
+    expect(normalizeHmcServiceSlots(undefined)).toEqual([]);
+  });
+
+  it('reads a profile, and an empty service-times block as none', async () => {
+    const { normalizeHmcChurchProfile } = await import('../hmc-partner');
+    const profile = normalizeHmcChurchProfile({
+      id: 'TX-1',
+      name: 'Grace',
+      city: 'Austin',
+      state: 'TX',
+      serviceTimes: { raw: 'Sun 9:00 AM', slots: [{ dayOfWeek: 0, startTime: '09:00', label: null }], parsed: true },
+      ministries: ['Kids', 3, ''],
+      website: ' https://grace.example ',
+    });
+    expect(profile?.serviceTimes?.slots).toHaveLength(1);
+    expect(profile?.ministries).toEqual(['Kids']);
+    expect(profile?.website).toBe('https://grace.example');
+    expect(normalizeHmcChurchProfile({ id: 'TX-1', name: 'Grace', serviceTimes: { raw: '', slots: [] } })?.serviceTimes).toBeNull();
+    expect(normalizeHmcChurchProfile({ name: 'no id' })).toBeNull();
   });
 });

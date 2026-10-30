@@ -45,7 +45,29 @@ export type AdminChurch = {
   isActive: boolean;
   createdAt: string;
   spaceCount: number;
+  /** Counts only — "is this church using Harvous?" (server/utils/church-admin-health.ts). */
+  health?: AdminChurchHealth | null;
+  /** Why to look at it today, most urgent first. Empty = healthy. */
+  attention?: AdminChurchAttention[];
 };
+
+export type AdminChurchHealth = {
+  connectedCount: number;
+  staffCount: number;
+  channelCount: number;
+  serviceTimeCount: number;
+  joinedByLinkCount: number;
+  inReviewCount: number;
+  lastPostAt: string | null;
+};
+
+export type AdminChurchAttention =
+  | 'lapsed'
+  | 'pilot_ending'
+  | 'never_posted'
+  | 'no_service_times'
+  | 'no_one_connected'
+  | 'quiet';
 
 export type AdminHmcChurchResult = {
   id: string;
@@ -247,6 +269,51 @@ export function useRefreshAdminChurchHmc(churchId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['admin', 'churches'] });
       void queryClient.invalidateQueries({ queryKey: ['navigation'] });
+    },
+  });
+}
+
+/** A church asking to join Harvous (Settings › My Church › Bring … to Harvous). */
+export type AdminChurchApplication = {
+  id: string;
+  hmcChurchId: string | null;
+  name: string;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  applicantUserId: string;
+  applicantRole: string | null;
+  contactEmail: string | null;
+  timezone: string | null;
+  notes: string | null;
+  status: 'pending' | 'approved' | 'declined' | 'withdrawn';
+  createdAt: string;
+  /** People who already picked this church in Settings — connected the moment it's approved. */
+  interestCount: number;
+};
+
+export function useAdminChurchApplications() {
+  const admin = useHarvousAdminCheck();
+  return useQuery({
+    queryKey: ['admin', 'churches', 'applications'],
+    queryFn: () =>
+      adminApiGet<{ applications: AdminChurchApplication[] }>('/api/admin/church-applications?status=pending'),
+    enabled: admin.data?.isAdmin === true,
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
+}
+
+export function useDecideChurchApplication() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; decision: 'approve' | 'decline'; note?: string | null }) =>
+      adminApiPost<{ success: boolean; seededServiceTimes?: number; alreadyPickedCount?: number }>(
+        `/api/admin/church-applications/${encodeURIComponent(input.id)}/${input.decision}`,
+        input.decision === 'decline' ? { note: input.note ?? null } : undefined,
+      ),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'churches'] });
     },
   });
 }
