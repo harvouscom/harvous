@@ -608,6 +608,25 @@ function interestLocation(row: AdminHmcInterestRow): string {
  * church with a 30-day pilot, seeds service times from Here's My Church, and connects the
  * applicant — the four hand steps this list replaces.
  */
+/** A note to someone who asked from harvous.com: sign in with this email and the request is theirs. */
+function setupMailto(row: { name: string; contactEmail: string | null; applicantName?: string | null }): string {
+  const first = (row.applicantName ?? '').trim().split(/\s+/)[0];
+  const body = [
+    first ? `Hi ${first},` : 'Hi,',
+    '',
+    `Thanks for asking about bringing ${row.name} to Harvous. The next step is to sign in, or create a free account, with this email address:`,
+    '',
+    `${window.location.origin}/churches/start`,
+    '',
+    'Your request will already be there, and I will set your church up with you from there.',
+    '',
+    'Derek',
+  ].join('\n');
+  return `mailto:${encodeURIComponent(row.contactEmail ?? '')}?subject=${encodeURIComponent(
+    `Setting up ${row.name} on Harvous`,
+  )}&body=${encodeURIComponent(body)}`;
+}
+
 function ChurchApplicationsSection() {
   const applications = useAdminChurchApplications();
   const decide = useDecideChurchApplication();
@@ -651,7 +670,11 @@ function ChurchApplicationsSection() {
         {rows.map((row) => (
           <article key={row.id} className="admin-publish__space-card">
             <div className="admin-publish__space-header admin-churches__row-head admin-churches__row-head--static">
-              <span className="admin-publish__space-title">{row.name}</span>
+              <span className="admin-churches__row-title">
+                <span className="admin-publish__space-title">{row.name}</span>
+                {row.source === 'site' ? <span className="admin-publish__badge">From harvous.com</span> : null}
+                {!row.applicantUserId ? <span className="admin-publish__badge">No account yet</span> : null}
+              </span>
               <span className="admin-publish__space-meta">
                 {[row.city, row.state].filter(Boolean).join(', ') || 'No location'}
                 {row.hmcChurchId ? ' · HMC' : ' · not in directory'}
@@ -660,6 +683,7 @@ function ChurchApplicationsSection() {
             </div>
             <div className="admin-publish__space-body admin-churches__stack">
               <span className="admin-publish__space-meta">
+                {row.applicantName ? `${row.applicantName} · ` : ''}
                 {row.applicantRole ?? 'Role not given'}
                 {row.contactEmail ? ` · ${row.contactEmail}` : ''}
                 {row.timezone ? ` · ${row.timezone}` : ''}
@@ -667,14 +691,25 @@ function ChurchApplicationsSection() {
               </span>
               {row.notes ? <p className="admin-churches__note">{row.notes}</p> : null}
               <div className="admin-churches__inline">
-                <button
-                  type="button"
-                  className="admin-action-btn admin-action-btn--emphasis"
-                  disabled={decide.isPending}
-                  onClick={() => approve(row)}
-                >
-                  Approve
-                </button>
+                {row.applicantUserId ? (
+                  <button
+                    type="button"
+                    className="admin-action-btn admin-action-btn--emphasis"
+                    disabled={decide.isPending}
+                    onClick={() => approve(row)}
+                  >
+                    Approve
+                  </button>
+                ) : row.contactEmail ? (
+                  /* Approval makes the applicant the church's admin, so it waits for an account.
+                     This request attaches itself when they sign in with this email. */
+                  <a
+                    className="admin-action-btn admin-action-btn--emphasis"
+                    href={setupMailto(row)}
+                  >
+                    Email setup link
+                  </a>
+                ) : null}
                 <button type="button" className="admin-action-btn" disabled={decide.isPending} onClick={() => decline(row)}>
                   Decline
                 </button>

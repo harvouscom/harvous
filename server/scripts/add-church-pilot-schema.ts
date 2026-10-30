@@ -2,8 +2,8 @@
  * Additive schema stage for church pilot readiness (docs/CHURCH_V2_ROADMAP.md, Lane G). Dry-run by
  * default; `--apply` executes.
  *
- * Three new tables and nothing else — no column on any existing table, so code that declares them
- * is safe to run before this is applied: every reader treats a missing table as "nothing chosen /
+ * Three new tables and nothing else on any table that existed before them, so code that declares
+ * them is safe to run before this is applied: every reader treats a missing table as "nothing chosen /
  * nothing tagged / no requests" (`isPgUndefinedRelation`).
  *
  *   - `ChurchServiceChoices`: the one service a congregant attends (day + time, natural key).
@@ -52,7 +52,9 @@ export const ADDITIVE_CHURCH_PILOT_DDL = [
     "city" text,
     "state" text,
     "country" text,
-    "applicantUserId" text NOT NULL,
+    "applicantUserId" text,
+    "source" text NOT NULL DEFAULT 'app',
+    "applicantName" text,
     "applicantRole" text,
     "contactEmail" text,
     "timezone" text,
@@ -70,6 +72,12 @@ export const ADDITIVE_CHURCH_PILOT_DDL = [
   // One open request per directory church, whoever sent it.
   `CREATE UNIQUE INDEX IF NOT EXISTS "ChurchApplications_hmc_pending_unique" ON "ChurchApplications" ("hmcChurchId") WHERE "status" = 'pending' AND "hmcChurchId" IS NOT NULL`,
   `ALTER TABLE "ChurchApplications" ENABLE ROW LEVEL SECURITY`,
+  // Added for requests from the harvous.com form, which have no account yet (applied after the
+  // first run; re-running the script brings an older table up to date).
+  `ALTER TABLE "ChurchApplications" ALTER COLUMN "applicantUserId" DROP NOT NULL`,
+  `ALTER TABLE "ChurchApplications" ADD COLUMN IF NOT EXISTS "source" text NOT NULL DEFAULT 'app'`,
+  `ALTER TABLE "ChurchApplications" ADD COLUMN IF NOT EXISTS "applicantName" text`,
+  `CREATE INDEX IF NOT EXISTS "ChurchApplications_contactEmailIndex" ON "ChurchApplications" (lower("contactEmail")) WHERE "applicantUserId" IS NULL`,
 ] as const;
 
 export async function runAddChurchPilotSchema(
