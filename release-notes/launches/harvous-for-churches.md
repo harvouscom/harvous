@@ -155,13 +155,9 @@ If a plan lapses, staff cannot post or add to the plan, and anything scheduled w
 
 ## Getting started
 
-A church starts by asking. Go to [harvous.com/for/churches](https://harvous.com/for/churches/) and choose "Bring your church to Harvous":
+A church starts by asking. Go to [harvous.com/for/churches](https://harvous.com/for/churches/), choose "Bring your church to Harvous", and tell us about your church: who you are, where it is, and what you are hoping for. No account needed yet. If you already use Harvous, you can start from Settings › My Church instead.
 
-1. Create a free account, or sign in
-2. Find your church in the Here's My Church directory
-3. Tell us your role and the best way to reach you
-
-We set your church up with you: its team, its channels, and its service times, which come straight from the directory listing when it has them. You start on a 30-day pilot. Then invite your team, share your invite link, and plan your first series the same day.
+We write back and set your church up with you: its team, its channels, and its service times, which come straight from the directory listing when it has them. Sign in with the email you used and your request is already there. You start on a 30-day pilot. Then invite your team, share your invite link, and plan your first series the same day.
 
 Anyone at your church who had already picked it in Settings is connected the moment it is set up.
 
