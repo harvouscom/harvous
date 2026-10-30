@@ -11,8 +11,9 @@ import HmcChurchPicker, { type HmcChurchPick } from '@/components/react/HmcChurc
 import Icon from '@/components/react/Icon';
 import { api } from '../../../lib/api';
 import { useChurchServiceChoice, useSetChurchServiceChoice } from '../../../hooks/queries/useChurchServiceChoice';
-import { formatServiceSlot } from '../../../lib/church-services';
+import { formatServiceTime, weekdayLabel } from '../../../lib/church-services';
 import PrototypeChurchApplication from './PrototypeChurchApplication';
+import { clearChurchBringRequested, readChurchBringRequested } from '../../../lib/church-bring-flag';
 import {
   HMC_COUNTRIES,
   getHmcCountry,
@@ -122,14 +123,12 @@ export default function PrototypeChurchPage() {
 
   const hasChurch = Boolean(hmcChurchId || name);
   /* Arrived from /churches/start ("Bring your church to Harvous"): pick the church, then the
-     request form is already open under it. Read once — nothing writes it back. */
-  const [bringRequested] = useState(() => {
-    try {
-      return new URLSearchParams(window.location.search).get('bring') === '1';
-    } catch {
-      return false;
-    }
-  });
+     request form is already open under it. A sessionStorage flag, read and cleared once — the
+     shell's path canonicalisation drops query strings, so `?bring=1` never survived. */
+  const [bringRequested] = useState(readChurchBringRequested);
+  useEffect(() => {
+    if (bringRequested) clearChurchBringRequested();
+  }, [bringRequested]);
 
   const unlistedRegionNoun = getHmcCountry(draftCountry)?.regionNoun.one ?? 'region';
   const unlistedAddressPlaceholder = `Street, city, ${unlistedRegionNoun}`;
@@ -635,11 +634,14 @@ function YourServiceGroup() {
           const key = `${slot.dayOfWeek}@${slot.startTime}`;
           const chosen = key === chosenKey;
           return (
+            /* Compact, like a radio list: the time is the row, the church's name for it the
+               quieter line, and the choice says so at the row's end — not as a badge that
+               wraps onto a line of its own. No icon tiles: three clocks said nothing. */
             <SettingsRow
               key={key}
-              label={formatServiceSlot(slot)}
-              badge={chosen ? 'Your service' : undefined}
-              leadingIcon={chosen ? 'circle-check' : 'clock'}
+              label={`${weekdayLabel(slot.dayOfWeek)} ${formatServiceTime(slot.startTime) ?? slot.startTime}`}
+              sublabel={slot.label ?? undefined}
+              value={chosen ? 'Your service' : undefined}
               trailing="none"
               disabled={setChoice.isPending}
               onClick={() =>

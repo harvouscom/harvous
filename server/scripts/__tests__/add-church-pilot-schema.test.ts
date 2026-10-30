@@ -18,14 +18,19 @@ function ddlColumns(table: string): string[] {
 const TABLES = ['ChurchServiceChoices', 'ChurchServiceTimeSpaces', 'ChurchApplications'];
 
 describe('church pilot migration', () => {
-  it('is idempotent and additive only', () => {
+  it('is idempotent and never removes anything', () => {
     for (const statement of ADDITIVE_CHURCH_PILOT_DDL) {
-      expect(statement.includes('IF NOT EXISTS') || statement.includes('ENABLE ROW LEVEL SECURITY'), statement.slice(0, 60)).toBe(true);
-      expect(statement).not.toMatch(/\b(DROP|TRUNCATE|DELETE|ALTER COLUMN|ADD COLUMN)\b/i);
+      const idempotent =
+        statement.includes('IF NOT EXISTS') ||
+        statement.includes('ENABLE ROW LEVEL SECURITY') ||
+        // Relaxing a constraint is idempotent and loses nothing.
+        /ALTER COLUMN "\w+" DROP NOT NULL$/.test(statement);
+      expect(idempotent, statement.slice(0, 60)).toBe(true);
+      expect(statement).not.toMatch(/\b(TRUNCATE|DELETE|DROP (TABLE|COLUMN|INDEX))\b/i);
     }
   });
 
-  it('touches only its own three tables — never a column on an existing one', () => {
+  it('touches only its own three tables — never one that existed before them', () => {
     for (const statement of ADDITIVE_CHURCH_PILOT_DDL) {
       const table = /"(\w+)"/.exec(statement.replace(/INDEX IF NOT EXISTS "\w+" ON/, 'ON'))?.[1];
       expect(TABLES, statement.slice(0, 80)).toContain(table);

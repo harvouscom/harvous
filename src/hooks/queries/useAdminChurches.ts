@@ -281,7 +281,10 @@ export type AdminChurchApplication = {
   city: string | null;
   state: string | null;
   country: string | null;
-  applicantUserId: string;
+  /** Null for a harvous.com request whose sender hasn't signed in to Harvous yet. */
+  applicantUserId: string | null;
+  source?: 'app' | 'site';
+  applicantName?: string | null;
   applicantRole: string | null;
   contactEmail: string | null;
   timezone: string | null;

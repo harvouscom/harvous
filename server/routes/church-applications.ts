@@ -9,6 +9,7 @@
  *   GET  /api/church-applications/mine
  *   POST /api/church-applications                       — submit
  *   POST /api/church-applications/:id/withdraw
+ *   POST /api/church-applications/intake                — the harvous.com form, server to server
  *   GET  /api/admin/church-applications?status=pending
  *   POST /api/admin/church-applications/:id/approve
  *   POST /api/admin/church-applications/:id/decline
@@ -31,6 +32,8 @@ import {
   type ChurchApplicationRow,
 } from '../utils/church-applications';
 import { HmcPartnerError } from '../utils/hmc-partner';
+import { timingSafeEqual } from 'node:crypto';
+import { claimSiteApplications, cleanSiteIntake, submitSiteApplication } from '../utils/church-applications';
 
 const app = new Hono();
 
@@ -52,6 +55,8 @@ function forApplicant(row: ChurchApplicationRow) {
 app.get('/api/church-applications/mine', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
+    // A request they sent from harvous.com before they had an account becomes theirs here.
+    await claimSiteApplications(auth.userId);
     const row = await latestApplicationFor(auth.userId);
     let church: { id: string; name: string; orgId: string } | null = null;
     if (row?.churchId) {
@@ -97,6 +102,43 @@ app.post('/api/church-applications/:id/withdraw', requireAuth, rateLimit('write'
     return c.json({ success: true });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/church-applications/[id]/withdraw', action: 'church_application_withdraw' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── From harvous.com ────────────────────────────────────────────────────────
+
+/**
+ * The site's Worker forwards each church-interest submission here, after saving its own copy.
+ * Server to server only: a shared secret (`HARVOUS_SITE_INTAKE_SECRET`, the same value set on the
+ * harvous.com Worker), compared in constant time. Unset → 503, so a misconfigured deploy is loud
+ * on the site's side instead of silently accepting anyone.
+ */
+function intakeSecretMatches(provided: string | undefined): boolean {
+  const expected = process.env.HARVOUS_SITE_INTAKE_SECRET?.trim();
+  const given = provided?.split(',')[0]?.trim();
+  if (!expected || !given) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+app.post('/api/church-applications/intake', rateLimit('write'), async (c) => {
+  try {
+    if (!process.env.HARVOUS_SITE_INTAKE_SECRET?.trim()) {
+      return c.json({ error: 'Intake not configured', code: 'INTAKE_NOT_CONFIGURED' }, 503);
+    }
+    if (!intakeSecretMatches(c.req.header('x-harvous-intake-secret'))) {
+      return c.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const input = cleanSiteIntake(body);
+    if (!input.ok) return c.json({ error: input.error, code: 'BAD_REQUEST' }, 400);
+    const result = await submitSiteApplication(input.value);
+    if (!result.ok) return c.json({ error: result.error, code: result.code }, result.status);
+    return c.json({ ok: true, id: result.id || null, duplicate: result.duplicate });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/church-applications/intake', action: 'church_application_intake' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

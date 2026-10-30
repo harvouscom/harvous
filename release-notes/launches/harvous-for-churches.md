@@ -1,7 +1,7 @@
 # Harvous for churches
 
 **Launched:** August 2026
-**Shipped across:** v2.14.0–v2.33.0, with invite links, review questions, ministries and scheduling in v3.14.0 (September 2026)
+**Shipped across:** v2.14.0–v2.33.0, with invite links, review questions, ministries and scheduling in v3.14.0 (September 2026), and choosing your service and asking to join in October 2026
 
 Churches teach every week. What they teach mostly disappears — into a slide deck nobody reopens, a bulletin in a recycling bin, or a photo of a sermon point on someone's camera roll.
 
@@ -67,6 +67,18 @@ Leadership is granted deliberately and can be taken back the same way. It stays 
 
 A church sets its time zone and lists the services it actually holds, like 9:00 and 10:45 on Sunday. Service times show as the church's wall clock, never converted to the reader's. "This Sunday, 9:00 AM" means what your church means by it, even for someone reading three time zones away. A church with a morning and an evening service can plan both, instead of choosing one.
 
+### Everyone at their own service
+
+People connected to your church choose the service they go to. That one choice does a few quiet things:
+
+- Their This Sunday card shows the time of their service, not every service you hold
+- Church notifications wait until their service is over, so nobody's phone buzzes during the sermon
+- When they choose what to follow, the channels and groups that meet during their service come first
+
+You decide what meets during each service in Church settings: Kids during the 11:00, for example. It is only ever a suggestion. Nobody is followed into anything; they still tap Follow themselves.
+
+Your Engagement pane shows how many people chose each service, once that is five or more. Never who.
+
 ---
 
 ### Invite people with a link
@@ -107,6 +119,8 @@ If you have picked your church in Settings, Home shows what your church is teach
 
 "Start notes" makes a new note in My Home with the passage already set up as a scripture pill and your church's own note template already in the body. If you have already started notes for that service, the card opens them rather than making a second one. The card stays for a few days afterwards, so writing up Sunday on a Monday still works.
 
+If your church holds more than one service, Harvous asks which one you go to, once, and you can change it in Settings › My Church. This Sunday then shows your service's time, and church notifications wait until it is over.
+
 You arrive on Sunday already knowing the passage, and leave with notes in your own words rather than a photo of a slide. Because those notes are anchored to the passage, they come back to you later through Recall, like anything else you write.
 
 Nothing about church features appears for anyone who has not connected a church in Settings.
@@ -123,6 +137,8 @@ What a church does get is an Engagement pane with counts only: how many people a
 
 Review questions work the same way. Your church sees how many people answered a question, and only once that is five or more. It never sees who answered, what they answered, or anything about your own Review.
 
+The service you choose works the same way too. Your church sees how many people chose each service, once that is five or more, and never who.
+
 The single exception is a suggestion. Suggestions carry your name, because you chose to send one and a pastor cannot reply to it without knowing who it came from. That is the whole of it.
 
 ---
@@ -131,12 +147,18 @@ The single exception is a suggestion. Suggestions carry your name, because you c
 
 The Harvous plan for churches is 30 dollars a month, or 216 dollars a year. Paying yearly saves 40 percent.
 
-Churches can start on a pilot and subscribe when they are ready. If a plan lapses, staff cannot add to the plan, but everything already planned stays visible and everyone keeps their notes.
+Every church starts on a 30-day pilot and subscribes when it is ready. Staff see how many days are left, and the last week says so plainly.
+
+If a plan lapses, staff cannot post or add to the plan, and anything scheduled waits rather than going out. Renewing sends it on its way. Everything already published stays readable, and everyone keeps their notes.
 
 ---
 
 ## Getting started
 
-Church onboarding is by request while this is new. A church gets set up with its channels, its service times, and its team, and can plan its first series the same day.
+A church starts by asking. Go to [harvous.com/for/churches](https://harvous.com/for/churches/), choose "Bring your church to Harvous", and tell us about your church: who you are, where it is, and what you are hoping for. No account needed yet. If you already use Harvous, you can start from Settings › My Church instead.
+
+We write back and set your church up with you: its team, its channels, and its service times, which come straight from the directory listing when it has them. Sign in with the email you used and your request is already there. You start on a 30-day pilot. Then invite your team, share your invite link, and plan your first series the same day.
+
+Anyone at your church who had already picked it in Settings is connected the moment it is set up.
 
 For the day-by-day record of how this shipped, see the dated notes in `release-notes/`, particularly [2026-08-04](../2026-08-04.md) and [2026-08-06](../2026-08-06.md).

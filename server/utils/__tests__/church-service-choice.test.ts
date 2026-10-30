@@ -65,9 +65,9 @@ describe('resolveChoiceSlot', () => {
 
 describe('suppressSmallCounts', () => {
   it(`reports 1 to ${SERVICE_HEADCOUNT_MIN - 1} as null, never a number that names people`, () => {
-    const out = suppressSmallCounts([{ k: 'a', count: 0 }, { k: 'b', count: 1 }, { k: 'c', count: 2 }, { k: 'd', count: 3 }, { k: 'e', count: 40 }]);
+    const out = suppressSmallCounts([{ k: 'a', count: 0 }, { k: 'b', count: 1 }, { k: 'c', count: 4 }, { k: 'd', count: 5 }, { k: 'e', count: 40 }]);
     // Zero names nobody, so an empty service still reads as empty.
-    expect(out.map((row) => row.count)).toEqual([0, null, null, 3, 40]);
+    expect(out.map((row) => row.count)).toEqual([0, null, null, 5, 40]);
   });
 });
 

@@ -12,15 +12,18 @@ import { useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 import { PublicTopBar } from './public-shared';
+import { markChurchBringRequested } from '../../lib/church-bring-flag';
 
-const DESTINATION = '/prototype/settings/church?bring=1';
-
+const DESTINATION = '/prototype/settings/church';
 export default function PublicStartChurchPage() {
   const { isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) void navigate({ to: DESTINATION as never, replace: true });
+    if (isLoaded && isSignedIn) {
+      markChurchBringRequested();
+      void navigate({ to: DESTINATION as never, replace: true });
+    }
   }, [isLoaded, isSignedIn, navigate]);
 
   const signUp = (toSignIn = false) => {
