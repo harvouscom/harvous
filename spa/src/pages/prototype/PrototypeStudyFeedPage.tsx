@@ -942,24 +942,7 @@ export default function PrototypeStudyFeedPage() {
             </div>
           </header>
 
-          {/*
-            * `data-scrolled` drives the top fade — see `.proto-feed-sheet__body` in CSS. Set
-            * straight on the element rather than through state: this page is large, and a
-            * re-render on every scroll event would be a high price for one attribute.
-            *
-            * The fade's depth follows the scroll up to its full 28px. Switched on whole at 1px,
-            * the first row sat half-faded under a scroll nobody could see (iOS rubber-banding
-            * leaves scrollTop at a pixel or two). Inline, so it beats the attribute rule.
-            */}
-          <div
-            className="proto-feed-sheet__body"
-            onScroll={(event) => {
-              const el = event.currentTarget;
-              const top = Math.max(0, el.scrollTop);
-              el.toggleAttribute('data-scrolled', top > 0);
-              el.style.setProperty('--proto-feed-fade-top', `${Math.min(top, 28)}px`);
-            }}
-          >
+          <div className="proto-feed-sheet__body">
             {/*
               * Today opens with the greeting the sidebar opens with — the same sentence, the
               * same chips, one component. Only today: it is written in the present tense

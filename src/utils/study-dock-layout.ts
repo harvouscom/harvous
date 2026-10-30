@@ -270,7 +270,11 @@ export function syncStudyDockBandHeight(): number {
       (slot) => slot instanceof HTMLElement && slot.getBoundingClientRect().height > 0,
     ).length;
     height += gap * Math.max(0, filled - 1);
-    height += parseFloat(getComputedStyle(layer).paddingTop) || 0;
+    const layerStyle = getComputedStyle(layer);
+    height += parseFloat(layerStyle.paddingTop) || 0;
+    // The home-indicator clearance under the cards on a phone (0 elsewhere): covered by the
+    // card as surely as the card itself is.
+    height += parseFloat(layerStyle.paddingBottom) || 0;
   }
 
   const rounded = Math.round(height);
