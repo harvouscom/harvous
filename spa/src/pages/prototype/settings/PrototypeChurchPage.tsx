@@ -11,7 +11,7 @@ import HmcChurchPicker, { type HmcChurchPick } from '@/components/react/HmcChurc
 import Icon from '@/components/react/Icon';
 import { api } from '../../../lib/api';
 import { useChurchServiceChoice, useSetChurchServiceChoice } from '../../../hooks/queries/useChurchServiceChoice';
-import { formatServiceSlot } from '../../../lib/church-services';
+import { formatServiceTime, weekdayLabel } from '../../../lib/church-services';
 import PrototypeChurchApplication from './PrototypeChurchApplication';
 import { clearChurchBringRequested, readChurchBringRequested } from '../../../lib/church-bring-flag';
 import {
@@ -634,11 +634,14 @@ function YourServiceGroup() {
           const key = `${slot.dayOfWeek}@${slot.startTime}`;
           const chosen = key === chosenKey;
           return (
+            /* Compact, like a radio list: the time is the row, the church's name for it the
+               quieter line, and the choice says so at the row's end — not as a badge that
+               wraps onto a line of its own. No icon tiles: three clocks said nothing. */
             <SettingsRow
               key={key}
-              label={formatServiceSlot(slot)}
-              badge={chosen ? 'Your service' : undefined}
-              leadingIcon={chosen ? 'circle-check' : 'clock'}
+              label={`${weekdayLabel(slot.dayOfWeek)} ${formatServiceTime(slot.startTime) ?? slot.startTime}`}
+              sublabel={slot.label ?? undefined}
+              value={chosen ? 'Your service' : undefined}
               trailing="none"
               disabled={setChoice.isPending}
               onClick={() =>
