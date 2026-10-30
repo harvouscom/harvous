@@ -12,7 +12,7 @@ export type ChannelEngagement = {
   ministryId?: string | null;
 };
 
-/** People who chose one service as theirs. `count` is null below three — small enough to name. */
+/** People who chose one service as theirs. `count` is null for one to four — small enough to name. */
 export type ServiceEngagement = { dayOfWeek: number; startTime: string; label: string | null; count: number | null };
 
 export type ChurchEngagementResponse = {
