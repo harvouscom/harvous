@@ -9,7 +9,6 @@
   --cs-ink-soft: #5d5a52;
   --cs-paper: #f6f4ee;
   --cs-card: #fffefb;
-  --cs-warm: #f1ede2;
   --cs-rule: rgba(26, 25, 22, 0.1);
   --cs-highlight: #ffe8a8;
   --cs-accent: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
@@ -239,7 +238,8 @@
   font-family: "Google Sans Flex", system-ui, sans-serif;
   font-size: 0.875rem;
   font-weight: 600;
-  background: var(--cs-warm);
+  /* Neutral, like the app's tiles — the warm beige was the old Harvous. */
+  background: rgba(20, 20, 24, 0.06);
 }
 
 .cs-a__foot {
