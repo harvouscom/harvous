@@ -1,170 +1,516 @@
 /*
- * The public shared Thread page's own styles — loaded with its lazy route, not in
- * `index.css`, which every route (sign-in included) pays for. Tokens (`--site-*`) come
- * from public-pages.css, which is global.
+ * The public shared Thread page's own styles, loaded with its lazy route, not in `index.css`.
+ * The page itself (sky, opening, letter, the floating add) is public-shared-paper.css.
+ *
+ * A Thread is a manila folder, after the topic folders on heyderekj.com (Derek, Oct 30 2026):
+ * the folder carries only the Thread — a tab, its name printed on the front, how many notes
+ * and when — and up to three notes stand staggered out of the top, the latest in front. On
+ * load they rise out of the folder and fan into place, one after another. A note you tap
+ * opens on cream paper under the folder. A dead link is the same folder with nothing in it.
+ *
+ * A published study plan is the same folder: the plan on the front, its next weeks standing
+ * in it. It replaced a trail (a spine, a dot per note, opening lines) on a single sheet.
  */
 
-/* ─── Shared Thread: the trail ──────────────────────────────────────────── */
 
-/*
-  A Thread reads as a trail in the app — a spine, a dot per note, the title and its
-  opening lines — so it reads that way here too. It was a 1.0 note card per row, each
-  with its own border and bookmark tile, inside a list row that drew a divider of its
-  own: two boxes per note, and a generic icon standing in for every kind.
-
-  And it sizes to its notes. `.public-card` fills the column (right for a note, which
-  is a sheet), so a two-note Thread stood in a page-tall card with the button at the
-  bottom of the window and white space between.
-*/
-.public-card--thread {
-  flex: 0 1 auto;
-  /* The shared note's spacing, so the two pages sit the same: its paper stack pads the
-     sheet 10px 18px inside a 4px margin, which is what puts air between the byline, the
-     card and the footer. A Thread has no stack, so the card takes that room itself. */
-  margin: 14px 18px 4px;
-}
-
-.public-card--thread .public-card__header {
-  /* The note sheet opens 28px down; a Thread's header gets the same air. */
-  padding: 24px 26px 20px;
-}
-
-.public-card--thread .public-card__scroll {
-  /* Room for the floating CTA, and no more. */
-  padding-bottom: 84px;
-}
-
-/* Tile + name, the way a Thread card lays out in the Library panel. */
-.public-thread-head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.public-thread-head__icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: var(--site-accent-soft);
-  color: var(--site-accent);
-  box-shadow: inset 0 0 0 0.5px rgba(56, 105, 230, 0.18);
-}
-
-.public-thread-head__text {
-  min-width: 0;
-}
-
-.public-thread-head .public-card__meta {
-  margin-top: 6px;
-}
-
-/*
-  The trail, in the app's geometry (`.proto-thread-trail__spine` / `__orb`): a 20px track,
-  20px dots with a 1.5px rim on the card's own white, and a 2px rounded spine through their
-  centres that starts at the first dot and stops at the last.
-*/
-.public-thread-trail {
-  --trail-track: 20px;
-  --trail-dot-top: 15px;
-  /* The app's trail sits on its tinted page, where `--pds-border-control` reads; on this
-     white card the same rim all but vanished. Ink mixed into white keeps the app's weights
-     visible here. */
-  --trail-spine: color-mix(in oklch, var(--site-ink) 13%, white);
-  --trail-rim: color-mix(in oklch, var(--site-ink) 28%, white);
-  list-style: none;
-  margin: 0;
-  padding: 10px 26px 0;
-}
-
-.public-thread-trail__item {
+.public-page--shared .public-paper-stack.public-thread-folder {
+  --fc: #f3dba8;
+  --fc-low: #ecd093;
+  --fe: #d6b26c;
+  --fi: #4f360b;
+  --pt: 84px; /* room above the front for the notes standing in it */
+  flex: none;
   position: relative;
-  display: grid;
-  grid-template-columns: var(--trail-track) 1fr;
-  column-gap: 14px;
-  align-items: start;
-  padding: 14px 0;
+  isolation: isolate;
+  min-height: 0;
+  margin: 36px 0 0;
+  padding: var(--pt) 0 0;
 }
 
-.public-thread-trail__item::before {
+.public-page--shared .public-paper-stack.public-thread-folder[data-papers="2"] {
+  --pt: 128px;
+}
+
+.public-page--shared .public-paper-stack.public-thread-folder[data-papers="3"] {
+  --pt: 172px;
+}
+
+/* The back of the folder, behind the notes. */
+.public-thread-folder::before {
   content: "";
   position: absolute;
-  left: calc(var(--trail-track) / 2 - 1px);
-  top: 0;
+  z-index: -2;
+  left: 0;
+  right: 0;
   bottom: 0;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--trail-spine);
+  top: calc(var(--pt) - 70px);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #dcb977, var(--fe));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
 }
-.public-thread-trail__item:first-child::before {
-  top: calc(var(--trail-dot-top) + var(--trail-track) / 2);
-}
-.public-thread-trail__item:last-child::before {
-  bottom: calc(100% - var(--trail-dot-top) - var(--trail-track) / 2);
-}
-.public-thread-trail__item:only-child::before {
+
+.public-thread-folder[data-papers="0"]::before {
   display: none;
 }
 
-.public-thread-trail__orb {
-  position: relative;
-  z-index: 1;
-  width: var(--trail-track);
-  height: var(--trail-track);
-  margin-top: 1px;
-  box-sizing: border-box;
-  border-radius: 50%;
-  border: 1.5px solid var(--trail-rim);
-  background: var(--site-card);
-}
-
-/* A passage is the Thread's anchor: its dot is filled — the one accent on the trail. */
-.public-thread-trail__item--scripture .public-thread-trail__orb {
-  border-color: var(--site-accent);
-  background: var(--site-accent);
-  box-shadow: inset 0 0 0 4px var(--site-card);
-}
-
-.public-thread-trail__text {
-  min-width: 0;
-}
-
-.public-thread-trail__title {
+/* A note standing in the folder: just its name showing, the rest down inside. */
+.public-thread-folder__paper {
+  position: absolute;
+  z-index: -1;
+  height: 190px;
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin: 0;
-  font-family: var(--pds-font-display);
-  font-variation-settings: var(--pds-font-display-variation);
-  font-size: 1.0625rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 22px;
-  color: var(--site-ink);
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 18px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  text-align: left;
+  background: #fbfaf6;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.07), 0 -2px 10px -6px rgb(0 0 0 / 0.25);
+  transform-origin: 50% 100%;
+  transition: transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  cursor: pointer;
 }
 
-.public-thread-trail__badge {
-  flex-shrink: 0;
-  font-family: var(--pds-font-body);
+/* Staggered back to front: where it started, the one before, the latest. */
+.public-thread-folder__paper:nth-child(1) {
+  top: 0;
+  left: 3%;
+  right: 17%;
+  transform: rotate(-1.1deg);
+}
+
+.public-thread-folder__paper:nth-child(2) {
+  top: 44px;
+  left: 10%;
+  right: 10%;
+  transform: rotate(0.7deg);
+}
+
+.public-thread-folder__paper:nth-child(3) {
+  top: 88px;
+  left: 17%;
+  right: 3%;
+  transform: rotate(-0.4deg);
+}
+
+.public-thread-folder[data-papers="2"] .public-thread-folder__paper:nth-child(1) {
+  left: 6%;
+  right: 12%;
+}
+
+.public-thread-folder[data-papers="2"] .public-thread-folder__paper:nth-child(2) {
+  left: 13%;
+  right: 4%;
+}
+
+.public-thread-folder[data-papers="1"] .public-thread-folder__paper:nth-child(1) {
+  left: 8%;
+  right: 8%;
+  transform: rotate(-0.6deg);
+}
+
+/* Pointed at, the notes rise a little out of the folder, like the site's chip. */
+.public-thread-folder:is(:hover, :focus-within) .public-thread-folder__paper:nth-child(1) {
+  transform: translateY(-6px) rotate(-1.8deg);
+}
+
+.public-thread-folder:is(:hover, :focus-within) .public-thread-folder__paper:nth-child(2) {
+  transform: translateY(-6px) rotate(1.2deg);
+}
+
+.public-thread-folder:is(:hover, :focus-within) .public-thread-folder__paper:nth-child(3) {
+  transform: translateY(-6px) rotate(-0.8deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-thread-folder__paper {
+    transition: none;
+  }
+}
+
+.public-thread-folder__paper b {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #3f3c35 !important;
+}
+
+.public-thread-folder__paper small {
+  flex: none;
+  font-size: 0.75rem;
+  color: #8a8578 !important;
+}
+
+.public-thread-folder__paper[aria-pressed="true"] b {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The front: only the Thread. A paper label with its name, a crease, a little grain. */
+.public-thread-folder__front {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 30px 26px 54px;
+  border-radius: 0 18px 18px 18px;
+  color: var(--fi);
+  background:
+    radial-gradient(rgb(92 63 14 / 0.05) 1px, transparent 1.2px) 0 0 / 6px 6px,
+    linear-gradient(180deg, var(--fc), var(--fc-low));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.55),
+    inset 0 -1px 0 rgb(92 63 14 / 0.08),
+    0 2px 4px rgb(60 40 5 / 0.08),
+    0 24px 48px -26px rgb(60 40 5 / 0.55);
+}
+
+/* The fold line a folder gets from being opened. */
+.public-thread-folder__front::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 12px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgb(92 63 14 / 0.1), rgb(255 255 255 / 0.45));
+}
+
+.public-thread-folder__tab {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% - 1px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px 6px;
+  border-radius: 12px 12px 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fi);
+  background: var(--fc);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55);
+}
+
+/* The inside curve where the tab meets the top of the front. */
+.public-thread-folder__tab::after {
+  content: "";
+  position: absolute;
+  left: 100%;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle at 100% 0, transparent 13.5px, var(--fc) 14px);
+}
+
+/* The name, set straight on the manila like print. */
+.public-thread-folder__title {
+  margin: 4px 0 0;
+  font-family: "Google Sans Flex", "Google Sans", system-ui, sans-serif;
+  font-size: clamp(1.6rem, 1.3rem + 1.1vw, 2.2rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: #2f2208 !important;
+  text-wrap: balance;
+}
+
+.public-thread-folder__subtitle {
+  margin: 6px 0 0;
+  font-size: 1rem;
+  color: rgb(63 43 8 / 0.7);
+}
+
+.public-thread-folder__fields {
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 28px;
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid rgb(92 63 14 / 0.14);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.4);
+}
+
+.public-thread-folder__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.public-thread-folder__field span {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--site-ink-soft);
-  background: var(--site-accent-soft);
-  padding: 1px 7px;
-  border-radius: 999px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(63 43 8 / 0.55);
 }
 
-.public-thread-trail__preview {
-  margin: 4px 0 0;
+.public-thread-folder__field b {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #2f2208;
+}
+
+.public-thread-folder__all {
+  margin-left: auto;
+  padding: 7px 14px;
+  border: 1px solid rgb(92 63 14 / 0.2);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #3f2b08 !important;
+  background: rgb(255 255 255 / 0.35);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.public-thread-folder__all:hover {
+  background: rgb(255 255 255 / 0.6);
+}
+
+/* What you open from the folder: one note on cream paper, or the list of all of them. */
+.public-thread-reader {
+  position: relative;
+  margin: 18px 0 0;
+  padding: 26px 26px 48px;
+  list-style: none;
+  background-color: var(--sh-card);
+  background-image:
+    radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
+    radial-gradient(rgba(20, 18, 12, 0.018) 1px, transparent 1px);
+  background-size: 28px 28px, 17px 17px;
+  background-position: 0 0, 9px 9px;
+  border: 0.5px solid var(--sh-rule);
+  box-shadow: 0 2px 6px rgba(20, 18, 12, 0.04), 0 18px 40px -24px rgba(20, 18, 12, 0.25);
+}
+
+.public-thread-reader__eyebrow {
+  margin: 0 40px 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
+}
+
+.public-thread-reader__title {
+  margin: 0 40px 8px 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--sh-ink) !important;
+}
+
+.public-thread-reader__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(20, 20, 24, 0.06);
+  color: var(--sh-ink-soft) !important;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.public-thread-reader__close:hover {
+  background: rgba(20, 20, 24, 0.1);
+  color: var(--sh-ink) !important;
+}
+
+.public-thread-reader--list li + li {
+  border-top: 0.5px solid var(--sh-rule);
+}
+
+.public-thread-reader--list button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.public-thread-reader--list b {
+  font-weight: 600;
+  color: var(--sh-ink) !important;
+}
+
+.public-thread-reader--list small {
+  flex: none;
+  font-size: 0.8125rem;
+  color: var(--sh-ink-soft) !important;
+}
+
+.public-thread-folder button:focus-visible,
+.public-thread-reader button:focus-visible {
+  outline: 2px solid #2f7cf6;
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .public-thread-folder__front {
+    padding: 28px 18px 52px;
+  }
+
+  .public-thread-folder__paper {
+    padding: 12px 14px;
+  }
+
+  .public-thread-reader {
+    padding: 22px 20px 44px;
+  }
+}
+
+/* ─── Opening the folder ────────────────────────────────────────────────── */
+/* The folder settles first, then the notes rise out of it and fan into place, back to front.
+   Each paper's resting tilt is its own transform, so the animation only says where it starts
+   (down inside, upright, unseen) and fills backwards: after it ends, hover moves them again. */
+@keyframes public-thread-folder-settle {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+}
+
+@keyframes public-thread-paper-rise {
+  from {
+    opacity: 0;
+    transform: translateY(96px) rotate(0deg);
+  }
+  35% {
+    opacity: 1;
+  }
+}
+
+.public-thread-folder {
+  animation: public-thread-folder-settle 420ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.public-thread-folder__paper {
+  animation: public-thread-paper-rise 640ms cubic-bezier(0.22, 1.25, 0.36, 1) backwards;
+}
+
+.public-thread-folder__paper:nth-child(1) {
+  animation-delay: 260ms;
+}
+
+.public-thread-folder__paper:nth-child(2) {
+  animation-delay: 380ms;
+}
+
+.public-thread-folder__paper:nth-child(3) {
+  animation-delay: 500ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-thread-folder,
+  .public-thread-folder__paper {
+    animation: none;
+  }
+}
+
+/* The link preview is a screenshot of this page: it gets the notes already standing. */
+.public-page--og-capture :is(.public-thread-folder, .public-thread-folder__paper) {
+  animation: none;
+}
+
+/* ─── A link that leads nowhere: the folder, empty ──────────────────────── */
+.public-page--shared .public-paper-stack.public-thread-folder--empty {
+  --pt: 30px;
+  margin-top: clamp(48px, 12vh, 120px);
+}
+
+.public-thread-folder--empty::before {
+  display: block !important;
+  top: 0;
+}
+
+.public-thread-folder--empty .public-thread-folder__front {
+  padding-bottom: 34px;
+}
+
+.public-thread-folder--empty .public-thread-folder__subtitle {
+  max-width: 34em;
   font-size: 0.9375rem;
   line-height: 1.5;
-  color: var(--site-ink-soft);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
+
+/* ─── A published study plan ────────────────────────────────────────────── */
+/* Its weeks are plan rows, not notes — there is nothing behind them to open. */
+.public-thread-folder--plan .public-thread-folder__paper {
+  cursor: default;
+}
+
+/* A flat row per week, deliberately not a note card: nothing anyone wrote is on this page,
+   and a card would promise content the preview does not (and must not) show. */
+.public-thread-reader--weeks {
+  padding-bottom: 26px;
+}
+
+.public-thread-reader--weeks li {
+  display: grid;
+  grid-template-columns: 4.5em 1fr;
+  column-gap: 12px;
+  padding: 12px 0;
+}
+
+.public-thread-reader--weeks li + li {
+  border-top: 0.5px solid var(--sh-rule);
+}
+
+.public-thread-reader__week {
+  grid-row: span 2;
+  padding-top: 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
+}
+
+.public-thread-reader--weeks b {
+  font-weight: 600;
+  color: var(--sh-ink);
+}
+
+.public-thread-reader--weeks small {
+  font-size: 0.8125rem;
+  color: var(--sh-ink-soft);
+}
+
+.public-thread-reader--weeks li[data-next] .public-thread-reader__week {
+  color: var(--sh-ink);
+}
+
+/* With no add on this page, the join (when there is one) is the button that floats. */
+.public-thread-folder--plan + .public-thread-reader--weeks {
+  padding-bottom: 48px;
+}
+
+.public-shared__cta-bar .public-cta-btn {
+  text-decoration: none;
+}
+

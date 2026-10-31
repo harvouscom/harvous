@@ -1,11 +1,9 @@
-import { colorTokenVar } from '@/utils/space-cover';
 import { haptics } from '@/utils/haptics';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { stripHtmlForPreview } from '@/utils/html-stripper';
 import Icon from '@/components/react/Icon';
 import '../../styles/public-shared-thread.css';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
@@ -14,10 +12,11 @@ import { useAddSharedThread } from '../../hooks/mutations/useAddSharedThread';
 import { getThreadGradientCSS } from '@/utils/colors';
 import type { ThreadDetail, ThreadPrefetchData } from '../../hooks/queries/useThread';
 import ProtoReadOnlyNotePaper from '../prototype/ProtoReadOnlyNotePaper';
-import { PublicTopBar, PublicErrorState, PublicSharedCtaBar, PublicSharedFooter } from './public-shared';
+import { PublicTopBar, PublicSharedCtaBar, PublicSharedFooter } from './public-shared';
 import '../../styles/prototype-editor.css';
 import '../../styles/public-shared-paper.css';
 import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
+import { SharedOpening, SharedSky } from './shared-opening';
 
 interface SharedThreadNote {
   id: string;
@@ -26,6 +25,7 @@ interface SharedThreadNote {
   noteType: 'default' | 'scripture' | 'resource';
   scriptureTranslation?: string;
   version?: string;
+  createdAt?: string;
 }
 
 interface SharedThreadResponse {
@@ -54,54 +54,251 @@ interface SharedThreadPlanResponse {
 }
 
 /**
- * One note on the Thread's trail, the way the app reads a Thread: a dot on a spine, the title,
- * and the opening lines — not a card per note. A passage leads with its reference and
- * translation; a link says it is one. Tapping a row opens the whole note in place, on the
- * same paper the app reads it on: the share already carries every note's body, and a list of
- * first lines with nothing behind them was a table of contents for a book you couldn't open.
+ * The Thread as a manila folder, after the topic folders on heyderekj.com (Derek, Oct 30 2026).
+ * The folder carries only the Thread: its name, what it covers, how many notes and when. Up to
+ * three notes stand staggered out of the top — the latest in front, the one before it, and the
+ * one it started with at the back. Ordered by when each was written, since the server's order
+ * differs by Thread kind. Tapping a note opens it under the folder; the count opens them all.
  */
-function SharedThreadTrailRow({
-  note,
-  index,
-  open,
-  onToggle,
+function SharedThreadFolder({
+  title,
+  subtitle,
+  notes,
 }: {
-  note: SharedThreadNote;
-  index: number;
-  open: boolean;
-  onToggle: () => void;
+  title: string;
+  subtitle?: string;
+  notes: SharedThreadNote[];
 }) {
-  const preview = stripHtmlForPreview(note.content || '', 180).trim();
-  const translation = note.scriptureTranslation ?? note.version ?? null;
-  const kind =
-    note.noteType === 'scripture' ? 'scripture' : note.noteType === 'resource' ? 'resource' : 'note';
-  return (
-    <li
-      className={`public-thread-trail__item public-thread-trail__item--${kind} card-enter`}
-      data-open={open ? 'true' : undefined}
-      style={{ animationDelay: `${100 + index * 40}ms` }}
-    >
-      <span className="public-thread-trail__orb" aria-hidden />
-      <div className="public-thread-trail__text">
-        <button type="button" className="public-thread-trail__toggle" aria-expanded={open} onClick={onToggle}>
-          <span className="public-thread-trail__title">
-            {note.title?.trim() || 'Untitled'}
-            {kind === 'scripture' && translation ? (
-              <span className="public-thread-trail__badge">{translation}</span>
-            ) : null}
-            {kind === 'resource' ? <span className="public-thread-trail__badge">Link</span> : null}
-          </span>
-          {preview && !open ? <span className="public-thread-trail__preview">{preview}</span> : null}
-          <span className="public-thread-trail__more">{open ? 'Show less' : 'Read note'}</span>
-        </button>
-        {open ? (
-          <div className="public-thread-trail__note">
-            <ProtoReadOnlyNotePaper variant="inset" html={note.content || ''} />
-          </div>
-        ) : null}
-      </div>
-    </li>
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const byNewest = [...notes].sort(
+    (a, b) => (Date.parse(b.createdAt ?? '') || 0) - (Date.parse(a.createdAt ?? '') || 0),
   );
+  const count = byNewest.length;
+  const oldest = count > 1 ? byNewest[count - 1] : null;
+  // Back to front: where it started, the one before the latest, the latest.
+  const papers = [oldest, count > 2 ? byNewest[1] : null, byNewest[0]].filter(
+    (n): n is SharedThreadNote => Boolean(n),
+  );
+  const open = openId ? byNewest.find((n) => n.id === openId) ?? null : null;
+  const span = [formatFolderDate(oldest?.createdAt), formatFolderDate(byNewest[0]?.createdAt)].filter(Boolean);
+
+  return (
+    <>
+      <div className="public-paper-stack public-thread-folder" data-papers={papers.length}>
+        {papers.map((note) => (
+          <button
+            key={note.id}
+            type="button"
+            className="public-thread-folder__paper"
+            aria-pressed={openId === note.id}
+            onClick={() => setOpenId((cur) => (cur === note.id ? null : note.id))}
+          >
+            <b>{note.title?.trim() || 'Untitled'}</b>
+            <small>
+              {note.id === byNewest[0]?.id && count > 1
+                ? 'Latest'
+                : note.id === oldest?.id
+                  ? 'Where it started'
+                  : formatFolderDate(note.createdAt)}
+            </small>
+          </button>
+        ))}
+        <div className="public-thread-folder__front">
+          <span className="public-thread-folder__tab">
+            <Icon name="arrow-right-arrow-left" size={12} />
+            Thread
+          </span>
+          <h1 className="public-thread-folder__title">{title}</h1>
+          {subtitle ? <p className="public-thread-folder__subtitle">{subtitle}</p> : null}
+          {/* Printed on the folder like a file's fields, with the way into all of them beside. */}
+          <div className="public-thread-folder__fields">
+            <p className="public-thread-folder__field">
+              <span>Notes</span>
+              <b>{count > 0 ? count : 'None yet'}</b>
+            </p>
+            {span.length === 2 && span[0] !== span[1] ? (
+              <p className="public-thread-folder__field">
+                <span>Kept</span>
+                <b>{span[0]} – {span[1]}</b>
+              </p>
+            ) : null}
+            {count > 0 ? (
+              <button type="button" className="public-thread-folder__all" onClick={() => { setShowAll((v) => !v); setOpenId(null); }}>
+                {showAll ? 'Hide the list' : 'See all notes'}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {open ? (
+        <article className="public-thread-reader">
+          {/* Back to the list when it was opened from there; otherwise the note just closes. */}
+          <button
+            type="button"
+            className="public-thread-reader__close"
+            aria-label={showAll ? 'Back to all notes' : 'Close note'}
+            onClick={() => setOpenId(null)}
+          >
+            <Icon name="xmark" size={14} />
+          </button>
+          <p className="public-thread-reader__eyebrow">{formatFolderDate(open.createdAt)}</p>
+          <h2 className="public-thread-reader__title">{open.title?.trim() || 'Untitled'}</h2>
+          <ProtoReadOnlyNotePaper variant="inset" html={open.content || ''} />
+        </article>
+      ) : showAll ? (
+        <ol className="public-thread-reader public-thread-reader--list">
+          {byNewest.map((note) => (
+            <li key={note.id}>
+              <button type="button" onClick={() => setOpenId(note.id)}>
+                <b>{note.title?.trim() || 'Untitled'}</b>
+                <small>{formatFolderDate(note.createdAt)}</small>
+              </button>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </>
+  );
+}
+
+/** A link that leads nowhere: the same folder, with nothing standing in it. */
+function EmptyThreadFolder() {
+  return (
+    <div className="public-paper-stack public-thread-folder public-thread-folder--empty" data-papers={0}>
+      <div className="public-thread-folder__front">
+        <span className="public-thread-folder__tab">
+          <Icon name="arrow-right-arrow-left" size={12} />
+          Thread
+        </span>
+        <h1 className="public-thread-folder__title">This thread isn&apos;t available</h1>
+        <p className="public-thread-folder__subtitle">
+          The folder is empty. The link might have expired, or the owner made it private.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A published study plan as the same folder: the plan on the front, its next three weeks
+ * standing out of the top with the coming one in front, every week a tap away. Only the plan's
+ * own rows — titles, passages, dates — never what members wrote in their step notes.
+ */
+function PlanFolder({ plan }: { plan: SharedThreadPlanResponse }) {
+  const [showAll, setShowAll] = useState(false);
+  const steps = plan.steps;
+  const today = localIsoDate(new Date());
+  const firstUpcoming = steps.findIndex((s) => s.serviceDate && s.serviceDate >= today);
+  // The coming weeks; once a plan is over, its last three.
+  const start = firstUpcoming >= 0 ? firstUpcoming : steps.some((s) => s.serviceDate) ? Math.max(0, steps.length - 3) : 0;
+  const shown = steps.slice(start, start + 3);
+  const papers = [...shown].reverse(); // back to front: furthest first, the coming week last
+  const upNextStep = firstUpcoming >= 0 ? steps[firstUpcoming].step : null;
+  const dated = steps.filter((s) => s.serviceDate);
+  const runs = dated.length > 1 ? `${formatServiceDate(dated[0].serviceDate)} – ${formatServiceDate(dated[dated.length - 1].serviceDate)}` : null;
+  const series = plan.plan.subtitle || (plan.plan.seriesTitle !== plan.plan.title ? plan.plan.seriesTitle : null);
+
+  return (
+    <>
+      <div
+        className={`public-paper-stack public-thread-folder public-thread-folder--plan${steps.length === 0 ? ' public-thread-folder--empty' : ''}`}
+        data-papers={papers.length}
+      >
+        {papers.map((step) => (
+          <div key={step.step} className="public-thread-folder__paper">
+            <b>{step.title}</b>
+            <small>{step.step === upNextStep ? 'Up next' : `Week ${step.step}`}</small>
+          </div>
+        ))}
+        <div className="public-thread-folder__front">
+          <span className="public-thread-folder__tab">
+            <Icon name="calendar" size={12} />
+            Study plan
+          </span>
+          <h1 className="public-thread-folder__title">{plan.plan.title}</h1>
+          {series ? <p className="public-thread-folder__subtitle">{series}</p> : null}
+          {steps.length === 0 ? (
+            <p className="public-thread-folder__subtitle">This plan has no weeks yet.</p>
+          ) : (
+            <div className="public-thread-folder__fields">
+              <p className="public-thread-folder__field">
+                <span>Weeks</span>
+                <b>{steps.length}</b>
+              </p>
+              {runs ? (
+                <p className="public-thread-folder__field">
+                  <span>Runs</span>
+                  <b>{runs}</b>
+                </p>
+              ) : null}
+              <button type="button" className="public-thread-folder__all" onClick={() => setShowAll((v) => !v)}>
+                {showAll ? 'Hide the weeks' : 'See all weeks'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showAll ? (
+        <ol className="public-thread-reader public-thread-reader--weeks">
+          {steps.map((step) => (
+            <li key={step.step} data-next={step.step === upNextStep ? 'true' : undefined}>
+              <span className="public-thread-reader__week">Week {step.step}</span>
+              <b>{step.title}</b>
+              {step.reference || step.serviceDate ? (
+                <small>
+                  {[step.reference, step.serviceDate ? formatServiceDate(step.serviceDate) : null].filter(Boolean).join(' · ')}
+                </small>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+
+      {/*
+        Offered only when the room already has a live invite. This page never mints one —
+        who may join is the room's decision, not a consequence of a stranger loading a URL.
+      */}
+      {plan.joinToken ? (
+        <div className="public-shared__cta-bar">
+          <div className="public-shared__cta-inner">
+            <a className="public-cta-btn proto-ink-on-accent" href={`/spaces/join/${encodeURIComponent(plan.joinToken)}`}>
+              Join {plan.space.title}
+            </a>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** Today as YYYY-MM-DD in the reader's own day, to compare with a plan's service dates. */
+function localIsoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** A service date (YYYY-MM-DD, a calendar day, not an instant) as "Nov 2". */
+function formatServiceDate(iso: string | null): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  const sameYear = y === new Date().getFullYear();
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+}
+
+function formatFolderDate(iso?: string): string {
+  const t = Date.parse(iso ?? '');
+  if (!t) return '';
+  const d = new Date(t);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) });
 }
 
 export default function PublicSharedThreadPage() {
@@ -119,7 +316,6 @@ export default function PublicSharedThreadPage() {
   const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
   const [toastVisible, setToastVisible] = useState(false);
   const [alreadyOwned, setAlreadyOwned] = useState(false);
-  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ogCapture =
     typeof window !== 'undefined' &&
@@ -236,22 +432,30 @@ export default function PublicSharedThreadPage() {
   const notes = data?.notes || [];
   const creator = data?.creator;
 
-  /* A personal Thread has no colour of its own ('paper'), and a beige rule over a white card
-     read as a smudge rather than an accent — so the stripe is for Threads that chose one. */
-  const hasThreadColor = Boolean(thread?.color && thread.color !== 'paper');
-  const colorVar = colorTokenVar(thread?.color, 'blue');
-  const noteCount = data?.meta?.noteCount ?? notes.length;
+  const ctaBar = thread && !plan && !error ? (
+    <PublicSharedCtaBar
+      toast={{ message: toastMessage, type: toastType, visible: toastVisible }}
+      alreadyOwned={alreadyOwned}
+      pending={addSharedThreadMutation.isPending}
+      onAdd={handleAddToHarvous}
+      onView={() => {
+        void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        navigate({ to: prototypeHomeRouteTo() });
+      }}
+    />
+  ) : null;
 
   return (
     <>
       {thread && <title>{`${thread.title || 'Shared Thread'} | Harvous`}</title>}
       <div
-        className={`public-page${plan ? '' : ' public-page--shared'}${ogCapture ? ' public-page--og-capture' : ''}`}
+        className={`public-page public-page--shared${ogCapture ? ' public-page--og-capture' : ''}`}
       >
         <PublicTopBar isSignedIn={!!isSignedIn} />
 
         <div className="public-body">
-          <div className={plan || !thread || error ? 'public-content' : 'public-shared-host'}>
+          <SharedSky />
+          <div className={isLoading ? 'public-content' : 'public-shared-host'}>
             {isLoading ? (
               <div className="page-loading" />
             ) : plan ? (
@@ -262,118 +466,32 @@ export default function PublicSharedThreadPage() {
                 wrote is on this page, which is what lets it be public at all.
               */
               <SubtleContentMount variant="fade">
-                <>
-                  <p className="public-creator">
-                    A study plan from {plan.space.title}
-                  </p>
-
-                  <div className="public-card">
-                    <div
-                      className="public-card__color-stripe"
-                      style={{ background: colorTokenVar(plan.plan.color, 'blue') }}
-                    />
-                    <div className="public-card__header">
-                      <h1 className="public-card__title">{plan.plan.title}</h1>
-                      <p className="public-card__meta">
-                        {plan.plan.subtitle || plan.plan.seriesTitle}
-                      </p>
-                    </div>
-
-                    <div className="public-card__scroll">
-                      {plan.steps.length === 0 ? (
-                        <div className="public-card__empty">
-                          This plan has no weeks yet.
-                        </div>
-                      ) : (
-                        <ul className="public-card__list">
-                          {plan.steps.map((step, index) => (
-                            <li
-                              key={step.step}
-                              className="public-card__list-item card-enter"
-                              style={{ animationDelay: `${100 + index * 40}ms` }}
-                            >
-                              <div className="public-plan-step">
-                                <span className="public-plan-step__number">{step.step}</span>
-                                <span className="public-plan-step__title">{step.title}</span>
-                                {step.reference ? (
-                                  <span className="public-plan-step__reference">{step.reference}</span>
-                                ) : null}
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-
-                    {/*
-                      Offered only when the room already has a live invite. This
-                      page never mints one — who may join is the room's decision,
-                      not a consequence of a stranger loading a URL.
-                    */}
-                    {plan.joinToken ? (
-                      <a
-                        className="public-card__cta"
-                        href={`/spaces/join/${encodeURIComponent(plan.joinToken)}`}
-                      >
-                        Join {plan.space.title}
-                      </a>
-                    ) : null}
-                  </div>
-                </>
+                <div className="public-shared">
+                  {/* The series is the plan's own detail, so it is printed on the folder. */}
+                  <SharedOpening name={plan.space.title} kind="plan" eyebrow="Studying together" />
+                  <PlanFolder plan={plan} />
+                  <PublicSharedFooter />
+                </div>
               </SubtleContentMount>
             ) : (error || !thread) ? (
-              <PublicErrorState
-                title="This thread isn't available"
-                message="Hmm, we can't find this thread. The link might have expired or the owner made it private."
-              />
+              <SubtleContentMount variant="fade">
+                <div className="public-shared">
+                  <EmptyThreadFolder />
+                  <PublicSharedFooter />
+                </div>
+              </SubtleContentMount>
             ) : (
               <SubtleContentMount variant="fade">
                 <div className="public-shared">
-                  <p className="public-creator public-shared__byline">
-                    {creator?.isHarvousOwned
-                      ? 'A thread from Harvous'
-                      : `A thread from ${creator?.displayName || 'a Harvous reader'}`}
-                  </p>
+                  <SharedOpening
+                    name={creator?.isHarvousOwned ? 'Harvous' : creator?.displayName || 'A Harvous reader'}
+                    kind="thread"
+                  />
 
-                  <div className="public-paper-stack public-shared__stack">
-                    <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
-                    <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
-                    <div className="public-shared__sheet public-shared__sheet--thread">
-                      {hasThreadColor ? (
-                        <div className="public-card__color-stripe" style={{ background: colorVar }} />
-                      ) : null}
-                      {/* The Thread's own tile — the glyph the app draws on every Thread card —
-                          beside its name, so the page says what it is before a word is read. */}
-                      <div className="public-thread-head">
-                        <span className="public-thread-head__icon" aria-hidden>
-                          <Icon name="arrow-right-arrow-left" size={18} />
-                        </span>
-                        <div className="public-thread-head__text">
-                          <h1 className="public-card__title">{thread.title}</h1>
-                          <p className="public-card__meta">
-                            Thread · {noteCount} {noteCount === 1 ? 'note' : 'notes'}
-                            {thread.subtitle ? ` · ${thread.subtitle}` : ''}
-                          </p>
-                        </div>
-                      </div>
+                  <SharedThreadFolder title={thread.title} subtitle={thread.subtitle} notes={notes} />
 
-                      {notes.length === 0 ? (
-                        <div className="public-card__empty">No notes yet. Add this thread to start studying.</div>
-                      ) : (
-                        <ol className="public-thread-trail">
-                          {notes.map((note, index) => (
-                            <SharedThreadTrailRow
-                              key={note.id}
-                              note={note}
-                              index={index}
-                              open={openNoteId === note.id}
-                              onToggle={() => setOpenNoteId((id) => (id === note.id ? null : note.id))}
-                            />
-                          ))}
-                        </ol>
-                      )}
-                    </div>
-                  </div>
+                  {/* The add floats over the folder and comes to rest on its bottom edge. */}
+                  {ctaBar}
 
                   <PublicSharedFooter />
                 </div>
@@ -381,19 +499,6 @@ export default function PublicSharedThreadPage() {
             )}
           </div>
         </div>
-
-        {thread && !plan && !error ? (
-          <PublicSharedCtaBar
-            toast={{ message: toastMessage, type: toastType, visible: toastVisible }}
-            alreadyOwned={alreadyOwned}
-            pending={addSharedThreadMutation.isPending}
-            onAdd={handleAddToHarvous}
-            onView={() => {
-              void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-              navigate({ to: prototypeHomeRouteTo() });
-            }}
-          />
-        ) : null}
       </div>
     </>
   );
