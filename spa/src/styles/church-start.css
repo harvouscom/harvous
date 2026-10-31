@@ -1,0 +1,279 @@
+/*
+ * /churches/start — the letter on a sky, after the sign-in page. Loaded only by
+ * PublicStartChurchPage. Site palette (cream paper, warm ink, marker highlight) from
+ * public-pages.css / auth-page-site.css; the accent is the gradient only.
+ */
+
+.cs-a {
+  --cs-ink: #1a1916;
+  --cs-ink-soft: #5d5a52;
+  --cs-paper: #f6f4ee;
+  --cs-card: #fffefb;
+  --cs-rule: rgba(26, 25, 22, 0.1);
+  --cs-highlight: #ffe8a8;
+  --cs-accent: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
+  min-height: 100dvh;
+  font-family: var(--pds-font-body, "Google Sans Flex", system-ui, sans-serif);
+  color: var(--cs-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.cs-loading {
+  min-height: 100dvh;
+}
+
+/* ─── Shared pieces ─────────────────────────────────────────────────────── */
+
+.cs-eyebrow {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cs-ink-soft);
+}
+
+.cs-headline {
+  margin: 0;
+  font-family: "Google Sans Flex", "Google Sans", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(2.1rem, 1.4rem + 2.4vw, 3.4rem);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+/* The sign-in page's marker swipe. */
+.cs-mark {
+  background: linear-gradient(180deg, transparent 56%, var(--cs-highlight) 56%);
+  padding: 0 0.06em;
+  border-radius: 2px;
+}
+
+.cs-pitch {
+  margin: 16px 0 0;
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: var(--cs-ink-soft);
+  text-wrap: pretty;
+}
+
+.cs-step-title {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--cs-ink);
+}
+
+.cs-step-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--cs-ink-soft);
+}
+
+.cs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 28px;
+}
+
+.cs-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--cs-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 12px 26px -12px rgba(0, 110, 255, 0.65);
+  cursor: pointer;
+  transition: transform 0.12s, filter 0.12s;
+}
+
+.cs-primary:hover {
+  filter: brightness(1.06);
+}
+
+.cs-primary:active {
+  transform: scale(0.98);
+}
+
+.cs-quiet {
+  padding: 8px 6px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--cs-ink-soft);
+  cursor: pointer;
+}
+
+.cs-quiet:hover {
+  color: var(--cs-ink);
+}
+
+.cs-primary:focus-visible,
+.cs-quiet:focus-visible,
+.cs-a a:focus-visible {
+  outline: 2px solid #2f7cf6;
+  outline-offset: 3px;
+}
+
+/* ─── a — Letter ────────────────────────────────────────────────────────── */
+
+.cs-a {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px 48px;
+  background: var(--cs-paper);
+  overflow: hidden;
+}
+
+.cs-a__sky {
+  position: absolute;
+  inset: 0 0 auto;
+  height: min(58vh, 520px);
+  background: linear-gradient(160deg, #cfe6ff, #f7e6cf);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.85;
+  transition: opacity 0.6s;
+}
+
+.cs-a__sky::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 140px;
+  background: linear-gradient(to bottom, transparent, var(--cs-paper));
+}
+
+.cs-a__sky--ready {
+  opacity: 1;
+}
+
+.cs-a__logo {
+  position: relative;
+  z-index: 1;
+  margin: clamp(36px, 8vh, 72px) 0 clamp(28px, 6vh, 48px);
+  line-height: 0;
+}
+
+.cs-a__logo img {
+  border-radius: 22%;
+  box-shadow: 0 10px 30px -12px rgba(20, 18, 12, 0.45);
+}
+
+.cs-a__stack {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 520px;
+  padding: 10px 16px;
+}
+
+.cs-a__leaf {
+  position: absolute;
+  inset: 10px 16px;
+  background: #fcfbf7;
+  border: 0.5px solid var(--cs-rule);
+  box-shadow: 0 8px 24px -12px rgba(20, 18, 12, 0.1);
+}
+
+.cs-a__leaf--back {
+  transform: rotate(2.4deg) translate(5px, -4px);
+}
+
+.cs-a__leaf--mid {
+  transform: rotate(-2.6deg) translate(-5px, 4px);
+}
+
+.cs-a__letter {
+  position: relative;
+  padding: 40px 34px 32px;
+  background-color: var(--cs-card);
+  background-image:
+    radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
+    radial-gradient(rgba(20, 18, 12, 0.018) 1px, transparent 1px);
+  background-size: 28px 28px, 17px 17px;
+  background-position: 0 0, 9px 9px;
+  border: 0.5px solid var(--cs-rule);
+  box-shadow: 0 2px 6px rgba(20, 18, 12, 0.04), 0 24px 60px -24px rgba(20, 18, 12, 0.22);
+}
+
+.cs-a__steps {
+  list-style: none;
+  margin: 26px 0 0;
+  padding: 18px 0 0;
+  border-top: 0.5px dashed rgba(26, 25, 22, 0.22);
+  display: grid;
+  gap: 14px;
+}
+
+.cs-a__steps li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.cs-a__num {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font-family: "Google Sans Flex", system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  /* Neutral, like the app's tiles — the warm beige was the old Harvous. */
+  background: rgba(20, 20, 24, 0.06);
+}
+
+.cs-a__foot {
+  position: relative;
+  z-index: 1;
+  margin: 28px 0 0;
+  font-size: 0.9375rem;
+  color: var(--cs-ink-soft);
+}
+
+.cs-a__foot a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* A legacy global `button { color: … !important }` (and a heading colour) would otherwise grey
+   the white-on-gradient label and the headline. Pinned here, for this page only. */
+.cs-a .cs-headline {
+  color: var(--cs-ink) !important;
+}
+.cs-primary {
+  color: #fff !important;
+}
+.cs-quiet {
+  color: var(--cs-ink-soft) !important;
+}
+.cs-quiet:hover {
+  color: var(--cs-ink) !important;
+}
+
+@media (max-width: 640px) {
+  .cs-a__letter {
+    padding: 32px 22px 26px;
+  }
+}
