@@ -12,6 +12,7 @@ import ProtoReadOnlyNotePaper from '../prototype/ProtoReadOnlyNotePaper';
 import { PublicTopBar, PublicErrorState, PublicSharedCtaBar, PublicSharedFooter } from './public-shared';
 import '../../styles/prototype-editor.css';
 import '../../styles/public-shared-paper.css';
+import { SharedOpening, SharedSky } from './shared-opening';
 import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 
 interface SharedNoteResponse {
@@ -139,9 +140,6 @@ export default function PublicSharedNotePage() {
     ? (() => { const d = new Date(note.createdAt); return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`; })()
     : '';
 
-  const byline = creator?.isHarvousOwned
-    ? 'A note from Harvous'
-    : `A note from ${creator?.displayName || 'a Harvous reader'}`;
   const resourceUrl = resourceMetadata?.sourceUrl;
 
   /*
@@ -150,9 +148,23 @@ export default function PublicSharedNotePage() {
    * It used to be the whole editor component (read-only) inside a tilted card that was itself
    * the only scroller, with the button floating over the bottom of it: on a phone the note
    * got a small window between two margins and a gradient, and the last lines sat under the
-   * button. Now the paper runs the width of the phone, the body reads like it does in the app,
-   * and "Add to my Harvous" lives in a bar of its own under the page.
+   * button. Now the paper runs the width of the phone and the body reads like it does in the app.
+   * "Add to my Harvous" floats at the bottom of the window while you read and comes to rest
+   * across the paper's last edge (it lives inside the page for that, after the paper).
    */
+  const ctaBar = note && !error ? (
+    <PublicSharedCtaBar
+      toast={{ message: toastMessage, type: toastType, visible: toastVisible }}
+      alreadyOwned={alreadyOwned}
+      pending={addSharedNoteMutation.isPending}
+      onAdd={handleAddToHarvous}
+      onView={() => {
+        void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        navigate({ to: prototypeHomeRouteTo() });
+      }}
+    />
+  ) : null;
+
   return (
     <>
       {note && <title>{`${note.title || 'Shared Note'} | Harvous`}</title>}
@@ -162,6 +174,7 @@ export default function PublicSharedNotePage() {
         <PublicTopBar isSignedIn={!!isSignedIn} />
 
         <div className="public-body">
+          <SharedSky />
           {isLoading ? (
             <div className="public-content">
               <div className="page-loading" />
@@ -176,10 +189,11 @@ export default function PublicSharedNotePage() {
           ) : (
             <SubtleContentMount variant="fade">
               <div className="public-shared">
-                <p className="public-creator public-shared__byline">
-                  {byline}
-                  {formattedDate ? <span className="public-shared__date"> · {formattedDate}</span> : null}
-                </p>
+                <SharedOpening
+                  name={creator?.isHarvousOwned ? 'Harvous' : creator?.displayName || 'A Harvous reader'}
+                  kind="note"
+                  date={formattedDate}
+                />
 
                 {/* `.public-paper-stack` is what the OG screenshotter waits for. The leaves
                     only show on wide screens; on a phone the paper is the page. */}
@@ -216,24 +230,14 @@ export default function PublicSharedNotePage() {
                   </div>
                 </div>
 
+                {/* The add floats over the reading and comes to rest on the paper's last edge. */}
+                {ctaBar}
+
                 <PublicSharedFooter />
               </div>
             </SubtleContentMount>
           )}
         </div>
-
-        {note && !error ? (
-          <PublicSharedCtaBar
-            toast={{ message: toastMessage, type: toastType, visible: toastVisible }}
-            alreadyOwned={alreadyOwned}
-            pending={addSharedNoteMutation.isPending}
-            onAdd={handleAddToHarvous}
-            onView={() => {
-              void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-              navigate({ to: prototypeHomeRouteTo() });
-            }}
-          />
-        ) : null}
       </div>
     </>
   );

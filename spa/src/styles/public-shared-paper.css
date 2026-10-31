@@ -4,11 +4,13 @@
  * Loaded with their lazy routes. Tokens (`--site-*` and the light-only `--pds-*` remap)
  * come from public-pages.css, which is global.
  *
- * The shape: the page scrolls, the paper is the page on a phone (a 12px gutter, nothing
- * else), the "Add to my Harvous" bar is its own row under the scroller, and on a wide
- * screen the paper sits centred on its fanned leaves the way the note-card always did.
+ * The shape, after /churches/start's letter (Derek, Oct 30 2026): the sign-in sky across the
+ * top, who shared it as a sentence with their name marked, then a cream letter with a dot
+ * grain — on a phone the paper is the page (a 12px gutter), on a wide screen it sits on its
+ * fanned leaves. "Add to my Harvous" floats at the bottom of the window while you read and
+ * comes to rest across the paper's last edge. Neutral grays; the accent is the gradient only.
  * The body is the app's read-only paper (ProtoReadOnlyNotePaper), so pills, quotes and
- * highlights read exactly as they do in the app.
+ * highlights read exactly as they do in the app. A Thread's folder is public-shared-thread.css.
  */
 
 /* ─── Page ──────────────────────────────────────────────────────────────── */
@@ -25,6 +27,53 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.public-page--shared {
+  --sh-ink: #1a1916;
+  --sh-ink-soft: #5d5a52;
+  --sh-paper: #f6f4ee;
+  --sh-card: #fffefb;
+  --sh-rule: rgba(26, 25, 22, 0.1);
+  --sh-highlight: #ffe8a8;
+  position: relative;
+  background: var(--sh-paper);
+}
+
+/* Anything you can press says so. */
+.public-page--shared :is(a[href], button:not(:disabled), [role="button"]),
+.public-page--shared :is(a[href], button:not(:disabled), [role="button"]) * {
+  cursor: pointer;
+}
+
+/* The top pill floats over the page the way the add floats at the bottom: the scroller runs
+   the full height of the window and the page scrolls under the pill, instead of being cut off
+   at the edge of a toolbar row. Only the pill takes clicks; the strip around it lets them
+   through. */
+.public-page--shared .public-toolbar {
+  position: absolute;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.public-page--shared .public-toolbar__pill {
+  pointer-events: auto;
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+}
+
+.public-page--shared .public-body {
+  padding-top: 76px;
+}
+
+/* Everything sits over the sky, so the body and its hosts are see-through. */
+
+.public-page--shared .public-body,
+.public-page--shared .public-shared,
+.public-page--shared .public-shared-host {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
 .public-shared {
   width: 100%;
   max-width: 720px;
@@ -33,13 +82,63 @@
   box-sizing: border-box;
 }
 
-.public-shared__byline {
-  margin: 2px 0 8px;
+/* ─── The sky ───────────────────────────────────────────────────────────── */
+.public-shared__sky {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 0;
+  height: min(60vh, 540px);
+  background: linear-gradient(160deg, #cfe6ff, #f7e6cf);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.85;
+  transition: opacity 0.6s;
+  pointer-events: none;
+}
+
+.public-shared__sky::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 160px;
+  background: linear-gradient(to bottom, transparent, var(--sh-paper));
+}
+
+.public-shared__sky--ready {
+  opacity: 1;
+}
+
+/* ─── The opening: who shared it ────────────────────────────────────────── */
+.public-shared__opening {
+  margin: 12px auto 26px;
   text-align: center;
 }
 
-.public-shared__date {
-  letter-spacing: 0.06em;
+.public-shared__eyebrow {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
+}
+
+.public-shared__opening-line {
+  margin: 0;
+  font-family: "Google Sans Flex", "Google Sans", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(1.35rem, 1.1rem + 1vw, 1.85rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--sh-ink) !important;
+  text-wrap: balance;
+}
+
+/* The sign-in page's marker swipe. */
+.public-shared__mark {
+  padding: 0 0.06em;
+  border-radius: 2px;
+  background: linear-gradient(180deg, transparent 56%, var(--sh-highlight) 56%);
 }
 
 /* ─── The paper ─────────────────────────────────────────────────────────── */
@@ -55,11 +154,19 @@
   display: none;
 }
 
+/* The letter: cream with a dot grain, blank paper under the last line for the add to rest on. */
 .public-shared__sheet {
   position: relative;
   z-index: 2;
   overflow: hidden;
-  background: var(--site-card);
+  padding-bottom: 34px;
+  background-color: var(--sh-card);
+  background-image:
+    radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
+    radial-gradient(rgba(20, 18, 12, 0.018) 1px, transparent 1px);
+  background-size: 28px 28px, 17px 17px;
+  background-position: 0 0, 9px 9px;
+  border: 0.5px solid var(--sh-rule);
   box-shadow:
     0 1px 2px rgba(20, 18, 12, 0.05),
     0 12px 32px -18px rgba(20, 18, 12, 0.18);
@@ -74,6 +181,17 @@
   background: transparent;
   box-shadow: none;
   border: 0;
+}
+
+/* The paper component brings its own white; on the letter, the letter is the paper. */
+.public-page--shared :is(.public-shared__sheet, .public-thread-reader) :is(.proto-note-readonly__paper, .proto-editor-paper) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Neutral headings — the warm brown was the old Harvous. */
+.public-page--shared :is(.public-shared__sheet, .public-thread-reader) :is(h1, h2, h3, h4) {
+  color: var(--sh-ink) !important;
 }
 
 .public-shared__paper .proto-note-readonly__paper.proto-editor-paper {
@@ -140,7 +258,7 @@
 }
 
 .public-shared__footer {
-  margin-top: 18px;
+  margin: 26px 0 48px;
 }
 
 /* ─── Wide screens: the letter on its leaves ────────────────────────────── */
@@ -155,6 +273,7 @@
 
   .public-shared__stack .public-paper-stack__leaf {
     display: block;
+    background: #fcfbf7;
   }
 
   .public-shared__sheet {
@@ -182,22 +301,27 @@
   }
 }
 
-/* ─── The bar under the page ────────────────────────────────────────────── */
+/* ─── Add to my Harvous ─────────────────────────────────────────────────── */
+/* Inside the page, after the paper: .public-body is the scroller (the app locks the document),
+   so it sticks to the bottom of the window while you read, then rests across the last edge. */
 .public-shared__cta-bar {
-  flex: none;
-  position: relative;
+  position: sticky;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
   z-index: 20;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
-  background: color-mix(in srgb, var(--site-paper) 86%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(1.1);
-  backdrop-filter: blur(16px) saturate(1.1);
-  box-shadow: 0 -0.5px 0 var(--site-rule);
+  width: min(300px, 100%);
+  margin: -32px auto 0;
 }
 
 .public-shared__cta-inner {
   position: relative;
-  max-width: 440px;
-  margin: 0 auto;
+}
+
+.public-shared__cta-inner .public-cta-btn {
+  height: 46px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 14px 30px -12px rgba(0, 110, 255, 0.6),
+    0 4px 10px -4px rgba(20, 30, 60, 0.25);
 }
 
 /* The add's status floats just above the button instead of pushing it. */
@@ -212,67 +336,4 @@
 /* The OG screenshot is a preview of the note, not of a button bar. */
 .public-page--og-capture .public-shared__cta-bar {
   display: none;
-}
-
-/* ─── Thread: header and the trail inside the same paper ────────────────── */
-.public-shared__sheet--thread {
-  padding: 22px 18px 8px;
-}
-
-.public-shared__sheet--thread .public-card__color-stripe {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-}
-
-.public-shared__sheet--thread .public-thread-trail {
-  padding: 10px 0 0;
-}
-
-.public-thread-trail__toggle {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  text-align: left;
-  color: inherit;
-  cursor: pointer;
-}
-
-.public-thread-trail__toggle:focus-visible {
-  outline: 2px solid var(--site-accent);
-  outline-offset: 4px;
-  border-radius: 6px;
-}
-
-.public-thread-trail__toggle .public-thread-trail__preview {
-  margin-top: 4px;
-}
-
-.public-thread-trail__more {
-  margin-top: 6px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--site-accent);
-}
-
-/* The opened note, on the trail, at a reading size. */
-.public-thread-trail__note {
-  margin-top: 10px;
-}
-
-.public-thread-trail__note .proto-note-readonly .card-full-editable__content-html {
-  font-size: 15px;
-}
-
-@media (min-width: 700px) {
-  .public-shared__sheet--thread {
-    padding: 32px 40px 16px;
-  }
 }
