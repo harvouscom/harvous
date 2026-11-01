@@ -178,6 +178,53 @@ export function buildNoteUpdatedItems(
   return items;
 }
 
+/**
+ * Every writing session per note, as a time span — the first one included.
+ *
+ * `buildNoteUpdatedItems` drops the burst that is the note being written, because the note is
+ * already on the page as "Written". Revisit suppression needs that burst back: deriving spans
+ * from the update items alone left a brand-new note with no writing session at all, so the
+ * hour spent typing it during a sermon came back a second time as "Returned to …".
+ *
+ * The creation moment opens the first span even when it has no version row of its own, so a
+ * note written in one save still has a session to overlap.
+ */
+export function buildNoteWritingSpans(
+  rows: NoteVersionRowForFeed[],
+  noteCreatedAt: Map<string, string>,
+): NoteUpdateSpan[] {
+  const byNote = new Map<string, number[]>();
+  for (const row of rows) {
+    const at = toISO(row.createdAt);
+    if (!row.noteId || !at) continue;
+    const list = byNote.get(row.noteId);
+    if (list) list.push(bucketStamp(at));
+    else byNote.set(row.noteId, [bucketStamp(at)]);
+  }
+  for (const [noteId, created] of noteCreatedAt) {
+    const list = byNote.get(noteId);
+    if (list) list.push(bucketStamp(created));
+    else byNote.set(noteId, [bucketStamp(created)]);
+  }
+
+  const spans: NoteUpdateSpan[] = [];
+  for (const [noteId, stamps] of byNote) {
+    stamps.sort((a, b) => b - a);
+    let endMs = stamps[0];
+    let startMs = stamps[0];
+    for (const stamp of stamps.slice(1)) {
+      if (startMs - stamp <= NOTE_SAVE_BURST_GAP_MS) startMs = stamp;
+      else {
+        spans.push({ noteId, startMs, endMs });
+        endMs = stamp;
+        startMs = stamp;
+      }
+    }
+    spans.push({ noteId, startMs, endMs });
+  }
+  return spans;
+}
+
 export interface HighlightRowForFeed {
   id: string;
   parentNoteId: string | null;
@@ -361,7 +408,14 @@ export interface NoteUpdateSpan {
  * Two further suppressions stop the feed saying one thing twice. Glances never count, a bar
  * every other aggregate honours. And a visit overlapping a writing session is dropped: the
  * note is already there as "you wrote in this", and "you also read it" adds only a line.
+ *
+ * "Overlapping" reaches `REVISIT_AFTER_WRITING_MS` past the last save. A visit is stamped once,
+ * when the note is left, and that is nearly always after the final autosave — the sermon ends,
+ * the note stays open while you gather your things. Comparing the bare stamp against the save
+ * span made suppression depend on whether you lingered.
  */
+export const REVISIT_AFTER_WRITING_MS = EVENT_SESSION_GAP_MS;
+
 export function buildRevisitItems(
   rows: VisitRowForFeed[],
   updateSpans: NoteUpdateSpan[],
@@ -395,7 +449,7 @@ export function buildRevisitItems(
       const endMs = bucketStamp(at);
 
       const overlapsWriting = spans.some(
-        (span) => startMs <= span.endMs && endMs >= span.startMs,
+        (span) => startMs <= span.endMs + REVISIT_AFTER_WRITING_MS && endMs >= span.startMs,
       );
       if (overlapsWriting) {
         bucket = [];

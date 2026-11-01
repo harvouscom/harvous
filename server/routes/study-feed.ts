@@ -69,10 +69,10 @@ import {
   buildHighlightItems,
   buildNoteCreatedItems,
   buildNoteUpdatedItems,
+  buildNoteWritingSpans,
   buildReadingItems,
   buildRevisitItems,
   studyFeedSnippet,
-  type NoteUpdateSpan,
 } from '../utils/study-feed-collapse';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
 import { REVIEW_OUTCOMES } from '@/utils/review-item-kinds';
@@ -446,12 +446,10 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
     const highlightItems = buildHighlightItems(highlightRows, noteTitles);
     const readingItems = buildReadingItems(readingRows);
 
-    const updateSpans: NoteUpdateSpan[] = updatedItems.map((item) => ({
-      noteId: item.noteId,
-      startMs: new Date(item.startAt ?? item.at).getTime(),
-      endMs: new Date(item.at).getTime(),
-    }));
-    const revisitItems = buildRevisitItems(visitRows, updateSpans);
+    const revisitItems = buildRevisitItems(
+      visitRows,
+      buildNoteWritingSpans(versionRows, noteCreatedAt),
+    );
 
     let items: StudyFeedItem[] = [
       ...createdItems,
