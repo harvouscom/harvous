@@ -59,6 +59,9 @@ import {
   getReadingPrefsSnapshot,
   subscribeReadingPrefs,
 } from '../../lib/proto-reading-prefs';
+import { useRedLetter } from '../../hooks/useRedLetter';
+import type { RedLetterKit } from '@/data/red-letter';
+import type { RedRange } from '@/utils/red-letter';
 import { FONT_STACKS, type FontChoice } from '../../lib/proto-font-prefs';
 import { createPortal } from 'react-dom';
 import {
@@ -383,6 +386,7 @@ function buildVerseHtml(
   verses: readonly { number: number; text: string }[],
   providers: ReferenceProvider[] | null,
   paints?: ReadonlyMap<number, PassageHighlightPaint[]>,
+  red?: { ranges: ReadonlyMap<number, readonly RedRange[]>; decorate: RedLetterKit['decorate'] } | null,
 ): Map<number, { __html: string }> {
   const map = new Map<number, { __html: string }>();
   for (const verse of verses) {
@@ -396,11 +400,18 @@ function buildVerseHtml(
      * rather than a suggestion decorator having to reason about marks that already exist.
      */
     const versePaints = paints?.get(verse.number);
+    const painted =
+      versePaints && versePaints.length > 0
+        ? decoratePassageHtmlWithSavedHighlights(decorated, [...versePaints])
+        : decorated;
+    /*
+     * Red letter goes on last. It wraps text nodes and nothing before it adds text, so its
+     * offsets into `verse.text` still hold — and neither of the decorators above has to know
+     * its spans exist.
+     */
+    const redRanges = red?.ranges.get(verse.number);
     map.set(verse.number, {
-      __html:
-        versePaints && versePaints.length > 0
-          ? decoratePassageHtmlWithSavedHighlights(decorated, [...versePaints])
-          : decorated,
+      __html: red && redRanges ? red.decorate(painted, redRanges) : painted,
     });
   }
   return map;
@@ -683,7 +694,7 @@ export default function PrototypeBibleReaderPane({
   const catholic = useIsCatholic();
   const printedLabels = usePrintedVerseLabels(book, chapter, translation);
   const comparePrintedLabels = usePrintedVerseLabels(book, chapter, compare?.translation);
-  const { verseLayout, showMarginNotes } = useSyncExternalStore(
+  const { verseLayout, showMarginNotes, showRedLetter } = useSyncExternalStore(
     subscribeReadingPrefs,
     getReadingPrefsSnapshot,
     getReadingPrefsServerSnapshot,
@@ -850,11 +861,38 @@ export default function PrototypeBibleReaderPane({
     [compare?.versePaints],
   );
 
+  /*
+   * The words of Jesus, per column. Computed on whatever text the column already has — network or
+   * offline pack alike — because the marking lives in a client-side dataset, not the chapter
+   * response. Null while red letter is off or its data is still loading.
+   */
+  const redLetter = useRedLetter(showRedLetter);
+  const verseRed = useMemo(
+    () =>
+      redLetter && data
+        ? {
+            ranges: redLetter.ranges(data.book, data.chapter, data.translation, verses),
+            decorate: redLetter.decorate,
+          }
+        : null,
+    [redLetter, data, verses],
+  );
+  const compareRed = useMemo(
+    () =>
+      redLetter && data && compare?.verses
+        ? {
+            ranges: redLetter.ranges(data.book, data.chapter, compare.translation, compare.verses),
+            decorate: redLetter.decorate,
+          }
+        : null,
+    [redLetter, data, compare?.translation, compare?.verses],
+  );
+
   const verseHtml = useMemo(
-    () => buildVerseHtml(verses, eastonsIndex ? referenceProviders : null, versePaints),
+    () => buildVerseHtml(verses, eastonsIndex ? referenceProviders : null, versePaints, verseRed),
     // versePaintSignature stands in for versePaints — see its own comment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [verses, eastonsIndex, referenceProviders, versePaintSignature],
+    [verses, eastonsIndex, referenceProviders, versePaintSignature, verseRed],
   );
 
   /*
@@ -872,10 +910,11 @@ export default function PrototypeBibleReaderPane({
         compare?.verses ?? EMPTY_VERSES,
         eastonsIndex ? referenceProviders : null,
         compare?.versePaints,
+        compareRed,
       ),
     // comparePaintSignature stands in for compare.versePaints — see `versePaintsSignature`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [compare?.verses, eastonsIndex, referenceProviders, comparePaintSignature],
+    [compare?.verses, eastonsIndex, referenceProviders, comparePaintSignature, compareRed],
   );
 
   /**

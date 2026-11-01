@@ -103,6 +103,33 @@ Not all translations have the same verse count. This is expected:
 - **NABRE, DRB** (~35,400–35,700 verses with the deuterocanon): renumbered to English (see above); the gaps are verses their editions print joined
 - **RSV-2CE, NRSV-CE** (~35,400 verses with the deuterocanon): English numbering; the gaps are the usual omitted NT verses, the Vulgate-only verses in Tobit, Judith and Sirach, and the Esther verses above
 
+### Red letter (words of Jesus)
+
+None of these files mark the words of Jesus. Bolls serves no such tags, and the importers strip markup anyway. The reader's "Words of Jesus" setting colours them from a separate dataset in `src/data/red-letter/`, built by:
+
+```
+npx tsx server/data/bibles/_build_red_letter.ts
+```
+
+The script downloads two public-domain USFM texts from eBible.org that do mark His words with `\wj`:
+
+- **World English Bible (`engwebp`).** Each verse becomes a pattern saying which of its quotations, in order, are His.
+- **KJV (`eng-kjv2006`).** This is aligned word by word onto `KJV.json` and stored as exact character ranges.
+
+Every translation with quotation marks is coloured by counting its quotations against the WEB pattern; the code is `src/utils/red-letter.ts`, and the reader runs the same code. Where a translation's quotations don't line up with WEB's, the verse stays black. That covers dialogue that's split differently, and speech printed without quotation marks, such as some of CSB's and MSG's.
+
+Some deliberate gaps:
+
+- **NET** closes Jesus' speech at John 3:15, so 3:16–21 stays black in NET, following its translators.
+- **DRB** has no `\wj` source (`engDRA` carries none), so it is coloured only where WEB has the whole verse in His voice.
+
+The script prints coverage per translation:
+
+- `black`: verses of His left uncoloured.
+- `off`: coloured verses whose red share is far from the KJV marking. This is the signature of a misread quote mark.
+
+The full list goes to `raw/red-letter-report.txt`. Hand corrections go in `src/data/red-letter/overrides.json`, keyed `TRANSLATION|Book c:v`. Re-run the script after re-importing any translation.
+
 ## After generating or updating a `.json` file
 
 1. Run the seed against the target database:

@@ -47,6 +47,12 @@ export interface ReadingPrefs {
    * written about should say so — but a reader who wants only Scripture can put them away.
    */
   showMarginNotes: boolean;
+  /**
+   * The words of Jesus in red. Off by default: it is a print convention some readers grew up
+   * with and others find loud, and the marking is ours (derived from the WEB — see
+   * src/utils/red-letter.ts), not the translation publisher's.
+   */
+  showRedLetter: boolean;
 }
 
 const STORAGE_KEY = 'harvous-proto-reading-prefs';
@@ -80,6 +86,7 @@ export const DEFAULT_READING_PREFS: ReadingPrefs = {
   showVerseNumbers: true,
   verseLayout: 'prose',
   showMarginNotes: true,
+  showRedLetter: false,
 };
 
 function isTextSize(value: unknown): value is ReaderTextSize {
@@ -119,6 +126,10 @@ export function readReadingPrefs(): ReadingPrefs {
         typeof parsed?.showMarginNotes === 'boolean'
           ? parsed.showMarginNotes
           : DEFAULT_READING_PREFS.showMarginNotes,
+      showRedLetter:
+        typeof parsed?.showRedLetter === 'boolean'
+          ? parsed.showRedLetter
+          : DEFAULT_READING_PREFS.showRedLetter,
     };
   } catch {
     return DEFAULT_READING_PREFS;
