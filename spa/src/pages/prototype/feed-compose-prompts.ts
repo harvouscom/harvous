@@ -8,9 +8,10 @@
  *
  * Order is priority, and the first line is the one the prompt rests on after its pass, so the
  * most specific thing that is true today goes first. The day line leads because it is the most
- * time-bound ("what did Sunday leave you with?" is only a good question for a day or two); then
- * the reader's own study; then the day's shared passage; then the hour; then plain invitations
- * so there is always something to rotate to.
+ * time-bound ("what did Sunday leave you with?" is only a good question for a day or two), and
+ * it follows the service they chose, when they chose one; then the reader's own study; then the
+ * day's shared passage; then the hour; then plain invitations so there is always something to
+ * rotate to.
  *
  * Pure and deterministic given `now`, so every rule is a test rather than a guess. Adding a
  * signal is adding a rule here; nothing in the component needs to change.
@@ -41,14 +42,41 @@ export interface FeedComposeContext {
   trendLabel?: string | null;
   /** The Thread you are building most, from the greeting's lead. */
   leadThreadTitle?: string | null;
+  /**
+   * The service they told us they attend (Settings → Church, or Home's "Is this your service?").
+   * When set, the church lines follow it instead of assuming a Sunday-morning service: a Saturday
+   * vigil, a Sunday 6pm, a Wednesday night. Read on the viewer's clock, which is the church's for
+   * anyone who actually goes.
+   */
+  service?: { dayOfWeek: number; startTime: string } | null;
 }
 
 function fits(line: string): boolean {
   return line.length <= FEED_COMPOSE_MAX_CHARS;
 }
 
-/** The line that belongs to this day of the week, if one does. */
-function dayLine(now: Date): string | null {
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/**
+ * Notes are "from the sermon" from a little before it starts (people open the app in the pew)
+ * until a few hours after; past that it is a reflection. The 30 matches the push's quiet window
+ * in church-publish-push.ts.
+ */
+const SERMON_NOTES_BEFORE_MIN = 30;
+const SERMON_NOTES_AFTER_MIN = 4 * 60;
+
+function toMinutes(hhmm: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/** Whole days from `from` forward to `to`, both weekdays: Sat→Sun is 1, Sun→Sat is 6. */
+function daysAfter(from: number, to: number): number {
+  return (to - from + 7) % 7;
+}
+
+/** The church lines for someone with no service chosen: a Sunday-morning church. */
+function sundayLine(now: Date): string | null {
   const day = now.getDay();
   const hour = now.getHours();
   if (day === 0) {
@@ -58,6 +86,36 @@ function dayLine(now: Date): string | null {
   if (day === 1 || day === 2) return 'What did Sunday leave you with?';
   if (day === 6) return 'Preparing your heart for Sunday?';
   return null;
+}
+
+/** The same three moments — before, the day of, the days after — around their own service. */
+function serviceLine(now: Date, service: { dayOfWeek: number; startTime: string }): string | null {
+  const start = toMinutes(service.startTime);
+  const name = WEEKDAY_NAMES[service.dayOfWeek];
+  if (start === null || !name) return sundayLine(now);
+
+  const since = daysAfter(service.dayOfWeek, now.getDay());
+  if (since === 0) {
+    const minute = now.getHours() * 60 + now.getMinutes();
+    // Earlier on the day of a later service, the sermon has not happened yet.
+    if (minute < start - SERMON_NOTES_BEFORE_MIN) return 'Preparing your heart for church?';
+    if (minute <= start + SERMON_NOTES_AFTER_MIN) {
+      const when = start < 12 * 60 ? 'this morning’s' : start < 17 * 60 ? 'today’s' : 'tonight’s';
+      return `Notes from ${when} sermon?`;
+    }
+    return 'What stayed with you from church?';
+  }
+  if (since === 1 || since === 2) return `What did ${name} leave you with?`;
+  if (since === 6) {
+    const line = `Preparing your heart for ${name}?`;
+    return fits(line) ? line : 'Preparing your heart for tomorrow?';
+  }
+  return null;
+}
+
+/** The line that belongs to this day of the week, if one does. */
+function dayLine(now: Date, service: FeedComposeContext['service']): string | null {
+  return service ? serviceLine(now, service) : sundayLine(now);
 }
 
 /** The line that belongs to this hour, if one does. The afternoon is left to the others. */
@@ -82,7 +140,7 @@ export function buildFeedComposePrompts(ctx: FeedComposeContext): string[] {
   // Someone who has never written: say so plainly before anything clever.
   if (ctx.noteCount === 0) candidates.push('Write your first note');
 
-  candidates.push(dayLine(ctx.now));
+  candidates.push(dayLine(ctx.now, ctx.service));
 
   if (ctx.continueReading) {
     candidates.push(`Still in ${ctx.continueReading.book} ${ctx.continueReading.chapter}?`);
