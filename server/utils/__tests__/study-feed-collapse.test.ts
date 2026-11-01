@@ -3,6 +3,7 @@ import {
   buildHighlightItems,
   buildNoteCreatedItems,
   buildNoteUpdatedItems,
+  buildNoteWritingSpans,
   buildReadingItems,
   buildRevisitItems,
   studyFeedSnippet,
@@ -272,5 +273,58 @@ describe('buildRevisitItems', () => {
       { noteId: 'n1', startMs: Date.parse(ts(9)), endMs: Date.parse(ts(10)) },
     ]);
     expect(items).toHaveLength(1);
+  });
+  it('drops a visit stamped when the note is left, just after the last save', () => {
+    const items = buildRevisitItems([visit(ts(10, 20))], [
+      { noteId: 'n1', startMs: Date.parse(ts(9)), endMs: Date.parse(ts(10)) },
+    ]);
+    expect(items).toEqual([]);
+  });
+
+  it('drops the visit from writing a brand-new note — no separate return', () => {
+    // A sermon note: created 11:38, autosaved through 11:55, left open until 11:57.
+    const spans = buildNoteWritingSpans(
+      [
+        { noteId: 'n1', createdAt: ts(11, 55), title: 'Presence', content: '' },
+        { noteId: 'n1', createdAt: ts(11, 40), title: 'Presence', content: '' },
+      ],
+      new Map([['n1', ts(11, 38)]]),
+    );
+    expect(buildRevisitItems([visit(ts(11, 57))], spans)).toEqual([]);
+  });
+});
+
+describe('buildNoteWritingSpans', () => {
+  it('opens the first span at creation, the burst updates leave out', () => {
+    const spans = buildNoteWritingSpans(
+      [
+        { noteId: 'n1', createdAt: ts(9, 30), title: null, content: null },
+        { noteId: 'n1', createdAt: ts(9, 5), title: null, content: null },
+      ],
+      new Map([['n1', ts(9)]]),
+    );
+    expect(spans).toEqual([
+      { noteId: 'n1', startMs: Date.parse(ts(9)), endMs: Date.parse(ts(9, 30)) },
+    ]);
+  });
+
+  it('gives a note created with no version rows a one-moment span', () => {
+    expect(buildNoteWritingSpans([], new Map([['n1', ts(9)]]))).toEqual([
+      { noteId: 'n1', startMs: Date.parse(ts(9)), endMs: Date.parse(ts(9)) },
+    ]);
+  });
+
+  it('splits sessions separated by more than the burst gap', () => {
+    const spans = buildNoteWritingSpans(
+      [
+        { noteId: 'n1', createdAt: ts(20), title: null, content: null },
+        { noteId: 'n1', createdAt: ts(9), title: null, content: null },
+      ],
+      new Map(),
+    );
+    expect(spans).toEqual([
+      { noteId: 'n1', startMs: Date.parse(ts(20)), endMs: Date.parse(ts(20)) },
+      { noteId: 'n1', startMs: Date.parse(ts(9)), endMs: Date.parse(ts(9)) },
+    ]);
   });
 });
