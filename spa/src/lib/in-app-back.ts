@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useRouterState } from '@tanstack/react-router';
 import { isPrototypeNotePath, isPrototypeReadPath } from '@/lib/prototype-path';
+
+declare module '@tanstack/history' {
+  interface HistoryState {
+    /** Set on entries the Activity / Note / Bible switch pushed. See `SHELL_SWITCH_STATE`. */
+    shellSwitch?: true;
+  }
+}
 
 /**
  * Going back, in an app that has no back button.
@@ -25,10 +33,26 @@ const STORE_KEY = 'harvous-in-app-history';
 
 type Entry = { index: number; path: string };
 
+/**
+ * History state for a navigation made by the Activity / Note / Bible switch.
+ *
+ * The three halves are where you are, not somewhere you went into, so an entry one of them
+ * pushed shows no chevron even when the page behind it was a note or a chapter: Bible then
+ * Home is a change of view, and a back arrow there read as "you are inside the reader".
+ * The entry is still a real push, so the browser's own back keeps working. Pass it as
+ * `navigate({ ..., state: SHELL_SWITCH_STATE })`.
+ */
+export const SHELL_SWITCH_STATE = { shellSwitch: true } as const;
+
 function entryIndex(): number {
   if (typeof window === 'undefined') return 0;
   const state = window.history.state as { __TSR_index?: number } | null;
   return typeof state?.__TSR_index === 'number' ? state.__TSR_index : 0;
+}
+
+function arrivedBySwitch(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (window.history.state as { shellSwitch?: boolean } | null)?.shellSwitch === true;
 }
 
 function readPaths(): Record<number, string> {
@@ -60,7 +84,7 @@ export function canGoBackInApp(): boolean {
 /** The previous in-app entry, when it was a note or a chapter other than this page. */
 export function previousDocumentEntry(currentPath: string): Entry | null {
   const index = entryIndex();
-  if (index <= 0) return null;
+  if (index <= 0 || arrivedBySwitch()) return null;
   const path = readPaths()[index - 1];
   if (!path || path === currentPath) return null;
   const pathname = path.split('?')[0] ?? path;
@@ -71,10 +95,12 @@ export function previousDocumentEntry(currentPath: string): Entry | null {
 /** Back chevron state for the toolbar: shown when there's a document to go back to. */
 export function useInAppBackTarget(currentPath: string): Entry | null {
   const [target, setTarget] = useState<Entry | null>(null);
+  /* The entry, not just the path: compose pushes `/` over `/`, a new entry with no new path. */
+  const index = useRouterState({ select: (s) => s.location.state.__TSR_index });
   useEffect(() => {
     recordInAppLocation(currentPath);
     setTarget(previousDocumentEntry(currentPath));
-  }, [currentPath]);
+  }, [currentPath, index]);
   return target;
 }
 
