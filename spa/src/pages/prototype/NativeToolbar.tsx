@@ -12,7 +12,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
-import { useInAppBackTarget } from '../../lib/in-app-back';
+import { SHELL_SWITCH_STATE, useInAppBackTarget } from '../../lib/in-app-back';
 import { toast } from '@/utils/toast';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import ShellModeSegmented from './ShellModeSegmented';
@@ -414,7 +414,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     beginPrototypeComposeSession({
       targetSpaceId: composeTargetIsChannel ? undefined : (visibleComposeTarget ?? undefined),
     });
-    navigate({ to: prototypeHomeRouteTo() });
+    navigate({ to: prototypeHomeRouteTo(), state: SHELL_SWITCH_STATE });
   };
 
   /*

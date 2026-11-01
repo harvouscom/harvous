@@ -1,14 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import {
+  SHELL_SWITCH_STATE,
   previousDocumentEntry,
   recordInAppLocation,
   useStandaloneEdgeSwipeBack,
 } from '../in-app-back';
 
 /** The installed iPhone app has no browser back; these pin the two ways back it now has. */
-function at(index: number) {
-  window.history.replaceState({ __TSR_index: index }, '');
+function at(index: number, state: object = {}) {
+  window.history.replaceState({ ...state, __TSR_index: index }, '');
 }
 
 function touch(type: string, x: number, y: number) {
@@ -46,6 +47,25 @@ describe('previousDocumentEntry', () => {
     at(1);
     recordInAppLocation('/fg5fOyI');
     expect(previousDocumentEntry('/fg5fOyI')).toBeNull();
+  });
+
+  it('is nothing when the Activity / Note / Bible switch made the move', () => {
+    at(0);
+    recordInAppLocation('/read/john/3');
+    at(1, SHELL_SWITCH_STATE);
+    recordInAppLocation('/');
+    expect(previousDocumentEntry('/')).toBeNull();
+    at(2, SHELL_SWITCH_STATE);
+    recordInAppLocation('/fixY3dC');
+    expect(previousDocumentEntry('/fixY3dC')).toBeNull();
+  });
+
+  it('still names the chapter when you drilled into a note from it', () => {
+    at(0, SHELL_SWITCH_STATE);
+    recordInAppLocation('/read/john/3');
+    at(1);
+    recordInAppLocation('/fixY3dC');
+    expect(previousDocumentEntry('/fixY3dC')?.path).toBe('/read/john/3');
   });
 });
 

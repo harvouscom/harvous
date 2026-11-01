@@ -28,6 +28,7 @@ import {
   prototypeReadRouteTo,
 } from '@/lib/prototype-path';
 import { bookSlug } from '@/utils/bible-book-chapters';
+import { SHELL_SWITCH_STATE } from '../lib/in-app-back';
 import { useProtoShell } from '../layouts/proto-shell-context';
 import { useSmartJumpDestination } from './useSmartJumpDestination';
 
@@ -106,7 +107,7 @@ export function useShellModeNav(): ShellModeNav {
   const openActivity = useCallback(() => {
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     if (composeDraftActive) clearComposeDraftActive();
-    void navigate({ to: prototypeHomeRouteTo() });
+    void navigate({ to: prototypeHomeRouteTo(), state: SHELL_SWITCH_STATE });
   }, [clearComposeDraftActive, closeDrawer, composeDraftActive, isMobileSidebar, navigate]);
 
   /* Resolved, not read off the current value: early in a session the reading position has not
@@ -127,6 +128,7 @@ export function useShellModeNav(): ShellModeNav {
           destination.source === 'continue'
             ? { at: destination.verse && destination.verse > 1 ? String(destination.verse) : undefined }
             : { v: destination.verse ? String(destination.verse) : undefined },
+        state: SHELL_SWITCH_STATE,
       }),
     );
   }, [closeDrawer, isMobileSidebar, navigate, resolveSmartJump]);
@@ -152,7 +154,7 @@ export function useShellModeNav(): ShellModeNav {
     (startNew: () => void) => {
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
       if (mode !== 'note' && lastNoteEditorPath) {
-        void navigate({ to: lastNoteEditorPath as '/prototype' });
+        void navigate({ to: lastNoteEditorPath as '/prototype', state: SHELL_SWITCH_STATE });
         return;
       }
       startNew();
@@ -168,7 +170,10 @@ export function useShellModeNav(): ShellModeNav {
    */
   const leaveReader = useCallback(() => {
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    void navigate({ to: (lastNotesPath ?? prototypeHomeRouteTo()) as '/prototype' });
+    void navigate({
+      to: (lastNotesPath ?? prototypeHomeRouteTo()) as '/prototype',
+      state: SHELL_SWITCH_STATE,
+    });
   }, [closeDrawer, isMobileSidebar, lastNotesPath, navigate]);
 
   return {
