@@ -229,6 +229,22 @@ jobs:
           # Keep the non-empty value in the TRUE position.
           command: deploy ${{ github.ref_name != 'main' && '--env staging' || '' }}
 
+      # Saved as soon as the deploy lands, NOT after the live-host check below. Once wrangler
+      # returns, browsers are loading this build's chunks, and the next deploy must keep them
+      # or every tab opened on it 404s its next lazy import. Gating the save on the check
+      # froze the archive for nine days (2026-10-23 → 11-01): the check was failing on a 403
+      # from the edge, not on a bad build, and each deploy in between deleted the one before
+      # it — tabs left open across a deploy sat on the loading dots until refreshed.
+      #
+      # The cost is that a build the check would reject (wrong Clerk key) is carried too. That
+      # only keeps its unreferenced chunks fetchable for tabs that already loaded it; main.tsx
+      # self-heals a wrong-key bundle on the client either way.
+      - name: Save the hashed-asset archive
+        uses: actions/cache/save@v4
+        with:
+          path: .asset-archive
+          key: spa-assets-${{ github.ref_name }}-${{ github.sha }}
+
       # Assert what the WORLD sees, not what the deploy claims. Nothing before this point
       # can catch a wrong-Clerk-key build reaching a real host: the key is inlined at build
       # time, so a mis-scoped secret or a hand-run `wrangler deploy` from a worktree with a
@@ -270,16 +286,32 @@ jobs:
           # looks equivalent and is not: grep exits at the first match, curl takes SIGPIPE,
           # and pipefail then reports a passing check as a failure — intermittently, since
           # it depends on whether curl finished writing first.
+          #
+          # A failed fetch leaves no served.html, and grep on a missing file exits 2 — which
+          # the step's `bash -e` turned into an instant failure on attempt 1, skipping every
+          # retry. So the grep is allowed to come up empty.
           SERVED=""
           for attempt in 1 2 3 4 5 6; do
+            rm -f served.html
             "${CURL[@]}" "https://$HOST/" -o served.html || true
-            SERVED=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' served.html | head -1)
+            SERVED=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' served.html 2>/dev/null | head -1 || true)
             [ "$SERVED" = "$EXPECTED_BUNDLE" ] && break
             echo "attempt $attempt: serving '${SERVED:-nothing}', want '$EXPECTED_BUNDLE'"
             sleep 10
           done
           if [ "$SERVED" != "$EXPECTED_BUNDLE" ]; then
-            echo "::error::$HOST never served $EXPECTED_BUNDLE from this deploy"; exit 1
+            # Say whether the edge refused us, so a block on the runner never reads as a bad
+            # deploy. Since 2026-10-29 Cloudflare answers this runner 403 while serving the
+            # build correctly to everyone else (cf-mitigated names the zone's security rule).
+            STATUS=$(curl -sS --max-time 30 -o /dev/null -D - ${IP:+--resolve "$HOST:443:$IP"} "https://$HOST/" 2>/dev/null \
+              | grep -iE '^(HTTP/|cf-mitigated|cf-ray)' | tr -d '\r' | paste -sd' ' - || true)
+            echo "last response: ${STATUS:-none}"
+            if printf '%s' "$STATUS" | grep -qE '^HTTP/[0-9.]+ 403'; then
+              echo "::error::$HOST refused this runner with 403 — a Cloudflare security rule (Bot Fight Mode / WAF), not this build. Check the live host by hand, then allow GitHub runners to this check."
+            else
+              echo "::error::$HOST never served $EXPECTED_BUNDLE from this deploy"
+            fi
+            exit 1
           fi
 
           # The asset itself is a distinct object from `/` with its own edge-propagation
@@ -329,11 +361,3 @@ jobs:
 
           rm -f served.html sw.js
           echo "$HOST serves $SERVED with a ${EXPECT} key, sw.js pinned to ${SHA8}"
-
-      # Saved only once the live host is verified, so a build that never really went live is
-      # not carried into the next deploy. Same path and key as the restore above.
-      - name: Save the hashed-asset archive
-        uses: actions/cache/save@v4
-        with:
-          path: .asset-archive
-          key: spa-assets-${{ github.ref_name }}-${{ github.sha }}
