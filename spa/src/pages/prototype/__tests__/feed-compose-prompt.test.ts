@@ -45,6 +45,72 @@ describe('the day of the week', () => {
   });
 });
 
+describe('their own service', () => {
+  const sundayEvening = { dayOfWeek: 0, startTime: '18:00' };
+  const saturdayVigil = { dayOfWeek: 6, startTime: '17:00' };
+  const wednesdayNight = { dayOfWeek: 3, startTime: '19:00' };
+
+  it('does not ask about this morning’s sermon before an evening service', () => {
+    const lines = buildFeedComposePrompts(base({ now: at(13, 10), service: sundayEvening }));
+    expect(lines).not.toContain('Notes from this morning’s sermon?');
+    expect(lines[0]).toBe('Preparing your heart for church?');
+  });
+
+  it('asks for notes from tonight’s sermon once the evening service is on', () => {
+    expect(buildFeedComposePrompts(base({ now: at(13, 18), service: sundayEvening }))[0]).toBe(
+      'Notes from tonight’s sermon?',
+    );
+    expect(buildFeedComposePrompts(base({ now: at(13, 21), service: sundayEvening }))[0]).toBe(
+      'Notes from tonight’s sermon?',
+    );
+  });
+
+  it('keeps a morning service on its morning wording, and reflects later in the day', () => {
+    const early = { dayOfWeek: 0, startTime: '09:00' };
+    expect(buildFeedComposePrompts(base({ now: at(13, 10), service: early }))[0]).toBe(
+      'Notes from this morning’s sermon?',
+    );
+    expect(buildFeedComposePrompts(base({ now: at(13, 14), service: early }))[0]).toBe(
+      'What stayed with you from church?',
+    );
+  });
+
+  it('moves the whole week around a Saturday vigil', () => {
+    expect(buildFeedComposePrompts(base({ now: at(18, 14), service: saturdayVigil }))[0]).toBe(
+      'Preparing your heart for Saturday?',
+    );
+    expect(buildFeedComposePrompts(base({ now: at(19, 17), service: saturdayVigil }))[0]).toBe(
+      'Notes from tonight’s sermon?',
+    );
+    expect(buildFeedComposePrompts(base({ now: at(20, 10), service: saturdayVigil }))[0]).toBe(
+      'What did Saturday leave you with?',
+    );
+    // Sunday morning is not their service, so nothing about a sermon this morning.
+    expect(buildFeedComposePrompts(base({ now: at(20, 10), service: saturdayVigil }))).not.toContain(
+      'Notes from this morning’s sermon?',
+    );
+  });
+
+  it('falls back to "tomorrow" when the day’s name would not fit', () => {
+    const lines = buildFeedComposePrompts(base({ now: at(15, 14), service: wednesdayNight }));
+    expect(lines[0]).toBe('Preparing your heart for tomorrow?');
+    expect(buildFeedComposePrompts(base({ now: at(17, 14), service: wednesdayNight }))[0]).toBe(
+      'What did Wednesday leave you with?',
+    );
+  });
+
+  it('calls an afternoon service today’s', () => {
+    expect(
+      buildFeedComposePrompts(base({ now: at(13, 14), service: { dayOfWeek: 0, startTime: '13:30' } }))[0],
+    ).toBe('Notes from today’s sermon?');
+  });
+
+  it('says nothing about church midweek, away from the service', () => {
+    const lines = buildFeedComposePrompts(base({ now: at(16, 14), service: { dayOfWeek: 0, startTime: '10:00' } }));
+    expect(lines.some((line) => /church|sermon|Sunday/.test(line))).toBe(false);
+  });
+});
+
 describe('your own study', () => {
   it('names the chapter you are in', () => {
     const lines = buildFeedComposePrompts(base({ continueReading: { book: 'Romans', chapter: 8 } }));

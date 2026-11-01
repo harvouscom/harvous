@@ -71,6 +71,9 @@ import { takeOnboardingStep } from './onboarding-step-handoff';
 import PrototypeThreadProposalReview from './PrototypeThreadProposalReview';
 import PrototypeFeedComposePrompt from './PrototypeFeedComposePrompt';
 import { buildFeedComposePrompts } from './feed-compose-prompts';
+import { HOME_FEED_LIMIT } from './PrototypeHomeChurchFeed';
+import { useChurchFeed } from '../../hooks/queries/useChurchFeed';
+import { useChurchServiceChoice } from '../../hooks/queries/useChurchServiceChoice';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { markOnboardingLedToday, onboardingHasLedToday } from './onboarding-day-marker';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -590,6 +593,16 @@ export default function PrototypeStudyFeedPage() {
    * Above the early returns below: a hook after them runs on some renders and not others.
    */
   const composeLead = home.lead;
+  /*
+    Their own service, so a Saturday-vigil or Sunday-evening congregant is not asked about "this
+    morning's sermon". The church feed query is the one Today's church rows already run (same key),
+    so this only adds the choice read, and only for someone with a church.
+  */
+  const { data: composeChurchFeed } = useChurchFeed({ limit: HOME_FEED_LIMIT });
+  const { data: composeServiceChoice } = useChurchServiceChoice({
+    enabled: Boolean(composeChurchFeed?.connected),
+  });
+  const composeService = composeServiceChoice?.choice ?? null;
   const composePrompts = useMemo(
     () =>
       buildFeedComposePrompts({
@@ -606,6 +619,9 @@ export default function PrototypeStudyFeedPage() {
           : null,
         trendLabel: home.recallTrendGreeting?.parts.labels[0] ?? null,
         leadThreadTitle: composeLead?.kind === 'thread' ? composeLead.thread.title : null,
+        service: composeService
+          ? { dayOfWeek: composeService.dayOfWeek, startTime: composeService.startTime }
+          : null,
       }),
     [
       home.countForLogic,
@@ -613,6 +629,7 @@ export default function PrototypeStudyFeedPage() {
       home.votd,
       home.recallTrendGreeting,
       composeLead,
+      composeService,
     ],
   );
 
