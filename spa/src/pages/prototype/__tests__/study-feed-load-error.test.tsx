@@ -50,6 +50,10 @@ vi.mock('../use-home-surface-data', async (importOriginal) => ({
 /* Today's dock reads the whole home surface; past the error branch it is not what is tested. */
 vi.mock('../PrototypeStudyFeedToday', () => ({ default: () => null }));
 vi.mock('../use-todays-passage-focus', () => ({ useTodaysPassageFocus: () => {} }));
+vi.mock('../../../hooks/queries/useChurchFeed', () => ({ useChurchFeed: () => ({ data: undefined }) }));
+vi.mock('../../../hooks/queries/useChurchServiceChoice', () => ({
+  useChurchServiceChoice: () => ({ data: undefined }),
+}));
 
 import PrototypeStudyFeedPage from '../PrototypeStudyFeedPage';
 
