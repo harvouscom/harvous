@@ -193,6 +193,10 @@
 
   /* Status hues stay dark enough for icons + occasional text on light surfaces. */
   --pds-lch-destructive: 48% 0.2 25;
+  /* Red letter — the words of Jesus in the reader. Printer's ink, not an error state: deeper and
+     less saturated than destructive so a page of it reads as text, and so it never looks like a
+     validation message. */
+  --pds-lch-red-letter: 46% 0.15 27;
   --pds-lch-warning: 52% 0.16 55;
   --pds-lch-success: 48% 0.14 145;
   --pds-lch-info: 48% 0.14 250;
@@ -368,6 +372,7 @@
 
   /* Text */
   --pds-text-primary: oklch(var(--pds-lch-text-primary));
+  --pds-text-red-letter: oklch(var(--pds-lch-red-letter));
   --pds-text-secondary: oklch(var(--pds-lch-text-secondary));
   --pds-text-list-preview: oklch(var(--pds-lch-text-list-preview));
   --pds-text-tertiary: oklch(var(--pds-lch-text-tertiary));
@@ -1072,6 +1077,7 @@ html.harvous-proto-wallpaper-image {
     --pds-lch-thread-purple: 38% 0.1 310;
 
     --pds-lch-destructive: 65% 0.18 25;
+    --pds-lch-red-letter: 72% 0.12 27;
     --pds-lch-warning: 78% 0.14 75;
     --pds-lch-success: 68% 0.12 145;
     --pds-lch-info: 70% 0.12 250;
@@ -1296,6 +1302,7 @@ html.harvous-proto-wallpaper-image {
   --pds-lch-thread-purple: 38% 0.1 310;
 
   --pds-lch-destructive: 65% 0.18 25;
+  --pds-lch-red-letter: 72% 0.12 27;
   --pds-lch-warning: 78% 0.14 75;
   --pds-lch-success: 68% 0.12 145;
   --pds-lch-info: 70% 0.12 250;

@@ -279,6 +279,37 @@ export default function PrototypeReaderInspectorPane({
           </div>
         </div>
 
+        {/* Red letter. Named for what it shows rather than the print term, which not every
+            reader grew up with. */}
+        <div className="proto-reader-inspector__setting">
+          <span className="proto-reader-inspector__setting-label">Words of Jesus</span>
+          <div
+            className="proto-appearance-segmented proto-reader-inspector__switch proto-seg-track"
+            role="group"
+            aria-label="Words of Jesus in red"
+            style={{ '--proto-seg-index': prefs.showRedLetter ? 0 : 1 } as CSSProperties}
+          >
+            <button
+              type="button"
+              className="proto-appearance-segmented__btn"
+              data-active={prefs.showRedLetter ? 'true' : 'false'}
+              aria-pressed={prefs.showRedLetter}
+              onClick={() => writeReadingPrefs({ ...prefs, showRedLetter: true })}
+            >
+              Red
+            </button>
+            <button
+              type="button"
+              className="proto-appearance-segmented__btn"
+              data-active={!prefs.showRedLetter ? 'true' : 'false'}
+              aria-pressed={!prefs.showRedLetter}
+              onClick={() => writeReadingPrefs({ ...prefs, showRedLetter: false })}
+            >
+              Black
+            </button>
+          </div>
+        </div>
+
         {/* The margin bars are a reminder of your own work; sometimes you want only the text.
             "Margin notes" describes where the marks are drawn; "My notes" describes whose
             they are, which is what you are deciding about when you reach for this. */}

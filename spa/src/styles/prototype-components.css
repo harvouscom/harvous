@@ -20668,6 +20668,12 @@ button.pds-reader-inset__toggle {
   transition: text-decoration-color 140ms var(--pds-ease-standard);
 }
 
+/* Red letter — the words of Jesus, when the reader has it on (src/utils/red-letter.ts). Colour
+   only: a highlight keeps its fill and a reference suggestion its underline over red text. */
+.pds-reader__wj {
+  color: var(--pds-text-red-letter);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pds-reader__verse-text {
     transition: none;

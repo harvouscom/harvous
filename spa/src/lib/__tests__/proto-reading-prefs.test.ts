@@ -25,6 +25,7 @@ describe('reading prefs', () => {
       showVerseNumbers: true,
       verseLayout: 'prose',
       showMarginNotes: true,
+      showRedLetter: false,
     });
     // The default must be the comfortable middle, not the smallest option.
     expect(px('medium')).toBe(17);
@@ -36,12 +37,14 @@ describe('reading prefs', () => {
       showVerseNumbers: false,
       verseLayout: 'lines',
       showMarginNotes: false,
+      showRedLetter: true,
     });
     expect(readReadingPrefs()).toEqual({
       textSize: 'large',
       showVerseNumbers: false,
       verseLayout: 'lines',
       showMarginNotes: false,
+      showRedLetter: true,
     });
   });
 
@@ -61,6 +64,8 @@ describe('reading prefs', () => {
       showVerseNumbers: false,
       verseLayout: 'lines',
       showMarginNotes: true,
+      // Same for red letter, added later still: off until the reader turns it on.
+      showRedLetter: false,
     });
   });
 
