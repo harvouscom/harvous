@@ -189,7 +189,13 @@ import {
 import { saveReferenceStudyThread } from '@/utils/save-reference-study-thread';
 import { hasSeenSharedHighlightTip, markSharedHighlightTipSeen } from '@/utils/shared-highlight-tip';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
-import { adoptHighlightEntryId, highlightRangesWithId, newClientStudyThreadEntryId } from '@/utils/pending-highlight';
+import {
+  adoptHighlightEntryId,
+  highlightColorWithId,
+  highlightRangesWithId,
+  newClientStudyThreadEntryId,
+  recolorHighlightTransaction,
+} from '@/utils/pending-highlight';
 import { isPrototypeDraftNoteId } from '@/utils/prototype-draft-compose-session';
 import { backfillOrphanHighlights } from '@/utils/orphan-highlight-backfill';
 import { syncStudyHighlightMarksOverlayCovered } from '@/utils/note-html-highlight-marks';
@@ -6699,7 +6705,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
        */
       if (
         target?.closest?.(
-          '.study-dock-card, .highlight-dock-web, .study-dock-carousel, .reference-dock-web, .proto-library-sheet, .proto-library-panel, .proto-library-chip, .proto-settings-modal-overlay',
+          '.study-dock-card, .study-dock-card__overflow-popover, .dock-accent-swatch__popover-anchor, .highlight-dock-web, .study-dock-carousel, .reference-dock-web, .proto-library-sheet, .proto-library-panel, .proto-library-chip, .proto-settings-modal-overlay',
         )
       ) {
         clearSelectionActionBar();
@@ -7411,7 +7417,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         target.closest('.study-dock-carousel') ||
         target.closest('.reference-dock-web') ||
         target.closest('.harvous-menu-pill__sheet-backdrop') ||
-        target.closest('.harvous-menu-pill__menu--portal')
+        target.closest('.harvous-menu-pill__menu--portal') ||
+        target.closest('.study-dock-card__overflow-popover') ||
+        target.closest('.dock-accent-swatch__popover-anchor')
       ) {
         // Keep open
       } else {
@@ -8172,6 +8180,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (relatedTarget?.closest?.('.dock-accent-swatch__popover-anchor')) {
         return;
       }
+      if (relatedTarget?.closest?.('.study-dock-card__overflow-popover')) {
+        return;
+      }
       if (relatedTarget?.closest?.('.scripture-translation-picker')) {
         return;
       }
@@ -8183,7 +8194,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         (studyDockPointerDownRef.current ||
           formatToolbarPointerDownRef.current ||
           document.activeElement?.closest?.(
-            '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm, [data-prototype-format-toolbar], .proto-editor-bottom-bar, .tiptap-toolbar',
+            '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm, .study-dock-card__overflow-popover, .dock-accent-swatch__popover-anchor, [data-prototype-format-toolbar], .proto-editor-bottom-bar, .tiptap-toolbar',
           ))
       ) {
         queueMicrotask(() => {
@@ -8249,7 +8260,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     if (editorChromeMode !== 'prototypeNative') return;
     // Includes the accent swatch popover, which portals to document.body (outside the dock card).
     const dockSelector =
-      '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm, .dock-accent-swatch, .dock-accent-swatch__popover-anchor, .harvous-menu-pill__sheet-backdrop, .harvous-menu-pill__menu--portal';
+      '.study-dock-card, .study-dock-carousel, .highlight-dock-web, .reference-dock-web, .scripture-pill-chrome, .scripture-delete-confirm, .dock-accent-swatch, .dock-accent-swatch__popover-anchor, .study-dock-card__overflow-popover, .harvous-menu-pill__sheet-backdrop, .harvous-menu-pill__menu--portal';
     const onPointerDown = (e: Event) => {
       if ((e.target as HTMLElement)?.closest?.(dockSelector)) {
         studyDockPointerDownRef.current = true;
@@ -9186,7 +9197,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               </PrototypeToolbarButton>
             </TiptapToolbarTrack>
           </div>
-          <div className="tiptap-toolbar__trailing">
+          {/*
+            Undo/redo only once there is something to undo or redo. Pinned there from the first
+            frame, they were two greyed-out buttons on every note you opened to read or tap into,
+            taking width from the formatting that actually applies. They arrive with the first
+            edit and then stay as a pair — redo disabled until you undo — so repeated undo taps
+            never land on a button that slid into the spot under your finger.
+          */}
+          {activeStates.canUndo || activeStates.canRedo ? (
+          <div className="tiptap-toolbar__trailing tiptap-toolbar__trailing--enter">
             <FormatToolbarDivider />
             <div className="tiptap-toolbar__history">
               <PrototypeToolbarButton
@@ -9209,6 +9228,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               </PrototypeToolbarButton>
             </div>
           </div>
+          ) : null}
         </div>
       </div>
     );
@@ -9641,6 +9661,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       // An API from before proposed ids ignores ours and mints its own (deploy skew).
                       if (studyId !== clientId) repointMark(studyId);
                       setStudyDockStack((s) => adoptHighlightEntryId(s, { from, to }, studyId));
+                      /* A colour picked while the row was being made only reached the mark — the
+                         card had no id to PATCH. The row was created amber; catch it up. */
+                      const paintedColor = live ? highlightColorWithId(live.state.doc, studyId) : null;
+                      if (paintedColor && paintedColor !== defaultAccent) {
+                        try {
+                          await fetch(`/api/study-threads/${studyId}${studyThreadContextSuffix}`, {
+                            method: 'PATCH',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ highlightAccentRaw: paintedColor }),
+                          });
+                        } catch {
+                          /* the mark still carries the colour; the next save keeps it */
+                        }
+                      }
                       syncStudyThreadList(noteIdAtTap);
                     })();
                   }}
@@ -10475,58 +10510,37 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         const sid = entry.session.studyThreadEntryId;
 
                         if (entry.session.entryKind === 'scriptureLink') {
+                          // Paint the passage and the card now (both are local); the PATCH follows.
+                          const passage = resolveScriptureLinkPassageContext(
+                            studyDockStackRef.current,
+                            entry,
+                            sourceNoteId ?? null,
+                          );
+                          if (passage && sid) {
+                            window.dispatchEvent(
+                              new CustomEvent('passageStudyPaintChanged', {
+                                detail: {
+                                  sourceNoteId: passage.sourceNoteId,
+                                  reference: passage.reference,
+                                  translation: passage.translation,
+                                  word: passage.word,
+                                  threadId: sid,
+                                  accent: nextAccent,
+                                  entryKind: 'scriptureLink',
+                                  action: 'patch',
+                                },
+                              }),
+                            );
+                          }
+                          setStudyDockStack((s) =>
+                            updateDockEntry(s, entry.id, (e) =>
+                              e.kind === 'highlight'
+                                ? { ...e, session: { ...e.session, accent: nextAccent } }
+                                : e,
+                            ),
+                          );
+                          if (!sid) return;
                           void (async () => {
-                            if (sid) {
-                              try {
-                                await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
-                                  method: 'PATCH',
-                                  credentials: 'include',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ highlightAccentRaw: nextAccent }),
-                                });
-                                syncStudyThreadList(sourceNoteId);
-                              } catch {
-                                /* ignore */
-                              }
-                            }
-                            const passage = resolveScriptureLinkPassageContext(
-                              studyDockStackRef.current,
-                              entry,
-                              sourceNoteId ?? null,
-                            );
-                            if (passage && sid) {
-                              window.dispatchEvent(
-                                new CustomEvent('passageStudyPaintChanged', {
-                                  detail: {
-                                    sourceNoteId: passage.sourceNoteId,
-                                    reference: passage.reference,
-                                    translation: passage.translation,
-                                    word: passage.word,
-                                    threadId: sid,
-                                    accent: nextAccent,
-                                    entryKind: 'scriptureLink',
-                                    action: 'patch',
-                                  },
-                                }),
-                              );
-                            }
-                            setStudyDockStack((s) =>
-                              updateDockEntry(s, entry.id, (e) =>
-                                e.kind === 'highlight'
-                                  ? { ...e, session: { ...e.session, accent: nextAccent } }
-                                  : e,
-                              ),
-                            );
-                          })();
-                          return;
-                        }
-
-                        if (!editor || !isEditorValid(editor)) return;
-                        const range =
-                          entry.session.range ?? (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
-                        if (!range && !sharedAnnotationOverlayMode) return;
-                        void (async () => {
-                          if (sid) {
                             try {
                               await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
                                 method: 'PATCH',
@@ -10535,46 +10549,62 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                                 body: JSON.stringify({ highlightAccentRaw: nextAccent }),
                               });
                               syncStudyThreadList(sourceNoteId);
-                              if (sharedAnnotationOverlayMode) {
-                                onSharedAnnotationCreated?.();
-                              }
                             } catch {
                               /* ignore */
                             }
-                          }
-                          if (sharedAnnotationOverlayMode) {
-                            setStudyDockStack((s) =>
-                              updateDockEntry(s, entry.id, (e) =>
-                                e.kind === 'highlight'
-                                  ? { ...e, session: { ...e.session, accent: nextAccent, range: e.session.range ?? range } }
-                                  : e,
-                              ),
-                            );
-                            return;
-                          }
-                          if (!editor || !isEditorValid(editor) || !range) return;
-                          const markType = editor.state.schema.marks.highlight;
-                          if (!markType) return;
-                          const tr = editor.state.tr;
-                          tr.removeMark(range.from, range.to, markType);
-                          tr.addMark(
-                            range.from,
-                            range.to,
-                            markType.create({
-                              color: nextAccent,
-                              studyThreadEntryId: sid || null,
-                            }),
+                          })();
+                          return;
+                        }
+
+                        if (!editor || !isEditorValid(editor)) return;
+                        const range =
+                          entry.session.range ?? (sid ? findHighlightRangeByStudyThreadId(editor, sid) : null);
+                        if (!range && !sharedAnnotationOverlayMode) return;
+                        /*
+                         * Paint first, then tell the server. This used to await the PATCH before
+                         * anything moved, so on a phone's connection the swatch looked dead for
+                         * a beat — and the range it then wrote to had been read before the wait.
+                         *
+                         * With no `sid` the row is still being created: the mark keeps its client
+                         * id (recolorHighlightTransaction preserves it) and the create path sends
+                         * the colour once the row exists. See `reconcilePendingHighlightColor`.
+                         */
+                        if (!sharedAnnotationOverlayMode) {
+                          const tr = recolorHighlightTransaction(
+                            editor.state,
+                            { id: sid ?? null, range },
+                            nextAccent,
                           );
+                          if (!tr) return;
                           editor.view.dispatch(tr);
                           if (hiddenInputRef.current) {
                             hiddenInputRef.current.value = editor.getHTML();
                           }
                           onContentChange?.(editor.getHTML());
-                          setStudyDockStack((s) =>
-                            updateDockEntry(s, entry.id, (e) =>
-                              e.kind === 'highlight' ? { ...e, session: { ...e.session, accent: nextAccent, range } } : e,
-                            ),
-                          );
+                        }
+                        setStudyDockStack((s) =>
+                          updateDockEntry(s, entry.id, (e) =>
+                            e.kind === 'highlight'
+                              ? { ...e, session: { ...e.session, accent: nextAccent, range: e.session.range ?? range } }
+                              : e,
+                          ),
+                        );
+                        if (!sid) return;
+                        void (async () => {
+                          try {
+                            await fetch(`/api/study-threads/${sid}${studyThreadContextSuffix}`, {
+                              method: 'PATCH',
+                              credentials: 'include',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ highlightAccentRaw: nextAccent }),
+                            });
+                            syncStudyThreadList(sourceNoteId);
+                            if (sharedAnnotationOverlayMode) {
+                              onSharedAnnotationCreated?.();
+                            }
+                          } catch {
+                            /* ignore */
+                          }
                         })();
                       }}
                       onRemove={() => {
