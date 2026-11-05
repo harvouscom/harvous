@@ -14,6 +14,7 @@
  * retried POST is idempotent on the server.
  */
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import type { EditorState, Transaction } from '@tiptap/pm/state';
 import {
   highlightDockStableKey,
   updateDockEntry,
@@ -44,6 +45,73 @@ export function highlightRangesWithId(
     else out.push({ from: pos, to: pos + node.nodeSize, attrs: { ...mark.attrs } });
   });
   return out;
+}
+
+/** Every highlight-marked run inside `range`, with the attrs it carries. */
+function highlightRangesWithin(
+  doc: ProseMirrorNode,
+  range: { from: number; to: number },
+  markTypeName = 'highlight',
+): Array<{ from: number; to: number; attrs: Record<string, unknown> }> {
+  const out: Array<{ from: number; to: number; attrs: Record<string, unknown> }> = [];
+  const from = Math.max(0, range.from);
+  const to = Math.min(doc.content.size, range.to);
+  if (to <= from) return out;
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (!node.isText) return;
+    const mark = node.marks.find((m) => m.type.name === markTypeName);
+    if (!mark) return;
+    const segFrom = Math.max(pos, from);
+    const segTo = Math.min(pos + node.nodeSize, to);
+    if (segTo <= segFrom) return;
+    out.push({ from: segFrom, to: segTo, attrs: { ...mark.attrs } });
+  });
+  return out;
+}
+
+/**
+ * Recolour one highlight in place and return the transaction, or null when it cannot be found.
+ *
+ * Only `color` changes. The dock used to rebuild the mark from `{ color, studyThreadEntryId }`
+ * alone, which dropped every other attribute — and while a new highlight was still waiting on
+ * its row, the card's id was null, so the rebuilt mark lost the client id it was painted with.
+ * The POST then landed, found no mark carrying that id, and the highlight was an orphan again:
+ * the server kept amber, and the next backfill made it a second row. A phone's slower round
+ * trip is what made "pick a colour right after highlighting" land in that window.
+ *
+ * Found by id first (position-free, so text typed since cannot misplace it). With no id, by the
+ * range the card was opened for — and if a mark there carries an id of its own (the pending
+ * client id), by that id after all.
+ */
+export function recolorHighlightTransaction(
+  state: EditorState,
+  target: { id: string | null; range: { from: number; to: number } | null },
+  color: string,
+  markTypeName = 'highlight',
+): Transaction | null {
+  const markType = state.schema.marks[markTypeName];
+  if (!markType) return null;
+  let ranges = target.id ? highlightRangesWithId(state.doc, target.id, markTypeName) : [];
+  if (ranges.length === 0 && target.range) {
+    const within = highlightRangesWithin(state.doc, target.range, markTypeName);
+    const ownId = within.find((r) => typeof r.attrs.studyThreadEntryId === 'string')?.attrs
+      .studyThreadEntryId as string | undefined;
+    const byOwnId = ownId ? highlightRangesWithId(state.doc, ownId, markTypeName) : [];
+    ranges = byOwnId.length > 0 ? byOwnId : within;
+  }
+  if (ranges.length === 0) return null;
+  const tr = state.tr;
+  for (const r of ranges) {
+    tr.addMark(r.from, r.to, markType.create({ ...r.attrs, color }));
+  }
+  return tr;
+}
+
+/** The colour the highlight carrying `id` is painted in now, or null if there is none. */
+export function highlightColorWithId(doc: ProseMirrorNode, id: string, markTypeName = 'highlight'): string | null {
+  const [first] = highlightRangesWithId(doc, id, markTypeName);
+  const color = first?.attrs.color;
+  return typeof color === 'string' ? color : null;
 }
 
 /**

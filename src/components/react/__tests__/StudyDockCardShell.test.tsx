@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import StudyDockCardShell from '../StudyDockCardShell';
+import DockAccentSwatchButton from '../DockAccentSwatchButton';
 
 /**
  * Below 420px the shell folds `headerActions` into a `…` overflow menu. That was swallowing the
@@ -71,5 +72,37 @@ describe('StudyDockCardShell header action slots', () => {
       expect(screen.getByRole('button', { name: 'Change accent' })).toBeTruthy();
       expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
     });
+  });
+});
+
+describe('a colour palette opened from inside the overflow menu', () => {
+  beforeAll(() => stubViewportWidth(390));
+
+  it('takes the pick instead of closing under it', () => {
+    // The palette portals outside the `…` menu. The menu used to read a tap on a colour as a tap
+    // outside, close, and unmount the palette before the click arrived — so on a phone the
+    // highlight colour could never change.
+    const onSelectionChange = vi.fn();
+    render(
+      <StudyDockCardShell
+        accentColor="#000"
+        expanded
+        onToggleExpanded={() => {}}
+        onDismiss={() => {}}
+        ariaLabel="Test dock"
+        headerIcon={<span />}
+        headerTitle={<span>Highlight</span>}
+        headerActions={
+          <DockAccentSwatchButton selection="warmAmber" onSelectionChange={onSelectionChange} />
+        }
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByRole('button', { name: /Accent color/ }));
+    const violet = screen.getByRole('button', { name: 'Violet' });
+    fireEvent.touchStart(violet);
+    fireEvent.mouseDown(violet);
+    fireEvent.click(violet);
+    expect(onSelectionChange).toHaveBeenCalledWith('violet');
   });
 });

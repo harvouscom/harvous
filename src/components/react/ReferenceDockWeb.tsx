@@ -235,24 +235,28 @@ export default function ReferenceDockWeb({
   // Save and the passage toggle are the reasons you opened this card — they stay inline at every
   // width. Below 420px `headerActions` collapses into a `…` menu, and burying a one-tap save
   // behind two taps is exactly the friction this dock exists to avoid.
+  // The highlight colour joins them: a swatch folded into `…` could not be used on a phone (its
+  // palette portals outside the menu, so picking a colour closed the menu under it).
+  const accentSwatch =
+    savedReferenceHighlight && onChangeNoteHighlight ? (
+      <DockAccentSwatchButton
+        selection={noteAccent}
+        paletteTokens={STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL}
+        onSelectionChange={onChangeNoteHighlight}
+      />
+    ) : null;
   const headerPrimaryActions =
-    saveOrb || scriptureRefToggle ? (
+    saveOrb || scriptureRefToggle || accentSwatch ? (
       <>
         {saveOrb}
         {scriptureRefToggle}
+        {accentSwatch}
       </>
     ) : null;
 
   const headerActions =
-    savedReferenceHighlight && (onChangeNoteHighlight || onRemoveNoteHighlight) ? (
+    savedReferenceHighlight && onRemoveNoteHighlight ? (
       <>
-        {onChangeNoteHighlight ? (
-          <DockAccentSwatchButton
-            selection={noteAccent}
-            paletteTokens={STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL}
-            onSelectionChange={onChangeNoteHighlight}
-          />
-        ) : null}
         {onRemoveNoteHighlight ? (
           <button
             type="button"

@@ -521,14 +521,22 @@ export default function HighlightDockWeb({
           }}
         />
       }
+      /* The colour stays inline at every width. Below 420px `headerActions` folds into `…`, and
+         a swatch in there could not work on a phone: its palette portals outside the menu, so
+         the tap on a colour read as a tap outside, closed the menu, and unmounted the palette
+         before the click landed. One tap to a colour is also simply what the dot is for. */
+      headerPrimaryActions={
+        readOnly ? null : (
+          <DockAccentSwatchButton
+            selection={accentKey}
+            paletteTokens={STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL}
+            onSelectionChange={onAccentChange}
+          />
+        )
+      }
       headerActions={
         readOnly ? null : (
           <>
-            <DockAccentSwatchButton
-              selection={accentKey}
-              paletteTokens={STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL}
-              onSelectionChange={onAccentChange}
-            />
             <button
               type="button"
               className="study-dock-card__header-btn study-dock-card__header-btn--plain"
