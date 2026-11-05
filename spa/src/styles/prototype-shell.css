@@ -687,6 +687,10 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     height: calc(100dvh - 2 * var(--pds-shell-frame-inset) - env(safe-area-inset-top, 0px));
     border-bottom-left-radius: var(--pds-shell-frame-radius-bottom);
     border-bottom-right-radius: var(--pds-shell-frame-radius-bottom);
+    /* The frame and the canvas are all but the same colour here, so a soft shadow around the
+       frame is the only thing drawing its edge: a blurred band under the status bar and around
+       the bottom corners. The boot placeholder drops its shadow to match. */
+    box-shadow: none;
   }
 
   .proto-shell {
@@ -2935,6 +2939,83 @@ html[data-proto-keyboard-open] body {
    a blue outer-shell gap mirroring the top inset. All four corners keep the base
    `--pds-shell-frame-radius` so the shell condenses into a complete rounded card; the
    in-flow format bar is clipped to the rounded bottom by the frame's overflow:hidden. */
+/*
+ * A note's or chapter's paper meets the frame's bottom corners with a curve of its own.
+ *
+ * Those sheets sit 12px inside the frame with square corners, and at the frame's phone radius
+ * (~46px) the arc cuts each corner off on a diagonal: a straight side edge, a kink, then a
+ * slice. `.proto-feed-sheet` avoids this with a radius of its own, but these sheets scroll, so
+ * the corner the eye sees belongs to the scroller's clip, not to the paper's far-off end. So
+ * the scroller carries the curve: a mask, solid everywhere except the two corners outside the
+ * paper's arc. A mask rather than `clip-path`, which would also cut the paper's side shadow.
+ * The tiles overlap by a pixel so no seam shows between them.
+ */
+@media (max-width: 600px) {
+  .proto-shell-frame {
+    --pds-paper-floor-radius: max(
+      0px,
+      calc(var(--pds-shell-frame-radius-bottom) - var(--pds-paper-column-gutter-narrow))
+    );
+  }
+
+  .proto-editor-scroll,
+  .pds-reader__scroll,
+  .pds-paper-stack {
+    --pds-paper-floor-tile: calc(
+      var(--pds-paper-column-gutter-narrow) + var(--pds-paper-floor-radius, 0px)
+    );
+    --pds-paper-floor-mask:
+      linear-gradient(#000 0 0) top / 100% calc(100% - var(--pds-paper-floor-radius, 0px) + 1px)
+        no-repeat,
+      linear-gradient(#000 0 0) bottom / calc(100% - 2 * var(--pds-paper-floor-tile) + 2px)
+        var(--pds-paper-floor-radius, 0px) no-repeat,
+      radial-gradient(
+          circle at 100% 0,
+          #000 calc(var(--pds-paper-floor-radius, 0px) - 0.5px),
+          transparent var(--pds-paper-floor-radius, 0px)
+        )
+        left bottom / var(--pds-paper-floor-tile) var(--pds-paper-floor-radius, 0px) no-repeat,
+      radial-gradient(
+          circle at 0 0,
+          #000 calc(var(--pds-paper-floor-radius, 0px) - 0.5px),
+          transparent var(--pds-paper-floor-radius, 0px)
+        )
+        right bottom / var(--pds-paper-floor-tile) var(--pds-paper-floor-radius, 0px) no-repeat;
+    -webkit-mask: var(--pds-paper-floor-mask);
+    mask: var(--pds-paper-floor-mask);
+  }
+
+  /* The mask also takes the paper's side shadow off those last few points, so the edge would
+     stop dead where the curve begins. This carries the shadow on around the arc, under the
+     scroller: the mask makes the scroller a stacking context, so it paints over this. */
+  .proto-shell__main-inner:has(.proto-editor-scroll, .pds-reader__scroll, .pds-paper-stack)::before {
+    content: '';
+    position: absolute;
+    left: var(--pds-paper-column-gutter-narrow);
+    right: var(--pds-paper-column-gutter-narrow);
+    bottom: 0;
+    height: var(--pds-paper-floor-radius, 0px);
+    border-radius: 0 0 var(--pds-paper-floor-radius, 0px) var(--pds-paper-floor-radius, 0px);
+    box-shadow: var(--pds-paper-shadow-subtle);
+    /* Only the sides and the arc: the paper is translucent, so a shadow off the top edge would
+       show through it as a line across the page. */
+    clip-path: inset(0 -8px -8px -8px);
+    pointer-events: none;
+  }
+
+  /* With the keyboard up the sheet ends at the format bar, not at the frame's corners. */
+  html[data-proto-keyboard-open] .proto-editor-scroll,
+  html[data-proto-keyboard-open] .pds-reader__scroll,
+  html[data-proto-keyboard-open] .pds-paper-stack {
+    -webkit-mask: none;
+    mask: none;
+  }
+
+  html[data-proto-keyboard-open] .proto-shell__main-inner::before {
+    content: none;
+  }
+}
+
 html[data-proto-keyboard-open] .proto-shell-frame {
   /* The keyboard covers the home indicator, so nothing at the foot needs lifting clear of it
      and the corners are a card's again, not the display's. */
