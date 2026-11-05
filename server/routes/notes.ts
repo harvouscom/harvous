@@ -195,6 +195,8 @@ import {
   THREAD_NAMED_SOURCE,
 } from '@/utils/study-bible-source-copy';
 import { CONTENT_APPROVAL_REQUIRED_CODE, contentApprovalRequired } from '../utils/church-content';
+import { shareUrlFor } from '@/lib/short-links';
+import { getPublicAppOrigin } from '../utils/public-app-origin';
 const route = new Hono();
 
 /**
@@ -1717,7 +1719,7 @@ function studyThreadShareBody(origin: string, share: { shareToken: string; creat
   return {
     isPublic: Boolean(share),
     shareToken: share?.shareToken ?? null,
-    shareUrl: share ? `${origin}/shared/thread/${share.shareToken}` : null,
+    shareUrl: share ? shareUrlFor('thread', share.shareToken, origin) : null,
     shareTokenCreatedAt: share?.createdAt ?? null,
   };
 }
@@ -1728,7 +1730,7 @@ route.get('/api/notes/:id/thread/share', requireAuth, async (c) => {
     const noteId = normalizeServerNoteId(requireParam(c, 'id'));
     const preferredSpaceId = typeof c.req.query('spaceId') === 'string' ? c.req.query('spaceId') : undefined;
     const thread = await resolvePersonalStudyThread(noteId, auth.userId, { preferredSpaceId, maxNodes: 200 });
-    const origin = new URL(c.req.url).origin;
+    const origin = getPublicAppOrigin(c);
     /* A Thread that cannot be shared is reported as unshared, not as an error: the status read
        runs whenever the popover opens, and the refusal belongs to the press of Share. */
     const share = thread.ok ? await findStudyThreadShare(auth.userId, thread.nodeIds) : null;
@@ -1754,7 +1756,7 @@ route.post('/api/notes/:id/thread/share', requireAuth, rateLimit('write'), async
     }
     const preferredSpaceId = typeof body.spaceId === 'string' ? body.spaceId : undefined;
     const thread = await resolvePersonalStudyThread(noteId, auth.userId, { preferredSpaceId, maxNodes: 200 });
-    const origin = new URL(c.req.url).origin;
+    const origin = getPublicAppOrigin(c);
 
     if (!thread.ok) {
       /* Turning a link off is always allowed, even for a Thread that has since moved into a
@@ -4225,8 +4227,8 @@ route.get('/api/notes/:noteId/share', requireAuth, async (c) => {
         .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
     }
 
-    const origin = new URL(c.req.url).origin;
-    const shareUrl = effectiveShareToken ? `${origin}/shared/note/${effectiveShareToken}` : null;
+    const origin = getPublicAppOrigin(c);
+    const shareUrl = effectiveShareToken ? shareUrlFor('note', effectiveShareToken, origin) : null;
 
     // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
     // this is a publish toggle's own status read; a cached response here can show a note as
@@ -4348,8 +4350,8 @@ route.post('/api/notes/:noteId/share', requireAuth, rateLimit('write'), async (c
       queueAudiencefulProductFlagsForUser(auth.userId, { has_shared: true });
     }
 
-    const origin = new URL(c.req.url).origin;
-    const shareUrl = result.shareToken ? `${origin}/shared/note/${result.shareToken}` : null;
+    const origin = getPublicAppOrigin(c);
+    const shareUrl = result.shareToken ? shareUrlFor('note', result.shareToken, origin) : null;
 
     return c.json({ success: true, ...result, shareUrl });
   } catch (error: any) {

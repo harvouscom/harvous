@@ -14,6 +14,7 @@
  */
 import { useState } from 'react';
 import Icon from '@/components/react/Icon';
+import { shareUrlFor } from '@/lib/short-links';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useShareStudyThread } from '../../hooks/mutations/useShareStudyThread';
@@ -24,11 +25,12 @@ import '../../styles/prototype-thread-share.css';
 /**
  * The public URL, built on this page's origin from the token — the server's `shareUrl` carries the
  * API's own origin, which in development (and behind any proxy) is not where the page lives. Same
- * normalization the note share popover makes.
+ * normalization the note share popover makes. On app.harvous.com that is the harvo.us short link
+ * (src/lib/short-links.ts); every other origin links to itself.
  */
 function threadShareUrl(shareToken: string | null | undefined): string | null {
   if (!shareToken || typeof window === 'undefined') return null;
-  return `${window.location.origin}/shared/thread/${shareToken}`;
+  return shareUrlFor('thread', shareToken, window.location.origin);
 }
 
 /** Strips the scheme for display; the copied value keeps it. */

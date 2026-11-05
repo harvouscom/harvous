@@ -1,0 +1,64 @@
+# Deploy the harvo.us short-link Worker (cloudflare/links/).
+#
+# Separate from cloudflare-deploy.yml because this Worker has no SPA build, no assets and no
+# Clerk key: it bundles src/lib/short-link-resolve.ts and answers with redirects. Production
+# only — there is no staging copy, because localhost and new.harvous.com never hand out
+# harvo.us links (src/lib/short-links.ts#shareUrlFor).
+name: Deploy harvo.us links
+
+on:
+  push:
+    branches: [main]
+    # Same rule as cloudflare-deploy.yml: skip only when every changed file is doc-only. An
+    # allowlist would silently stop deploying when the parser it bundles moves.
+    paths-ignore:
+      - 'docs/**'
+      - 'Changelog/**'
+      - 'help/**'
+      - 'release-notes/**'
+  workflow_dispatch:
+
+concurrency:
+  group: cloudflare-links-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # workflow_dispatch from another branch must not reach the production Worker.
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --prefer-offline --no-audit
+
+      - name: Unit-test the redirect table
+        run: npx vitest run src/lib/__tests__/short-links.test.ts
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config cloudflare/links/wrangler.jsonc
+
+      # The custom domain is the thing users hit. Once it is attached, prove a short link
+      # still lands where it should; until then (no zone yet) skip rather than fail.
+      - name: Verify harvo.us redirects
+        run: |
+          set -u
+          if ! getent hosts harvo.us >/dev/null; then
+            echo "harvo.us does not resolve yet; skipping the live check"
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://harvo.us/john3.16)
+          location=$(curl -s -o /dev/null -w '%{redirect_url}' https://harvo.us/john3.16)
+          echo "harvo.us/john3.16 -> $code $location"
+          if [ "$code" != "302" ] || [ "$location" != "https://app.harvous.com/read/john/3?v=16" ]; then
+            echo "::warning::harvo.us is not served by harvous-links yet (still Dub, or not attached)"
+          fi

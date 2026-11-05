@@ -68,6 +68,8 @@ import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { broadcastInvalidation } from '../utils/realtime';
 import { queueAudiencefulProductFlagsForUser } from '../utils/audienceful-product-flags';
 import { deleteLeaderKitForThreads } from '../utils/study-plan-leader-kit';
+import { shareUrlFor } from '@/lib/short-links';
+import { getPublicAppOrigin } from '../utils/public-app-origin';
 
 const route = new Hono();
 
@@ -1520,14 +1522,14 @@ route.get('/api/threads/:threadId/share', requireAuth, async (c) => {
       }
     }
 
-    const origin = new URL(c.req.url).origin;
+    const origin = getPublicAppOrigin(c);
     // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
     // same reason as GET /api/notes/:noteId/share (a publish toggle's own status read).
     return c.json(
       {
         isPublic: thread.isPublic,
         shareToken: thread.shareToken,
-        shareUrl: thread.shareToken ? `${origin}/shared/thread/${thread.shareToken}` : null,
+        shareUrl: thread.shareToken ? shareUrlFor('thread', thread.shareToken, origin) : null,
         shareTokenCreatedAt: thread.shareTokenCreatedAt,
       },
       200,
@@ -1605,8 +1607,8 @@ route.post('/api/threads/:threadId/share', requireAuth, async (c) => {
       queueAudiencefulProductFlagsForUser(auth.userId, { has_shared: true });
     }
 
-    const origin = new URL(c.req.url).origin;
-    const shareUrl = newShareToken ? `${origin}/shared/thread/${newShareToken}` : null;
+    const origin = getPublicAppOrigin(c);
+    const shareUrl = newShareToken ? shareUrlFor('thread', newShareToken, origin) : null;
 
     return c.json({ success: true, isPublic, shareToken: newShareToken, shareUrl, shareTokenCreatedAt: action !== 'disable' ? now : null });
   } catch (error: any) {

@@ -32,10 +32,11 @@ struct NoteSharePopoverView: View {
 
     // The server returns a full `shareUrl`, but we also reconstruct it
     // client-side from `note.shareToken` so the field paints instantly when
-    // the popover opens for an already-shared note.
+    // the popover opens for an already-shared note. harvo.us/n/ is the short link
+    // (src/lib/short-links.ts on the web side); it redirects to /shared/note/.
     private var shareURL: String? {
         guard note.isPublic, let token = note.shareToken, !token.isEmpty else { return nil }
-        return "https://app.harvous.com/shared/note/\(token)"
+        return "https://harvo.us/n/\(token)"
     }
 
     var body: some View {

@@ -18,6 +18,7 @@
  */
 
 import { renderSVG } from 'uqr';
+import { shareUrlFor } from '@/lib/short-links';
 import {
   db,
   first,
@@ -97,8 +98,15 @@ export function generateChurchJoinToken(): string {
   return Array.from(bytes, (b) => JOIN_TOKEN_ALPHABET[b % JOIN_TOKEN_ALPHABET.length]).join('');
 }
 
+/**
+ * The link a church hands out — `https://harvo.us/j/<token>` from production, the long
+ * `<origin>/churches/join/<token>` anywhere else (src/lib/short-links.ts). The QR is drawn
+ * from this same string, so the short form also makes the code less dense: 32 characters
+ * instead of 50 is about one QR version smaller, so each module prints larger at the same
+ * size. Printed long links keep working; the route is unchanged.
+ */
 export function churchJoinUrl(origin: string, token: string): string {
-  return `${origin.replace(/\/+$/, '')}${CHURCH_JOIN_PATH_PREFIX}${token}`;
+  return shareUrlFor('church', token, origin);
 }
 
 /**
