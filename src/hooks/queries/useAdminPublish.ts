@@ -37,7 +37,6 @@ export type AdminContentSpace = {
   color: string;
   isFeatured: boolean;
   shareToken: string | null;
-  joinUrl: string | null;
   threadCount: number;
   noteCount: number;
   memberCount: number;
@@ -85,7 +84,7 @@ export function useCreateAdminSpace() {
       description?: string | null;
       color?: ThreadColor;
       isFeatured?: boolean;
-    }) => adminApiPost<{ success: boolean; space: { id: string }; joinUrl: string }>('/api/admin/spaces', body),
+    }) => adminApiPost<{ success: boolean; space: { id: string } }>('/api/admin/spaces', body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin', 'content', 'spaces'] });
     },

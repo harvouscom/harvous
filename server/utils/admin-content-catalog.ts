@@ -20,8 +20,8 @@ export type AdminContentSpace = {
   description: string | null;
   color: string;
   isFeatured: boolean;
+  /** Identifies the space to the featured-items admin; not a working join link (see below). */
   shareToken: string | null;
-  joinUrl: string | null;
   threadCount: number;
   noteCount: number;
   memberCount: number;
@@ -37,20 +37,18 @@ export type AdminContentThread = {
   createdAt: string;
 };
 
-export function buildJoinUrl(origin: string, shareToken: string | null | undefined): string | null {
-  if (!shareToken) return null;
-  const base = origin.replace(/\/$/, '');
-  return `${base}/spaces/join/${shareToken}`;
-}
-
 export function countMap(rows: Array<{ key: string; cnt: number }>): Map<string, number> {
   return new Map(rows.map((r) => [r.key, r.cnt]));
 }
 
-export async function getAdminContentSpaces(
-  systemUserId: string,
-  origin: string,
-): Promise<AdminContentSpace[]> {
+/**
+ * Harvous-curated spaces. There is deliberately no join link here: these are v1 spaces
+ * (`type: 'personal'`, notes not associated through SpaceNotes), and since the July 2026
+ * move to SpaceInvites nothing resolves `Spaces.shareToken`, so a link built from it was
+ * dead. Making them joinable would need the canonical shared-note authoring flow and a
+ * note backfill — decided against in Nov 2026.
+ */
+export async function getAdminContentSpaces(systemUserId: string): Promise<AdminContentSpace[]> {
   const spaceRows = await db
     .select({
       id: Spaces.id,
@@ -98,7 +96,6 @@ export async function getAdminContentSpaces(
     color: space.color,
     isFeatured: space.isFeatured ?? false,
     shareToken: space.shareToken,
-    joinUrl: buildJoinUrl(origin, space.shareToken),
     threadCount: threadMap.get(space.id) ?? 0,
     noteCount: noteMap.get(space.id) ?? 0,
     memberCount: memberMap.get(space.id) ?? 0,

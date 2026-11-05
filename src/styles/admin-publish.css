@@ -134,13 +134,6 @@
   margin: 12px 0;
 }
 
-.admin-publish__link-row {
-  font-size: 12px;
-  color: var(--pds-text-secondary);
-  word-break: break-all;
-  margin-bottom: 12px;
-}
-
 .admin-publish__thread {
   margin-top: 12px;
   padding: 12px;

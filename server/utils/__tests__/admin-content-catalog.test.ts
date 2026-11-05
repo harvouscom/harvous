@@ -1,18 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildJoinUrl, countMap } from '../admin-content-catalog';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { countMap } from '../admin-content-catalog';
 import { planDuplicateDeletions } from '../admin-cleanup-duplicates';
-
-describe('buildJoinUrl', () => {
-  it('builds join URL from origin and share token', () => {
-    expect(buildJoinUrl('https://app.harvous.com', 'abc123')).toBe('https://app.harvous.com/spaces/join/abc123');
-    expect(buildJoinUrl('https://app.harvous.com/', 'abc123')).toBe('https://app.harvous.com/spaces/join/abc123');
-  });
-
-  it('returns null when share token is missing', () => {
-    expect(buildJoinUrl('https://app.harvous.com', null)).toBeNull();
-    expect(buildJoinUrl('https://app.harvous.com', '')).toBeNull();
-  });
-});
 
 describe('countMap', () => {
   it('maps key/cnt rows to a Map', () => {
@@ -62,5 +52,22 @@ describe('cleanup dryRun semantics', () => {
     const { report } = planDuplicateDeletions(entries, (e) => `${e.noteId}::${e.threadId}`);
     const wouldDelete = report.reduce((sum, { toDelete }) => sum + toDelete.length, 0);
     expect(wouldDelete).toBe(1);
+  });
+});
+
+describe('curated spaces carry no dead join link', () => {
+  // Since the July 2026 move to SpaceInvites, invite-preview and redeem look tokens up in
+  // SpaceInvites only, and curated spaces are v1 `type: 'personal'` rows with no invite.
+  // A `/spaces/join/<Spaces.shareToken>` link from these files was a 404 for everyone.
+  const files = [
+    'server/utils/admin-content-catalog.ts',
+    'server/routes/admin.ts',
+    'server/routes/featured.ts',
+    'src/components/react/AdminPublishPanel.tsx',
+  ];
+  it.each(files)('%s builds no /spaces/join/ link', (file) => {
+    const text = readFileSync(resolve(process.cwd(), file), 'utf8');
+    expect(text).not.toContain('/spaces/join/');
+    expect(text).not.toContain('joinUrl');
   });
 });

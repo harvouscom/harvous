@@ -743,8 +743,7 @@ app.get('/api/admin/content/spaces', async (c) => {
 
   try {
     const systemUserId = getHarvousSystemUserId();
-    const origin = new URL(c.req.url).origin;
-    const spaces = await getAdminContentSpaces(systemUserId, origin);
+    const spaces = await getAdminContentSpaces(systemUserId);
     return c.json({ success: true, spaces });
   } catch (error: unknown) {
     console.error('[admin content spaces]', error);
@@ -817,12 +816,9 @@ app.post('/api/admin/spaces', async (c) => {
         .returning(),
     )!;
 
-    const origin = new URL(c.req.url).origin;
-    return c.json({
-      success: true,
-      space,
-      joinUrl: `${origin}/spaces/join/${shareToken}`,
-    });
+    // No join link: nothing resolves Spaces.shareToken since the SpaceInvites move
+    // (see getAdminContentSpaces).
+    return c.json({ success: true, space });
   } catch (error: any) {
     return c.json({ error: error.message || 'Error creating space' }, 500);
   }
