@@ -245,6 +245,9 @@ describe('share links', () => {
   it('accepts a full share URL or a bare token', () => {
     expect(reads.shareTokenFrom('https://app.harvous.com/shared/note/AbCdEf123456')).toBe('AbCdEf123456');
     expect(reads.shareTokenFrom('AbCdEf123456')).toBe('AbCdEf123456');
+    expect(reads.shareTokenFrom('https://harvo.us/n/AbCdEf123456')).toBe('AbCdEf123456');
+    expect(reads.shareTokenFrom('harvo.us/n/AbCdEf123456?utm_source=x')).toBe('AbCdEf123456');
+    expect(reads.shareTokenFrom('https://evil.example/harvo.us/n/AbCdEf123456')).toBeNull();
     expect(reads.shareTokenFrom('https://evil.example/x')).toBeNull();
   });
 });

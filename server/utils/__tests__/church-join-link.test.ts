@@ -26,6 +26,16 @@ describe('churchJoinUrl', () => {
   it('builds the bare join path with no query string', () => {
     expect(churchJoinUrl('https://app.harvous.com/', 'AbC123')).toBe('https://app.harvous.com/churches/join/AbC123');
   });
+
+  it('hands out the harvo.us short link from production', () => {
+    expect(churchJoinUrl('https://app.harvous.com', 'ABCdefJKLmn2')).toBe('https://harvo.us/j/ABCdefJKLmn2');
+  });
+
+  it('keeps other origins on their own long link', () => {
+    expect(churchJoinUrl('https://new.harvous.com', 'ABCdefJKLmn2')).toBe(
+      'https://new.harvous.com/churches/join/ABCdefJKLmn2',
+    );
+  });
 });
 
 describe('renderChurchJoinQrSvg', () => {
