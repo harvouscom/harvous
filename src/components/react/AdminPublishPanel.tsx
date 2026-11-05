@@ -18,12 +18,6 @@ import '@/styles/admin-publish.css';
 /** Flip to false when publish tooling is ready again. */
 const ADMIN_PUBLISH_PAUSED = true;
 
-function copyToClipboard(text: string) {
-  void navigator.clipboard.writeText(text).then(() => {
-    window.toast?.success('Copied to clipboard');
-  });
-}
-
 function NewSpaceForm({ onCreated }: { onCreated: () => void }) {
   const create = useCreateAdminSpace();
   const [title, setTitle] = useState('');
@@ -287,23 +281,7 @@ function SpaceCard({ space }: { space: AdminContentSpace }) {
 
       {expanded ? (
         <div className="admin-publish__space-body">
-          {space.joinUrl ? (
-            <div className="admin-publish__link-row">
-              Join link: {space.joinUrl}
-            </div>
-          ) : null}
-
           <div className="admin-publish__actions">
-            {space.joinUrl ? (
-              <>
-                <button type="button" className="admin-action-btn" onClick={() => copyToClipboard(space.joinUrl!)}>
-                  Copy join link
-                </button>
-                <a className="admin-action-btn" href={space.joinUrl} target="_blank" rel="noreferrer">
-                  Open join page
-                </a>
-              </>
-            ) : null}
             {space.shareToken ? (
               <button
                 type="button"

@@ -748,51 +748,12 @@ app.post('/api/featured/votd/quick-add', requireAuth, async (c) => {
   return c.json({ success: true, noteId: newNote.id });
 });
 
-// Back-compat shim: old featured-space endpoint (soft-deprecated).
-app.get('/api/featured/space', async (c) => {
-  try {
-    const systemUserId = getHarvousSystemUserId();
-    const space = first(
-      await db
-        .select({
-          id: Spaces.id,
-          title: Spaces.title,
-          description: Spaces.description,
-          color: Spaces.color,
-          shareToken: Spaces.shareToken,
-          isPublic: Spaces.isPublic,
-          isFeatured: Spaces.isFeatured,
-          createdAt: Spaces.createdAt,
-        })
-        .from(Spaces)
-        .where(
-          and(eq(Spaces.userId, systemUserId), eq(Spaces.isFeatured, true), eq(Spaces.isPublic, true), eq(Spaces.isActive, true)),
-        )
-        .orderBy(desc(Spaces.createdAt))
-        .limit(1),
-    );
-
-    if (!space?.shareToken || !space.isPublic || !space.isFeatured) {
-      c.res.headers.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-      return c.json(null);
-    }
-
-    const origin = new URL(c.req.url).origin;
-    const joinUrl = `${origin}/spaces/join/${space.shareToken}`;
-
-    c.res.headers.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-    return c.json({
-      id: space.id,
-      title: space.title,
-      description: space.description,
-      color: space.color,
-      shareToken: space.shareToken,
-      joinUrl,
-    });
-  } catch {
-    c.res.headers.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
-    return c.json(null);
-  }
+// Back-compat shim: old featured-space endpoint. It used to return a join link built from
+// `Spaces.shareToken`, which nothing has resolved since the July 2026 move to SpaceInvites,
+// so it now always answers "no featured space". No current client calls it.
+app.get('/api/featured/space', (c) => {
+  c.res.headers.set('Cache-Control', 'public, max-age=300');
+  return c.json(null);
 });
 
 export default app;
