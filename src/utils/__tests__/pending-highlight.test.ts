@@ -10,8 +10,10 @@ import StarterKit from '@tiptap/starter-kit';
 import { HighlightCustom } from '@/components/react/TiptapHighlightCustom';
 import {
   adoptHighlightEntryId,
+  highlightColorWithId,
   highlightRangesWithId,
   newClientStudyThreadEntryId,
+  recolorHighlightTransaction,
 } from '../pending-highlight';
 import { collectOrphanHighlightMarks } from '../orphan-highlight-backfill';
 import { emptyStudyDockStack, openOrFocusHighlight } from '../study-dock-stack';
@@ -103,5 +105,68 @@ describe('adoptHighlightEntryId', () => {
   it('leaves the stack alone when that card was already closed', () => {
     const empty = emptyStudyDockStack();
     expect(adoptHighlightEntryId(empty, range, 'study_9')).toBe(empty);
+  });
+});
+
+describe('recolorHighlightTransaction', () => {
+  const recolor = (target: Parameters<typeof recolorHighlightTransaction>[1], color: string) => {
+    const tr = recolorHighlightTransaction(editor.state, target, color);
+    if (tr) editor.view.dispatch(tr);
+    return tr;
+  };
+
+  it('keeps the pending client id when the card has no id yet', () => {
+    // The bug: the card opened id-less rebuilt the mark from `{ color, studyThreadEntryId: null }`,
+    // stripping the client id, so the POST's reply found no mark and the highlight orphaned.
+    const clientId = newClientStudyThreadEntryId();
+    editorWithHighlight(clientId);
+    expect(recolor({ id: null, range: { from: 11, to: 16 } }, 'skyBlue')).not.toBeNull();
+    expect(highlightColorWithId(editor.state.doc, clientId)).toBe('skyBlue');
+    expect(collectOrphanHighlightMarks(editor as never)).toEqual([]);
+  });
+
+  it('finds the mark by its id after the text has moved, ignoring a stale range', () => {
+    editorWithHighlight('study_1');
+    editor.chain().insertContentAt(1, 'Amazing ').run();
+    recolor({ id: 'study_1', range: { from: 11, to: 16 } }, 'violet');
+    const [range] = highlightRangesWithId(editor.state.doc, 'study_1');
+    expect(editor.state.doc.textBetween(range.from, range.to)).toBe('peace');
+    expect(range.attrs.color).toBe('violet');
+  });
+
+  it('changes only the colour, keeping every other attribute', () => {
+    editor = new Editor({
+      extensions: [StarterKit, HighlightCustom.configure({ multicolor: true })],
+      content: '<p>Grace and peace to you</p>',
+    });
+    editor
+      .chain()
+      .setTextSelection({ from: 11, to: 16 })
+      .setHighlight({ color: 'violet', studyThreadEntryId: 'study_3', linkedNoteId: 'note_7' } as never)
+      .run();
+    recolor({ id: 'study_3', range: null }, 'mintGreen');
+    const [range] = highlightRangesWithId(editor.state.doc, 'study_3');
+    expect(range.attrs).toMatchObject({ color: 'mintGreen', studyThreadEntryId: 'study_3' });
+    if ('linkedNoteId' in range.attrs) expect(range.attrs.linkedNoteId).toBe('note_7');
+  });
+
+  it('recolours every run of a highlight split by other marks', () => {
+    editor = new Editor({
+      extensions: [StarterKit, HighlightCustom.configure({ multicolor: true })],
+      content: '<p>Grace and <strong>pe</strong>ace to you</p>',
+    });
+    editor.chain().setTextSelection({ from: 11, to: 16 }).setHighlight({ color: 'warmAmber', studyThreadEntryId: 'study_2' }).run();
+    recolor({ id: 'study_2', range: null }, 'coralRose');
+    const colors = new Set<string>();
+    editor.state.doc.descendants((node) => {
+      const m = node.marks.find((x) => x.type.name === 'highlight');
+      if (m) colors.add(m.attrs.color);
+    });
+    expect([...colors]).toEqual(['coralRose']);
+  });
+
+  it('returns null when there is no highlight to recolour', () => {
+    editorWithHighlight('study_1');
+    expect(recolorHighlightTransaction(editor.state, { id: 'study_missing', range: { from: 1, to: 6 } }, 'violet')).toBeNull();
   });
 });

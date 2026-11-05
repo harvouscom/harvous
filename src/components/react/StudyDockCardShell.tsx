@@ -9,6 +9,9 @@ import '@/styles/study-dock-card.css';
 
 const NARROW_BREAKPOINT = 420;
 
+/** Portaled popovers a header control can open from inside the overflow menu. */
+const NESTED_DOCK_POPOVER_SELECTOR = '.dock-accent-swatch__popover-anchor';
+
 function useNarrowViewport(breakpoint: number): boolean {
   const [narrow, setNarrow] = useState(
     () => typeof window !== 'undefined' && window.innerWidth <= breakpoint,
@@ -49,6 +52,10 @@ function OverflowMenu({ children }: { children: React.ReactNode }) {
       if (!t) return;
       if (btnRef.current?.contains(t)) return;
       if (popRef.current?.contains(t)) return;
+      // A control in the menu may open its own portaled popover (the accent palette). A tap in
+      // there is a tap on the menu's own child: closing here unmounts that child — and its
+      // popover — before the click arrives, so the pick silently does nothing.
+      if (t instanceof Element && t.closest(NESTED_DOCK_POPOVER_SELECTOR)) return;
       setOpen(false);
     };
     // Handled here, so whatever else listens for Escape (the reader clears its selection on
