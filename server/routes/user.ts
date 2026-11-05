@@ -181,6 +181,8 @@ import {
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { enrichImportedNote } from '../utils/import-enrichment';
 import { listStudyThreadShares } from '../utils/study-thread-share';
+import { shareUrlFor } from '@/lib/short-links';
+import { getPublicAppOrigin } from '../utils/public-app-origin';
 
 const app = new Hono();
 
@@ -2691,7 +2693,7 @@ app.get('/api/profile/my-sharing', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const origin = new URL(c.req.url).origin;
+    const origin = getPublicAppOrigin(c);
 
     const [threadRows, noteRows] = await Promise.all([
       db.select({ id: Threads.id, title: Threads.title, color: Threads.color, shareToken: Threads.shareToken })
@@ -2714,7 +2716,7 @@ app.get('/api/profile/my-sharing', requireAuth, async (c) => {
       .filter((t): t is typeof t & { shareToken: string } => t.shareToken != null)
       .map(t => ({
         id: t.id, title: t.title || 'Untitled thread', color: t.color ?? undefined,
-        shareToken: t.shareToken, shareUrl: `${origin}/shared/thread/${t.shareToken}`
+        shareToken: t.shareToken, shareUrl: shareUrlFor('thread', t.shareToken, origin)
       }));
 
     const notes = noteRows
@@ -2732,7 +2734,7 @@ app.get('/api/profile/my-sharing', requireAuth, async (c) => {
              later should not make an old link look new. */
           sharedAt: n.shareTokenCreatedAt ?? null,
           shareToken: n.shareToken,
-          shareUrl: `${origin}/shared/note/${n.shareToken}`,
+          shareUrl: shareUrlFor('note', n.shareToken, origin),
         };
       });
 
@@ -2753,7 +2755,7 @@ app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const origin = new URL(c.req.url).origin;
+    const origin = getPublicAppOrigin(c);
 
     const ownedSpacesRows = await db.select({
       id: Spaces.id, title: Spaces.title, color: Spaces.color, createdAt: Spaces.createdAt,

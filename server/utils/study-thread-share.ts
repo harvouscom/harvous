@@ -24,6 +24,7 @@ import {
   pickStudyThreadRepresentativeNoteId,
   type StudyThreadSuggestNode,
 } from '@/utils/suggest-study-thread-title';
+import { shareUrlFor } from '@/lib/short-links';
 
 /** Before `server/db/manual/create-study-thread-shares.sql` is applied: nothing is shared. */
 export function isStudyThreadSharesTableMissing(error: unknown): boolean {
@@ -262,7 +263,7 @@ export async function listStudyThreadShares(userId: string, origin: string): Pro
         title: thread.ok ? thread.title : 'Untitled Thread',
         sharedAt: row.createdAt,
         shareToken: row.shareToken,
-        shareUrl: `${origin}/shared/thread/${row.shareToken}`,
+        shareUrl: shareUrlFor('thread', row.shareToken, origin),
       };
     }),
   );

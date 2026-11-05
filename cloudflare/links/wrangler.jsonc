@@ -1,0 +1,30 @@
+// harvo.us — the short-link Worker (src/lib/short-links.ts has the table).
+//
+// Code only, no assets: every path is answered by worker.ts with a 302 into app.harvous.com
+// or harvous.com. Kept apart from the root wrangler.jsonc (`harvous-app`) because that
+// Worker's `run_worker_first` has no host filter — attached there, harvo.us would serve the
+// SPA shell on any path missing from its list.
+//
+// Deployed by .github/workflows/cloudflare-links-deploy.yml on pushes to main. There is no
+// staging copy: every target is production's app, and localhost/new.harvous.com never hand
+// out harvo.us links (shareUrlFor only shortens on app.harvous.com).
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "harvous-links",
+  "main": "worker.ts",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": true },
+
+  "vars": {
+    "APP_ORIGIN": "https://app.harvous.com",
+    "SITE_ORIGIN": "https://harvous.com"
+  },
+
+  // The *.workers.dev URL is what the redirects are tested against before harvo.us attaches.
+  "workers_dev": true,
+
+  // Attaching needs the apex record gone first — delete the Dub A record (76.76.21.21) in the
+  // harvo.us zone, then `npx wrangler triggers deploy --config cloudflare/links/wrangler.jsonc`.
+  // For harvous.com the dashboard's "Connect domain" failed and the CLI attach worked.
+  "routes": [{ "pattern": "harvo.us", "custom_domain": true }]
+}

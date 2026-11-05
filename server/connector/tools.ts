@@ -230,7 +230,7 @@ export function registerConnectorTools(server: McpServer, ctx: ToolContext): voi
       title: 'Read a shared link',
       description: 'Read a note someone shared publicly, from its Harvous share link or token.',
       inputSchema: {
-        shareToken: z.string().trim().min(1).max(512).describe('A Harvous share link (…/shared/note/…) or its token.'),
+        shareToken: z.string().trim().min(1).max(512).describe('A Harvous share link (…/shared/note/… or harvo.us/n/…) or its token.'),
       },
       annotations: { title: 'Read a shared link', ...READ_ONLY },
     },

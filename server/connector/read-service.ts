@@ -497,11 +497,13 @@ export async function listStudyThreadConnections(
 // ─── get_shared_note ───────────────────────────────────────────────────────────
 
 const SHARE_URL_TOKEN = /\/shared\/note\/([A-Za-z0-9]+)\/?(?:[?#].*)?$/;
+/** The harvo.us short form of the same link (src/lib/short-links.ts). */
+const SHORT_SHARE_URL_TOKEN = /(?:^|\/\/)(?:www\.)?harvo\.us\/n\/([A-Za-z0-9]+)\/?(?:[?#].*)?$/;
 
-/** Accepts the bare token or a full `…/shared/note/<token>` link. */
+/** Accepts the bare token, a full `…/shared/note/<token>` link, or `harvo.us/n/<token>`. */
 export function shareTokenFrom(input: string): string | null {
   const trimmed = input.trim();
-  const fromUrl = trimmed.match(SHARE_URL_TOKEN)?.[1];
+  const fromUrl = trimmed.match(SHARE_URL_TOKEN)?.[1] ?? trimmed.match(SHORT_SHARE_URL_TOKEN)?.[1];
   const token = fromUrl ?? trimmed;
   return isValidShareToken(token) ? token : null;
 }

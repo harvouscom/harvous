@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
+import { shareUrlFor } from '@/lib/short-links';
 import { useShareNote } from '../../hooks/mutations/useShareNote';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
@@ -78,7 +79,7 @@ export default function PrototypeSharePopover({
   const shareUrl = useMemo(() => {
     if (!isPublic || !shareToken) return null;
     if (typeof window === 'undefined') return null;
-    return `${window.location.origin}/shared/note/${shareToken}`;
+    return shareUrlFor('note', shareToken, window.location.origin);
   }, [isPublic, shareToken]);
 
   const displayShareUrl = useMemo(() => {
