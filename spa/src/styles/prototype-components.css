@@ -8479,8 +8479,11 @@ button.proto-home-card--tappable:hover {
    * held while the greeting was only ever the sidebar's 15px — on the sheet's larger type
    * the pills stayed put and the line looked like it had shrunk words in it. `em` resolves
    * against the paragraph, so one rule covers both sizes and any future one.
+   *
+   * Floored at the list meta size: inside the week line (itself a fraction of the greeting)
+   * the two fractions multiplied out to 10px on a phone.
    */
-  font-size: 0.8em;
+  font-size: max(0.8em, var(--pds-list-meta-size));
   font-weight: 600;
   line-height: 1.5;
   white-space: nowrap;
@@ -8563,7 +8566,10 @@ button.proto-home-greeting__chip--passage {
 
 .proto-home-greeting__week-line {
   margin: 4px 0 0;
-  font-size: 0.85em;
+  /* Never under body size. At 0.85em of the phone's 15px greeting it was 12.75px, a caption
+     doing the job of the page's only prose, and its chips came out at 10px (Nov 2026: "can
+     get far too small"). The wide sheet's 19px still scales it up past the floor. */
+  font-size: max(0.85em, var(--pds-list-title-size));
   line-height: 1.6;
   color: var(--pds-text-secondary);
   text-wrap: pretty;
@@ -25746,10 +25752,12 @@ button.proto-feed-sheet__stat:hover {
   border-radius: 0;
 }
 
-/* Long passages (a day's Gospel) fold to four lines and fade out; the faded text is the way in,
-   so the card gains no row and no words. Short passages never fold. */
+/* Long passages (a day's Gospel) fold and fade out; the faded text is the way in, so the card
+   gains no row and no words. The fold sits at nine lines, not four: at the reading face's 17px
+   on a phone, four lines cut off a two-verse Psalm (Nov 2026, Derek: "I don't see all the verse
+   text"). A day's verse or two now always shows whole; only Gospel-length readings fold. */
 .proto-daily-passage__text--folded {
-  max-height: 4lh;
+  max-height: 9lh;
   overflow: hidden;
 }
 
@@ -26892,12 +26900,22 @@ html[data-color-scheme='dark'].harvous-prototype-route
    * tall without changing how anything looks. Only 3px to the sides: these sit ~6px apart in
    * rows, and a wider apron would take taps meant for the neighbour.
    */
-  .proto-side-panel__action-btn,
-  .study-dock-card__header-btn,
-  .proto-toolbar-icon-btn,
-  .proto-chip,
-  .proto-callout-chip__close {
-    /* `.proto-callout__close` is already absolutely positioned, which anchors its apron. */
+  /*
+   * Zero specificity, so it only anchors the apron where nothing else positions the button.
+   * At class weight it came later than, and so beat, every close placed `absolute` in a sheet
+   * corner (`.proto-welcome3__close`, the founder letter's, the space About's, the paper
+   * stack's): on a phone each fell back into flow, and `right: 12px` then slid the Harvous 3
+   * welcome's × twelve pixels out past the sheet's left edge, where `overflow: hidden` cut it
+   * in half. Desktop never saw it — this is a coarse-pointer rule.
+   * `.proto-callout__close` is already absolutely positioned, which anchors its apron.
+   */
+  :where(
+    .proto-side-panel__action-btn,
+    .study-dock-card__header-btn,
+    .proto-toolbar-icon-btn,
+    .proto-chip,
+    .proto-callout-chip__close
+  ) {
     position: relative;
   }
 
