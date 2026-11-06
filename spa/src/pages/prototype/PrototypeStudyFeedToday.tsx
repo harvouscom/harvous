@@ -231,9 +231,7 @@ export default function PrototypeStudyFeedToday({
         * Suggestions for the rest of the day.
         */}
       {votd && passageCard ? (
-        <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-feed-today__passage">
-          <PrototypeDailyPassageCard homeSpaceId={homeSpaceId ?? ''} notes={notes} votd={votd} />
-        </div>
+        <PrototypeDailyPassageCard homeSpaceId={homeSpaceId ?? ''} notes={notes} votd={votd} />
       ) : null}
 
       <div className="proto-feed-tabs">

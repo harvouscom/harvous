@@ -204,10 +204,12 @@
       ' #root::before{content:"";position:fixed;inset:var(--pds-shell-frame-inset);z-index:-1;border-radius:var(--pds-shell-frame-radius);background:var(--pds-bg-page);box-shadow:var(--pds-shadow-shell);pointer-events:none}' +
       /* Phones: the frame's bottom corners follow the display's curve (prototype-shell.css,
          `--pds-shell-frame-radius-bottom`). This card sits right behind it, so with 18px corners
-         its white would show past the frame's wider ones. */
+         its white would show past the frame's wider ones. Its top clears the safe area as the
+         frame's does: 0 in a `default` iOS install, but where the web view runs under the status
+         bar (a `black-translucent` install, an Android PWA) the card's white filled the bar. */
       '@media (max-width:899px){html.' +
       PROTO_ROUTE_CLASS +
-      ' #root::before{border-bottom-left-radius:max(var(--pds-shell-frame-radius),calc(env(safe-area-inset-bottom,0px) + 12px));border-bottom-right-radius:max(var(--pds-shell-frame-radius),calc(env(safe-area-inset-bottom,0px) + 12px));box-shadow:none}}' +
+      ' #root::before{top:calc(var(--pds-shell-frame-inset) + env(safe-area-inset-top,0px));border-bottom-left-radius:max(var(--pds-shell-frame-radius),calc(env(safe-area-inset-bottom,0px) + 12px));border-bottom-right-radius:max(var(--pds-shell-frame-radius),calc(env(safe-area-inset-bottom,0px) + 12px));box-shadow:none}}' +
       /*
        * The guest row sits above the shell on the background layer, so the placeholder card has
        * to start below it too. Without this the card is still pinned at the frame inset and its

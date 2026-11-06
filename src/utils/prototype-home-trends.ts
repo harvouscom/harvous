@@ -555,6 +555,19 @@ export function greetingForHour(hour: number): string {
   return 'Good evening';
 }
 
+export type HomeSky = 'morning' | 'day' | 'evening' | 'night';
+
+/**
+ * The sky behind today's passage, on the greeting's own hours, so "Good evening" never sits
+ * over a noon-blue card. "Up late" and "Almost morning" are both still night.
+ */
+export function skyForHour(hour: number): HomeSky {
+  if (hour >= 22 || hour < 5) return 'night';
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'day';
+  return 'evening';
+}
+
 export function formatHomeNoteCount(count: number, hasMore: boolean): string {
   // Singular is always "1 note" — even when hasMore is true (a page capped at
   // exactly 1 row), "1+ notes" reads oddly and the distinction isn't worth the

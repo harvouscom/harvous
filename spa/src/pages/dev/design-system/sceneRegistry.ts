@@ -346,6 +346,18 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-28-library-search-rows',
     // The glyph-tile rows the panel's browse list and search results share, at panel and phone width.
   },
+  {
+    id: 'ds-29-todays-passage',
+    title: "Today's passage",
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeDailyPassageCard.tsx',
+      'spa/src/styles/prototype-components.css',
+      'spa/src/pages/dev/design-system/TodaysPassageScene.tsx',
+    ],
+    screenshotSlug: 'ds-29-todays-passage',
+    // The Home card under each of the day's four skies, and a long Gospel folding.
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

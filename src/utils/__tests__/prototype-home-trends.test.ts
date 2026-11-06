@@ -23,6 +23,7 @@ import {
   formatHomeNoteCount,
   formatRhythmDaypart,
   greetingForHour,
+  skyForHour,
   homeBookGreetingTone,
   homeContinueCardEyebrow,
   homeFolderGreetingTone,
@@ -691,6 +692,20 @@ describe('greetingForHour', () => {
     expect(greetingForHour(21)).toBe('Good evening');
     expect(greetingForHour(22)).toBe('Up late');
     expect(greetingForHour(23)).toBe('Up late');
+  });
+});
+
+describe('skyForHour', () => {
+  it('keeps the passage sky on the same hours as the greeting', () => {
+    expect(skyForHour(0)).toBe('night');
+    expect(skyForHour(4)).toBe('night');
+    expect(skyForHour(5)).toBe('morning');
+    expect(skyForHour(11)).toBe('morning');
+    expect(skyForHour(12)).toBe('day');
+    expect(skyForHour(17)).toBe('day');
+    expect(skyForHour(18)).toBe('evening');
+    expect(skyForHour(21)).toBe('evening');
+    expect(skyForHour(22)).toBe('night');
   });
 });
 

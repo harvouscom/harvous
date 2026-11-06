@@ -12,6 +12,7 @@ import ProtoIconBlock from '../../prototype/ProtoIconBlock';
 import ReviewCardsScene from './ReviewCardsScene';
 import SoundsScene from './SoundsScene';
 import LibrarySearchRowsScene from './LibrarySearchRowsScene';
+import TodaysPassageScene from './TodaysPassageScene';
 import { ChoiceOptions } from '../../prototype/review-exercises/ChoiceOptions';
 import PrototypeRecallStateChip from '../../prototype/PrototypeRecallStateChip';
 import {
@@ -1872,6 +1873,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <SoundsScene />;
     case 'ds-28-library-search-rows':
       return <LibrarySearchRowsScene />;
+    case 'ds-29-todays-passage':
+      return <TodaysPassageScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }
