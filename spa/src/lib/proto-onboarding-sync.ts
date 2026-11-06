@@ -129,13 +129,23 @@ export interface OnboardingSnapshot {
    * honest option. A returning device has its cache and paints immediately.
    */
   fromCache: boolean;
+  /**
+   * Whether the account had a stored checklist the first time it answered this session, or
+   * `null` until it has answered (and for a guest, who has no account to ask).
+   *
+   * Only the 3.0 shell writes `onboardingState`, so "nothing stored" at that first answer means
+   * this account has never run 3.0 anywhere: the Harvous 3 welcome's gate. Latched before this
+   * session's own seeding can write one, which would otherwise make the answer yes for everyone.
+   */
+  accountHadState: boolean | null;
 }
 
 let fromCache = false;
-let snapshot: OnboardingSnapshot = { state: null, hydrated: false, fromCache: false };
+let accountHadState: boolean | null = null;
+let snapshot: OnboardingSnapshot = { state: null, hydrated: false, fromCache: false, accountHadState: null };
 
 function emit(): void {
-  snapshot = { state: current, hydrated, fromCache };
+  snapshot = { state: current, hydrated, fromCache, accountHadState };
   for (const listener of listeners) listener();
 }
 
@@ -159,7 +169,12 @@ export function getOnboardingServerSnapshot(): OnboardingSnapshot {
   return SERVER_SNAPSHOT;
 }
 
-const SERVER_SNAPSHOT: OnboardingSnapshot = { state: null, hydrated: false, fromCache: false };
+const SERVER_SNAPSHOT: OnboardingSnapshot = {
+  state: null,
+  hydrated: false,
+  fromCache: false,
+  accountHadState: null,
+};
 
 function ensureLoaded(): OnboardingState {
   if (current) return current;
@@ -167,7 +182,7 @@ function ensureLoaded(): OnboardingState {
   fromCache = stored != null;
   current = stored ?? emptyOnboardingState();
   currentRaw = serializeOnboardingState(current);
-  snapshot = { state: current, hydrated, fromCache };
+  snapshot = { state: current, hydrated, fromCache, accountHadState };
   return current;
 }
 
@@ -289,9 +304,10 @@ export function markOnboardingStep(id: OnboardingStepId): void {
  */
 export function handleOnboardingAccountSync(raw: string | null): void {
   ensureLoaded();
-  hydrated = true;
   // Preview shows the empty checklist, so the account's real copy must not merge in.
   const parsed = onboardingPreviewMode ? null : parseOnboardingState(raw);
+  if (!hydrated) accountHadState = parsed != null;
+  hydrated = true;
   // `commit` is a no-op when nothing changed, so emit unconditionally — the `hydrated`
   // flip is itself news, and it is the edge Home's seed effect waits for.
   if (!parsed || !commit(parsed)) emit();
@@ -380,8 +396,9 @@ export function resetOnboardingStateForTests(): void {
   currentRaw = null;
   hydrated = false;
   fromCache = false;
+  accountHadState = null;
   initialized = false;
-  snapshot = { state: null, hydrated: false, fromCache: false };
+  snapshot = { state: null, hydrated: false, fromCache: false, accountHadState: null };
   if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
   pushDebounceTimer = null;
   listeners.clear();

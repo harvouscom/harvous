@@ -10,6 +10,8 @@
  * a noon sky. The paintings are the sign-in letter's, so Home and the front door share a
  * material. The words follow on paper in the reading face, then two grey buttons. Derek chose
  * this over a flat gradient, a painted CSS sky, and an unboxed epigraph, shown side by side.
+ * The sky is seen through a pane of the shell's glass (Nov 2026), picked over a full-card
+ * frost, a sky tinted by the reader's canvas, and five flat textures.
  *
  * It is here until you act on it. Opening it in the reader or writing about it — here or on
  * another device — folds it down to the row in Suggestions for the rest of the day. "Not

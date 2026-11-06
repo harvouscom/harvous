@@ -130,6 +130,8 @@ export interface UseOnboardingResult {
   hydrated: boolean;
   /** There is something trustworthy to render from — the gate on showing anything. */
   ready: boolean;
+  /** The account had a stored checklist when it first answered; `null` until then. */
+  accountHadState: boolean | null;
   visible: boolean;
   progress: ReturnType<typeof onboardingProgress>;
   markDone: (id: OnboardingStepId) => void;
@@ -167,6 +169,7 @@ export function useOnboardingState(): UseOnboardingResult {
     state,
     hydrated: snapshot.hydrated,
     ready,
+    accountHadState: snapshot.accountHadState,
     visible: ready && shouldShowOnboarding(snapshot.state),
     progress: onboardingProgress(state),
     markDone,

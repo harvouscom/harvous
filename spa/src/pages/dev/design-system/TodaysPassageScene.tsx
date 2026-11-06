@@ -1,5 +1,5 @@
 /**
- * Today's passage at phone width, under each of the day's four skies, each on its own day
+ * Today's passage at phone width, under each of the day's four skies seen through the glass pane, each on its own day
  * sheet so it sits on the paper it sits on at home. A short Psalm, and a long Gospel so the
  * fold shows too. KJV text, which is public domain.
  */

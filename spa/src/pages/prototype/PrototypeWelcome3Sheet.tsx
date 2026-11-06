@@ -11,9 +11,8 @@
  *
  * ## Who sees it
  *
- * Only a browser that was running Harvous before this build, which is a question that has to be
- * answered before the bundle loads — see `PROTO_UPGRADED_FROM_2_KEY`. Someone signing up at 3.0
- * has no 2.0 to be welcomed from; they get the onboarding checklist instead, which is the
+ * Once, to an account made before 3.0 that has not used 3.0 yet — see `welcome3-gate.ts`.
+ * Someone signing up at 3.0 has no 2.0 to be welcomed from; they get the onboarding checklist instead, which is the
  * surface that actually introduces the app.
  *
  * ## The numeral

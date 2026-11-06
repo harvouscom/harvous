@@ -136,6 +136,41 @@ describe('account hydration', () => {
   });
 });
 
+describe('accountHadState (the Harvous 3 welcome gate)', () => {
+  it('is null until the account answers', async () => {
+    const { getOnboardingSnapshot, updateOnboardingState } = await loadModule();
+    updateOnboardingState((s) => s);
+    expect(getOnboardingSnapshot().accountHadState).toBeNull();
+  });
+
+  it('is false when the account had never stored a checklist', async () => {
+    const { handleOnboardingAccountSync, getOnboardingSnapshot } = await loadModule();
+    handleOnboardingAccountSync(null);
+    expect(getOnboardingSnapshot().accountHadState).toBe(false);
+  });
+
+  it('is true when the account already had one', async () => {
+    const { handleOnboardingAccountSync, getOnboardingSnapshot } = await loadModule();
+    handleOnboardingAccountSync(
+      serializeOnboardingState(markStep(emptyOnboardingState(), 'note', T1)),
+    );
+    expect(getOnboardingSnapshot().accountHadState).toBe(true);
+  });
+
+  it("keeps the first answer when this session's own writes come back later", async () => {
+    post.mockResolvedValue({});
+    const { handleOnboardingAccountSync, updateOnboardingState, getOnboardingSnapshot } =
+      await loadModule();
+    handleOnboardingAccountSync(null);
+    // Home seeds the checklist, and the account echoes it back on a later sync.
+    updateOnboardingState((s) => markStep(s, 'read', T1));
+    handleOnboardingAccountSync(
+      serializeOnboardingState(markStep(emptyOnboardingState(), 'read', T1)),
+    );
+    expect(getOnboardingSnapshot().accountHadState).toBe(false);
+  });
+});
+
 describe('scripture-pill latch', () => {
   function confirmEvent(detail: { reference: string; isNew: boolean }) {
     return new CustomEvent('scriptureDraftConfirmed', { detail });
