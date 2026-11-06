@@ -1,10 +1,8 @@
 /**
- * Today's passage at phone width, under each of the day's four skies, each on its own day
+ * Today's passage at phone width, under each of the day's four skies seen through the glass pane, each on its own day
  * sheet so it sits on the paper it sits on at home. A short Psalm, and a long Gospel so the
  * fold shows too. KJV text, which is public domain.
  */
-import type { CSSProperties } from 'react';
-import './todays-passage-textures.css';
 import { ProtoShellProvider } from '../../../layouts/proto-shell-context';
 import PrototypeDailyPassageCard from '../../prototype/PrototypeDailyPassageCard';
 import type { HomeSky } from '@/utils/prototype-home-trends';
@@ -30,35 +28,12 @@ const GOSPEL: VotdToday = {
   },
 };
 
-/** A canvas, the way the appearance sync sets it on `<html>`. */
-const canvas = (bg: string, image?: string): CSSProperties =>
-  ({
-    '--pds-canvas-bg': bg,
-    ...(image ? { '--pds-canvas-image': `url("${image}")` } : {}),
-  }) as CSSProperties;
-
-const SKY_CANVAS = canvas('#d7eaff');
-const BREEZE = canvas('#e4eef4', '/images/prototype-backgrounds/light/ai_bg_053.webp');
-
-/* Nov 2026: texture explorations beside the shipping sky (todays-passage-textures.css). */
-const SPECIMENS: { label: string; sky: HomeSky; votd: VotdToday; texture?: string; style?: CSSProperties }[] = [
-  { label: 'Now: sky (evening)', sky: 'evening', votd: PSALM },
-  { label: '6. Sky under glass (evening)', sky: 'evening', votd: PSALM, texture: 'sky-glass' },
-  { label: '6. Sky under glass (day)', sky: 'day', votd: PSALM, texture: 'sky-glass' },
-  { label: '6. Sky under glass (night)', sky: 'night', votd: PSALM, texture: 'sky-glass' },
-  { label: '7. Sky band through glass (evening)', sky: 'evening', votd: PSALM, texture: 'sky-band' },
-  { label: '8. Your sky: Paper canvas (evening)', sky: 'evening', votd: PSALM, texture: 'sky-canvas' },
-  { label: '8. Your sky: Sky canvas (evening)', sky: 'evening', votd: PSALM, texture: 'sky-canvas', style: SKY_CANVAS },
-  { label: '8. Your sky: Peach canvas (evening)', sky: 'evening', votd: PSALM, texture: 'sky-canvas', style: canvas('#ffe1d1') },
-  { label: '1. Paper grain', sky: 'day', votd: PSALM, texture: 'grain' },
-  { label: '2. Deep glass (Paper canvas)', sky: 'day', votd: PSALM, texture: 'glass' },
-  { label: '2. Deep glass (Sky canvas)', sky: 'day', votd: PSALM, texture: 'glass', style: SKY_CANVAS },
-  { label: '2. Deep glass (Breeze wallpaper)', sky: 'day', votd: PSALM, texture: 'glass', style: BREEZE },
-  { label: '3. Ruled ground', sky: 'day', votd: PSALM, texture: 'ruled' },
-  { label: '4. Bookcloth (Paper canvas)', sky: 'day', votd: PSALM, texture: 'cloth' },
-  { label: '4. Bookcloth (Sky canvas)', sky: 'day', votd: PSALM, texture: 'cloth', style: SKY_CANVAS },
-  { label: '5. Fore-edge', sky: 'day', votd: PSALM, texture: 'edge' },
-  { label: 'Sky, a long Gospel', sky: 'day', votd: GOSPEL },
+const SPECIMENS: { label: string; sky: HomeSky; votd: VotdToday }[] = [
+  { label: 'Morning', sky: 'morning', votd: PSALM },
+  { label: 'Day', sky: 'day', votd: PSALM },
+  { label: 'Evening', sky: 'evening', votd: PSALM },
+  { label: 'Night', sky: 'night', votd: PSALM },
+  { label: 'Day, a long Gospel', sky: 'day', votd: GOSPEL },
 ];
 
 export default function TodaysPassageScene() {
@@ -66,12 +41,7 @@ export default function TodaysPassageScene() {
     <ProtoShellProvider>
       <div className="proto-theme" style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
         {SPECIMENS.map((s) => (
-          <section
-            key={s.label}
-            data-specimen={s.label}
-            data-passage-texture={s.texture}
-            style={{ width: 361, display: 'grid', gap: 8, ...s.style }}
-          >
+          <section key={s.label} data-specimen={s.label} style={{ width: 361, display: 'grid', gap: 8 }}>
             <p className="pds-caption">{s.label}</p>
             <article className="proto-feed-sheet" style={{ flex: 'none' }}>
               <div
