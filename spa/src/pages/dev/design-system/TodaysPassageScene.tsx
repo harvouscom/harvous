@@ -43,6 +43,13 @@ const BREEZE = canvas('#e4eef4', '/images/prototype-backgrounds/light/ai_bg_053.
 /* Nov 2026: texture explorations beside the shipping sky (todays-passage-textures.css). */
 const SPECIMENS: { label: string; sky: HomeSky; votd: VotdToday; texture?: string; style?: CSSProperties }[] = [
   { label: 'Now: sky (evening)', sky: 'evening', votd: PSALM },
+  { label: '6. Sky under glass (evening)', sky: 'evening', votd: PSALM, texture: 'sky-glass' },
+  { label: '6. Sky under glass (day)', sky: 'day', votd: PSALM, texture: 'sky-glass' },
+  { label: '6. Sky under glass (night)', sky: 'night', votd: PSALM, texture: 'sky-glass' },
+  { label: '7. Sky band through glass (evening)', sky: 'evening', votd: PSALM, texture: 'sky-band' },
+  { label: '8. Your sky: Paper canvas (evening)', sky: 'evening', votd: PSALM, texture: 'sky-canvas' },
+  { label: '8. Your sky: Sky canvas (evening)', sky: 'evening', votd: PSALM, texture: 'sky-canvas', style: SKY_CANVAS },
+  { label: '8. Your sky: Peach canvas (evening)', sky: 'evening', votd: PSALM, texture: 'sky-canvas', style: canvas('#ffe1d1') },
   { label: '1. Paper grain', sky: 'day', votd: PSALM, texture: 'grain' },
   { label: '2. Deep glass (Paper canvas)', sky: 'day', votd: PSALM, texture: 'glass' },
   { label: '2. Deep glass (Sky canvas)', sky: 'day', votd: PSALM, texture: 'glass', style: SKY_CANVAS },
