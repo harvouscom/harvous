@@ -1,0 +1,127 @@
+/*
+ * Today's passage: texture explorations (Nov 2026). Gallery only.
+ *
+ * Derek: the sky painting "feels conflicted" with letting people choose their app's appearance;
+ * explore textures that fit Harvous, a new extension of the brand, or the glass taken further.
+ * Each wraps the real card (`data-passage-texture`), drops the sky band, and lays a texture
+ * under the words. Nothing here ships: this file is imported by the gallery scene alone, so the
+ * app's stylesheet pays nothing for it. The one Derek picks moves into prototype-components.css.
+ *
+ * Colour comes only from the reader's canvas (`--pds-canvas-bg`, `--pds-canvas-image`) and the
+ * existing ink/border tokens, so every texture follows the appearance they chose.
+ */
+
+[data-passage-texture] .proto-daily-passage__sky::before {
+  display: none;
+}
+
+[data-passage-texture] .proto-daily-passage__sky {
+  padding-bottom: var(--pds-space-2);
+}
+
+[data-passage-texture] .proto-daily-passage__body {
+  margin-top: 0;
+}
+
+[data-passage-texture] .proto-daily-passage__kicker,
+[data-passage-texture] .proto-daily-passage__translation {
+  color: var(--pds-text-secondary);
+}
+
+[data-passage-texture] .proto-daily-passage__dismiss {
+  background: transparent;
+}
+
+[data-passage-texture] .proto-daily-passage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+[data-passage-texture] .proto-daily-passage::before,
+[data-passage-texture] .proto-daily-passage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* 1. Paper grain — the paper stack's sheet, felt rather than seen: a fine fibre noise, darker
+   where it pools, like a good Bible's India paper held to the light. */
+[data-passage-texture='grain'] .proto-daily-passage::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.22 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+}
+
+[data-passage-texture='grain'] .proto-daily-passage::after {
+  background: radial-gradient(130% 90% at 50% 0%, transparent 55%, color-mix(in oklch, var(--pds-text-primary) 5%, transparent));
+}
+
+/* 2. Deep glass — the shell's glass carried into the card: the reader's own canvas refracted
+   through it, a specular sheen across the top-left, and a lit rim. On the default Paper canvas
+   it reads as polished; on a coloured or image canvas it takes that colour. */
+[data-passage-texture='glass'] .proto-daily-passage::before {
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.75) 0%, rgb(255 255 255 / 0) 42%),
+    var(--pds-canvas-image, linear-gradient(transparent, transparent)) center / cover no-repeat,
+    radial-gradient(
+      120% 100% at 85% 110%,
+      color-mix(in oklch, var(--pds-canvas-bg, var(--pds-canvas-default)) 95%, transparent),
+      transparent 70%
+    ),
+    color-mix(in oklch, var(--pds-canvas-bg, var(--pds-canvas-default)) 45%, transparent);
+  filter: blur(0.5px) saturate(1.15);
+}
+
+[data-passage-texture='glass'] .proto-daily-passage::after {
+  z-index: 1;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    inset 0 0 0 0.5px color-mix(in oklch, var(--pds-text-primary) 10%, transparent),
+    inset 0 -18px 30px -24px color-mix(in oklch, var(--pds-text-primary) 18%, transparent);
+}
+
+/* 3. Ruled ground — Harvous 3's own mark: the welcome sheet's ruled grid, dissolving from the
+   reference outward. A study notebook's page, which is what a note is. */
+[data-passage-texture='ruled'] .proto-daily-passage::before {
+  background-image:
+    linear-gradient(color-mix(in oklch, var(--pds-text-primary) 16%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--pds-text-primary) 16%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+  -webkit-mask-image: radial-gradient(90% 75% at 15% 0%, #000 15%, transparent 80%);
+  mask-image: radial-gradient(90% 75% at 15% 0%, #000 15%, transparent 80%);
+}
+
+/* 4. Bookcloth — the linen of a Bible's cover: a fine woven crosshatch with a little grain, so
+   the card reads as something bound rather than printed. */
+[data-passage-texture='cloth'] .proto-daily-passage::before {
+  background-image:
+    repeating-linear-gradient(0deg, color-mix(in oklch, var(--pds-text-primary) 9%, transparent) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, color-mix(in oklch, var(--pds-text-primary) 7%, transparent) 0 1px, transparent 1px 3px),
+    color-mix(in oklch, var(--pds-canvas-bg, var(--pds-canvas-default)) 60%, transparent);
+}
+
+/* 5. Fore-edge — the closed book's page edges down the right side, as the paper stack's leaves
+   are behind a note. The card becomes the top page of today. */
+[data-passage-texture='edge'] .proto-feed-today__passage {
+  box-shadow:
+    3px 0 0 -1px var(--pds-bg-page),
+    3px 0 0 -0.5px var(--pds-border-on-paper),
+    6px 0 0 -2px var(--pds-bg-page),
+    6px 0 0 -1.5px var(--pds-border-on-paper),
+    9px 0 0 -3px var(--pds-bg-page),
+    9px 0 0 -2.5px var(--pds-border-on-paper);
+}
+
+[data-passage-texture='edge'] .proto-daily-passage::before {
+  background: linear-gradient(
+    90deg,
+    transparent calc(100% - 28px),
+    color-mix(in oklch, var(--pds-text-primary) 4%, transparent)
+  );
+}
