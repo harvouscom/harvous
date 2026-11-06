@@ -79,9 +79,15 @@ describe('the card', () => {
 
   it('shows the words, the reference and the translation', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    /* The reference sits in its own span so it never breaks; the line still reads as one. */
-    const eyebrow = document.querySelector('.proto-daily-passage__eyebrow');
-    expect(eyebrow?.textContent).toBe('Today’s passage · Psalm 18:1-2 · NET');
+    /* Over the day's sky: what it is, the reference large, the translation by name. */
+    expect(document.querySelector('.proto-daily-passage__kicker')?.textContent).toBe('Today’s passage');
+    expect(document.querySelector('.proto-daily-passage__title')?.textContent).toBe('Psalm 18:1-2');
+    expect(document.querySelector('.proto-daily-passage__translation')?.textContent).toBe(
+      'NET Bible',
+    );
+    expect(document.querySelector('.proto-daily-passage')?.getAttribute('data-sky')).toMatch(
+      /^(morning|day|evening|night)$/,
+    );
     expect(screen.getByText(/I love you, LORD, my strength\./)).toBeTruthy();
     expect(document.getElementById('todays-passage')).toBeTruthy();
   });
@@ -102,8 +108,8 @@ describe('the card', () => {
       },
     };
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={gospelVotd as never} />);
-    const eyebrow = document.querySelector('.proto-daily-passage__eyebrow');
-    expect(eyebrow?.textContent).toBe('Today’s Gospel · Luke 11:47-54 · NABRE');
+    expect(document.querySelector('.proto-daily-passage__kicker')?.textContent).toBe('Today’s Gospel');
+    expect(document.querySelector('.proto-daily-passage__title')?.textContent).toBe('Luke 11:47-54');
     // No reading chips: the other readings are not on the card.
     expect(screen.queryByText('Ephesians 1:1-10')).toBeNull();
     expect(screen.getByText('Open in Bible')).toBeTruthy();

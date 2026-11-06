@@ -23500,6 +23500,21 @@ p.proto-my-bible__usage {
     border-bottom-right-radius: calc(
       var(--pds-shell-frame-radius-bottom, var(--pds-shell-frame-radius)) - var(--pds-shell-gutter)
     );
+    /*
+     * And it stops one gutter short of the floor, as it does of the sides (Nov 2026).
+     *
+     * Radius less gutter is only concentric when the gap is the gutter on both axes. Flush with
+     * the floor, the curve ended on the frame's straight bottom edge, where the shell's square
+     * clips cut the sheet's shadow off flat, and the day's last card ran on to the floor past
+     * the curve. Lifted, the whole curve shows with its shadow, the way a display's corners
+     * hold a screen.
+     *
+     * `clip` cuts what scrolls inside on that same curve: the body sits 20px in, which is
+     * where the arc is still about 5px up from the bottom. Not `hidden`, which would make the
+     * sheet a scroll container of its own.
+     */
+    margin-bottom: var(--pds-shell-gutter);
+    overflow: clip;
   }
 }
 
@@ -25702,39 +25717,20 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
- * Today's passage as a card at the top of Activity — the sample's recipe below, so a verse on
- * Home reads the same wherever it appears: caption line, the text in the reading face
- * (`.proto-review-dock__verse--scripture`), two buttons (`.proto-review-dock__actions`).
+ * Today's passage as a card at the top of Activity: the day's sky over the reference, then the
+ * text in the reading face (`.proto-review-dock__verse--scripture`) and two buttons
+ * (`.proto-review-dock__actions`). The sky and its layout are further down, after the fold.
  */
 .proto-daily-passage {
   display: grid;
-  gap: 8px;
-  padding: var(--pds-space-3) var(--pds-space-3) var(--pds-space-2);
 }
 
+/* The kicker is allowed to shrink (a global rule pins flex children at `flex-shrink: 0`, which
+   ran the line off the card on a phone and pushed the × out). */
 .proto-daily-passage__head {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
   gap: var(--pds-space-2);
-}
-
-/* Allowed to shrink and wrap (a global rule pins flex children at `flex-shrink: 0`, which ran
-   the line off the card on a phone and pushed the × out). It breaks at the dot before the
-   reference, which stays whole — see `__ref`. */
-.proto-daily-passage__eyebrow {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  text-wrap: pretty;
-}
-
-.proto-daily-passage__ref {
-  white-space: nowrap;
-}
-
-.proto-daily-passage__head > .proto-side-panel__action-btn {
-  flex: none;
 }
 
 /*
@@ -25767,6 +25763,192 @@ button.proto-feed-sheet__stat:hover {
 .proto-daily-passage__gap {
   color: var(--pds-text-tertiary);
   padding: 0 0.15em;
+}
+
+/*
+ * Today's passage under the day's sky (Nov 2026).
+ *
+ * The card opens on a painting of the sky at that hour — the sign-in letter's own paintings,
+ * cropped to card size in `public/images/passage-sky/` — with the reference set large over it.
+ * The painting fades into the paper rather than stopping on an edge, and the words begin in its
+ * last light: the sky is the top of the page, not a picture stuck above it.
+ *
+ * Under the painting, the flat sky it replaced: what shows while the image loads, and if it
+ * never does. Light skies keep dark ink behind a pale wash on the words' side; night is the
+ * hills under indigo, with a few stars and light ink.
+ */
+.proto-daily-passage {
+  gap: 0;
+  padding: 0;
+}
+
+.proto-daily-passage__sky {
+  --sky-photo: none;
+  --sky-flat: linear-gradient(160deg, #cfe6ff 0%, #e2ebf6 52%, #f7e6cf 100%);
+  --sky-wash: linear-gradient(
+    100deg,
+    rgb(255 255 255 / 0.62) 0%,
+    rgb(255 255 255 / 0.28) 55%,
+    rgb(255 255 255 / 0) 100%
+  );
+  --sky-ink-soft: color-mix(in srgb, var(--pds-text-primary) 62%, transparent);
+  --sky-chip: color-mix(in srgb, #fff 55%, transparent);
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  /* The bottom padding is the fade: the painting thins out across it, under nothing. */
+  padding: var(--pds-space-2) var(--pds-space-2) 44px var(--pds-space-3);
+}
+
+/*
+ * The painting, its wash and its fallback, thinning out over the band's last 64px to whatever
+ * paper is under it. A mask rather than a paper-coloured layer: the panel shades from white to
+ * a warmer grey, so no single colour met it without a line. Eased, so the sky thins rather than
+ * stopping.
+ */
+.proto-daily-passage__sky::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    var(--sky-stars, linear-gradient(transparent, transparent)),
+    var(--sky-wash),
+    var(--sky-photo) center 35% / cover no-repeat,
+    var(--sky-flat);
+  --sky-fade: linear-gradient(
+    to bottom,
+    #000 calc(100% - 64px),
+    rgb(0 0 0 / 0.55) calc(100% - 40px),
+    rgb(0 0 0 / 0.15) calc(100% - 18px),
+    transparent 100%
+  );
+  -webkit-mask-image: var(--sky-fade);
+  mask-image: var(--sky-fade);
+}
+
+.proto-daily-passage[data-sky='morning'] > .proto-daily-passage__sky {
+  --sky-photo: url('/images/passage-sky/morning.webp');
+  --sky-flat: linear-gradient(160deg, #ffd9c0 0%, #f8dce4 50%, #e2dcff 100%);
+}
+
+.proto-daily-passage[data-sky='day'] > .proto-daily-passage__sky {
+  --sky-photo: url('/images/passage-sky/day.webp');
+}
+
+.proto-daily-passage[data-sky='evening'] > .proto-daily-passage__sky {
+  --sky-photo: url('/images/passage-sky/evening.webp');
+  --sky-flat: linear-gradient(160deg, #ffc8a0 0%, #f0b6c4 52%, #c2b1f0 100%);
+}
+
+.proto-daily-passage[data-sky='night'] > .proto-daily-passage__sky {
+  --sky-photo: url('/images/passage-sky/night.webp');
+  --sky-stars:
+    radial-gradient(circle at 14% 22%, rgb(255 255 255 / 0.9) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle at 31% 64%, rgb(255 255 255 / 0.55) 0 0.8px, transparent 1.5px),
+    radial-gradient(circle at 52% 18%, rgb(255 255 255 / 0.7) 0 0.9px, transparent 1.6px),
+    radial-gradient(circle at 68% 48%, rgb(255 255 255 / 0.85) 0 1.2px, transparent 1.9px),
+    radial-gradient(circle at 83% 76%, rgb(255 255 255 / 0.5) 0 0.8px, transparent 1.5px),
+    radial-gradient(circle at 91% 30%, rgb(255 255 255 / 0.65) 0 0.9px, transparent 1.6px);
+  --sky-wash: linear-gradient(
+    160deg,
+    rgb(20 24 72 / 0.86) 0%,
+    rgb(44 38 104 / 0.78) 60%,
+    rgb(74 58 124 / 0.66) 100%
+  );
+  --sky-flat: linear-gradient(160deg, #1b2350 0%, #2c2d68 55%, #4a3a7c 100%);
+  /* The page's own ink, redefined for this band: the blanket proto rules paint headings and
+     buttons `--pds-text-primary !important`, so this is what turns the reference and the ×
+     light here without a per-element exception. */
+  --pds-text-primary: #fff;
+  --sky-ink-soft: rgb(255 255 255 / 0.72);
+  --sky-chip: rgb(255 255 255 / 0.14);
+}
+
+/* The small tracked line that says what this is, level with the ×. */
+.proto-daily-passage__kicker {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 28px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sky-ink-soft);
+}
+
+.proto-daily-passage__head {
+  align-items: center;
+}
+
+.proto-daily-passage__dismiss {
+  flex: none;
+  border-radius: 999px;
+  /* A fill, not a blur: with the touch apron (`::before`, wider than the button) a backdrop
+     blur composited as a blank square over the ×. */
+  background: var(--sky-chip);
+}
+
+.proto-daily-passage__title {
+  margin: var(--pds-space-2) 0 0;
+  padding-right: var(--pds-space-2);
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 1.5rem;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  color: var(--pds-text-primary);
+  text-wrap: balance;
+}
+
+.proto-daily-passage__translation {
+  margin: 2px 0 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--sky-ink-soft);
+}
+
+/* Pulled up into the fade, so the first line starts where the sky is almost gone. */
+.proto-daily-passage__body {
+  position: relative;
+  display: grid;
+  gap: var(--pds-space-3);
+  margin-top: -26px;
+  padding: 0 var(--pds-space-3) var(--pds-space-3);
+}
+
+.proto-daily-passage .proto-review-dock__verse {
+  font-size: 17px;
+  line-height: 1.65;
+}
+
+/* Dark: darker washes over the same paintings, light ink on all of them. */
+@media (prefers-color-scheme: dark) {
+  html.harvous-prototype-route:not([data-color-scheme='light'])
+    .proto-daily-passage:not([data-sky='night'])
+    > .proto-daily-passage__sky {
+    --sky-wash: linear-gradient(
+      100deg,
+      rgb(0 0 0 / 0.6) 0%,
+      rgb(0 0 0 / 0.38) 60%,
+      rgb(0 0 0 / 0.24) 100%
+    );
+    --sky-flat: linear-gradient(160deg, #1d3858 0%, #29324d 52%, #463b31 100%);
+    --sky-ink-soft: rgb(255 255 255 / 0.7);
+    --sky-chip: rgb(255 255 255 / 0.12);
+  }
+}
+
+html[data-color-scheme='dark'].harvous-prototype-route
+  .proto-daily-passage:not([data-sky='night'])
+  > .proto-daily-passage__sky {
+  --sky-wash: linear-gradient(100deg, rgb(0 0 0 / 0.6) 0%, rgb(0 0 0 / 0.38) 60%, rgb(0 0 0 / 0.24) 100%);
+  --sky-flat: linear-gradient(160deg, #1d3858 0%, #29324d 52%, #463b31 100%);
+  --sky-ink-soft: rgb(255 255 255 / 0.7);
+  --sky-chip: rgb(255 255 255 / 0.12);
 }
 
 /*

@@ -3,20 +3,22 @@
  *
  * The row it replaces sat first in Suggested — the last section, below the fold on a phone —
  * and showed only a reference, so the passage was something you had to go and fetch before
- * you could decide whether it spoke to you. This puts the words where the day starts, in the
- * shape the review sample already uses for a verse on Home: a caption line, the text in the
- * reading face, two labelled buttons.
+ * you could decide whether it spoke to you. This puts the words where the day starts.
+ *
+ * Under the day's sky (Nov 2026). The reference sits large over a painting of the sky at that
+ * hour: dawn, day, dusk or night, on the greeting's own hours, so "Good evening" never sits over
+ * a noon sky. The paintings are the sign-in letter's, so Home and the front door share a
+ * material. The words follow on paper in the reading face, then two grey buttons. Derek chose
+ * this over a flat gradient, a painted CSS sky, and an unboxed epigraph, shown side by side.
  *
  * It is here until you act on it. Opening it in the reader or writing about it — here or on
- * another device — folds it down to the row further back in Up next for the rest of the day.
- * "Not today" hides both, as it always has.
- *
- * A bare card, not a section: it is the first card of the Up next deck, so the deck's eyebrow
- * is over it and its own caption says what it is — "Today's passage · Psalm 18:1-2 · NET".
+ * another device — folds it down to the row in Suggestions for the rest of the day. "Not
+ * today" hides both, as it always has.
  */
 import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import Icon from '@/components/react/Icon';
 import { TRANSLATIONS } from '@/data/translations';
+import { skyForHour, type HomeSky } from '@/utils/prototype-home-trends';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { VotdToday } from '../../lib/votd-today';
 import { useDailyPassageActions } from './use-daily-passage-actions';
@@ -34,10 +36,13 @@ export default function PrototypeDailyPassageCard({
   homeSpaceId,
   notes,
   votd,
+  sky: skyOverride,
 }: {
   homeSpaceId: string | null;
   notes: SpaceNoteRow[];
   votd: VotdToday;
+  /** A fixed sky, for the design gallery. Otherwise the hour's. */
+  sky?: HomeSky;
 }) {
   const { hidden, todaysNote, openInReader, takeNote, dismiss } = useDailyPassageActions({
     homeSpaceId,
@@ -47,6 +52,10 @@ export default function PrototypeDailyPassageCard({
   /* A stable object: an inline `{ __html }` re-applies innerHTML on every render, which drops
      any text selection the reader is making in the passage. */
   const markup = useMemo(() => ({ __html: votd.textHtml ?? '' }), [votd.textHtml]);
+  /* Read once when the card mounts, like the greeting's hello: a sky that changed under the
+     reader mid-visit would be motion nobody asked for. */
+  const [hourSky] = useState(() => skyForHour(new Date().getHours()));
+  const sky = skyOverride ?? hourSky;
 
   /*
    * A day's verse is a line or two; a Gospel can be fifteen. Long words fold to the height a
@@ -70,71 +79,77 @@ export default function PrototypeDailyPassageCard({
 
   if (!homeSpaceId || hidden) return null;
 
-  const translationLabel = TRANSLATIONS[votd.translation]?.abbreviation ?? votd.translation;
+  const translation = TRANSLATIONS[votd.translation];
   /* A Catholic's day: the Mass Gospel is the passage. The same card in every other way — the
      other readings are a tap away in the reader, not chips crowding the words. */
   const gospel = votd.readings?.items.find((r) => r.slot === 'gospel');
 
   return (
-    /* The reminder link scrolls to this anchor, whichever shape the passage is in. */
-    <div className="proto-daily-passage" id="todays-passage" data-deck-id="todays-passage">
-      <div className="proto-daily-passage__head">
-        <p className="proto-caption proto-daily-passage__eyebrow">
-          {gospel ? DAILY_GOSPEL_SECTION_TITLE : DAILY_PASSAGE_SECTION_TITLE} ·{' '}
-          <span className="proto-daily-passage__ref">
-            {gospel ? gospel.citation : votd.reference} · {translationLabel}
-          </span>
-        </p>
-        <button
-          type="button"
-          className="proto-side-panel__action-btn"
-          aria-label="Dismiss today's passage"
-          title="Not today"
-          onClick={dismiss}
-        >
-          <Icon name="xmark" size={12} aria-hidden />
-        </button>
-      </div>
-      <p
-        ref={textRef}
-        className={`proto-review-dock__verse proto-review-dock__verse--scripture${
-          expanded ? '' : ' proto-daily-passage__text--folded'
-        }`}
-        data-overflows={!expanded && overflows ? 'true' : undefined}
-        {...(!expanded && overflows
-          ? {
-              role: 'button',
-              tabIndex: 0,
-              'aria-expanded': false,
-              'aria-label': 'Show the whole passage',
-              onClick: () => setExpanded(true),
-              onKeyDown: (e: KeyboardEvent) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setExpanded(true);
+    /* The surface is the card's own, so a dismissed passage takes its panel with it. */
+    <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-feed-today__passage">
+      {/* The reminder link scrolls to this anchor, whichever shape the passage is in. */}
+      <div className="proto-daily-passage" data-sky={sky} id="todays-passage">
+        <div className="proto-daily-passage__sky">
+          <div className="proto-daily-passage__head">
+            <p className="proto-daily-passage__kicker">
+              {gospel ? DAILY_GOSPEL_SECTION_TITLE : DAILY_PASSAGE_SECTION_TITLE}
+            </p>
+            <button
+              type="button"
+              className="proto-side-panel__action-btn proto-daily-passage__dismiss"
+              aria-label="Dismiss today's passage"
+              title="Not today"
+              onClick={dismiss}
+            >
+              <Icon name="xmark" size={12} aria-hidden />
+            </button>
+          </div>
+          <h3 className="proto-daily-passage__title">{gospel ? gospel.citation : votd.reference}</h3>
+          <p className="proto-daily-passage__translation">{translation?.name ?? votd.translation}</p>
+        </div>
+        <div className="proto-daily-passage__body">
+          <p
+            ref={textRef}
+            className={`proto-review-dock__verse proto-review-dock__verse--scripture${
+              expanded ? '' : ' proto-daily-passage__text--folded'
+            }`}
+            data-overflows={!expanded && overflows ? 'true' : undefined}
+            {...(!expanded && overflows
+              ? {
+                  role: 'button',
+                  tabIndex: 0,
+                  'aria-expanded': false,
+                  'aria-label': 'Show the whole passage',
+                  onClick: () => setExpanded(true),
+                  onKeyDown: (e: KeyboardEvent) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setExpanded(true);
+                    }
+                  },
                 }
-              },
-            }
-          : {})}
-        dangerouslySetInnerHTML={markup}
-      />
-      {/* Both secondary: the accent fill made the reader button the loudest thing on
-          Activity, louder than the passage it serves. The words carry the card. */}
-      <div className="proto-review-dock__actions">
-        <button
-          type="button"
-          className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-          onClick={openInReader}
-        >
-          Open in Bible
-        </button>
-        <button
-          type="button"
-          className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-          onClick={takeNote}
-        >
-          {todaysNote ? 'Open your note' : 'Create note'}
-        </button>
+              : {})}
+            dangerouslySetInnerHTML={markup}
+          />
+          {/* Both secondary: the accent fill made the reader button the loudest thing on
+              Activity, louder than the passage it serves. The words carry the card. */}
+          <div className="proto-review-dock__actions">
+            <button
+              type="button"
+              className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+              onClick={openInReader}
+            >
+              Open in Bible
+            </button>
+            <button
+              type="button"
+              className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+              onClick={takeNote}
+            >
+              {todaysNote ? 'Open your note' : 'Create note'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
