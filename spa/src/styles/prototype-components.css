@@ -25723,20 +25723,48 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
- * Today's passage as a card at the top of Activity: the day's sky over the reference, then the
- * text in the reading face (`.proto-review-dock__verse--scripture`) and two buttons
- * (`.proto-review-dock__actions`). The sky and its layout are further down, after the fold.
+ * Today's passage as an epigraph (Nov 2026): the words first, in the reading face
+ * (`.proto-review-dock__verse--scripture`) under a soft opening quote mark, then a signature
+ * line — the reference with its translation chip, and the two buttons (`.proto-review-dock__actions`).
+ * No sky and no header band: the card is told apart from its neighbours by leading with
+ * Scripture rather than with a title.
  */
 .proto-daily-passage {
+  position: relative;
   display: grid;
+  gap: var(--pds-space-3);
+  padding: 20px 20px 16px 52px;
 }
 
-/* The kicker is allowed to shrink (a global rule pins flex children at `flex-shrink: 0`, which
-   ran the line off the card on a phone and pushed the × out). */
-.proto-daily-passage__head {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--pds-space-2);
+/* The opening quote, hung in the left margin so the words keep a clean edge. Decoration only. */
+.proto-daily-passage::before {
+  content: '\201C';
+  position: absolute;
+  left: 16px;
+  top: 10px;
+  font-family: var(--pds-font-reading);
+  font-size: 56px;
+  line-height: 1;
+  color: var(--pds-text-tertiary);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/*
+ * The × tucked into the corner, the same 10px in from the top and the right (Nov 2026, Derek:
+ * centred on the first line it sat too low). The words keep clear of it with their own right
+ * padding.
+ */
+.proto-daily-passage__dismiss {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border-radius: 999px;
+}
+
+.proto-daily-passage__words {
+  min-width: 0;
+  padding-right: 24px;
 }
 
 /*
@@ -25747,9 +25775,12 @@ button.proto-feed-sheet__stat:hover {
  * (the `--scripture` variant, still applied), drops only the box.
  */
 .proto-daily-passage .proto-review-dock__verse {
+  margin: 0;
   padding: 0;
   background: none;
   border-radius: 0;
+  font-size: 19px;
+  line-height: 1.6;
 }
 
 /* Long passages (a day's Gospel) fold and fade out; the faded text is the way in, so the card
@@ -25773,235 +25804,56 @@ button.proto-feed-sheet__stat:hover {
   padding: 0 0.15em;
 }
 
-/*
- * Today's passage under the day's sky (Nov 2026).
- *
- * The card opens on a painting of the sky at that hour — the sign-in letter's own paintings,
- * cropped to card size in `public/images/passage-sky/` — with the reference set large over it.
- * The painting fades into the paper rather than stopping on an edge, and the words begin in its
- * last light: the sky is the top of the page, not a picture stuck above it.
- *
- * Under the painting, the flat sky it replaced: what shows while the image loads, and if it
- * never does. Light skies keep dark ink behind a pale wash on the words' side; night is the
- * hills under indigo, with a few stars and light ink.
- */
-.proto-daily-passage {
-  gap: 0;
-  padding: 0;
-}
-
-.proto-daily-passage__sky {
-  --sky-photo: none;
-  --sky-flat: linear-gradient(160deg, #cfe6ff 0%, #e2ebf6 52%, #f7e6cf 100%);
-  --sky-wash: linear-gradient(
-    100deg,
-    rgb(255 255 255 / 0.62) 0%,
-    rgb(255 255 255 / 0.28) 55%,
-    rgb(255 255 255 / 0) 100%
-  );
-  --sky-ink-soft: color-mix(in srgb, var(--pds-text-primary) 62%, transparent);
-  --sky-chip: color-mix(in srgb, #fff 55%, transparent);
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  /* The bottom padding is the fade: the painting thins out across it, under nothing. */
-  padding: var(--pds-space-2) var(--pds-space-2) 44px var(--pds-space-3);
-}
-
-/*
- * The painting, its wash and its fallback, thinning out over the band's last 64px to whatever
- * paper is under it. A mask rather than a paper-coloured layer: the panel shades from white to
- * a warmer grey, so no single colour met it without a line. Eased, so the sky thins rather than
- * stopping.
- */
-.proto-daily-passage__sky::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    var(--sky-stars, linear-gradient(transparent, transparent)),
-    var(--sky-wash),
-    var(--sky-photo) center 35% / cover no-repeat,
-    var(--sky-flat);
-  --sky-fade: linear-gradient(
-    to bottom,
-    #000 calc(100% - 64px),
-    rgb(0 0 0 / 0.55) calc(100% - 40px),
-    rgb(0 0 0 / 0.15) calc(100% - 18px),
-    transparent 100%
-  );
-  -webkit-mask-image: var(--sky-fade);
-  mask-image: var(--sky-fade);
-}
-
-.proto-daily-passage[data-sky='morning'] > .proto-daily-passage__sky {
-  --sky-photo: url('/images/passage-sky/morning.webp');
-  --sky-flat: linear-gradient(160deg, #ffd9c0 0%, #f8dce4 50%, #e2dcff 100%);
-}
-
-.proto-daily-passage[data-sky='day'] > .proto-daily-passage__sky {
-  --sky-photo: url('/images/passage-sky/day.webp');
-}
-
-.proto-daily-passage[data-sky='evening'] > .proto-daily-passage__sky {
-  --sky-photo: url('/images/passage-sky/evening.webp');
-  --sky-flat: linear-gradient(160deg, #ffc8a0 0%, #f0b6c4 52%, #c2b1f0 100%);
-}
-
-.proto-daily-passage[data-sky='night'] > .proto-daily-passage__sky {
-  --sky-photo: url('/images/passage-sky/night.webp');
-  --sky-stars:
-    radial-gradient(circle at 14% 22%, rgb(255 255 255 / 0.9) 0 1.1px, transparent 1.8px),
-    radial-gradient(circle at 31% 64%, rgb(255 255 255 / 0.55) 0 0.8px, transparent 1.5px),
-    radial-gradient(circle at 52% 18%, rgb(255 255 255 / 0.7) 0 0.9px, transparent 1.6px),
-    radial-gradient(circle at 68% 48%, rgb(255 255 255 / 0.85) 0 1.2px, transparent 1.9px),
-    radial-gradient(circle at 83% 76%, rgb(255 255 255 / 0.5) 0 0.8px, transparent 1.5px),
-    radial-gradient(circle at 91% 30%, rgb(255 255 255 / 0.65) 0 0.9px, transparent 1.6px);
-  --sky-wash: linear-gradient(
-    160deg,
-    rgb(20 24 72 / 0.86) 0%,
-    rgb(44 38 104 / 0.78) 60%,
-    rgb(74 58 124 / 0.66) 100%
-  );
-  --sky-flat: linear-gradient(160deg, #1b2350 0%, #2c2d68 55%, #4a3a7c 100%);
-  /* The page's own ink, redefined for this band: the blanket proto rules paint headings and
-     buttons `--pds-text-primary !important`, so this is what turns the reference and the ×
-     light here without a per-element exception. */
-  --pds-text-primary: #fff;
-  --sky-ink-soft: rgb(255 255 255 / 0.72);
-  --sky-chip: rgb(255 255 255 / 0.14);
-}
-
-/* The small tracked line that says what this is, level with the ×. */
-.proto-daily-passage__kicker {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  line-height: 28px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--sky-ink-soft);
-}
-
-.proto-daily-passage__head {
+/* The signature line: reference and chip on the left, the buttons on the right, wrapping to
+   two lines when the card is too narrow for one. */
+.proto-daily-passage__foot {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-2) var(--pds-space-4);
 }
 
-.proto-daily-passage__dismiss {
-  flex: none;
-  border-radius: 999px;
-  /* A fill, not a blur: with the touch apron (`::before`, wider than the button) a backdrop
-     blur composited as a blank square over the ×. */
-  background: var(--sky-chip);
+.proto-daily-passage__ref {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  min-width: 0;
 }
 
-.proto-daily-passage__title {
-  margin: var(--pds-space-2) 0 0;
-  padding-right: var(--pds-space-2);
-  font-family: var(--pds-font-display);
-  font-variation-settings: var(--pds-font-display-variation);
-  font-size: 1.5rem;
-  font-weight: 650;
-  line-height: 1.15;
-  letter-spacing: -0.015em;
-  color: var(--pds-text-primary);
-  text-wrap: balance;
+/* The greeting's weight (600) at a signature's size, so the reference does not compete with
+   the greeting (Nov 2026, Derek: 700 competed, 500 was too light). Qualified and `!important`
+   for the same reason as the passage sheet's title: a global heading rule painted this 700. */
+html.harvous-prototype-route h3.proto-daily-passage__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600 !important;
+  line-height: 1.3;
 }
 
-.proto-daily-passage__translation {
-  margin: 2px 0 0;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--sky-ink-soft);
+.proto-daily-passage__foot .proto-review-dock__actions {
+  margin: 0;
 }
 
-/* Pulled up into the fade, so the first line starts where the sky is almost gone. */
-.proto-daily-passage__body {
-  position: relative;
-  display: grid;
-  gap: var(--pds-space-3);
-  margin-top: -26px;
-  padding: 0 var(--pds-space-3) var(--pds-space-3);
-}
-
-.proto-daily-passage .proto-review-dock__verse {
-  font-size: 17px;
-  line-height: 1.65;
-}
-
-/* Dark: darker washes over the same paintings, light ink on all of them. */
-@media (prefers-color-scheme: dark) {
-  html.harvous-prototype-route:not([data-color-scheme='light'])
-    .proto-daily-passage:not([data-sky='night'])
-    > .proto-daily-passage__sky {
-    --sky-wash: linear-gradient(
-      100deg,
-      rgb(0 0 0 / 0.6) 0%,
-      rgb(0 0 0 / 0.38) 60%,
-      rgb(0 0 0 / 0.24) 100%
-    );
-    --sky-flat: linear-gradient(160deg, #1d3858 0%, #29324d 52%, #463b31 100%);
-    --sky-ink-soft: rgb(255 255 255 / 0.7);
-    --sky-chip: rgb(255 255 255 / 0.12);
+/* A phone keeps more of its width for the words: a smaller hung quote, a narrower margin. */
+@media (max-width: 600px) {
+  .proto-daily-passage {
+    padding: 18px 16px 16px 40px;
   }
-}
 
-html[data-color-scheme='dark'].harvous-prototype-route
-  .proto-daily-passage:not([data-sky='night'])
-  > .proto-daily-passage__sky {
-  --sky-wash: linear-gradient(100deg, rgb(0 0 0 / 0.6) 0%, rgb(0 0 0 / 0.38) 60%, rgb(0 0 0 / 0.24) 100%);
-  --sky-flat: linear-gradient(160deg, #1d3858 0%, #29324d 52%, #463b31 100%);
-  --sky-ink-soft: rgb(255 255 255 / 0.7);
-  --sky-chip: rgb(255 255 255 / 0.12);
-}
-
-/*
- * The pane over the sky (Nov 2026, Derek picked it from glass and texture studies). The hour's
- * painting is seen through the shell's own glass: a soft backdrop blur, a light catching the top
- * left, and a lit top edge, thinning out with the painting so the pane ends where the sky does.
- * Night and dark mode take a quieter pane, so the glass does not grey the dark skies.
- */
-.proto-daily-passage__sky::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  --sky-pane: linear-gradient(135deg, rgb(255 255 255 / 0.45) 0%, rgb(255 255 255 / 0.12) 45%);
-  --sky-pane-edge: rgb(255 255 255 / 0.9);
-  -webkit-backdrop-filter: blur(10px) saturate(1.3);
-  backdrop-filter: blur(10px) saturate(1.3);
-  background: var(--sky-pane);
-  box-shadow: inset 0 1px 0 var(--sky-pane-edge);
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 64px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 64px), transparent);
-}
-
-.proto-daily-passage[data-sky='night'] > .proto-daily-passage__sky::after {
-  --sky-pane: linear-gradient(135deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.03) 45%);
-  --sky-pane-edge: rgb(255 255 255 / 0.3);
-}
-
-@media (prefers-color-scheme: dark) {
-  html.harvous-prototype-route:not([data-color-scheme='light']) .proto-daily-passage__sky::after {
-    --sky-pane: linear-gradient(135deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.03) 45%);
-    --sky-pane-edge: rgb(255 255 255 / 0.22);
+  .proto-daily-passage::before {
+    left: 12px;
+    top: 8px;
+    font-size: 46px;
   }
-}
 
-html[data-color-scheme='dark'].harvous-prototype-route .proto-daily-passage__sky::after {
-  --sky-pane: linear-gradient(135deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.03) 45%);
-  --sky-pane-edge: rgb(255 255 255 / 0.22);
-}
+  .proto-daily-passage .proto-review-dock__verse {
+    font-size: 18px;
+  }
 
-@media (prefers-reduced-transparency: reduce) {
-  .proto-daily-passage__sky::after {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+  .proto-daily-passage__dismiss {
+    top: 8px;
+    right: 8px;
   }
 }
 

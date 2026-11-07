@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { opensWelcomeSheet } from '../PrototypeWhatsNewPill';
+import { opensWelcomeSheet, whatsNewMarkerFor } from '../PrototypeWhatsNewPill';
 
 describe('opensWelcomeSheet', () => {
   it.each(['3.0.0', '3.1.0', '3.6.3', '3.9.9', '3.10.0'])(
@@ -71,5 +71,24 @@ describe('the row itself', () => {
   it('never puts a release-notes control beside the dismiss cross', () => {
     expect(trailing).not.toContain('Read the release notes');
     expect(trailing).not.toContain('openNotes');
+  });
+});
+
+describe('whatsNewMarkerFor', () => {
+  /* The minor moves on every feat: commit, so keying a dismissal on it brought the card back
+     several times a week to people who had already put it away (3.28 to 3.32 in one week). */
+  it('keys one dismissal to the whole of 3.x', () => {
+    expect(whatsNewMarkerFor('3.31.0')).toBe('3');
+    expect(whatsNewMarkerFor('3.32.4')).toBe('3');
+    expect(whatsNewMarkerFor('3.31.0')).toBe(whatsNewMarkerFor('3.40.0'));
+  });
+
+  it('keeps the minor outside the welcome-sheet major', () => {
+    expect(whatsNewMarkerFor('2.96.1')).toBe('2.96');
+    expect(whatsNewMarkerFor('4.0.0')).toBe('4.0');
+  });
+
+  it('has no marker without a version', () => {
+    expect(whatsNewMarkerFor(undefined)).toBeNull();
   });
 });

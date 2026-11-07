@@ -79,15 +79,14 @@ describe('the card', () => {
 
   it('shows the words, the reference and the translation', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    /* Over the day's sky: what it is, the reference large, the translation by name. */
-    expect(document.querySelector('.proto-daily-passage__kicker')?.textContent).toBe('Today’s passage');
+    /* No kicker on screen; what it is stays the region's name. */
+    expect(document.querySelector('.proto-daily-passage__kicker')).toBeNull();
+    expect(screen.getByRole('region', { name: 'Today’s passage' })).toBeTruthy();
     expect(document.querySelector('.proto-daily-passage__title')?.textContent).toBe('Psalm 18:1-2');
-    expect(document.querySelector('.proto-daily-passage__translation')?.textContent).toBe(
-      'NET Bible',
-    );
-    expect(document.querySelector('.proto-daily-passage')?.getAttribute('data-sky')).toMatch(
-      /^(morning|day|evening|night)$/,
-    );
+    /* The translation as the dock's chip on the reference row, full name as its label. */
+    const chip = document.querySelector('.proto-daily-passage__trans-chip');
+    expect(chip?.textContent).toBe('NET');
+    expect(chip?.getAttribute('title')).toBe('NET Bible');
     expect(screen.getByText(/I love you, LORD, my strength\./)).toBeTruthy();
     expect(document.getElementById('todays-passage')).toBeTruthy();
   });
@@ -108,7 +107,7 @@ describe('the card', () => {
       },
     };
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={gospelVotd as never} />);
-    expect(document.querySelector('.proto-daily-passage__kicker')?.textContent).toBe('Today’s Gospel');
+    expect(screen.getByRole('region', { name: 'Today’s Gospel' })).toBeTruthy();
     expect(document.querySelector('.proto-daily-passage__title')?.textContent).toBe('Luke 11:47-54');
     // No reading chips: the other readings are not on the card.
     expect(screen.queryByText('Ephesians 1:1-10')).toBeNull();

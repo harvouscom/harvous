@@ -7,7 +7,7 @@
  * stack with it in the window's corner rather than taking room on the page.
  *
  * When each shows:
- * - What's new — once per release, for accounts that had the app before it. Put away on the
+ * - What's new — once per release (through 3.x, once for the whole major: `whatsNewMarkerFor`), for accounts that had the app before it. Put away on the
  *   account (`whats-new@<release>` in the seen record) as well as the device, so it does not come
  *   back on every new browser. Not for accounts younger than two weeks, who are being introduced
  *   to the app rather than told what changed in it, and not while a feature callout already speaks
@@ -23,7 +23,7 @@ import { useCallback, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { appVersion } from '@/utils/app-version';
 import { markCalloutSeen } from '@/utils/onboarding-state';
-import { releaseMarkerFor } from '@/utils/release-marker';
+import { markerCovers } from '@/utils/release-marker';
 import { updateOnboardingState } from '../../../lib/proto-onboarding-sync';
 import { useHasFeature } from '../../../hooks/useHasFeature';
 import { prototypeSettingsDataRouteTo } from '@/lib/prototype-path';
@@ -39,7 +39,7 @@ import { readDismissFlag, useDismissibleFlag, useDismissibleRelease } from '../u
 import { useDismissibleImportPrompt } from '../use-dismissible-import-prompt';
 import { onboardingOwnsOffer } from '../onboarding-visible-steps';
 import { useOnboardingState } from '../useOnboardingState';
-import { opensWelcomeSheet } from '../PrototypeWhatsNewPill';
+import { opensWelcomeSheet, whatsNewMarkerFor } from '../PrototypeWhatsNewPill';
 import { openWelcome3 } from '../welcome3-bridge';
 import type { CalloutStackItem } from './callout-stack-item';
 import { CALLOUTS, releaseHasCallout } from './callout-registry';
@@ -64,7 +64,12 @@ export function useNoticeItems(): {
 
   const version = appVersion();
   const releaseNotesUrl = useReleaseNotesUrl(version);
-  const releaseKey = `whats-new@${releaseMarkerFor(version) ?? ''}`;
+  const whatsNewMarker = whatsNewMarkerFor(version);
+  const releaseKey = `whats-new@${whatsNewMarker ?? ''}`;
+  /* Any earlier, finer key under this one counts too: `whats-new@3.31` answers `whats-new@3`. */
+  const whatsNewSeen = Object.keys(seen).some(
+    (key) => key.startsWith('whats-new@') && markerCovers(key.slice('whats-new@'.length), whatsNewMarker),
+  );
   const now = Date.now();
   const whatsNewEligible =
     onboardingReady &&
@@ -72,7 +77,7 @@ export function useNoticeItems(): {
     !isGuest &&
     account.createdAt !== undefined &&
     now - account.createdAt >= NEW_ACCOUNT_MS &&
-    !seen[releaseKey] &&
+    !whatsNewSeen &&
     !releaseHasCallout(CALLOUTS, {
       isGuest,
       isPlus: plus.has,
@@ -82,6 +87,7 @@ export function useNoticeItems(): {
     });
   const [whatsNewVisible, dismissWhatsNewHere] = useDismissibleRelease(PROTO_WHATS_NEW_DISMISSED_KEY, version, {
     previewKey: PROTO_WHATS_NEW_PREVIEW_KEY,
+    markerFor: whatsNewMarkerFor,
     /* The dev preview forces the card back past these rules too, or it could never be checked. */
     eligible: whatsNewEligible || (import.meta.env.DEV && readDismissFlag(PROTO_WHATS_NEW_PREVIEW_KEY)),
   });
