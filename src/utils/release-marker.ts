@@ -16,3 +16,16 @@ export function releaseMarkerFor(version: string | undefined | null): string | n
   if (parts.length < 2) return raw;
   return `${parts[0]}.${parts[1]}`;
 }
+
+/**
+ * Whether a dismissal stored under `stored` already answers a notice now keyed on `marker`.
+ *
+ * Equal markers, obviously. Also a bare major (`3`) against any minor of it (`3.31`): a notice
+ * that moved from per-minor to per-major keys must not come back once more to everyone who
+ * already put it away under the old, finer key.
+ */
+export function markerCovers(stored: string | null | undefined, marker: string | null | undefined): boolean {
+  if (!stored || !marker) return false;
+  if (stored === marker) return true;
+  return !marker.includes('.') && stored.startsWith(`${marker}.`);
+}

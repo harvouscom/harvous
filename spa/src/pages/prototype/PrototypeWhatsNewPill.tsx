@@ -104,11 +104,30 @@ export function opensWelcomeSheet(version: string | undefined | null): boolean {
   return (releaseMarkerFor(version) ?? '').split('.')[0] === WELCOME_SHEET_MAJOR;
 }
 
+/**
+ * What one dismissal of "What's new" covers.
+ *
+ * It was the release marker (the minor), on the reasoning that a minor is a release. It is
+ * not any more: the version bump hook raises the minor on every `feat:` commit, which on a
+ * busy week is several times a day (3.28 to 3.32 in one week of November 2026). Every one
+ * brought the card back, to people who had put it away hours earlier — and all of them to say
+ * the same thing, because through 3.x the card opens the same Harvous 3 sheet.
+ *
+ * So while the card opens the welcome sheet, one dismissal covers the whole major. Outside
+ * that it falls back to the minor, as before.
+ */
+export function whatsNewMarkerFor(version: string | undefined | null): string | null {
+  const marker = releaseMarkerFor(version);
+  if (!marker) return null;
+  return opensWelcomeSheet(version) ? WELCOME_SHEET_MAJOR : marker;
+}
+
 export default function PrototypeWhatsNewPill() {
   const version = appVersion();
   const releaseNotesUrl = useReleaseNotesUrl(version);
   const [visible, dismiss] = useDismissibleRelease(PROTO_WHATS_NEW_DISMISSED_KEY, version, {
     previewKey: PROTO_WHATS_NEW_PREVIEW_KEY,
+    markerFor: whatsNewMarkerFor,
   });
 
   const showsWelcomeSheet = opensWelcomeSheet(version);

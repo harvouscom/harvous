@@ -9,7 +9,7 @@
  * what `UserMetadata.onboardingState` does for the checklist; these two are cheap enough
  * that reappearing on a new browser is a shrug rather than a bug.
  */
-import { releaseMarkerFor } from '@/utils/release-marker';
+import { markerCovers, releaseMarkerFor } from '@/utils/release-marker';
 import { useCallback, useEffect, useState } from 'react';
 
 export function readDismissFlag(key: string): boolean {
@@ -71,6 +71,15 @@ export function useDismissibleFlag(
   return [visible, dismiss];
 }
 
+export interface DismissibleReleaseOptions extends DismissibleFlagOptions {
+  /**
+   * What counts as a new release for this notice. Defaults to `releaseMarkerFor` (the minor).
+   * The minor moves on every `feat:` commit, so a notice whose message does not change from
+   * minor to minor should key coarser — see `whatsNewMarkerFor`.
+   */
+  markerFor?: (version: string | undefined | null) => string | null;
+}
+
 function readDismissedMarker(key: string): string | null {
   try {
     return localStorage.getItem(key);
@@ -98,9 +107,9 @@ function readDismissedMarker(key: string): string | null {
 export function useDismissibleRelease(
   dismissedKey: string,
   version: string | undefined | null,
-  { previewKey, eligible = true }: DismissibleFlagOptions = {},
+  { previewKey, eligible = true, markerFor = releaseMarkerFor }: DismissibleReleaseOptions = {},
 ): [boolean, () => void] {
-  const marker = releaseMarkerFor(version);
+  const marker = markerFor(version);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -112,7 +121,7 @@ export function useDismissibleRelease(
       setVisible(true);
       return;
     }
-    setVisible(readDismissedMarker(dismissedKey) !== marker);
+    setVisible(!markerCovers(readDismissedMarker(dismissedKey), marker));
   }, [dismissedKey, previewKey, eligible, marker]);
 
   const dismiss = useCallback(() => {
