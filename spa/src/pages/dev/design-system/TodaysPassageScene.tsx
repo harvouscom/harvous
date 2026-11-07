@@ -1,11 +1,10 @@
 /**
- * Today's passage at phone width, under each of the day's four skies seen through the glass pane, each on its own day
+ * Today's passage at phone width, as the epigraph, each on its own day
  * sheet so it sits on the paper it sits on at home. A short Psalm, and a long Gospel so the
  * fold shows too. KJV text, which is public domain.
  */
 import { ProtoShellProvider } from '../../../layouts/proto-shell-context';
 import PrototypeDailyPassageCard from '../../prototype/PrototypeDailyPassageCard';
-import type { HomeSky } from '@/utils/prototype-home-trends';
 import type { VotdToday } from '../../../lib/votd-today';
 
 const PSALM: VotdToday = {
@@ -28,12 +27,9 @@ const GOSPEL: VotdToday = {
   },
 };
 
-const SPECIMENS: { label: string; sky: HomeSky; votd: VotdToday }[] = [
-  { label: 'Morning', sky: 'morning', votd: PSALM },
-  { label: 'Day', sky: 'day', votd: PSALM },
-  { label: 'Evening', sky: 'evening', votd: PSALM },
-  { label: 'Night', sky: 'night', votd: PSALM },
-  { label: 'Day, a long Gospel', sky: 'day', votd: GOSPEL },
+const SPECIMENS: { label: string; votd: VotdToday }[] = [
+  { label: 'A Psalm', votd: PSALM },
+  { label: 'A long Gospel', votd: GOSPEL },
 ];
 
 export default function TodaysPassageScene() {
@@ -49,7 +45,7 @@ export default function TodaysPassageScene() {
                 style={{ overflow: 'visible', maskImage: 'none', WebkitMaskImage: 'none', paddingBottom: 20 }}
               >
                 <div className="proto-feed-today">
-                  <PrototypeDailyPassageCard homeSpaceId="fixture-space" notes={[]} votd={s.votd} sky={s.sky} />
+                  <PrototypeDailyPassageCard homeSpaceId="fixture-space" notes={[]} votd={s.votd} />
                 </div>
               </div>
             </article>
