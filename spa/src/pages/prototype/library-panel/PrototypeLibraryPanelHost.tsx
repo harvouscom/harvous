@@ -173,6 +173,21 @@ export default function PrototypeLibraryPanelHost({
     return () => cancelAnimationFrame(raf);
   }, [recentsOpen, syncRecentsPosition]);
 
+  /*
+   * Typing again while drilled is asking a new question, so it leaves the drill for results.
+   *
+   * A drill opened from a result keeps the query in the field — Back then lands on the same
+   * results you chose from — but the drill owns the body (see below). Without this, the field
+   * would edit a query nothing on screen was showing. Compared against the last input rather
+   * than run on mount, so arriving in a drill with a query already typed does not undo it.
+   */
+  const lastInput = useRef(search.input);
+  useEffect(() => {
+    if (search.input === lastInput.current) return;
+    lastInput.current = search.input;
+    if (view.drill) setLibraryPanelView({ tab: view.tab, drill: null });
+  }, [search.input, view.drill, view.tab, setLibraryPanelView]);
+
   /* The drilled Thread's name for the back row — a Thread drill carries only its id. */
   const subject = useLibraryDrillSubject(view, data.spaceId);
 
@@ -333,8 +348,12 @@ export default function PrototypeLibraryPanelHost({
         before a character has been entered. Past queries are in the header now, behind a
         control, and "Pick up where you left off" is gone with them: the browse body opens
         newest-first, so it was covering the very rows it was recommending.
+
+        A drill outranks the query. Opening a Thread, folder or passage from results used to
+        change the back row and nothing else: the query was still set, so the results stayed
+        up under a header naming the Thread you had asked to see.
       */}
-      {query.trim() ? (
+      {!view.drill && query.trim() ? (
         <PrototypeLibrarySearchResults
           query={query}
           tab={view.tab}
