@@ -18,14 +18,16 @@ jobs:
     steps:
       - name: Sync HMC denormalized church snapshots
         env:
-          SITE_URL: ${{ secrets.VOTD_PUBLISH_SITE_URL || 'https://app.harvous.com' }}
+          # Calls Fly directly: Cloudflare answers GitHub's runners at app.harvous.com
+          # with a 403 "Just a moment..." challenge, so the request never reaches the API.
+          SITE_URL: https://harvous.fly.dev
           SECRET_TOKEN: ${{ secrets.HMC_SYNC_CRON_SECRET }}
         run: |
           set -euo pipefail
           SECRET_TOKEN="$(printf '%s' "${SECRET_TOKEN:-}" | tr -d '\r\n')"
           echo "Calling HMC sync-denorm: ${SITE_URL}/api/admin/hmc/sync-denorm"
           if [ -z "$SECRET_TOKEN" ]; then
-            echo "::error::GitHub secret HMC_SYNC_CRON_SECRET is empty. Add it under Settings → Secrets (same value as Netlify HMC_SYNC_CRON_SECRET)."
+            echo "::error::GitHub secret HMC_SYNC_CRON_SECRET is empty. Add it under Settings → Secrets (same value as the Fly secret HMC_SYNC_CRON_SECRET)."
             exit 1
           fi
 
@@ -63,8 +65,15 @@ jobs:
           # every non-200 with "set HMC_SYNC_CRON_SECRET", which is right for a 401 and
           # actively misleading for anything else — a week of 400s reading
           # "since cannot be older than 30 days" were reported as a missing secret.
-          if [ "$code" = "401" ] || [ "$code" = "403" ]; then
-            echo "::error::HMC sync-denorm was rejected with HTTP $code. The API's HMC_SYNC_CRON_SECRET does not match the GitHub secret of the same name."
+          # A Cloudflare challenge is also a 403, and it never reached the API, so no secret
+          # was compared. Only this job's own 401 is about credentials.
+          if [ "$code" = "403" ] && printf '%s' "$body" | grep -q 'Just a moment'; then
+            echo "::error::Cloudflare challenged this request (HTTP 403) before it reached the API. The secret was not checked. SITE_URL must be the Fly origin, not app.harvous.com."
+            exit 1
+          fi
+
+          if [ "$code" = "401" ]; then
+            echo "::error::HMC sync-denorm was rejected with HTTP 401. The API's HMC_SYNC_CRON_SECRET does not match the GitHub secret of the same name."
             exit 1
           fi
 
