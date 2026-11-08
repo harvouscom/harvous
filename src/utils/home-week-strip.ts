@@ -101,11 +101,3 @@ export function weekStripLine(strip: WeekStripDay[]): string {
   }
   return `${NUMBER_WORDS[active.length]} days in the Word this week.`;
 }
-
-/** What the bars say, for a screen reader that can't see them. */
-export function weekStripLabel(strip: WeekStripDay[]): string {
-  const parts = strip
-    .filter((day) => day.known && !day.future)
-    .map((day) => `${day.isToday ? 'today' : day.weekday} ${day.count === 0 ? 'nothing' : day.count}`);
-  return `This week so far: ${parts.join(', ')}`;
-}
