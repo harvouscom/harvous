@@ -22,7 +22,7 @@ import {
   type RecallTrendGreetingParts,
 } from '@/utils/prototype-home-trends';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
-import { weekStripLabel, weekStripLine, type WeekStripDay } from '@/utils/home-week-strip';
+import { weekStripLine, type WeekStripDay } from '@/utils/home-week-strip';
 
 /**
  * A glyph inside a greeting chip, sized against the chip's own text rather than in pixels.
@@ -80,7 +80,7 @@ export default function PrototypeHomeGreeting({
   nav: HomeGreetingNav;
   /** The welcome sentence's "Today's Passage" — a chip when the surface can open the reader. */
   onOpenTodaysPassage?: () => void;
-  /** The last seven days, for the line and the bars beside the hello (src/utils/home-week-strip). */
+  /** The last seven days, for the line under the hello (src/utils/home-week-strip). */
   week?: WeekStripDay[];
 }) {
   const { user } = useUser();
@@ -247,8 +247,8 @@ export default function PrototypeHomeGreeting({
     );
 
   /*
-   * Hello and the week, side by side: the words on the left say it, the bars on the right
-   * show it. The line counts days in the Word, never the days missed.
+   * The hello, and the week said in words. The line counts days in the Word, never the days
+   * missed. The seven bars that sat beside it are gone (Nov 2026, Derek).
    */
   return (
     <div className="proto-home-greeting proto-home-greeting--week">
@@ -262,35 +262,6 @@ export default function PrototypeHomeGreeting({
           {subjectClause}
         </p>
       </div>
-      {week ? <HomeWeekStrip days={week} /> : null}
-    </div>
-  );
-}
-
-/** This week's seven bars, Sunday first; today in the accent fill. Unknown days draw nothing yet,
- *  and days still ahead are an empty slot under a faint initial. */
-function HomeWeekStrip({ days }: { days: WeekStripDay[] }) {
-  const max = Math.max(1, ...days.map((d) => d.count));
-  return (
-    <div className="proto-home-week" role="img" aria-label={weekStripLabel(days)}>
-      {days.map((day) => (
-        <div
-          key={day.dayKey}
-          className="proto-home-week__day"
-          data-today={day.isToday ? 'true' : undefined}
-          data-future={day.future ? 'true' : undefined}
-        >
-          <span
-            className="proto-home-week__bar"
-            data-empty={day.count === 0 ? 'true' : undefined}
-            data-unknown={day.known ? undefined : 'true'}
-            style={{ height: day.count === 0 ? undefined : `${Math.max(5, Math.round((day.count / max) * 24))}px` }}
-          />
-          <span className="proto-home-week__initial" aria-hidden>
-            {day.initial}
-          </span>
-        </div>
-      ))}
     </div>
   );
 }

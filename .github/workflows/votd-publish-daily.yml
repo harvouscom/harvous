@@ -18,7 +18,10 @@ jobs:
     steps:
       - name: Publish daily VOTD
         env:
-          SITE_URL: ${{ secrets.VOTD_PUBLISH_SITE_URL || 'https://app.harvous.com' }}
+          # Calls Fly directly, like backup-user-exports. Since the Cloudflare cutover (Oct 27 2026)
+          # app.harvous.com answers GitHub's runners with a 403 "Just a moment..." bot challenge,
+          # so nothing published and every reader stayed on the last verse.
+          SITE_URL: ${{ secrets.VOTD_PUBLISH_SITE_URL || 'https://harvous.fly.dev' }}
           SECRET_TOKEN: ${{ secrets.VOTD_CRON_SECRET }}
         run: |
           set -euo pipefail
@@ -38,7 +41,7 @@ jobs:
 
           echo "Calling VOTD publish: ${SITE_URL}/api/admin/votd/publish-daily${SUFFIX}"
           if [ -z "$SECRET_TOKEN" ]; then
-            echo "::error::GitHub secret VOTD_CRON_SECRET is empty. Add it under Settings → Secrets and variables → Actions (same value as Netlify VOTD_CRON_SECRET)."
+            echo "::error::GitHub secret VOTD_CRON_SECRET is empty. Add it under Settings → Secrets and variables → Actions (same value as the Fly secret VOTD_CRON_SECRET)."
             exit 1
           fi
           echo "Bearer auth: enabled (secret length ${#SECRET_TOKEN} chars)"
@@ -54,6 +57,6 @@ jobs:
           echo "$code"
 
           if [ "$code" != "200" ]; then
-            echo "::error::VOTD publish failed with HTTP $code (expected 200). Body above. On Netlify: set VOTD_CRON_SECRET for Production, redeploy functions, and match GitHub VOTD_CRON_SECRET exactly."
+            echo "::error::VOTD publish failed with HTTP $code (expected 200). Body above. An HTML \"Just a moment\" body is a Cloudflare bot challenge, not the app. A JSON 401 means the Fly secret VOTD_CRON_SECRET does not match the GitHub secret of the same name."
             exit 1
           fi

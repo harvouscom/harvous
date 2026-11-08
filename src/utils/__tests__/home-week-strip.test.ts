@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWeekStrip, weekStripLabel, weekStripLine, weekStripNeedsOlder } from '../home-week-strip';
+import { buildWeekStrip, weekStripLine, weekStripNeedsOlder } from '../home-week-strip';
 import type { StudyFeedDay } from '../study-feed-items';
 
 const now = new Date(2026, 9, 15, 19, 0); // Thursday, October 15
@@ -64,12 +64,5 @@ describe('weekStripLine', () => {
 
   it('on a Sunday, today is the whole week so far', () => {
     expect(weekStripLine(strip([2], new Date(2026, 9, 11, 9)))).toBe('In the Word today.');
-  });
-
-  it('describes the bars for a screen reader, leaving out the days ahead', () => {
-    const label = weekStripLabel(strip([3, 0]));
-    expect(label).toContain('today 3');
-    expect(label).toContain('Wednesday nothing');
-    expect(label).not.toContain('Friday');
   });
 });
