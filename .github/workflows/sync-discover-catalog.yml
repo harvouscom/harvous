@@ -55,14 +55,16 @@ jobs:
           ssh-key: ${{ secrets.HARVOUS_COM_SYNC_DEPLOY_KEY }}
 
       # The **public** endpoint, with no credentials. That is the point: this
-      # step is also a continuous assertion that the URL harvous.com's build
-      # depends on is genuinely reachable without auth. If it ever stops being,
-      # this fails loudly instead of the catalog quietly emptying on the next
-      # rebuild.
+      # step is also a continuous assertion that the export is genuinely
+      # reachable without auth. If it ever stops being, this fails loudly
+      # instead of the catalog quietly emptying on the next rebuild.
+      #
+      # From the Fly origin because Cloudflare answers GitHub's runners at
+      # app.harvous.com with a 403 "Just a moment..." challenge.
       - name: Fetch the listed catalog
         run: |
           curl -fsS --retry 3 --retry-delay 5 \
-            https://app.harvous.com/api/discover/export \
+            https://harvous.fly.dev/api/discover/export \
             -o harvous.com/data/discover-listings.json
 
       # A truncated or error-shaped body would otherwise be committed and then

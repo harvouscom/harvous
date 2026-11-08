@@ -39,11 +39,7 @@ a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456
    - **Secret:** Paste the token you generated in Step 1
    - Click **Add secret**
 
-5. **Optional: Add Site URL Secret** (if you want to override the default)
-   - Click **New repository secret** again
-   - **Name:** `AUTO_ARCHIVE_SITE_URL`
-   - **Secret:** `https://app.harvous.com`
-   - Click **Add secret**
+The workflows call `https://harvous.fly.dev` directly and no longer read an `AUTO_ARCHIVE_SITE_URL` secret. Cloudflare challenges GitHub's runners at `app.harvous.com` (HTTP 403 "Just a moment..."), so scheduled jobs cannot use it.
 
 ---
 
@@ -119,7 +115,7 @@ curl -X POST http://localhost:4321/api/inbox/auto-archive
 
 3. **Check the workflow run**
    - Click on the workflow run to see logs
-   - You should see: "Calling auto-archive endpoint: https://app.harvous.com/api/inbox/auto-archive"
+   - You should see: "Calling auto-archive endpoint: https://harvous.fly.dev/api/inbox/auto-archive"
    - Status should be green ✅ if successful
 
 ---
@@ -160,8 +156,7 @@ After the workflow runs:
 ### Issue: Workflow fails to connect
 
 **Solution:**
-- Verify `AUTO_ARCHIVE_SITE_URL` is set correctly (or default `https://app.harvous.com` is correct)
-- Check that your Netlify site is accessible
+- Check that `https://harvous.fly.dev` is up
 - Verify the endpoint path: `/api/inbox/auto-archive`
 
 ---
@@ -187,7 +182,7 @@ After the workflow runs:
 
 **GitHub Secret Name:** `AUTO_ARCHIVE_SECRET_TOKEN`  
 **Netlify Env Var Name:** `AUTO_ARCHIVE_SECRET_TOKEN`  
-**Endpoint:** `https://app.harvous.com/api/inbox/auto-archive`  
+**Endpoint:** `https://harvous.fly.dev/api/inbox/auto-archive`  
 **Schedule:** Daily at 2 AM UTC  
 **Workflow File:** `.github/workflows/auto-archive.yml`
 

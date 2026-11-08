@@ -12,15 +12,27 @@ jobs:
     steps:
       - name: Call Support Notify-Check API
         env:
-          SITE_URL: ${{ secrets.AUTO_ARCHIVE_SITE_URL || 'https://app.harvous.com' }}
+          # Calls Fly directly: Cloudflare answers GitHub's runners at app.harvous.com
+          # with a 403 "Just a moment..." challenge, so the request never reaches the API.
+          SITE_URL: https://harvous.fly.dev
           SECRET_TOKEN: ${{ secrets.SUPPORT_NOTIFY_SECRET_TOKEN }}
         run: |
-          echo "Calling notify-check endpoint: $SITE_URL/api/admin/support/notify-check"
+          set -euo pipefail
           if [ -z "$SECRET_TOKEN" ]; then
-            response=$(curl -s -w "\n%{http_code}" -X POST $SITE_URL/api/admin/support/notify-check)
-            echo "$response"
-          else
-            response=$(curl -s -w "\n%{http_code}" -X POST $SITE_URL/api/admin/support/notify-check \
-              -H "Authorization: Bearer $SECRET_TOKEN")
-            echo "$response"
+            echo "::error::GitHub secret SUPPORT_NOTIFY_SECRET_TOKEN is empty."
+            exit 1
           fi
+          echo "Calling notify-check endpoint: $SITE_URL/api/admin/support/notify-check"
+          response_file="$(mktemp)"
+          code="$(curl -sS --max-time 120 -o "$response_file" -w '%{http_code}' -X POST "$SITE_URL/api/admin/support/notify-check" \
+            -H "Authorization: Bearer $SECRET_TOKEN" || true)"
+          cat "$response_file"
+          echo
+          echo "HTTP $code"
+          case "$code" in
+            2??) ;;
+            *)
+              echo "::error::Support notify-check failed with HTTP $code. The response body is logged above."
+              exit 1
+              ;;
+          esac

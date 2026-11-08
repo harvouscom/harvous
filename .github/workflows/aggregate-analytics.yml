@@ -12,7 +12,9 @@ jobs:
     steps:
       - name: Aggregate Monthly Analytics
         env:
-          SITE_URL: ${{ secrets.AUTO_ARCHIVE_SITE_URL || 'https://app.harvous.com' }}
+          # Calls Fly directly: Cloudflare answers GitHub's runners at app.harvous.com
+          # with a 403 "Just a moment..." challenge, so the request never reaches the API.
+          SITE_URL: https://harvous.fly.dev
           SECRET_TOKEN: ${{ secrets.AUTO_ARCHIVE_SECRET_TOKEN }}
         run: |
           echo "Aggregating analytics for previous month"
