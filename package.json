@@ -63,6 +63,7 @@
     "easter:sync-notes": "tsx scripts/sync-easter-2026-notes.ts",
     "easter-weekend:publish": "tsx scripts/publish-easter-weekend-thread.ts",
     "notes-from-harvous:publish": "tsx scripts/publish-notes-from-harvous.ts",
+    "billing:sync-contacts": "tsx --env-file=.env server/scripts/sync-billing-contacts.ts",
     "billing:verify": "tsx --env-file=.env server/scripts/verify-billing-setup.ts",
     "billing:setup": "tsx --env-file=.env server/scripts/setup-billing.ts",
     "lighthouse:a11y": "node scripts/lighthouse-a11y.mjs",

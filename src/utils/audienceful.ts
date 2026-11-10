@@ -291,6 +291,7 @@ export async function tagAsAppUser(
   lastName?: string,
   activity?: AudiencefulActivityFields,
   productFlags?: AudiencefulProductFlags,
+  billingFields?: Record<string, string | boolean>,
 ): Promise<AudiencefulPersonResponse> {
   console.log('[Audienceful] Starting tagAsAppUser:', {
     email,
@@ -326,6 +327,7 @@ export async function tagAsAppUser(
   // Prepare extra_data with custom fields
   const extraData: { [key: string]: any } = {
     clerk_user_id: clerkUserId,
+    ...billingFields,
   };
 
   if (firstName) extraData.first_name = firstName;

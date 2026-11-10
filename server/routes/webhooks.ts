@@ -13,6 +13,7 @@ import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
 import { invalidateUserCache } from '../utils/user-cache';
 import { firstHeaderValue } from '../utils/polar-client';
+import { syncBillingContactIfEnabled } from '../utils/billing-contact-sync';
 import {
   polarBillingIntent,
   productIdFromPolarData,
@@ -550,6 +551,7 @@ app.post('/api/webhooks/polar', async (c) => {
       await applyPolarSubscriptionEntitlement({ userId, productId, subscriptionId, enabled: false });
     }
 
+    await syncBillingContactIfEnabled(userId);
     return c.json({ ok: true });
   } catch (error: any) {
     console.error('[Polar webhook] Error:', error?.message || error);
