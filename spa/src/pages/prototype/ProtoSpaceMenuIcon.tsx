@@ -19,6 +19,7 @@ export default function ProtoSpaceMenuIcon({
   glyphSize,
   variant = 'menu',
   iconName = 'user-group',
+  colorScheme: schemeOverride,
 }: {
   color?: string;
   size?: number;
@@ -31,8 +32,10 @@ export default function ProtoSpaceMenuIcon({
   variant?: 'menu' | 'orb';
   /** Glyph inside the color tile. Default people icon; ministry channels use `rss`. */
   iconName?: IconName;
+  colorScheme?: 'light' | 'dark';
 }) {
-  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
+  const inheritedScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
+  const colorScheme = schemeOverride ?? inheritedScheme;
   const isOrb = variant === 'orb';
   const tileSize = isOrb ? undefined : size;
   const iconSize = glyphSize ?? (isOrb ? 13 : Math.max(9, Math.round(size * 0.625)));

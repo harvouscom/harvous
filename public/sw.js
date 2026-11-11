@@ -233,6 +233,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Child notebooks must not inherit this adult PWA's ambient credentials or cache.
+  if (url.pathname === '/kids.html' || url.pathname.startsWith('/api/family/child/')) {
+    event.respondWith(fetch(event.request, { credentials: 'omit', cache: 'no-store' }));
+    return;
+  }
+
   // API routes - always network, no cache (credentials included). Authenticated responses
   // must never land in Cache Storage (shared-device / account-switch leakage).
   if (url.pathname.startsWith('/api/')) {

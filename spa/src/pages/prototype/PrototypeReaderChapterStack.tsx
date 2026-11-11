@@ -33,6 +33,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { adjacentChapter } from '@/utils/bible-book-chapters';
 import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleChapter';
 import { playSound } from '@/utils/sounds';
+import type { SoundPreference } from '@/utils/sound-prefs';
 
 /**
  * How many chapters show an edge.
@@ -81,6 +82,7 @@ export default function PrototypeReaderChapterStack({
   chapter,
   translation,
   direction = 'behind',
+  soundPreference,
   onSelect,
 }: {
   book: string;
@@ -94,6 +96,7 @@ export default function PrototypeReaderChapterStack({
    * is what makes turning a page in either direction one idea rather than two controls.
    */
   direction?: 'behind' | 'ahead';
+  soundPreference?: SoundPreference;
   onSelect: (book: string, chapter: number) => void;
 }) {
   const queryClient = useQueryClient();
@@ -140,7 +143,7 @@ export default function PrototypeReaderChapterStack({
             style={{ '--edge-depth': depth } as CSSProperties}
             onClick={() => {
               // A page turned: the whoosh forward reading on, backward turning back.
-              playSound(direction === 'ahead' ? 'nav.forward' : 'nav.back');
+              playSound(direction === 'ahead' ? 'nav.forward' : 'nav.back', soundPreference === undefined ? undefined : { preference: soundPreference });
               onSelect(e.book, e.chapter);
             }}
             aria-label={direction === 'ahead' ? `Read on to ${label}` : `Back to ${label}`}

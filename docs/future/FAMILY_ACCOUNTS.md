@@ -1,6 +1,6 @@
 # Family Accounts
 
-**Status:** Future feature — not yet implemented  
+**Status:** A restricted US-first web child-account pilot is implemented behind configuration gates; the broader family plan below remains future work. See [implementation and launch gates](../CHILD_ACCOUNTS.md).
 **Last updated:** 2026-04-08
 
 ---

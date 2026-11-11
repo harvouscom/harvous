@@ -729,6 +729,7 @@ export default function PrototypeStudyFeedPage() {
   const showFetchEdge = trailEndEdge === 'fetch';
   const showOriginEdge = trailEndEdge === 'origin';
   const showLockedEdge = trailEndEdge === 'locked';
+  const showComposePrompt = safeIndex === 0 && !scopedSpace;
   // The real count of what the free window is hiding, when there is one — "42 earlier · Plus".
   const lockedEdgeCaption =
     lockedEdgeLabel(historyWindow.status?.hiddenCount, historyWindow.status?.hiddenCapped) ??
@@ -794,7 +795,7 @@ export default function PrototypeStudyFeedPage() {
           ) : null}
         </div>
 
-        <article className="proto-feed-sheet">
+        <article className="proto-feed-sheet" data-compose-prompt={showComposePrompt || undefined}>
           <header className="proto-feed-sheet__head">
             <div className="proto-feed-sheet__title">
               <h2 className="proto-feed-sheet__day">{day.label}</h2>
@@ -919,10 +920,6 @@ export default function PrototypeStudyFeedPage() {
               summarySentence ? <p className="proto-feed-sheet__summary">{summarySentence}</p> : null
             )}
 
-            {/* Today, unfiltered: the way to start writing, in words, on every visit. A day
-                you flipped back to or a single room's trail is not where a new note goes. */}
-            {safeIndex === 0 && !scopedSpace ? <PrototypeFeedComposePrompt prompts={composePrompts} /> : null}
-
             {/* Above everything when it is up: it is a question waiting on an answer, and
                 the day's record can wait behind it. */}
             <PrototypeThreadProposalReview
@@ -985,6 +982,7 @@ export default function PrototypeStudyFeedPage() {
             )}
           </div>
 
+          {showComposePrompt && <PrototypeFeedComposePrompt prompts={composePrompts} />}
         </article>
       </div>
     </div>

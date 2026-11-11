@@ -1,3 +1,4 @@
+import { beginFamilyParentDeletion } from '../family/service';
 /**
  * User + Profile routes — Hono port of src/pages/api/user/*.ts and src/pages/api/profile/*.ts
  *
@@ -36,6 +37,7 @@
 
 import { deleteSearchEventsForUser } from '../utils/record-search-event';
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db, first, Notes, Threads, Spaces, SpaceNotes, Tags, NoteThreads, UserMetadata,
@@ -335,6 +337,10 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    if (!clerkSecretKey) return c.json({ error: 'Account deletion is temporarily unavailable.' }, 503);
+    await beginFamilyParentDeletion(auth.userId);
+
     // Delete data (same as clear-data)
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId));
     const noteIds = userNotes.map(n => n.id);
@@ -360,24 +366,23 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
        this feature can produce. */
     await deleteSearchEventsForUser(auth.userId);
 
-    // Delete from Clerk
+    // A provider failure must not be reported as a completed deletion. The still-valid
+    // Clerk account can retry; local deletion above is idempotent.
     try {
-      const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-      if (clerkSecretKey) {
-        const resp = await fetch(`https://api.clerk.com/v1/users/${auth.userId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${clerkSecretKey}`, 'Content-Type': 'application/json' },
-        });
-        if (!resp.ok) {
-          console.error('Clerk API error during user deletion:', resp.status);
-        }
+      const resp = await fetch(`https://api.clerk.com/v1/users/${auth.userId}`, {
+        method: 'DELETE', signal: AbortSignal.timeout(15_000),
+        headers: { Authorization: `Bearer ${clerkSecretKey}`, 'Content-Type': 'application/json' }
+      });
+      if (!resp.ok && resp.status !== 404) {
+        return c.json({ error: 'Local data was removed, but sign-in account deletion failed. Please retry.' }, 502);
       }
-    } catch (clerkError: any) {
-      console.error('Error deleting Clerk user:', clerkError.message);
+    } catch {
+      return c.json({ error: 'Local data was removed, but sign-in account deletion could not be confirmed. Please retry.' }, 502);
     }
 
     return c.json({ success: true, message: 'Account and all data deleted' });
   } catch (error: any) {
+    if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);
     console.error('Delete account error:', error);
     return c.json({ error: error.message || 'Failed to delete account' }, 500);
   }

@@ -87,6 +87,16 @@ describe('the palette', () => {
 });
 
 describe('the reader’s choice', () => {
+  it('uses a separate reading context’s choice without changing the device preference', async () => {
+    writeSoundPreference('off');
+    gesture();
+    playSound('nav.forward', { preference: 'everywhere' });
+    await vi.advanceTimersByTimeAsync(50);
+    playSound('review.right', { preference: 'off' });
+    playSound('review.right');
+    expect(heard().map(([sound]) => sound)).toEqual(['navigate']);
+  });
+
   it('keeps the interface quiet on Moments only, and still plays the moments', async () => {
     writeSoundPreference('moments');
     gesture();

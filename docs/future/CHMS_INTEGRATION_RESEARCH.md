@@ -522,6 +522,8 @@ Member-visible: badges, week completion, streaks. Optional subtle "Synced to Pla
 
 ### COPPA (Children's Online Privacy Protection Act)
 
+Implementation update (2026-11-10): [Parent-managed child accounts](../CHILD_ACCOUNTS.md) separates KWS adult verification from Harvous consent **before profile creation**. The pilot is read-only ministry channel access, not roster sync or collaborative youth membership. Parent review rights and leader visibility are separate.
+
 Harvous must treat users under 13 as a regulated class when youth groups are in scope.
 
 | Requirement | Harvous approach |

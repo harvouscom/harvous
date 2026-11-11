@@ -21,6 +21,7 @@ import { csrfProtection } from './middleware/csrf';
 
 // Routes
 import health from './routes/health';
+import family from './routes/family';
 import navigation from './routes/navigation';
 import debug from './routes/debug';
 import about from './routes/about';
@@ -104,6 +105,7 @@ app.use('/api/*', async (c, next) => {
 
 // Register routes
 app.route('/', health);
+app.route('/', family);
 app.route('/', navigation);
 app.route('/', debug);
 app.route('/', about);

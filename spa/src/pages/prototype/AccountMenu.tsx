@@ -15,7 +15,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { getNavAvatarInitials, resolveProfileFullName } from '@/utils/nav-avatar-initials';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
-import { prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib/prototype-path';
+import { prototypeHref, prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { updateCachedProfile, useProfile } from '../../hooks/queries/useProfile';
@@ -178,6 +178,14 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
                 <Icon name="gear" size={PROTO_TOOLBAR_ICON_SIZE} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>Settings</span>
+            </button>
+            <button type="button" role="menuitem" className="proto-menu-item" onClick={() => {
+              setOpen(false);
+              storeSettingsOpenerPath(`${pathname}${searchRaw ?? ''}`);
+              navigate({ to: prototypeHref('settings/family') as any });
+            }}>
+              <span className="proto-menu-item__icon" aria-hidden><Icon name="user-shield" size={PROTO_TOOLBAR_ICON_SIZE} /></span>
+              <span className="proto-menu-item__label">Switch to child mode</span>
             </button>
             <button
               type="button"

@@ -1,3 +1,4 @@
+import FamilyPrivacyScene from './FamilyPrivacyScene';
 /**
  * Fixture previews for design-system foundation scenes.
  * Uses production tokens + primitives — edit linked files; HMR updates here.
@@ -23,6 +24,7 @@ import PrototypePaperStack from '../../prototype/PrototypePaperStack';
 import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
 import PrototypeStudyFeedPart from '../../prototype/PrototypeStudyFeedPart';
+import PrototypeFeedComposePrompt from '../../prototype/PrototypeFeedComposePrompt';
 import PrototypeWelcome3Sheet from '../../prototype/PrototypeWelcome3Sheet';
 import PrototypeHomeRow from '../../prototype/PrototypeHomeRow';
 import { TRANSLATION_ORDER, getTranslationAbbreviationDisplay } from '@/data/translations';
@@ -1654,7 +1656,7 @@ function StudyFeedScene() {
 
   return (
     <div className="proto-theme">
-      <div className="proto-feed" style={{ padding: 0 }}>
+      <div className="proto-feed" style={{ padding: 0, height: 480 }}>
         <div className="proto-feed-stack">
           <div className="proto-feed-stack__edges">
             {[2, 1].map((depth) => (
@@ -1670,7 +1672,7 @@ function StudyFeedScene() {
               </button>
             ))}
           </div>
-          <article className="proto-feed-sheet">
+          <article className="proto-feed-sheet" data-compose-prompt>
             <header className="proto-feed-sheet__head">
               <div className="proto-feed-sheet__title">
                 <h2 className="proto-feed-sheet__day">{day.label}</h2>
@@ -1682,16 +1684,7 @@ function StudyFeedScene() {
                 <PrototypeStudyFeedPart key={group.part} group={group} onOpen={() => {}} />
               ))}
             </div>
-            <footer className="proto-feed-sheet__foot">
-              <button type="button" className="proto-feed-sheet__flip" disabled>
-                <Icon name="caret-up" size={11} />
-                <span>Newer</span>
-              </button>
-              <button type="button" className="proto-feed-sheet__flip">
-                <span>Earlier</span>
-                <Icon name="caret-down" size={11} />
-              </button>
-            </footer>
+            <PrototypeFeedComposePrompt prompts={['What are you studying today?', 'What stood out in your reading?']} />
           </article>
         </div>
       </div>
@@ -1780,6 +1773,8 @@ function WhatsNewRowScene() {
 
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
+    case 'ds-26-family-privacy':
+      return <FamilyPrivacyScene />;
     case 'ds-01-typography':
       return <TypographyScene />;
     case 'ds-02-color':

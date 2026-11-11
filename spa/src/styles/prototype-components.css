@@ -14083,6 +14083,7 @@ p.proto-teaching-plan__divider {
 }
 
 .proto-shared-space-header__title {
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -25267,4 +25268,95 @@ button.proto-feed-sheet__stat:hover {
   align-items: center;
   gap: 5px;
   color: var(--pds-text-tertiary);
+}
+
+/* The floating writing prompt is shared by Home and the child notebook. */
+.pds-feed-prompt-dock {
+  box-sizing: border-box;
+  padding: var(--pds-space-1);
+  border: 1px solid var(--pds-border-soft);
+  border-radius: calc(var(--pds-radius-card) + var(--pds-space-1));
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-card-elevated);
+}
+
+.proto-feed-sheet[data-compose-prompt] {
+  --feed-prompt-inset: var(--pds-space-4);
+  --feed-prompt-bottom: calc(var(--feed-prompt-inset) + var(--proto-study-dock-band-height, 0px) + env(safe-area-inset-bottom));
+  --feed-prompt-clearance: calc(60px + var(--feed-prompt-bottom) + var(--pds-space-3));
+}
+
+.pds-feed-prompt-dock--sheet {
+  position: absolute;
+  inset-inline: var(--feed-prompt-inset);
+  bottom: var(--feed-prompt-bottom);
+  z-index: var(--pds-z-sticky);
+}
+
+.proto-feed-sheet[data-compose-prompt] > .proto-feed-sheet__body {
+  padding-bottom: var(--feed-prompt-clearance);
+  scroll-padding-bottom: var(--feed-prompt-clearance);
+}
+
+.pds-feed-prompt-field {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-1);
+  padding-inline-end: var(--pds-space-1);
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: calc(var(--pds-radius-card) - var(--pds-space-1));
+  background: var(--pds-bg-input);
+}
+
+.pds-feed-prompt-field .proto-feed-compose {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  width: auto;
+  margin: 0;
+  padding-inline: var(--pds-space-3);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+}
+
+.pds-feed-prompt-shuffle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: calc(var(--pds-radius-input) + var(--pds-space-1));
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .pds-feed-prompt-field:hover {
+    background: var(--pds-bg-input-hover);
+  }
+  .pds-feed-prompt-shuffle:hover {
+    filter: brightness(1.06);
+  }
+}
+
+.pds-feed-prompt-dock :is(.proto-feed-compose, .pds-feed-prompt-shuffle):focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+.pds-feed-prompt-dock__announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+@media (max-width: 600px) {
+  .proto-feed-sheet[data-compose-prompt] {
+    --feed-prompt-inset: var(--pds-space-3);
+  }
 }

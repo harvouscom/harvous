@@ -76,12 +76,12 @@ export const NOTE_DELETE_CASCADE_TABLES = [
  * Deletes notes (owned by user) with all related rows needed by note sync flows.
  * Returns the exact ids that were deleted so callers can emit sync tombstones.
  */
-export async function deleteNotesCascadeForUser(userId: string, noteIds: string[]): Promise<DeleteNotesCascadeResult> {
-  if (noteIds.length === 0) {
-    return { deletedNoteIds: [], deletedStudyThreadIds: [] };
-  }
-
-  const { deletedNoteIds, deletedStudyThreadIds, foreignStudyThreadIds } = await db.transaction(async (tx) => {
+/** Relational deletion shared by ordinary notes and atomic child-account erasure. */
+export async function deleteNoteRecordsInTransaction(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  userId: string,
+  noteIds: string[],
+) {
     const ownedIds: string[] = [];
     for (const chunk of chunkIds(noteIds)) {
       const owned = await tx
@@ -240,7 +240,16 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
       deletedStudyThreadIds: ownStudyIds,
       foreignStudyThreadIds: [...foreignByUser.entries()],
     };
-  });
+}
+
+export async function deleteNotesCascadeForUser(userId: string, noteIds: string[]): Promise<DeleteNotesCascadeResult> {
+  if (noteIds.length === 0) {
+    return { deletedNoteIds: [], deletedStudyThreadIds: [] };
+  }
+
+  const { deletedNoteIds, deletedStudyThreadIds, foreignStudyThreadIds } = await db.transaction(
+    (tx) => deleteNoteRecordsInTransaction(tx, userId, noteIds),
+  );
 
   if (deletedNoteIds.length === 0) {
     return { deletedNoteIds: [], deletedStudyThreadIds: [] };

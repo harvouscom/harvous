@@ -1,0 +1,19 @@
+// Deploy separately after KWS testing, privacy review, and enabling the retention job.
+// Attach the child custom domain in Cloudflare only when ready; no production route is declared here.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "harvous-kids",
+  "main": "cloudflare/child-worker.ts",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./dist-spa",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "html_handling": "none",
+    "run_worker_first": true
+  },
+  "vars": { "API_ORIGIN": "https://harvous.fly.dev" },
+  "observability": { "enabled": false },
+  "triggers": { "crons": ["17 4 * * *"] },
+  "workers_dev": true
+}

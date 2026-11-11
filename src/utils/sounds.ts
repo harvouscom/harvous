@@ -234,13 +234,18 @@ function flushNav(): void {
  * Plays the sound for a moment, if the reader's choice allows it.
  *
  * `force` is for "Hear it" in Settings: it overrides the choice, never the other rules.
+ * `preference` lets a separate reading context use its own choice without writing device settings.
  */
-export function playSound(moment: SoundMoment, options?: { force?: boolean }): void {
+export function playSound(moment: SoundMoment, options?: { force?: boolean; preference?: SoundPreference }): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (document.visibilityState === 'hidden') return;
   const cue = SOUND_CUES[moment];
   if (!cue) return;
-  if (!options?.force && !allows(getSoundPreferenceSnapshot(), cue.class)) return;
+  const preference = options?.preference ?? getSoundPreferenceSnapshot();
+  if (!options?.force && !allows(preference, cue.class)) return;
+  if (options?.preference !== undefined && now() - lastGestureAt <= GESTURE_WINDOW_MS) {
+    primeInGesture(options.force ? 'everywhere' : preference);
+  }
 
   const at = now();
   if (cue.class === 'moment') {
@@ -277,12 +282,12 @@ export function playSound(moment: SoundMoment, options?: { force?: boolean }): v
  * Every 30 seconds rather than once, because the context's state is cuelume's and iOS suspends
  * it in the background; re-primed on return to the page for the same reason.
  */
-function primeInGesture(): void {
+function primeInGesture(preference = getSoundPreferenceSnapshot()): void {
   if (!cuelume) {
-    if (getSoundPreferenceSnapshot() !== 'off') void load().catch(() => {});
+    if (preference !== 'off') void load().catch(() => {});
     return;
   }
-  if (getSoundPreferenceSnapshot() === 'off') return;
+  if (preference === 'off') return;
   const at = now();
   if (at - lastPrimeAt < PRIME_INTERVAL_MS) return;
   lastPrimeAt = at;

@@ -87,6 +87,7 @@ export default defineConfig({
     sourcemap: 'hidden',
     chunkSizeWarningLimit: 2500,
     rollupOptions: {
+      input: { main: path.resolve(__dirname, "spa/index.html"), kids: path.resolve(__dirname, "spa/kids.html") },
       output: {
         // Matched on resolved module path, not package name. The object form
         // (`{'react-vendor': ['react', 'react-dom']}`) silently produced a 1-byte

@@ -3560,3 +3560,47 @@ export const DiscoverInstalls = pgTable(
     index('DiscoverInstalls_userId_createdAtIndex').on(table.userId, table.createdAt),
   ],
 );
+
+// Parent-managed children use opaque first-party sessions, never an adult Clerk identity.
+// Verification contains only adult information until explicit, verified consent is given.
+export const FamilyVerifications = pgTable('FamilyVerifications', {
+  id: text('id').primaryKey(),
+  parentUserId: text('parentUserId').notNull(),
+  parentEmailHash: text('parentEmailHash').notNull(),
+  status: text('status').notNull().default('pending'),
+  transactionId: text('transactionId'),
+  environment: text('environment').notNull(),
+  location: text('location').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  expiresAt: ts('expiresAt').notNull(),
+  verifiedAt: ts('verifiedAt')
+}, (t) => [index('FamilyVerifications_parentIndex').on(t.parentUserId)]);
+
+export const FamilyChildren = pgTable('FamilyChildren', {
+  id: text('id').primaryKey(),
+  parentUserId: text('parentUserId').notNull(),
+  displayName: text('displayName').notNull(),
+  ageBand: text('ageBand').notNull(),
+  homeSpaceId: text('homeSpaceId').notNull(),
+  verificationId: text('verificationId').notNull().references(() => FamilyVerifications.id),
+  noticeVersion: text('noticeVersion').notNull(),
+  consentedAt: ts('consentedAt').notNull(),
+  status: text('status').notNull().default('active'),
+  revokedAt: ts('revokedAt'),
+  createdAt: ts('createdAt').notNull(),
+  lastActiveAt: ts('lastActiveAt').notNull()
+}, (t) => [index('FamilyChildren_parentIndex').on(t.parentUserId)]);
+
+export const FamilyChildSessions = pgTable('FamilyChildSessions', {
+  tokenHash: text('tokenHash').primaryKey(),
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  expiresAt: ts('expiresAt').notNull()
+}, (t) => [index('FamilyChildSessions_childIndex').on(t.childId)]);
+
+export const FamilySpaceApprovals = pgTable('FamilySpaceApprovals', {
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  spaceId: text('spaceId').notNull().references(() => Spaces.id, { onDelete: 'cascade' }),
+  approvedAt: ts('approvedAt').notNull()
+}, (t) => [primaryKey({ columns: [t.childId, t.spaceId] })]);

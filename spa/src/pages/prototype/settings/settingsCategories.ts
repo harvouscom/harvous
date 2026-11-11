@@ -23,6 +23,10 @@ export interface SettingsCategory {
 
 export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   {
+    key: 'family', title: 'Family', route: prototypeHref('settings/family'),
+    icon: 'circle-user', footnote: 'Child accounts, parent supervision, and privacy.'
+  },
+  {
     key: 'account',
     title: 'Account',
     route: prototypeHref('settings/account'),

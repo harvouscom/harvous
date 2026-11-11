@@ -1,0 +1,823 @@
+/* Extends the app's real paper, type, icon and list primitives. Dev fixture only. */
+.pds-kids-preview .pds-kids-preview__paper { min-height: 0; padding: 0; }
+.pds-kids-preview__topline { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-3); padding: var(--pds-space-5) var(--pds-space-6); border-bottom: 1px solid var(--pds-border-soft); }
+.pds-kids-preview__identity, .pds-kids-preview__quiet { display: inline-flex; align-items: center; gap: var(--pds-space-2); }
+.pds-kids-preview__identity { font-weight: 500; }
+.pds-kids-preview__quiet { border: 0; background: transparent; color: var(--pds-text-secondary); font: inherit; font-size: 13px; cursor: pointer; min-height: 44px; padding: 0; text-align: left; }
+.pds-kids-preview__body { padding: var(--pds-space-8) var(--pds-space-6) var(--pds-space-5); display: flex; flex-direction: column; gap: var(--pds-space-6); }
+.pds-kids-preview__welcome h1 { margin: 0 0 var(--pds-space-3); }
+.pds-kids-preview__welcome p { color: var(--pds-text-secondary); line-height: 1.6; margin: 0; }
+.pds-kids-preview__compose { width: 100%; display: flex; align-items: center; gap: var(--pds-space-4); text-align: left; border: 1px solid var(--pds-border-soft); border-radius: var(--pds-radius-row); padding: var(--pds-space-3) var(--pds-space-4); background: var(--pds-bg-subtle); color: var(--pds-text-primary); font: inherit; cursor: pointer; }
+.pds-kids-preview__compose-copy { display: flex; flex: 1; flex-direction: column; gap: var(--pds-space-1); }
+.pds-kids-preview__compose-arrow { flex: 0 0 auto; margin-left: auto; display: inline-flex; }
+.pds-kids-preview__compose-copy { min-width: 0; }
+.pds-kids-preview__compose strong { font-weight: 500; }
+.pds-kids-preview__compose span span { font-size: 13px; color: var(--pds-text-secondary); }
+.pds-kids-preview__compose-icon { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; border-radius: var(--pds-radius-input); background: var(--pds-bg-page); color: var(--pds-accent); }
+.pds-kids-preview__label { font-size: 12px; font-weight: 500; color: var(--pds-text-secondary); margin: 0 0 var(--pds-space-3); }
+.pds-kids-preview__privacy { border-top: 1px solid var(--pds-border-soft); padding-top: var(--pds-space-2); }
+.pds-kids-preview__privacy p { margin: var(--pds-space-2) 0; font-size: 13px; line-height: 1.6; color: var(--pds-text-secondary); }
+.pds-kids-preview__title, .pds-kids-preview__writing { box-sizing: border-box; width: 100%; background: transparent; border: 0; color: var(--pds-text-primary); padding: 0; border-radius: 0; }
+.pds-kids-preview__title::placeholder, .pds-kids-preview__writing::placeholder { color: var(--pds-text-tertiary); }
+.pds-kids-preview__writing { min-height: 300px; resize: vertical; font: inherit; line-height: 1.8; }
+.pds-kids-preview__editor-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-3); border-top: 1px solid var(--pds-border-soft); padding-top: var(--pds-space-4); }
+.pds-kids-preview__editor-footer .pds-kids-preview__done { width: auto; gap: var(--pds-space-2); min-height: 44px; }
+.pds-kids-preview__reading-page { line-height: 1.8; }
+.pds-kids-preview__reading-page h1, .pds-kids-preview__reading-page h2, .pds-kids-preview__reading-page p { margin: 0; }
+.pds-kids-preview__demo { text-align: center; color: var(--pds-text-secondary); font-size: 11px; padding: var(--pds-space-4); margin: 0; }
+.pds-kids-preview__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.pds-kids-preview :is(button, input, textarea):focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 4px; }
+.pds-kids-preview .pds-kids-preview__compose:hover { background: var(--pds-bg-subtle); border-color: var(--pds-border); }
+@media (max-width: 600px) {
+  .pds-kids-preview__body { padding: var(--pds-space-6) var(--pds-space-4); gap: var(--pds-space-6); }
+  .pds-kids-preview__topline { padding: var(--pds-space-3) var(--pds-space-4); }
+  .pds-kids-preview__topline .proto-feed-sheet__controls > .pds-caption { font-size: 11px; }
+  .pds-kids-preview__welcome br { display: none; }
+}
+
+/* A small notebook cover, using the app's existing accent and paper colors. */
+.pds-kids-preview__topline[data-cover] {
+  position: relative;
+  min-height: 80px;
+  padding-top: var(--pds-space-4);
+  padding-bottom: var(--pds-space-4);
+  box-sizing: border-box;
+  background: linear-gradient(115deg, color-mix(in oklab, var(--kids-cover-color) 36%, transparent), color-mix(in oklab, var(--kids-cover-color) 12%, transparent) 60%, transparent);
+}
+.pds-kids-preview__topline[data-cover]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: var(--pds-space-6);
+  width: 15px;
+  height: 25px;
+  background: var(--kids-cover-ink);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 76%, 0 100%);
+}
+.pds-kids-preview__topline .proto-feed-sheet__controls:has(.proto-feed-sheet__forward) {
+  margin-top: var(--pds-space-2);
+}
+.pds-kids-preview__identity { gap: var(--pds-space-4); }
+.pds-kids-preview__cover-title { display: flex; flex-direction: column; gap: var(--pds-space-1); }
+.pds-kids-preview__cover-title strong { font-family: var(--pds-font-display); font-variation-settings: var(--pds-font-display-variation); font-size: 18px; font-weight: 600; }
+.pds-kids-preview__cover-title > span { font-size: 12px; font-weight: 400; color: var(--pds-text-secondary); }
+.pds-kids-preview__parent { display: inline-flex; align-items: center; gap: var(--pds-space-2); }
+@media (max-width: 600px) {
+  .pds-kids-preview__topline[data-cover] { gap: var(--pds-space-3); }
+  .pds-kids-preview__cover-title strong { font-size: 16px; }
+  .pds-kids-preview__topline[data-cover] .pds-kids-preview__parent { font-size: 11px; }
+}
+
+.pds-kids-preview__paper { --kids-cover-ink: color-mix(in oklab, var(--kids-cover-color) 65%, var(--pds-text-primary)); }
+.pds-kids-preview__customize { display: inline-flex; align-items: center; gap: var(--pds-space-2); margin-right: var(--pds-space-5); padding: var(--pds-space-2); min-height: 44px; background: transparent; border: 0; font: inherit; font-size: 12px; color: var(--pds-text-secondary); cursor: pointer; }
+.pds-kids-preview__customizer { padding: var(--pds-space-5) var(--pds-space-6); border-bottom: 1px solid var(--pds-border-soft); display: flex; flex-direction: column; gap: var(--pds-space-4); }
+.pds-kids-preview__customizer fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.pds-kids-preview__customizer legend { font-size: 13px; font-weight: 500; padding: 0; margin-bottom: var(--pds-space-3); }
+.pds-kids-preview__swatches, .pds-kids-preview__symbols { display: flex; flex-wrap: wrap; gap: var(--pds-space-2); }
+.pds-kids-preview__swatch, .pds-kids-preview__symbol { position: relative; display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer; }
+.pds-kids-preview__swatch input, .pds-kids-preview__symbol input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.pds-kids-preview__swatch > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--pds-radius-pill); background: var(--kids-swatch); color: var(--pds-text-primary); border: 1px solid var(--pds-border-soft); }
+.pds-kids-preview__swatch input:checked + span { outline: 2px solid var(--pds-text-secondary); outline-offset: 3px; }
+.pds-kids-preview__symbol > span { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--pds-border); border-radius: var(--pds-radius-input); font-size: 19px; }
+.pds-kids-preview__symbol input:checked + span { background: var(--pds-bg-subtle); border-color: var(--pds-text-secondary); }
+.pds-kids-preview :is(.pds-kids-preview__swatch, .pds-kids-preview__symbol) input:focus-visible + span { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+.pds-kids-preview__customizer-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-3); }
+@media (max-width: 600px) {
+  .pds-kids-preview__customize { margin-right: var(--pds-space-4); }
+  .pds-kids-preview__customize > span { max-width: 58px; text-align: left; }
+  .pds-kids-preview__identity { gap: var(--pds-space-3); min-width: 0; }
+  .pds-kids-preview__customizer { padding: var(--pds-space-4); }
+}
+
+/* A visual explanation of access, with labels alongside every symbol. */
+.pds-kids-circle { padding: var(--pds-space-4) 0; display: flex; flex-direction: column; gap: var(--pds-space-4); }
+.pds-kids-circle__people { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pds-space-3); }
+.pds-kids-circle__group { display: flex; flex-direction: column; align-items: center; gap: var(--pds-space-3); padding: var(--pds-space-5) var(--pds-space-3); border-radius: var(--pds-radius-card); background: var(--pds-bg-subtle); text-align: center; }
+.pds-kids-circle__group[data-access='yes'] { background: color-mix(in oklab, var(--kids-cover-color) 18%, var(--pds-bg-page)); }
+.pds-kids-circle__portraits { position: relative; display: flex; align-items: center; padding-right: var(--pds-space-2); height: 56px; }
+.pds-kids-circle__portraits > span { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--pds-radius-pill); border: 3px solid var(--pds-bg-page); background: var(--pds-bg-subtle); color: var(--pds-text-secondary); margin-right: calc(-1 * var(--pds-space-2)); font-family: var(--pds-font-display); font-size: 22px; font-weight: 600; }
+.pds-kids-circle__group[data-access='yes'] .pds-kids-circle__portraits > span { background: var(--kids-cover-ink); color: var(--pds-on-accent); }
+.pds-kids-circle__group[data-access='yes'] .pds-kids-circle__portraits > span:not(:first-child) { background: var(--pds-bg-control-strong); color: var(--pds-text-primary); }
+.pds-kids-circle__portraits > .pds-kids-circle__more { font-size: 14px; }
+.pds-kids-circle__portraits > i { position: absolute; bottom: 0; right: 0; display: grid; place-items: center; width: 23px; height: 23px; background: var(--pds-bg-page); color: var(--pds-text-secondary); border-radius: var(--pds-radius-pill); }
+.pds-kids-circle__group strong { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.pds-kids-circle__access { display: inline-flex; align-items: center; justify-content: center; gap: var(--pds-space-2); font-size: 12px; color: var(--pds-text-secondary); }
+.pds-kids-circle__tip { display: flex; align-items: center; gap: var(--pds-space-3); }
+.pds-kids-circle__tip > span { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border-radius: var(--pds-radius-input); background: var(--pds-bg-subtle); color: var(--pds-text-secondary); }
+.pds-kids-circle__tip > div { display: flex; flex-direction: column; gap: var(--pds-space-1); }
+.pds-kids-circle__tip strong { font-size: 13px; font-weight: 500; }
+.pds-kids-circle__tip div > span { font-size: 12px; color: var(--pds-text-secondary); line-height: 1.5; }
+@media (max-width: 460px) {
+  .pds-kids-circle__people { grid-template-columns: minmax(0, 1fr); }
+  .pds-kids-circle__group { padding: var(--pds-space-3); gap: var(--pds-space-2); }
+}
+
+/* The cover and paper hinge from the spine; only transforms move on interaction. */
+.pds-kids-book { flex: 0 0 44px; width: 44px; height: 48px; padding: 0; border: 0; background: transparent; cursor: pointer; perspective: 220px; overflow: visible; }
+.pds-kids-book__volume { display: block; position: relative; width: 36px; height: 45px; transform: rotate(-7deg); transform-style: flat; animation: pds-kids-book-arrive var(--pds-duration-home-section) var(--pds-ease-emphasized) backwards; transition: transform var(--pds-duration-home-row) var(--pds-ease-standard); }
+.pds-kids-book__back, .pds-kids-book__page, .pds-kids-book__front { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 2px 5px 5px 2px; transform-origin: 2px 50%; backface-visibility: hidden; transition: transform var(--pds-duration-home-row) var(--pds-ease-standard); }
+.pds-kids-book__back { z-index: 0; background: var(--kids-cover-ink); box-shadow: 1px 2px 2px var(--pds-border); transform: translateX(2px); }
+.pds-kids-book__page { inset: 2px -1px 2px 3px; background: var(--pds-on-accent); border: 0.5px solid var(--pds-border); border-radius: 1px 3px 3px 1px; }
+.pds-kids-book__page[data-page='1'] { z-index: 1; transform: translateX(1px) rotateY(-2deg); }
+.pds-kids-book__page[data-page='2'] { z-index: 2; transform: translateX(0.5px) rotateY(-5deg); }
+.pds-kids-book__page[data-page='3'] { z-index: 3; transform: rotateY(-9deg); }
+.pds-kids-book__front { z-index: 4; background: var(--kids-cover-ink); border-left: 4px solid color-mix(in oklab, var(--kids-cover-ink) 75%, var(--pds-text-primary)); color: var(--pds-on-accent); font-family: var(--pds-font-display); font-size: 21px; font-weight: 600; transform: rotateY(-20deg); }
+.pds-kids-book:focus-visible .pds-kids-book__volume { transform: translateY(-2px) rotate(-10deg); }
+.pds-kids-book:focus-visible .pds-kids-book__front { transform: rotateY(-38deg); animation: none; }
+.pds-kids-book:focus-visible .pds-kids-book__page[data-page='3'] { z-index: 3; transform: rotateY(-15deg); }
+@media (hover: hover) and (pointer: fine) {
+  .pds-kids-book:hover .pds-kids-book__volume { transform: translateY(-2px) rotate(-10deg); }
+  .pds-kids-book:hover .pds-kids-book__front { transform: rotateY(-38deg); animation: none; }
+  .pds-kids-book:hover .pds-kids-book__page[data-page='3'] { z-index: 3; transform: rotateY(-15deg); }
+}
+@keyframes pds-kids-book-arrive { from { opacity: 0; transform: translateY(4px) rotate(-12deg); } to { opacity: 1; transform: rotate(-7deg); } }
+@starting-style { .pds-kids-book__front { transform: rotateY(0deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pds-kids-book__volume, .pds-kids-book__front { animation: none; }
+  .pds-kids-book__volume, .pds-kids-book__front, .pds-kids-book__page { transition: none; }
+}
+/* These glyphs extend slightly beyond their SVG viewBox (heads and church cross).
+   Keep their artwork visible inside the larger portrait circles. */
+.pds-kids-circle__portraits svg { overflow: visible; }
+.pds-kids-circle__portraits { overflow: visible; }
+
+/* The adult Home greeting and compose field, with a separate child-friendly shuffle. */
+.pds-kids-preview__welcome .pds-kids-home-greeting { color: var(--pds-text-primary); line-height: 1.7; margin: 0 0 var(--pds-space-5); }
+.pds-kids-home-greeting .proto-home-greeting__chip { max-width: 100%; vertical-align: middle; }
+.pds-kids-prompt__shuffle {
+  --pds-accent-gradient-start: oklch(from var(--kids-cover-color) 64% calc(c * 1.4) h);
+  --pds-accent-gradient-end: oklch(from var(--kids-cover-color) 46% calc(c * 1.4) h);
+  background: linear-gradient(171deg, var(--pds-accent-gradient-start) 7%, var(--pds-accent-gradient-end) 93%);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--pds-on-accent) 30%, transparent), 0 4px 10px -4px color-mix(in oklab, var(--pds-accent-gradient-end) 60%, transparent);
+}
+.pds-kids-prompt__shuffle-icon { display: inline-flex; animation: pds-kids-shuffle var(--pds-duration-home-section) var(--pds-ease-emphasized); }
+@keyframes pds-kids-shuffle { from { transform: rotate(-150deg) scale(0.8); } to { transform: rotate(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .pds-kids-prompt__shuffle-icon { animation: none; } }
+
+.pds-kids-home-filters { width: 100%; border-radius: var(--pds-radius-pill); }
+.pds-kids-home-filters .proto-appearance-segmented__btn { border-radius: var(--pds-radius-pill); display: inline-flex; align-items: center; justify-content: center; gap: var(--pds-space-2); min-height: 44px; flex: 1; padding-inline: var(--pds-space-2); }
+.pds-kids-home-activities { display: flex; flex-direction: column; gap: var(--pds-space-6); }
+.pds-kids-review > h1, .pds-kids-review > p { margin: 0; }
+.pds-kids-review > .proto-settings-btn { align-self: flex-start; width: auto; min-height: 44px; gap: var(--pds-space-2); }
+.pds-kids-review__note { margin: 0; border-left: 3px solid var(--kids-cover-ink); padding: var(--pds-space-4) var(--pds-space-5); background: var(--pds-bg-subtle); border-radius: 0 var(--pds-radius-input) var(--pds-radius-input) 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+@media (max-width: 600px) {
+  .pds-kids-home-filters .proto-appearance-segmented__btn { font-size: 11px; gap: var(--pds-space-1); }
+}
+
+/* The cover sits behind the inside pages; switch surfaces without a 3D flip. */
+.pds-kids-flip-stage { position: relative; isolation: isolate; }
+.pds-kids-preview .pds-kids-flip { display: block; position: relative; background: transparent; }
+.pds-kids-flip__front, .pds-kids-flip__back { min-width: 0; background: var(--pds-bg-page); transition: opacity var(--pds-duration-sheet) var(--pds-ease-standard), transform var(--pds-duration-sheet) var(--pds-ease-emphasized), visibility 0s var(--pds-duration-sheet); }
+.pds-kids-flip__front { position: relative; opacity: 1; transform: translateX(0); }
+.pds-kids-flip__back { position: absolute; inset: 0; visibility: hidden; opacity: 0; transform: translateX(-18px); padding: var(--pds-space-6); display: flex; flex-direction: column; gap: var(--pds-space-6); }
+.pds-kids-flip[data-flipped='true'] .pds-kids-flip__front { position: absolute; inset: 0; visibility: hidden; opacity: 0; transform: translateX(18px); }
+.pds-kids-flip[data-flipped='true'] .pds-kids-flip__back { position: relative; visibility: visible; opacity: 1; transform: translateX(0); transition-delay: 0s; }
+.pds-kids-flip:not([data-flipped]) .pds-kids-flip__front { visibility: visible; transition-delay: 0s; }
+.pds-kids-studio__top { display: flex; justify-content: space-between; align-items: center; gap: var(--pds-space-3); }
+.pds-kids-studio__top .pds-kids-preview__label { margin: 0; }
+.pds-kids-studio__top .proto-settings-btn { width: auto; gap: var(--pds-space-2); font-size: 12px; min-height: 44px; }
+.pds-kids-studio__hero { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-5); padding: var(--pds-space-6) 0; }
+.pds-kids-studio__hero h1 { margin: 0 0 var(--pds-space-3); }
+.pds-kids-studio__hero p { margin: 0; line-height: 1.6; color: var(--pds-text-secondary); font-size: 14px; }
+.pds-kids-studio__sample { display: grid; place-items: center; width: 145px; height: 160px; border-radius: var(--pds-radius-card); background: radial-gradient(ellipse, color-mix(in oklab, var(--kids-cover-color) 50%, transparent), transparent 70%); perspective: 400px; }
+.pds-kids-studio__sample .pds-kids-book__volume { width: 100px; height: 132px; }
+.pds-kids-studio__sample .pds-kids-book__front { font-size: 52px; border-left-width: 7px; border-radius: 3px 9px 9px 3px; }
+.pds-kids-flip__back .pds-kids-preview__customizer { padding: 0; border: 0; gap: var(--pds-space-6); }
+.pds-kids-preview__customizer legend > span { font-weight: 400; color: var(--pds-text-secondary); margin-left: var(--pds-space-2); }
+.pds-kids-studio__finish { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-4); padding-top: var(--pds-space-5); border-top: 1px solid var(--pds-border-soft); }
+.pds-kids-studio__finish .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); }
+.pds-kids-patterns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--pds-space-3); }
+.pds-kids-pattern { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--pds-space-2); cursor: pointer; font-size: 12px; color: var(--pds-text-secondary); }
+.pds-kids-pattern input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.pds-kids-pattern > span[data-pattern] { display: block; width: 100%; height: 54px; border: 1px solid var(--pds-border); border-radius: var(--pds-radius-input); background-color: var(--kids-cover-ink); }
+.pds-kids-pattern input:checked + span { outline: 2px solid var(--pds-text-secondary); outline-offset: 3px; }
+.pds-kids-pattern input:focus-visible + span { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+.pds-kids-book__front::after { content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: 0.2; pointer-events: none; }
+.pds-kids-book__front > span { position: relative; z-index: 1; }
+[data-pattern='dots'] .pds-kids-book__front::after, [data-pattern='dots'] .pds-kids-avatar__cover::after, .pds-kids-pattern > [data-pattern='dots'] { background-image: radial-gradient(var(--pds-on-accent) 1px, transparent 1px); background-size: 7px 7px; }
+[data-pattern='stripes'] .pds-kids-book__front::after, [data-pattern='stripes'] .pds-kids-avatar__cover::after, .pds-kids-pattern > [data-pattern='stripes'] { background-image: repeating-linear-gradient(135deg, var(--pds-on-accent) 0 1px, transparent 1px 7px); }
+[data-pattern='gingham'] .pds-kids-book__front::after, [data-pattern='gingham'] .pds-kids-avatar__cover::after, .pds-kids-pattern > [data-pattern='gingham'] { background-image: repeating-linear-gradient(90deg, color-mix(in oklab, var(--pds-on-accent) 40%, transparent) 0 4px, transparent 4px 8px), repeating-linear-gradient(0deg, color-mix(in oklab, var(--pds-on-accent) 40%, transparent) 0 4px, transparent 4px 8px); }
+.pds-kids-welcome-eyebrow { display: block; font-size: 12px; color: var(--pds-text-secondary); margin-bottom: var(--pds-space-3); }
+.pds-kids-preview__welcome .pds-kids-welcome-title { margin-bottom: var(--pds-space-3); }
+.pds-kids-welcome-copy { max-width: 45ch; }
+.pds-kids-welcome-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pds-space-3); margin-top: var(--pds-space-6); }
+.pds-kids-welcome-action {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-3);
+  min-width: 0;
+  min-height: 60px;
+  padding: 14px;
+  border: 1px solid var(--pds-border-soft);
+  border-radius: var(--pds-radius-card);
+  background: linear-gradient(135deg, color-mix(in oklab, var(--kids-cover-color) 14%, var(--pds-bg-page)), var(--pds-bg-page));
+  box-shadow: var(--pds-shadow-card);
+  color: var(--pds-text-primary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--pds-duration-press), transform var(--pds-duration-press);
+}
+.pds-kids-welcome-action:hover { border-color: var(--kids-cover-ink); transform: translateY(-2px); }
+.pds-kids-welcome-action:active { transform: translateY(0); }
+.pds-kids-welcome-action__icon { flex: 0 0 32px; height: 32px; display: grid; place-items: center; border-radius: var(--pds-radius-pill); background: color-mix(in oklab, var(--kids-cover-color) 28%, var(--pds-bg-page)); color: var(--pds-text-primary); }
+.pds-kids-welcome-action__copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pds-kids-welcome-action__copy strong { font-size: 14px; font-weight: 600; }
+.pds-kids-welcome-action__copy > span { font-size: 12px; color: var(--pds-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 420px) { .pds-kids-welcome-actions { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .pds-kids-welcome-action { transition: none; } .pds-kids-welcome-action:hover { transform: none; } }
+.pds-kids-appearance-scope[data-reduce-motion] .pds-kids-welcome-action { transition: none; transform: none; }
+.pds-kids-back-button { width: auto; gap: var(--pds-space-2); min-height: 44px; font-size: 12px; }
+.pds-kids-review__hero { display: flex; flex-direction: column; align-items: flex-start; gap: var(--pds-space-3); }
+.pds-kids-review__hero h1, .pds-kids-review__hero p, .pds-kids-review__hero .pds-kids-preview__label { margin: 0; }
+.pds-kids-review__hero p { color: var(--pds-text-secondary); line-height: 1.6; }
+.pds-kids-review__art { position: relative; display: grid; place-items: center; width: 64px; height: 64px; border-radius: var(--pds-radius-card); background: color-mix(in oklab, var(--kids-cover-color) 25%, var(--pds-bg-page)); color: var(--kids-cover-ink); }
+.pds-kids-review__art > span:last-child:not(:only-child) { position: absolute; top: -4px; right: -4px; width: 23px; height: 23px; display: grid; place-items: center; border-radius: var(--pds-radius-pill); background: var(--pds-bg-page); }
+.pds-kids-review__card { border: 1px solid var(--pds-border-soft); background: var(--pds-bg-subtle); border-radius: var(--pds-radius-card); padding: var(--pds-space-5); }
+.pds-kids-review__card h2 { margin: var(--pds-space-3) 0; }
+.pds-kids-review__card p { color: var(--pds-text-secondary); line-height: 1.7; }
+.pds-kids-review__card .pds-kids-review__note { background: var(--pds-bg-page); }
+.pds-kids-review__actions { display: flex; flex-wrap: wrap; gap: var(--pds-space-3); }
+.pds-kids-review__actions .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); }
+/* This footer belongs to the main pane, outside its scrolling paper. */
+.pds-kids-preview { flex: 1; min-height: 0; }
+.pds-kids-privacy-dock { flex-shrink: 0; display: flex; justify-content: center; padding: var(--pds-space-2) var(--pds-space-4) max(var(--pds-space-2), env(safe-area-inset-bottom)); }
+.pds-kids-privacy-dock .pds-kids-preview__quiet { padding: 0 var(--pds-space-3); font-size: 12px; }
+.pds-kids-privacy-modal { --kids-cover-ink: color-mix(in oklab, var(--kids-cover-color) 65%, var(--pds-text-primary)); box-sizing: border-box; width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: var(--pds-space-6); border: 1px solid var(--pds-border-soft); border-radius: var(--pds-radius-card); background: var(--pds-bg-page); color: var(--pds-text-primary); box-shadow: var(--pds-shadow-card-elevated); font-family: var(--pds-font-body); overflow-y: auto; }
+.pds-kids-privacy-modal::backdrop { background: var(--pds-overlay-medium); }
+.pds-kids-privacy-modal__heading { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--pds-space-5); }
+.pds-kids-privacy-modal__heading > button { width: 36px; justify-content: center; }
+.pds-kids-privacy-modal h2 { margin: 0 0 var(--pds-space-2); }
+.pds-kids-privacy-modal > .proto-settings-btn { gap: var(--pds-space-2); min-height: 44px; }
+.pds-kids-privacy-modal :focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .pds-kids-flip__back { padding: var(--pds-space-4); }
+  .pds-kids-studio__top { align-items: flex-start; flex-direction: column; }
+  .pds-kids-studio__hero { gap: var(--pds-space-3); }
+  .pds-kids-studio__hero .pds-title-xl { font-size: 28px; }
+  .pds-kids-studio__sample { width: 100px; }
+  .pds-kids-studio__sample .pds-kids-book__volume { width: 65px; height: 90px; }
+  .pds-kids-studio__finish { align-items: flex-start; flex-direction: column; }
+  .pds-kids-privacy-modal { padding: var(--pds-space-5); }
+}
+@media (prefers-reduced-motion: reduce) { .pds-kids-preview .pds-kids-flip { transition: none; } }
+.pds-kids-privacy-modal { position: fixed; inset: 0; margin: auto; height: fit-content; }
+
+.pds-kids-shell__label { padding-inline: var(--pds-space-3); }
+.pds-kids-review-tabs.proto-menu-tabs { position: static; margin: 0; }
+.pds-kids-review-tabs .proto-menu-tab { display: inline-flex; justify-content: center; align-items: center; gap: var(--pds-space-2); min-height: 44px; }
+
+/* Child identity stays in the shared toolbar's account slot. */
+.proto-toolbar-icon-btn.pds-kids-mode-trigger { display: inline-flex; align-items: center; gap: var(--pds-space-2); width: auto; max-width: none; min-height: var(--pds-toolbar-orb-size); padding: 0 var(--pds-space-3) 0 var(--pds-space-1); border-radius: var(--pds-radius-row); background: var(--pds-bg-popover-solid); cursor: pointer; }
+.pds-kids-mode-avatar { width: 22px; height: 22px; display: grid; place-items: center; background: var(--pds-bg-subtle); color: var(--pds-text-primary); border-radius: var(--pds-radius-pill); font-size: 11px; font-weight: 600; }
+.pds-kids-mode-trigger__text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.pds-kids-mode-trigger__text strong { font-size: 12px; font-weight: 600; }
+.pds-kids-mode-trigger__text > span { display: inline-flex; align-items: center; gap: var(--pds-space-1); color: var(--pds-text-secondary); font-size: 10px; }
+.pds-kids-mode-menu .proto-menu-item { gap: var(--pds-space-3); min-height: 40px; }
+.pds-kids-mode-menu__hint { padding: var(--pds-space-2) var(--pds-space-3); margin: 0; font-size: 11px; }
+.pds-kids-mode-trigger:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
+.pds-kids-parent-gate > .pds-kids-review__art { margin-bottom: var(--pds-space-5); }
+.pds-kids-parent-gate > p { font-size: 14px; line-height: 1.65; }
+
+.pds-kids-parent-gate .pds-kids-review__actions { flex-direction: column; }
+.pds-kids-parent-gate .pds-kids-review__actions .proto-settings-btn { width: 100%; }
+
+.pds-kids-parent-gate { width: min(400px, calc(100vw - 32px)); overflow-x: hidden; }
+.pds-kids-parent-gate > .pds-kids-review__art { width: 48px; height: 48px; border-radius: var(--pds-radius-input); }
+.pds-kids-parent-gate > .pds-kids-review__art svg { overflow: visible; }
+.pds-kids-parent-gate__notice { margin: var(--pds-space-2) 0 var(--pds-space-5); font-size: 12px; overflow-wrap: anywhere; }
+.pds-kids-parent-gate .pds-kids-review__actions { gap: var(--pds-space-3); }
+.pds-kids-parent-gate .proto-settings-btn { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+
+/* FA artwork in this view can extend outside its declared viewBox. Preserve the
+   glyph's full outline; the surrounding buttons already provide safe padding. */
+.pds-kids-shell svg, .pds-kids-privacy-modal svg { overflow: visible; }
+
+.pds-kids-appearance-scope { display: contents; }
+.pds-kids-appearance-scope:not([data-canvas='device']) .proto-shell-frame { background: var(--kids-canvas); }
+.pds-kids-avatar { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto; }
+.pds-kids-avatar__cover { display: grid; place-items: center; position: relative; width: 36px; height: 36px; background: var(--kids-cover-ink); border-radius: var(--pds-radius-pill); color: var(--pds-on-accent); font: 600 19px var(--pds-font-display); }
+.pds-kids-avatar__cover::after { content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: 0.2; pointer-events: none; }
+.pds-kids-avatar__cover > span { position: relative; z-index: 1; }
+.pds-kids-avatar[data-small] { width: 22px; height: 22px; }
+.pds-kids-avatar[data-small] .pds-kids-avatar__cover { width: 22px; height: 22px; font-size: 12px; }
+.pds-kids-privacy-modal .pds-kids-circle__portraits .pds-kids-avatar { background: transparent; border: 0; margin: 0; }
+.pds-kids-privacy-modal .pds-kids-circle__portraits .pds-kids-avatar__cover { color: var(--pds-on-accent); }
+.pds-kids-appearance-settings { display: flex; flex-direction: column; gap: var(--pds-space-5); border-top: 1px solid var(--pds-border-soft); padding-top: var(--pds-space-6); }
+.pds-kids-appearance-settings h2 { margin: 0; }
+.pds-kids-appearance-settings fieldset { border: 0; min-width: 0; padding: 0; margin: 0; }
+.pds-kids-appearance-settings legend { font-size: 13px; font-weight: 500; margin-bottom: var(--pds-space-3); padding: 0; }
+.pds-kids-canvas-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--pds-space-3); }
+.pds-kids-canvas-choice { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--pds-space-2); font-size: 11px; color: var(--pds-text-secondary); cursor: pointer; }
+.pds-kids-canvas-choice input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; margin: 0; }
+.pds-kids-canvas-choice__sample { display: grid; place-items: center; width: 100%; height: 45px; border-radius: var(--pds-radius-input); border: 1px solid var(--pds-border); }
+.pds-kids-canvas-choice__sample[data-device] { background: var(--pds-bg-subtle); }
+.pds-kids-canvas-choice input:checked + span { outline: 2px solid var(--pds-text-secondary); outline-offset: 3px; }
+.pds-kids-canvas-choice input:focus-visible + span { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+.pds-kids-text-choices.proto-menu-tabs { position: static; margin: 0; }
+.pds-kids-text-choices .proto-menu-tab { min-height: 44px; display: flex; justify-content: center; align-items: center; gap: var(--pds-space-2); }
+.pds-kids-text-choices [data-active] { background: var(--pds-bg-popover-solid); }
+.pds-kids-motion-choice { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-4); cursor: pointer; }
+.pds-kids-motion-choice > span { display: flex; flex-direction: column; gap: var(--pds-space-1); }
+.pds-kids-motion-choice strong { font-size: 13px; font-weight: 500; }
+.pds-kids-motion-choice span > span { font-size: 12px; color: var(--pds-text-secondary); }
+.pds-kids-motion-choice input { width: 20px; height: 20px; accent-color: var(--pds-accent); }
+.pds-kids-appearance-scope[data-text-size='bigger'] :is(.pds-kids-preview__writing, .pds-kids-review__note, .pds-kids-preview__reading-page > p) { font-size: 19px; }
+.pds-kids-appearance-scope[data-reduce-motion] :is(.pds-kids-book__volume, .pds-kids-book__front, .pds-kids-prompt__shuffle-icon, .pds-kids-flip__front, .pds-kids-flip__back) { animation: none; transition: none; }
+@media (prefers-reduced-motion: reduce) { .pds-kids-flip__front, .pds-kids-flip__back { transition: none; } }
+
+/* The customization surface is the actual cover. Opening it reveals a settings page. */
+.pds-kids-flip__back[data-studio-page] { padding: 0; }
+.pds-kids-cover-surface { position: relative; isolation: isolate; padding: var(--pds-space-6); border-left: 10px solid color-mix(in oklab, var(--kids-cover-ink) 75%, var(--pds-text-primary)); border-radius: 3px 10px 10px 3px; background: var(--kids-cover-ink); color: var(--pds-on-accent); display: flex; flex-direction: column; gap: var(--pds-space-6); }
+.pds-kids-cover-surface::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; opacity: 0.1; pointer-events: none; }
+.pds-kids-cover-surface[data-pattern='dots']::before { background-image: radial-gradient(var(--pds-on-accent) 1px, transparent 1px); background-size: 10px 10px; }
+.pds-kids-cover-surface[data-pattern='stripes']::before { background-image: repeating-linear-gradient(135deg, var(--pds-on-accent) 0 1px, transparent 1px 10px); }
+.pds-kids-cover-surface[data-pattern='gingham']::before { background-image: repeating-linear-gradient(90deg, var(--pds-on-accent) 0 5px, transparent 5px 10px), repeating-linear-gradient(0deg, var(--pds-on-accent) 0 5px, transparent 5px 10px); }
+.pds-kids-cover-surface__top, .pds-kids-cover-surface__open { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-4); font-size: 12px; }
+.pds-kids-cover-surface__top .proto-settings-btn, .pds-kids-cover-surface__open .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); font-size: 12px; }
+.pds-kids-cover-surface__title { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--pds-space-3); padding: var(--pds-space-4) 0; }
+.pds-kids-cover-surface__title h1 { color: var(--pds-on-accent); margin: 0; }
+.pds-kids-cover-surface__title > span:last-child { font-size: 13px; opacity: 0.8; }
+.pds-kids-cover-surface__emblem { width: 74px; height: 74px; display: grid; place-items: center; font-family: var(--pds-font-display); font-size: 48px; font-weight: 600; color: var(--pds-on-accent); }
+.pds-kids-cover-tools { color: var(--pds-text-primary); background: var(--pds-bg-page); padding: var(--pds-space-5); border-radius: var(--pds-radius-card); box-shadow: var(--pds-shadow-card); }
+.pds-kids-cover-tools .pds-kids-preview__customizer { padding: 0; border: 0; gap: var(--pds-space-5); }
+.pds-kids-inside-settings { padding: var(--pds-space-6); display: flex; flex-direction: column; gap: var(--pds-space-6); animation: pds-kids-settings-open var(--pds-duration-home-row) var(--pds-ease-emphasized); }
+.pds-kids-inside-settings > header h1 { margin: 0 0 var(--pds-space-2); }
+.pds-kids-inside-settings .pds-kids-appearance-settings { padding-top: 0; border-top: 0; }
+.pds-kids-inside-settings .proto-appearance-carousel { margin-top: var(--pds-space-4); }
+.pds-kids-inside-settings .proto-appearance-segmented__btn { min-height: 40px; }
+.pds-kids-motion-choice input { appearance: auto; -webkit-appearance: auto; opacity: 1; flex: 0 0 20px; }
+.pds-kids-type-sample { font-size: 14px; font-weight: 500; }
+.pds-kids-type-sample[data-size='bigger'] { font-size: 19px; }
+.pds-kids-appearance-scope:not([data-canvas='device']) .proto-shell-frame { background: var(--kids-canvas); background-image: var(--kids-canvas-image); background-position: center; background-size: cover; background-repeat: no-repeat; }
+:root[data-color-scheme='dark'] .pds-kids-appearance-scope:not([data-canvas='device']) .proto-shell-frame { background-color: var(--kids-canvas); }
+@media (prefers-color-scheme: dark) { :root:not([data-color-scheme='light']) .pds-kids-appearance-scope:not([data-canvas='device']) .proto-shell-frame { background-color: var(--kids-canvas); } }
+.pds-kids-appearance-scope[data-color-scheme='dark'] .proto-shell-frame { background-color: var(--kids-canvas); }
+@keyframes pds-kids-settings-open { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
+.pds-kids-appearance-scope[data-reduce-motion] .pds-kids-inside-settings { animation: none; }
+@media (prefers-reduced-motion: reduce) { .pds-kids-inside-settings { animation: none; } }
+@media (max-width: 600px) {
+  .pds-kids-cover-surface, .pds-kids-inside-settings { padding: var(--pds-space-4); }
+  .pds-kids-cover-tools { padding: var(--pds-space-4); }
+  .pds-kids-cover-surface__open { align-items: stretch; flex-direction: column; }
+  .pds-kids-cover-surface__open .proto-settings-btn { width: 100%; }
+}
+.pds-kids-cover-surface__top .proto-settings-btn--secondary { background: var(--pds-bg-popover-solid); }
+
+.pds-kids-preview .proto-feed-stack__edge {
+  /* Leave enough paper for the hover lift while keeping the button centered on its exposed strip. */
+  height: calc(var(--proto-feed-edge-step) + var(--pds-space-1));
+  transform: scaleX(calc(1 - var(--edge-depth) * 0.028));
+}
+
+/* Keep the writing invitation within reach as the notebook scrolls. */
+.pds-kids-preview[data-prompt-docked] { padding-bottom: 0; }
+.pds-kids-preview[data-prompt-docked] .pds-kids-flip-stage { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.pds-kids-preview[data-prompt-docked] .pds-kids-preview__paper,
+.pds-kids-preview[data-prompt-docked] .pds-kids-flip__front { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.pds-kids-preview[data-prompt-docked] .pds-kids-preview__topline { flex-shrink: 0; }
+.pds-kids-preview[data-prompt-docked] .pds-kids-preview__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.pds-kids-preview .pds-kids-preview__paper[data-compose-prompt] .pds-kids-preview__body {
+  padding-bottom: var(--feed-prompt-clearance);
+  scroll-padding-bottom: var(--feed-prompt-clearance);
+}
+.pds-kids-preview[data-prompt-docked] .pds-kids-preview__demo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); padding: 0; }
+
+/* Child settings share the adult modal and category panes; the live notebook stays behind it. */
+.pds-kids-settings-modal { position: fixed; inset: 0; margin: auto; padding: 0; width: min(860px, calc(100vw - 32px)); height: min(80dvh, 720px); max-height: calc(100dvh - 32px); color: var(--pds-text-primary); font-family: var(--pds-font-body); }
+.pds-kids-settings-modal:not([open]) { display: none; }
+.pds-kids-settings-modal::backdrop { background: var(--pds-overlay-heavy); }
+.pds-kids-settings-modal .proto-settings-modal__body { flex: 1; }
+.pds-kids-settings-modal .proto-settings { height: 100%; }
+.pds-kids-settings-modal .proto-settings__detail { overflow-y: auto; }
+.pds-kids-settings-pane { min-width: 0; }
+.pds-kids-settings-pane[data-studio-page='cover'] { padding: var(--pds-space-5); }
+.pds-kids-settings-modal svg { overflow: visible; }
+.pds-kids-settings-modal .pds-kids-inside-settings { animation: none; }
+.pds-kids-settings-modal :is(button, input):focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .pds-kids-settings-modal .proto-settings { display: flex; flex-direction: column; }
+  .pds-kids-settings-modal .proto-settings__nav { width: 100%; padding: var(--pds-space-2); border-right: 0; border-bottom: 1px solid var(--pds-border-soft); }
+  .pds-kids-settings-modal .proto-settings__nav-list { display: flex; overflow-x: auto; }
+  .pds-kids-settings-modal .proto-settings__nav-item { flex: 1; white-space: nowrap; justify-content: center; gap: var(--pds-space-1); padding-inline: var(--pds-space-2); }
+  .pds-kids-settings-modal .proto-settings__detail { flex: 1; }
+  .pds-kids-settings-modal .pds-kids-inside-settings { padding: var(--pds-space-4); }
+  .pds-kids-settings-pane[data-studio-page='cover'] { padding: var(--pds-space-3); }
+}
+.pds-kids-settings-modal .pds-kids-cover-surface { gap: var(--pds-space-4); padding: var(--pds-space-5); }
+.pds-kids-settings-modal .pds-kids-cover-surface__title { gap: var(--pds-space-2); padding: var(--pds-space-2) 0; }
+.pds-kids-settings-modal .pds-kids-cover-surface__emblem { width: 52px; height: 52px; font-size: 40px; }
+.pds-kids-settings-modal .pds-kids-cover-surface__title h1 { font-size: 28px; }
+.pds-kids-settings-modal .pds-kids-cover-tools .pds-kids-preview__customizer { gap: var(--pds-space-4); }
+
+.pds-kids-notebook-settings__preview { display: flex; align-items: center; gap: var(--pds-space-6); padding: var(--pds-space-5); border-radius: var(--pds-radius-card); background: linear-gradient(115deg, color-mix(in oklab, var(--kids-cover-color) 24%, var(--pds-bg-page)), var(--pds-bg-page)); }
+.pds-kids-notebook-settings__preview h2 { margin: 0 0 var(--pds-space-2); }
+.pds-kids-notebook-settings__preview p { margin: 0; line-height: 1.5; }
+.pds-kids-book--settings { flex: 0 0 80px; width: 80px; height: 100px; cursor: default; }
+.pds-kids-book--settings .pds-kids-book__volume { width: 72px; height: 90px; }
+.pds-kids-book--settings .pds-kids-book__front { font-size: 40px; }
+.pds-kids-notebook-settings .pds-kids-preview__customizer { padding: 0; border: 0; gap: var(--pds-space-5); }
+.pds-kids-notebook-settings > .proto-settings__content { width: 100%; padding: 0; margin: 0; }
+@media (max-width: 420px) { .pds-kids-notebook-settings__preview { gap: var(--pds-space-4); padding: var(--pds-space-4); } }
+
+.pds-kids-settings-modal .pds-kids-notebook-settings { gap: var(--pds-space-4); }
+
+.pds-kids-day-heading h1 { margin: var(--pds-space-2) 0; }
+.pds-kids-day-heading p { margin: 0; }
+
+.pds-kids-bible[data-text-size='bigger'] {
+  --pds-reader-font-scale: 1.15;
+}
+.pds-kids-bible__toolbar {
+  display: flex;
+  justify-content: center;
+  padding: var(--pds-space-3) var(--pds-space-4) var(--pds-space-4);
+}
+.pds-kids-bible__modes,
+.pds-kids-bible__modes .proto-appearance-segmented__btn {
+  border-radius: var(--pds-radius-pill);
+}
+.pds-kids-bible__modes .proto-appearance-segmented__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  min-height: 44px;
+  padding-inline: var(--pds-space-4);
+  white-space: nowrap;
+}
+.pds-kids-bible__modes.proto-appearance-segmented {
+  width: max-content;
+  max-width: 100%;
+}
+.pds-kids-bible__bookmark {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pds-space-3);
+  margin: 0 var(--pds-reader-text-inset) var(--pds-space-6);
+  padding: var(--pds-space-3) var(--pds-space-4);
+  border: 1px solid var(--pds-border-soft);
+  border-radius: var(--pds-radius-card);
+  background: color-mix(in oklab, var(--kids-cover-color) 12%, var(--pds-bg-page));
+}
+.pds-kids-bible__bookmark > div {
+  flex: 1 1 180px;
+  display: grid;
+  gap: var(--pds-space-1);
+}
+.pds-kids-bible__bookmark .proto-settings-btn,
+.pds-kids-bible__status .proto-settings-btn {
+  width: auto;
+  min-height: 44px;
+  gap: var(--pds-space-2);
+}
+.pds-kids-bible__status {
+  margin-inline: var(--pds-reader-text-inset);
+}
+.pds-kids-bible__translation-footer {
+  margin: 0;
+  padding: var(--pds-space-2) var(--pds-space-3);
+}
+.pds-kids-bible__verse {
+  appearance: none;
+  border: 0;
+  border-radius: var(--pds-radius-format);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pds-kids-bible__verse-extra {
+  grid-column: 2;
+  margin-top: var(--pds-space-2);
+}
+.pds-kids-bible__thoughts {
+  list-style: none;
+  margin: var(--pds-space-3) 0 0 var(--pds-space-2);
+  padding: 0 var(--pds-space-4);
+  border: 1px solid var(--pds-border-soft);
+  background: linear-gradient(var(--pds-paper-panel-top), var(--pds-paper-panel-bottom));
+  border-radius: var(--pds-radius-card);
+}
+.pds-kids-bible__thought {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--pds-space-3);
+  padding-block: var(--pds-space-3);
+}
+.pds-kids-bible__thought + .pds-kids-bible__thought {
+  border-top: 1px solid var(--pds-border-soft);
+}
+.pds-kids-bible__parent-avatar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-input);
+  color: var(--pds-text-secondary);
+}
+.pds-kids-bible__thought strong {
+  display: block;
+  color: var(--pds-text-secondary);
+}
+.pds-kids-bible__thought p {
+  margin: var(--pds-space-1) 0 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.pds-kids-bible__thought-link {
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 var(--pds-space-2);
+  border: 0;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-subtle);
+  cursor: pointer;
+}
+.pds-kids-bible__dialog textarea {
+  display: block;
+  resize: vertical;
+  margin-bottom: var(--pds-space-4);
+}
+
+/* Activity groups sit on paper, so they use the same panel material as adult Home. */
+.pds-kids-preview .proto-home-section__list {
+  background: linear-gradient(to bottom, var(--pds-paper-panel-top), var(--pds-paper-panel-bottom));
+  border: 0.5px solid var(--pds-border-control);
+  box-shadow: var(--pds-shadow-paper-panel);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.pds-kids-preview .proto-home-section__list::before,
+.pds-kids-preview .proto-home-section__list::after { content: none; }
+
+/* Cover the viewport around the inset shell without changing the parent's root theme. */
+.pds-kids-appearance-scope[data-color-scheme='dark']::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--kids-canvas) var(--kids-canvas-image) center / cover no-repeat;
+  pointer-events: none;
+}
+
+.pds-kids-home-menu {
+  display: inline-flex;
+  align-items: center;
+}
+.pds-kids-home-menu .pds-kids-home-menu__home {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+.pds-kids-home-menu .pds-kids-home-menu__trigger {
+  width: 22px;
+  min-width: 22px;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+.pds-kids-home-menu .proto-menu__popover {
+  min-width: 176px;
+}
+.pds-kids-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  pointer-events: auto;
+}
+.pds-kids-search {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(640px, calc(100dvh - 48px));
+  padding: var(--pds-space-4);
+}
+.pds-kids-search[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-3);
+  overflow: hidden;
+}
+.pds-kids-search[open] > :not(.pds-kids-search__scroll) {
+  flex-shrink: 0;
+}
+.pds-kids-search .proto-sidebar-search__field {
+  --proto-search-field-pad-x: var(--pds-space-3);
+  min-height: 44px;
+  gap: var(--pds-space-2);
+}
+.pds-kids-search .proto-sidebar-search__field input {
+  align-self: stretch;
+  font-size: 1rem;
+}
+.pds-kids-search__scopes.proto-appearance-segmented {
+  --proto-seg-thumb-radius: var(--pds-radius-pill);
+  border-radius: var(--pds-radius-pill);
+}
+.pds-kids-search__scopes .proto-appearance-segmented__btn {
+  min-height: 36px;
+  padding-inline: var(--pds-space-2);
+}
+.pds-kids-search__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--pds-space-1);
+}
+.pds-kids-search__results + .pds-kids-search__results {
+  margin-top: var(--pds-space-3);
+}
+.pds-kids-search__results .pds-section-header { margin: 0 0 var(--pds-space-1); }
+.pds-kids-search__results .proto-list-panel {
+  border: 1px solid var(--pds-border-soft);
+  border-radius: var(--pds-radius-row);
+}
+.pds-kids-search__results .proto-list-panel__row {
+  min-height: 52px;
+  gap: var(--pds-space-2);
+  padding: var(--pds-space-1) var(--pds-space-3);
+}
+.pds-kids-search__results .proto-list-panel__row-title { font-size: 1rem; line-height: 1.25; }
+.pds-kids-search__results .proto-list-panel__row-meta { font-size: 0.8125rem; line-height: 1.35; }
+.pds-kids-search__count,
+.pds-kids-search__empty {
+  margin: 0 0 var(--pds-space-3);
+  color: var(--pds-text-secondary);
+}
+.pds-kids-search__empty {
+  padding-block: var(--pds-space-4);
+  text-align: center;
+}
+.pds-kids-search mark {
+  background: color-mix(in srgb, var(--pds-accent) 21%, transparent);
+  color: var(--pds-text-primary);
+  border-radius: var(--pds-radius-menu-item);
+}
+.pds-kids-search .pds-kids-search__more {
+  width: auto;
+  min-height: 40px;
+  gap: var(--pds-space-2);
+  margin-top: var(--pds-space-2);
+}
+.pds-kids-preview[data-note-info] > .proto-feed-stack {
+  max-width: calc(640px + var(--pds-inspector-w));
+}
+.pds-kids-note-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.pds-kids-preview[data-note-info] .pds-kids-note-layout {
+  grid-template-columns: minmax(0, 1fr) min(36%, var(--pds-inspector-w));
+}
+.pds-kids-info {
+  padding: var(--pds-space-3);
+  border-inline-start: 1px solid var(--pds-border-soft);
+  max-height: calc(100dvh - 172px);
+}
+.pds-kids-info__header,
+.pds-kids-info__detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+}
+.pds-kids-info__header h2 {
+  margin: 0;
+}
+.pds-kids-info .pds-kids-info__header {
+  margin: 0 var(--pds-space-2) var(--pds-space-3);
+}
+.pds-kids-info__detail + .pds-kids-info__detail {
+  margin-top: var(--pds-space-2);
+}
+.pds-kids-info__selection {
+  margin: var(--pds-space-2) 0 0;
+  overflow-wrap: anywhere;
+}
+.pds-kids-info .proto-select-menu__trigger {
+  width: 100%;
+  justify-content: space-between;
+  min-height: 36px;
+}
+.pds-kids-info .pds-kids-info__new {
+  width: auto;
+  min-height: 32px;
+  padding: var(--pds-space-1) var(--pds-space-3);
+  gap: var(--pds-space-2);
+  margin-top: var(--pds-space-3);
+}
+.pds-kids-info__create {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-1);
+  margin-top: var(--pds-space-3);
+}
+.pds-kids-info__create input {
+  min-width: 0;
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .pds-kids-shell .proto-toolbar-center {
+    position: static;
+    transform: none;
+    max-width: none;
+    margin-inline: auto;
+  }
+  .pds-kids-preview[data-note-info] .pds-kids-note-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pds-kids-info {
+    grid-row: 1;
+    border-inline-start: 0;
+    border-bottom: 1px solid var(--pds-border-soft);
+    max-height: min(50dvh, 380px);
+  }
+}
+@media (max-width: 430px) {
+  .pds-kids-search-trigger__label { display: none; }
+}
+
+.pds-kids-note-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pds-space-2);
+}
+.pds-kids-note-attachments .proto-settings-btn {
+  width: auto;
+  min-height: 36px;
+  gap: var(--pds-space-2);
+}
+.pds-kids-note-attachments__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pds-kids-note-attachments__list li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-1);
+}
+.pds-kids-note-idea { margin: 0; }
+.pds-kids-attachment-picker > * + * {
+  margin-top: var(--pds-space-4);
+}
+.pds-kids-attachment-picker > .proto-settings-btn {
+  gap: var(--pds-space-2);
+  min-height: 44px;
+}
+.pds-kids-attachment-picker__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--pds-space-3);
+}
+.pds-kids-attachment-picker__fields label {
+  min-width: 0;
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+}
+.pds-kids-attachment-picker__fields select {
+  min-height: 44px;
+}
+.pds-kids-attachment-picker .pds-kids-review__note p {
+  margin: var(--pds-space-2) 0 0;
+}
+
+.pds-kids-feedback-settings .proto-inspector-section {
+  display: grid;
+  gap: var(--pds-space-3);
+}
+.pds-kids-feedback-settings .proto-inspector-section + .proto-inspector-section {
+  margin-top: 0;
+}
+.pds-kids-feedback-settings :is(h3, p) {
+  margin: 0;
+}
+.pds-kids-feedback-settings .proto-settings-btn {
+  justify-self: start;
+  width: auto;
+  min-height: 44px;
+  gap: var(--pds-space-2);
+}
+.pds-kids-settings-modal[data-reduce-motion] .pds-kids-book__volume {
+  animation: none;
+  transition: none;
+}
+:is(.pds-kids-appearance-scope, .pds-kids-settings-modal)[data-reduce-motion] .pds-kids-book:hover .pds-kids-book__volume {
+  transform: rotate(-7deg);
+}
+:is(.pds-kids-appearance-scope, .pds-kids-settings-modal)[data-reduce-motion] .pds-kids-book:hover .pds-kids-book__front {
+  transform: rotateY(-20deg);
+}
+:is(.pds-kids-appearance-scope, .pds-kids-settings-modal)[data-reduce-motion] .pds-kids-book:hover .pds-kids-book__page[data-page='3'] {
+  transform: rotateY(-9deg);
+  transition: none;
+}

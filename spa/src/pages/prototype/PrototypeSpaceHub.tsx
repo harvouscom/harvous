@@ -68,7 +68,7 @@ import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
 const PrototypeSpaceStudySuggestionsSheet = lazy(
   () => import('./PrototypeSpaceStudySuggestionsSheet'),
 );
-import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
+import PrototypeSharedSpaceHeader from './PrototypeSharedSpaceHeader';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
@@ -88,7 +88,6 @@ import { markPendingPlannerIntent } from '../../lib/pending-planner-intent';
 import { localTodayIso } from '../../lib/church-services';
 import { parseLocalDateInput } from '../../lib/proto-date-picker';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
-import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import HomeSection from './PrototypeHomeSection';
@@ -1054,76 +1053,30 @@ function PrototypeSpaceHubLive() {
 
   return frame(
     <>
-      <div className="proto-shared-space-header proto-shared-space-header--cover">
-        {/*
-          The same hero the invite and the About sheet show, at the top of the room itself.
-
-          A shared space had one visual anywhere — the cover on the letter that invited you —
-          and then you walked in and the room was a 30px tile and a line of text. Being in a
-          place should look like the place. `PublicJoinSpaceHero` rather than a second band of
-          our own: it already resolves image-or-gradient per colour scheme and holds the
-          placeholder until the image has decoded, and a copy would be the thing that drifts
-          from the letter it is supposed to match.
-        */}
-        <div className="proto-shared-space-header__cover">
-          <PublicJoinSpaceHero space={heroSpace} />
-        </div>
-        <div className="proto-shared-space-header__row">
-          {/* The letter's own tile, at the letter's own proportions: 52px at radius 12 with a
-              22px glyph, which is the ~0.42 ratio `glyphSize`'s doc names for exactly this. */}
-          <ProtoSpaceMenuIcon
-            color={space?.color || 'paper'}
-            size={52}
-            radius={12}
-            glyphSize={22}
-            iconName={isMinistryChannel ? 'rss' : 'user-group'}
-          />
-          <div className="proto-shared-space-header__meta">
-            {isMinistryChannel && churchEyebrow ? (
-              <p
-                className="proto-caption proto-shared-space-header__church proto-marquee"
-                title={churchEyebrow}
-              >
-                <span>{churchEyebrow}</span>
-              </p>
+      <PrototypeSharedSpaceHeader
+        space={heroSpace}
+        title={spaceTitle}
+        iconName={isMinistryChannel ? 'rss' : 'user-group'}
+        eyebrow={isMinistryChannel ? churchEyebrow || undefined : undefined}
+        people={!isMinistryChannel ? (
+          <button
+            type="button"
+            className="proto-shared-space-header__people"
+            onClick={(e) => openPeopleSheet(
+              (e.target as HTMLElement).closest('.proto-shared-space-header__invite') ? 'invites' : 'letter',
+            )}
+          >
+            <span>{membersSettled ? sharedSpacePeopleHeaderLabel(peopleCount) : ' '}</span>
+            {isSpaceOwner ? (
+              <>
+                <span className="proto-shared-space-header__dot" aria-hidden>·</span>
+                <span className="proto-shared-space-header__invite">Invite</span>
+              </>
             ) : null}
-            <div
-              className="pds-list-title proto-shared-space-header__title proto-marquee"
-              title={spaceTitle}
-            >
-              <span>{spaceTitle}</span>
-            </div>
-            {/* The word lands on the thing it names: "Invite" opens the invite links, the
-                count beside it opens what the room is. */}
-            {!isMinistryChannel ? (
-              <button
-                type="button"
-                className="proto-shared-space-header__people"
-                onClick={(e) =>
-                  openPeopleSheet(
-                    (e.target as HTMLElement).closest('.proto-shared-space-header__invite')
-                      ? 'invites'
-                      : 'letter',
-                  )
-                }
-              >
-                <span>{membersSettled ? sharedSpacePeopleHeaderLabel(peopleCount) : ' '}</span>
-                {isSpaceOwner ? (
-                  <>
-                    <span className="proto-shared-space-header__dot" aria-hidden>
-                      ·
-                    </span>
-                    <span className="proto-shared-space-header__invite">Invite</span>
-                  </>
-                ) : null}
-              </button>
-            ) : null}
-          </div>
-        </div>
-        {/* The header's controls, not the identity line's — and they have to be a child of the
-            header to be positioned against it, since the row below is its own positioning
-            context. */}
-        <div className="proto-shared-space-header__actions">
+          </button>
+        ) : null}
+        actions={(
+          <>
             <button
               type="button"
               className="proto-toolbar-icon-btn"
@@ -1133,18 +1086,6 @@ function PrototypeSpaceHubLive() {
             >
               <Icon name="circle-info" size={15} />
             </button>
-            {/*
-              Tools, where the gear used to be.
-              
-              The gear went because it had nowhere left to go that the `i` beside it did not
-              already reach: settings is a row inside that sheet, one tap in. Its slot is worth
-              more to the room's own tools, which were the last section of a scrolling page —
-              so the shelf and the planner, the two places you actually go from here, cost a
-              scroll to the bottom to find.
-              
-              The header is where a room's navigation belongs; the body is what is happening in
-              it. Absent when the room has no tools to offer, rather than opening on nothing.
-            */}
             {spaceToolRows.length > 0 ? (
               <button
                 type="button"
@@ -1156,15 +1097,12 @@ function PrototypeSpaceHubLive() {
                 aria-expanded={toolsOpen}
                 onClick={() => setToolsOpen((v) => !v)}
               >
-                {/* Shapes, not a wrench: the two things behind this are a shelf and a
-                    calendar — places you go, not repairs you make. A grid of cells was the
-                    other candidate and reads as a view switcher, which is what it means
-                    everywhere else in this app. */}
                 <Icon name="shapes" size={15} />
               </button>
             ) : null}
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       <div className="proto-sidebar-scroll">
         <div className={homeViewClassName}>

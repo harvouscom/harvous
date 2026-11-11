@@ -139,7 +139,10 @@
     "typecheck:baseline": "node scripts/check-typecheck-baseline.mjs --update",
     "perf:check": "node scripts/check-perf-budget.mjs",
     "perf:baseline": "node scripts/check-perf-budget.mjs --update",
-    "lighthouse:perf": "node scripts/lighthouse-a11y.mjs --perf"
+    "lighthouse:perf": "node scripts/lighthouse-a11y.mjs --perf",
+    "family:schema": "tsx server/scripts/add-family-schema.ts",
+    "family:retention": "tsx server/scripts/purge-family-data.ts",
+    "test:family": "vitest run server/family/__tests__ spa/src/pages/family/__tests__"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

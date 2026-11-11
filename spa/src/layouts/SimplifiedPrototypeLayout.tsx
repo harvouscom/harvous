@@ -1,3 +1,7 @@
+import { ChildNotebookAppearanceProvider } from '../pages/prototype/ChildNotebookAppearance';
+import ChildNotebookModeMenu from '../pages/prototype/ChildNotebookModeMenu';
+import ChildNotebookHomeMenu from '../pages/prototype/ChildNotebookHomeMenu';
+import Icon from '@/components/react/Icon';
 import { rememberIfNotificationTap } from '../lib/notification-navigation';
 import DevModeBadge from '../components/DevModeBadge';
 import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
@@ -233,6 +237,35 @@ async function syncAccountTimeZone(storedTimeZone: string | null): Promise<void>
 }
 
 export default function SimplifiedPrototypeLayout() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // Fixture-only: keep the real shell furniture without mounting adult actions or shortcuts.
+  // The production child entry and server authorization remain separate from this preview.
+  if (import.meta.env.DEV && /\/__dev\/child-notebook\/?$/.test(pathname)) {
+    return <ChildNotebookAppearanceProvider><div className="proto-shell-frame simplified-prototype-root">
+      <div className="proto-shell proto-theme proto-shell--no-sidebar proto-shell--no-footer pds-kids-shell">
+        <header className="proto-shell__toolbar-cell"><div className="proto-shell__toolbar-stack">
+          <div className="proto-toolbar-inner">
+            <div className="proto-toolbar-left"><div className="proto-toolbar-orb-group" aria-label="Notebook navigation">
+              <ChildNotebookHomeMenu />
+              <button className="proto-toolbar-icon-btn" aria-label="Bible" title="Open Bible" onClick={() => window.dispatchEvent(new CustomEvent('harvousChildNotebookPreviewAction', { detail: 'bible' }))}><Icon name="book-open" size={17} /></button>
+              <button className="proto-toolbar-icon-btn" aria-label="Write a note" title="Write a note" onClick={() => window.dispatchEvent(new CustomEvent('harvousChildNotebookPreviewAction', { detail: 'compose' }))}><Icon name="pen-to-square" size={17} /></button>
+            </div></div>
+            <div className="proto-toolbar-center">
+              <button type="button" className="proto-toolbar-folder-chip proto-library-chip pds-kids-search-trigger" aria-label="Search" aria-haspopup="dialog" onClick={() => window.dispatchEvent(new CustomEvent('harvousChildNotebookPreviewAction', { detail: 'search' }))}>
+                <Icon name="magnifying-glass" size={14} /><span className="pds-kids-search-trigger__label">Search</span>
+              </button>
+            </div>
+            <div className="proto-toolbar-right"><ChildNotebookModeMenu /></div>
+          </div>
+        </div></header>
+        <main className="proto-shell__main-cell"><div className="proto-shell__main-inner"><Outlet /></div></main>
+      </div>
+    </div></ChildNotebookAppearanceProvider>;
+  }
+  return <AdultPrototypeLayout />;
+}
+
+function AdultPrototypeLayout() {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const identity = useHarvousIdentity();
   const authReady = useAuthReady();

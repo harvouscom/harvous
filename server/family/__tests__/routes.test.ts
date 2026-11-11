@@ -1,0 +1,72 @@
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { Hono } from 'hono';
+import { createHmac } from 'node:crypto';
+import type { SQL } from 'drizzle-orm';
+const database = vi.hoisted(() => ({ update: vi.fn(), transaction: vi.fn() }));
+vi.mock('../../db/client', () => ({ db: database }));
+vi.mock('../../middleware/auth', () => ({
+  requireAuth: async (c: any, next: any) => c.get('auth')?.userId ? next() : c.json({ error: 'Authentication required' }, 401),
+  getAuthenticatedAuth: (c: any) => c.get('auth'),
+  requireParam: (c: any, name: string) => c.req.param(name)
+}));
+import family from '../../routes/family';
+const app = new Hono();
+app.use('*', async (c, next) => { c.set('auth' as never, { userId: c.req.header('Authorization') === 'Bearer parent-token' ? 'parent-a' : null } as never); await next(); });
+app.route('/', family);
+function configured() {
+  for (const [key, value] of Object.entries({ KWS_CLIENT_ID: 'client', KWS_API_KEY: 'key',
+    KWS_SEND_EMAIL_URL: 'https://api.kidswebservices.com/product/test/send-email', KWS_ORG_ID: 'org',
+    KWS_PRODUCT_ID: 'product', KWS_WEBHOOK_SECRET: 'secret', KWS_ENVIRONMENT: 'test',
+    HARVOUS_CHILD_APP_URL: 'http://localhost:4322/kids.html', HARVOUS_CHILD_PRIVACY_URL: 'https://example.com/privacy' })) vi.stubEnv(key, value);
+}
+beforeEach(() => { vi.clearAllMocks(); configured(); });
+afterEach(() => vi.unstubAllEnvs());
+describe('family route boundaries', () => {
+  it.each(['/api/family/children/other', '/api/family/children/other/export', '/api/family/status'])('requires parent authentication for %s', async (path) => {
+    const response = await app.request(path); expect(response.status).toBe(401); expect(database.transaction).not.toHaveBeenCalled();
+  });
+  it('checks notebook ownership before reading export data', async () => {
+    const where = vi.fn((_condition: SQL) => ({ for: vi.fn().mockResolvedValue([]) }));
+    const select = vi.fn(() => ({ from: () => ({ where }) }));
+    database.transaction.mockImplementationOnce(work => work({ execute: vi.fn(), select }));
+    const response = await app.request('/api/family/children/other/export', { headers: { Authorization: 'Bearer parent-token' } });
+    expect(response.status).toBe(404);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(select).toHaveBeenCalledTimes(1);
+    const { PgDialect } = await import('drizzle-orm/pg-core');
+    expect(new PgDialect().sqlToQuery(where.mock.calls[0][0]).params).toEqual(['other', 'parent-a']);
+  });
+  it('does not accept child details while enrollment is disabled', async () => {
+    const response = await app.request('/api/family/children', { method: 'POST', headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' }, body: '{}' });
+    expect(response.status).toBe(503); expect(database.transaction).not.toHaveBeenCalled();
+  });
+  it('does not accept Clerk credentials as a child session', async () => {
+    const response = await app.request('/api/family/child/notebook', { headers: { Authorization: 'Bearer parent-token' } });
+    expect(response.status).toBe(401); expect(database.transaction).not.toHaveBeenCalled();
+  });
+  it('rejects child app requests from the adult origin', async () => {
+    const response = await app.request('/api/family/child/notebook', { headers: { Origin: 'https://app.harvous.com' } });
+    expect(response.status).toBe(403);
+  });
+  it('rejects forged callbacks without touching the database', async () => {
+    const response = await app.request('/api/webhooks/kws', { method: 'POST', body: '{}' });
+    expect(response.status).toBe(401); expect(database.update).not.toHaveBeenCalled();
+  });
+  it('rejects authentic callbacks for another product', async () => {
+    const raw = JSON.stringify({ name: 'parent-verified', orgId: 'org', productId: 'other', payload: { parentEmail: 'p@example.com', externalPayload: 'b7bd3862-d943-46d3-9e4a-9cd301375e23', status: { verified: true, transactionId: 'transaction' } } });
+    const now = Date.now(); const digest = createHmac('sha256', 'secret').update(`${now}.${raw}`).digest('hex');
+    const response = await app.request('/api/webhooks/kws', { method: 'POST', headers: { 'x-kws-signature': `t=${now},v1=${digest}` }, body: raw });
+    expect(response.status).toBe(403); expect(database.update).not.toHaveBeenCalled();
+  });
+  it('accepts signed callbacks but only updates pending, unexpired, matching verification rows', async () => {
+    const where = vi.fn().mockResolvedValue([]); const set = vi.fn(() => ({ where })); database.update.mockReturnValue({ set });
+    const raw = JSON.stringify({ name: 'parent-verified', orgId: 'org', productId: 'product', payload: { parentEmail: 'p@example.com', externalPayload: 'b7bd3862-d943-46d3-9e4a-9cd301375e23', status: { verified: true, transactionId: 'transaction' } } });
+    const now = Date.now(); const digest = createHmac('sha256', 'secret').update(`${now}.${raw}`).digest('hex');
+    const response = await app.request('/api/webhooks/kws', { method: 'POST', headers: { 'x-kws-signature': `t=${now},v1=${digest}` }, body: raw });
+    expect(response.status).toBe(200); expect(set).toHaveBeenCalledWith(expect.objectContaining({ status: 'verified' }));
+    const { PgDialect } = await import('drizzle-orm/pg-core'); const query = new PgDialect().sqlToQuery(where.mock.calls[0][0]);
+    expect(query.params).toContain('pending'); expect(query.params).toContain('test');
+    expect(query.sql).toContain('"expiresAt" >'); expect(query.sql).toContain('"parentEmailHash" =');
+    expect(database.transaction).not.toHaveBeenCalled(); // verification never creates a child
+  });
+});
