@@ -11,6 +11,7 @@ import ManageChildFamilyBible from '../../family/ManageChildFamilyBible';
 import { downloadChildNotebook, type ChildExportFormat } from '../../family/download-child-notebook';
 import type { ChildDetail } from '../../family/types';
 import { ChildNotebookCover } from '../ChildNotebookAppearance';
+import ProtoLoadingDots from '../ProtoLoadingDots';
 import ProtoConfirmDialog from '../ProtoConfirmDialog';
 import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShell, SettingsSubScreen, SettingsToggleRow } from './SettingsShell';
 import '../../../styles/child-notebook-preview.css';
@@ -127,7 +128,7 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
               {switchError && <p className="pds-caption pds-family-management__error" role="alert">{switchError}</p>}
               <div className="pds-family-verification__actions">
                 <button type="button" className="proto-settings-btn" disabled={!canOpen} onClick={() => void startChildMode()}>
-                  <Icon name="arrow-right-arrow-left" size={13} aria-hidden /> {switching ? 'Switching safely…' : 'Start child mode'}
+                  {switching ? <ProtoLoadingDots /> : <Icon name="arrow-right-arrow-left" size={13} aria-hidden />} Start child mode
                 </button>
                 <button type="button" className="proto-settings-btn proto-settings-btn--secondary" disabled={switching}
                   onClick={() => setSwitchOpen(false)}>Cancel</button>

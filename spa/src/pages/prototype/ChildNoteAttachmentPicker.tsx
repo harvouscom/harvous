@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 import Icon from '@/components/react/Icon';
 import { bookChapterCount, orderedCanonBooks } from '@/utils/bible-book-chapters';
 import { useChildNotebookAppearance } from './ChildNotebookAppearance';
@@ -66,7 +67,7 @@ export default function ChildNoteAttachmentPicker({ kind, resource, resources = 
               {approvedTranslations.filter(option => translations.includes(option.value)).map(option => <option key={option.value} value={option.value}>{option.triggerLabel}</option>)}
             </select></label>
           </div>}
-          {isLoading && <p className="pds-caption" role="status">Opening Scripture…</p>}
+          {isLoading && <ProtoSpaceLoading label="Opening Scripture" />}
           {isError && <p className="pds-caption" role="alert">This passage couldn’t open. Try another chapter or translation.</p>}
           {selectedVerse && <blockquote className="pds-kids-review__note"><span className="pds-caption">{reference} · {translation}</span><p>{selectedVerse.text}</p></blockquote>}
           {!existing && <button type="button" className="proto-settings-btn" disabled={!selectedVerse} onClick={() => {

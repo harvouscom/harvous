@@ -11,11 +11,13 @@ import type { ChildNotebookCatalog } from '../prototype/ChildNotebookTools';
 import ChildNotebookShell from '../prototype/ChildNotebookShell';
 import { ChildNotebookAppearanceProvider, useChildNotebookAppearance } from '../prototype/ChildNotebookAppearance';
 import ChildNotebookBibleReader from '../prototype/ChildNotebookBibleReader';
+import ProtoSpaceLoading from '../prototype/ProtoSpaceLoading';
 import ChildNotebookSearchPanel from './ChildNotebookSearchPanel';
 import { ChildPrivacyPolicyLink } from './ChildPrivacyNotice';
 import '../../styles/prototype-components.css';
 import '../../styles/prototype-tokens.css';
 import '../../styles/prototype-shell.css';
+import '@/styles/loading-dots.css';
 import '../../styles/family.css';
 import '../../styles/child-notebook-preview.css';
 
@@ -172,7 +174,7 @@ function SessionNotebook({ notebook, privacyUrl, request, onEnd, onRefresh, revi
 
 function ChildNotebook() {
   const [notebook, setNotebook] = useState<Notebook | null>(null);
-  const [status, setStatus] = useState('Opening your notebook…');
+  const [status, setStatus] = useState<'opening' | 'ended' | null>('opening');
   const [error, setError] = useState('');
   const [privacyUrl, setPrivacyUrl] = useState<string>();
   const [revision, setRevision] = useState(0);
@@ -186,7 +188,7 @@ function ChildNotebook() {
     catch (cause) {
       if (cause instanceof ChildRequestError && [401, 403].includes(cause.status)) {
         sessionToken = null; refreshVersion.current++;
-        setNotebook(null); setStatus(''); setError(cause.message);
+        setNotebook(null); setStatus(null); setError(cause.message);
       }
       throw cause;
     }
@@ -197,8 +199,8 @@ function ChildNotebook() {
       if (current) setPrivacyUrl(data.privacyUrl);
     }).catch(() => {});
     void openNotebook().then(data => {
-      if (current) { setNotebook(data); setStatus(''); }
-    }).catch(cause => { if (current) { setError(cause.message); setStatus(''); } });
+      if (current) { setNotebook(data); setStatus(null); }
+    }).catch(cause => { if (current) { setError(cause.message); setStatus(null); } });
     return () => { current = false; };
   }, []);
   useEffect(() => {
@@ -216,7 +218,9 @@ function ChildNotebook() {
 
   if (!notebook) return <main className="pds-child-app pds-family-stack">
     <h1 className="pds-title">My notebook</h1>
-    {status && <p role="status">{status}</p>}{error && <p role="alert">{error}</p>}
+    {status === 'opening' && <ProtoSpaceLoading label="Opening your notebook" />}
+    {status === 'ended' && <p role="status">All done. Ask your parent for a link next time.</p>}
+    {error && <p role="alert">{error}</p>}
     <ChildPrivacyPolicyLink url={privacyUrl} />
   </main>;
   return <ChildNotebookAppearanceProvider name={notebook.displayName} initial={notebook.preferences}>
@@ -226,7 +230,7 @@ function ChildNotebook() {
         await childRequest('session', 'DELETE');
         sessionToken = null; setNotebook(null);
         if (returnToParent && notebook.parentSignInUrl) window.location.assign(notebook.parentSignInUrl);
-        else setStatus('All done. Ask your parent for a link next time.');
+        else setStatus('ended');
       }} />
   </ChildNotebookAppearanceProvider>;
 }

@@ -59,6 +59,8 @@ import {
   SettingsShell,
   SettingsSubScreen,
 } from './SettingsShell';
+import ProtoLoadingDots from '../ProtoLoadingDots';
+import ProtoSpaceLoading from '../ProtoSpaceLoading';
 import ChildNotebookSettingsRow from './ChildNotebookSettingsRow';
 import '../../../styles/family.css';
 
@@ -296,7 +298,7 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
                 disabled={create.isPending || name.trim().length === 0}
                 onClick={() => void start()}
               >
-                {create.isPending ? 'Starting…' : 'Start a family'}
+                {create.isPending && <ProtoLoadingDots />} Start a family
               </button>
             </>
           ) : (
@@ -429,7 +431,7 @@ function NewInviteScreen({ onDone }: { onDone: () => void }) {
         disabled={create.isPending}
         onClick={() => void make()}
       >
-        {create.isPending ? 'Making a link…' : 'Make invite link'}
+        {create.isPending && <ProtoLoadingDots />} Make invite link
       </button>
     </SettingsSubScreen>
   );
@@ -649,7 +651,7 @@ function ChildRequestCard({ request, frozen }: { request: FamilyRoleRequest | nu
                 )
               }
             >
-              {escalate.isPending ? 'Sending…' : 'Ask Harvous to review'}
+              {escalate.isPending && <ProtoLoadingDots />} Ask Harvous to review
             </button>
             <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setConfirming(null)}>
               Cancel
@@ -905,9 +907,11 @@ export function FamilyView({ data }: { data: InFamily }) {
           <SectionLabel>What your parents can see · last 30 days</SectionLabel>
           {myEntry ? (
             <ProgressCard entry={myEntry} member={family.members.find((m) => m.isMe)} />
+          ) : progress.isLoading ? (
+            <ProtoSpaceLoading label="Loading your family progress" />
           ) : (
             <SettingsGroup>
-              <SettingsRow label={progress.isLoading ? 'Loading…' : 'Nothing to show yet'} trailing="none" />
+              <SettingsRow label="Nothing to show yet" trailing="none" />
             </SettingsGroup>
           )}
           <Footnote>They can never see your notes, highlights, searches, or Review.</Footnote>
@@ -966,7 +970,7 @@ export function FamilyView({ data }: { data: InFamily }) {
 
 export default function PrototypeFamilyPage() {
   const { data, isLoading, isError } = useFamily();
-  if (isLoading) return <SettingsShell>{null}</SettingsShell>;
+  if (isLoading) return <SettingsShell><ProtoSpaceLoading label="Loading your family" /></SettingsShell>;
   if (isError || !data) {
     return (
       <SettingsShell>

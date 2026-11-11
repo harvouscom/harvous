@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useChildNotebookAppearance } from '../prototype/ChildNotebookAppearance';
 import PrototypeSearchInput from '../prototype/components/PrototypeSearchInput';
 import PrototypeSectionHeader from '../prototype/design-system/PrototypeSectionHeader';
+import ProtoSpaceLoading from '../prototype/ProtoSpaceLoading';
 import PrototypeHomeRow from '../prototype/PrototypeHomeRow';
 import Icon from '@/components/react/Icon';
 import type { ChildSearchResult, ChildSearchScope } from './types';
@@ -63,9 +64,8 @@ export default function ChildNotebookSearchPanel({ search, onOpen, onClose, priv
       {scopes.map(([id, label]) => <button key={id} type="button" className="proto-appearance-segmented__btn" aria-pressed={scope === id}
         data-active={scope === id ? 'true' : undefined} onClick={() => { if (scope !== id) { reset(); setScope(id); } }}>{label}</button>)}
     </div>
-    <div className="pds-kids-search__scroll" aria-busy={pending}>
+    <div className="pds-kids-search__scroll">
       {error && <p role="alert">{error}</p>}
-      {pending && <p className="pds-caption" role="status">Searching…</p>}
       {!pending && !error && !items.length && <p className="pds-kids-search__empty pds-caption" role="status">
         {query ? 'No matches here. Try another word.' : 'There’s nothing to search here yet.'}</p>}
       {!!query && !!total && <p className="pds-kids-search__count pds-caption" role="status">{total} {total === 1 ? 'match' : 'matches'}</p>}
@@ -78,6 +78,7 @@ export default function ChildNotebookSearchPanel({ search, onOpen, onClose, priv
             key={`${item.kind}:${item.kind === 'material' ? item.spaceId : ''}:${item.id}`} meta={[item.source]} onClick={() => void open(item)} />)}</div>
         </section>;
       })}
+      {pending && <ProtoSpaceLoading label="Searching the notebook" />}
       {items.length < total && <button type="button" className="proto-settings-btn proto-settings-btn--secondary pds-kids-search__more" disabled={pending}
         onClick={() => setOffset(items.length)}>More results</button>}
     </div>

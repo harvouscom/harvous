@@ -2,6 +2,7 @@ import { AppearancePreviewTile } from './settings/AppearancePreviewTile';
 import { ChildNotebookAvatar, ChildNotebookCover, childImageChoices, childImageUrl, coverColors, coverPatterns, coverSymbols, useChildNotebookAppearance } from './ChildNotebookAppearance';
 import { useEffect, useRef, useState, type CSSProperties, type ComponentProps, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import ProtoLoadingDots from './ProtoLoadingDots';
 import Icon from '@/components/react/Icon';
 import { SOUND_PREFERENCES } from '@/utils/sound-prefs';
 import { playSound, warmSounds } from '@/utils/sounds';
@@ -489,7 +490,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
           </ul>}
           {writingIdea && !draft.content && <p className="pds-caption pds-kids-note-idea">{writingIdea}</p>}
           </ChildNotebookTextFields>
-          <div className="pds-kids-preview__editor-footer"><span className="pds-caption">Adults in your notebook circle can read this note.</span><button className="proto-settings-btn pds-kids-preview__done" disabled={saving} onClick={finish}><Icon name="check" size={12} /> Done</button></div>
+          <div className="pds-kids-preview__editor-footer"><span className="pds-caption">Adults in your notebook circle can read this note.</span><button className="proto-settings-btn pds-kids-preview__done" disabled={saving} onClick={finish}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Done</button></div>
         </div>
         {infoOpen && <ChildNoteInfo note={draft} catalog={catalog} onChange={updateOrganization} onCreate={createOrganization} onClose={() => {
           setInfoOpen(false);
@@ -576,7 +577,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
     })}
 
     {createPortal(<dialog ref={settingsDialogRef} className="proto-settings-modal pds-kids-settings-modal proto-theme" data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby="kids-settings-title" style={themeStyle} onCancel={event => { event.preventDefault(); void closeSettings(); }} onClose={() => setCustomizing(false)} onClick={event => { if (event.target === event.currentTarget) { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) void closeSettings(); } }}>
-      <header className="proto-settings-modal__header"><h2 id="kids-settings-title" className="proto-settings-modal__title">Settings</h2><ChildPrivacyPolicyLink url={privacyUrl} /><button className="proto-toolbar-icon-btn proto-settings-modal__close" aria-label="Close settings" disabled={saving} onClick={() => void closeSettings()}><Icon name="xmark" size={18} /></button></header>
+      <header className="proto-settings-modal__header"><h2 id="kids-settings-title" className="proto-settings-modal__title">Settings</h2><ChildPrivacyPolicyLink url={privacyUrl} /><button className="proto-toolbar-icon-btn proto-settings-modal__close" aria-label="Close settings" disabled={saving} onClick={() => void closeSettings()}>{saving ? <ProtoLoadingDots /> : <Icon name="xmark" size={18} />}</button></header>
       {customizing && saveError && <p className="pds-caption pds-kids-status" role="alert">{saveError}</p>}
       <div className="proto-settings-modal__body"><div className="proto-settings">
         <nav className="proto-settings__nav" aria-label="Settings categories"><div className="proto-settings__nav-list">
@@ -624,7 +625,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               <fieldset><legend>Reading & writing text</legend><div className="proto-menu-tabs pds-kids-text-choices" role="group" aria-label="Reading text size">{(['standard', 'bigger'] as const).map(size => <button key={size} className="proto-menu-tab" aria-pressed={appearance.textSize === size} data-active={appearance.textSize === size ? 'true' : undefined} onClick={() => setAppearance(current => ({ ...current, textSize: size }))}><span aria-hidden="true" className="pds-kids-type-sample" data-size={size}>Aa</span>{size === 'standard' ? 'Just right' : 'A little bigger'}</button>)}</div></fieldset>
               <p className="pds-caption">These settings are just for your notebook.</p>
             </section>
-            <div className="pds-kids-studio__finish"><button className="proto-settings-btn" disabled={saving} onClick={() => void closeSettings()}><Icon name="check" size={12} /> Done</button></div>
+            <div className="pds-kids-studio__finish"><button className="proto-settings-btn" disabled={saving} onClick={() => void closeSettings()}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Done</button></div>
           </div> : <div className="pds-kids-inside-settings pds-kids-feedback-settings">
             <section className="proto-inspector-section">
               <h3 className="pds-list-title">Sound effects</h3>
@@ -657,7 +658,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       <p id="parent-gate-description">{parentGate === 'export' ? 'Ask your parent to sign in and download a copy from My Family.' : 'Ask your parent to sign in to leave child mode.'}</p>
       {preview && <p className="pds-caption pds-kids-parent-gate__notice">Preview changes reset when you leave.</p>}
       {parentError && <p role="alert">{parentError}</p>}
-      <div className="pds-kids-review__actions"><button className="proto-settings-btn" disabled={parentBusy} onClick={() => void goToParentSignIn()}><Icon name="lock" size={12} /> {parentBusy ? 'Opening sign-in…' : 'Parent sign-in'}</button><button className="proto-settings-btn proto-settings-btn--secondary" disabled={parentBusy} onClick={() => setParentGate(false)}><Icon name="arrow-left" size={12} /> Stay here</button></div>
+      <div className="pds-kids-review__actions"><button className="proto-settings-btn" disabled={parentBusy} onClick={() => void goToParentSignIn()}>{parentBusy ? <ProtoLoadingDots /> : <Icon name="lock" size={12} />} Parent sign-in</button><button className="proto-settings-btn proto-settings-btn--secondary" disabled={parentBusy} onClick={() => setParentGate(false)}><Icon name="arrow-left" size={12} /> Stay here</button></div>
     </dialog>, document.body)}
     {createPortal(<dialog ref={privacyDialogRef} className="pds-kids-privacy-modal proto-theme" aria-labelledby="kids-privacy-title" aria-describedby="kids-privacy-description" style={themeStyle} onCancel={() => setPrivacy(false)} onClose={() => { setPrivacy(false); document.getElementById('child-notebook-mode-trigger')?.focus(); }} onClick={event => { if (event.target === event.currentTarget) { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setPrivacy(false); } }}>
       <div className="pds-kids-privacy-modal__heading"><span className="pds-kids-review__art" aria-hidden="true"><Icon name="user-shield" size={25} /></span><button className="pds-kids-preview__quiet" aria-label="Close privacy guide" onClick={() => setPrivacy(false)}><Icon name="xmark" size={17} /></button></div>

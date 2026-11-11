@@ -8,6 +8,8 @@ import { api } from '../../../lib/api';
 import { useAuthReady } from '../../../hooks/useAuthReady';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
 import ChildNotebookSettingsRow from './ChildNotebookSettingsRow';
+import ProtoLoadingDots from '../ProtoLoadingDots';
+import ProtoSpaceLoading from '../ProtoSpaceLoading';
 import ManageChildNotebook from './ManageChildNotebook';
 import ChildPrivacyNotice from '../../family/ChildPrivacyNotice';
 import type { ChildDetail, FamilyChild, FamilyStatus } from '../../family/types';
@@ -67,7 +69,7 @@ export default function PrototypeChildAccountsPage() {
       setVerificationFeedback('Verification is still pending.');
     }
   }
-  if (status.isPending) return <SettingsShell><p role="status">Loading your family…</p></SettingsShell>;
+  if (status.isPending) return <SettingsShell><ProtoSpaceLoading label="Loading your family" /></SettingsShell>;
   if (!status.data) return <SettingsShell><p role="alert">Could not load your family.</p><button className="proto-settings-btn" onClick={() => status.refetch()}>Try again</button></SettingsShell>;
   const data = status.data;
   const notebookRoute = prototypeHref('settings/child-accounts');
@@ -115,7 +117,7 @@ export default function PrototypeChildAccountsPage() {
             onClick={() => void navigate({ to: notebookRoute, search: { setup: true } })} />}
         </SettingsGroup>
       </section>}
-      {selected && detail.isPending && <p role="status">Loading child account…</p>}
+      {selected && detail.isPending && <ProtoSpaceLoading label="Loading the child notebook" />}
       {selected && detail.isError && <p role="alert">Could not load this account. <button onClick={() => detail.refetch()}>Try again</button></p>}
       {showEnrollment && <section className={verification ? 'pds-family-stack pds-family-enrollment--verified' : 'pds-family-stack'} aria-labelledby="child-enrollment-title">
         <header className="pds-family-enrollment-heading">
@@ -149,13 +151,13 @@ export default function PrototypeChildAccountsPage() {
           <div className="pds-family-verification__actions">
             {awaitingVerification ? <>
               <button className="proto-settings-btn" disabled={busy || status.isFetching} onClick={() => void checkVerification()}>
-                Check verification status
+                {status.isFetching && <ProtoLoadingDots />} Check verification status
               </button>
               <button className="proto-settings-btn proto-settings-btn--secondary" disabled={busy} onClick={sendVerification}>
-                Send a new email
+                {busy && <ProtoLoadingDots />} Send a new email
               </button>
             </> : <button className="proto-settings-btn" disabled={busy} onClick={sendVerification}>
-              <Icon name="envelope" size={14} aria-hidden /> Send verification email
+              {busy ? <ProtoLoadingDots /> : <Icon name="envelope" size={14} aria-hidden />} Send verification email
             </button>}
           </div>
           {verificationFeedback && awaitingVerification && <p className="pds-body" role="status">{verificationFeedback}</p>}
@@ -213,7 +215,7 @@ export default function PrototypeChildAccountsPage() {
                 <span id="child-first-name-hint" className="pds-caption">Use a first name or nickname. Leave out the last name.</span>
               </label>
               <button className="proto-settings-btn" type="submit" disabled={busy || !displayName.trim()}>
-                <Icon name="book-open" size={14} aria-hidden /> {busy ? 'Creating notebook…' : 'Agree and create notebook'}
+                {busy ? <ProtoLoadingDots /> : <Icon name="book-open" size={14} aria-hidden />} Agree and create notebook
               </button>
             </form>}
           </section>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ProtoSpaceLoading from '../prototype/ProtoSpaceLoading';
 import Icon from '@/components/react/Icon';
 import { getTranslation } from '@/data/translations';
 import ProtoConfirmDialog from '../prototype/ProtoConfirmDialog';
@@ -41,6 +42,7 @@ export default function ManageChildFamilyBible({ detail, busy, perform }: Props)
   }
   return <section aria-label="Family Bible settings">
     <SettingsIntro>Share chapters and verse thoughts with {child.displayName}.</SettingsIntro>
+    {loading && <ProtoSpaceLoading label="Opening the shared chapter" />}
     {error && <p className="pds-caption pds-family-management__error" role="alert">{error}</p>}
     <SettingsGroup>
       <SettingsRow label="Approved translations" leadingIcon="book-open" expanded={translationsOpen}

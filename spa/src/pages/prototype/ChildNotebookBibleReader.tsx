@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import ProtoSpaceLoading from './ProtoSpaceLoading';
 import Icon from '@/components/react/Icon';
 import { getTranslation } from '@/data/translations';
 import { canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
@@ -208,7 +209,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
               )}
             </div>
           )}
-          {isLoading && <p className="pds-kids-bible__status pds-caption" role="status">Opening your Bible…</p>}
+          {isLoading && <ProtoSpaceLoading label="Opening your Bible" />}
           {isError && (
             <div className="pds-kids-bible__status" role="alert">
               <p>We couldn’t open this chapter.</p>

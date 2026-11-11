@@ -104,7 +104,7 @@ Harvous should feel **quiet, warm, and content-first** — a study desk, not a d
 |---|---|
 | Navigation | Spaces → threads/lists → notes. Preserve hierarchy and labels across platforms. |
 | Create / edit / save | Optimistic where the user stays on-screen; never invent skeleton loaders. |
-| Empty / loading / error | Empty states for voids; floating toasts for ephemeral feedback; sticky inspector failures use muted copy + Retry. Prefer real loading states over placeholders. |
+| Empty / loading / error | Empty states for voids; floating toasts for ephemeral feedback; sticky inspector failures use muted copy + Retry. Use the shared three-dot indicator for web loading states. Keep loading labels available to assistive technology and visually hidden. |
 | Destructive | Confirm with `ProtoConfirmDialog` (web) or system confirm (native). Use destructive tokens only. |
 | Overlays | Web: `usePopoverDismiss` / `useDismissOnOutside` + Escape + outside click. Native: platform menu/sheet norms. |
 | Keyboard | Focus-visible rings, list keyboard focus (`data-keyboard-focus`), labeled icon buttons. |
