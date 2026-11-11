@@ -18272,6 +18272,17 @@ html.harvous-prototype-route
   min-width: 0;
 }
 
+.proto-select-menu__popover:has(> .proto-popover-shell__content > .proto-note-destination__filter) {
+  scroll-padding-block-start: var(--pds-space-12);
+}
+
+.proto-select-menu__popover > .proto-popover-shell__content > .proto-note-destination__filter {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--pds-z-sticky);
+  background: var(--pds-bg-popover-solid);
+}
+
 /* The run-length row: a week count beside the button that appends them. */
 .proto-series-sheet__run {
   margin-top: 8px;
