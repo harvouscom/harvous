@@ -785,8 +785,12 @@ export function resyncMobileCaret(view: any, opts?: MobileCaretResyncOpts): void
   if (!isMobileDevice() || !view) return;
   // Post-confirm: wait for PM DOM patch before placing the caret outside the pill span.
   if (opts?.focus) {
+    const { doc, selection } = view.state;
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => runMobileCaretResync(view, opts));
+      requestAnimationFrame(() => {
+        if (view.isDestroyed || view.state.doc !== doc || !view.state.selection.eq(selection)) return;
+        runMobileCaretResync(view, opts);
+      });
     });
     return;
   }
@@ -1006,6 +1010,7 @@ export function confirmScriptureDraftView(
   atPos?: number,
   opts?: {
     focus?: boolean;
+    preserveSelection?: boolean;
     /**
      * What to do when the reference parses but fails canon validation.
      * 'keep' (default) leaves the draft open so the user can fix it in place — right for
@@ -1142,16 +1147,13 @@ export function confirmScriptureDraftView(
   let caret = pillEnd;
   const charAfter = tr.doc.textBetween(pillEnd, Math.min(pillEnd + 1, tr.doc.content.size));
   if (charAfter === ' ') caret = pillEnd + 1;
-  const caretPos = Math.min(caret, tr.doc.content.size);
-  // A detached draft commits when the selection leaves it — including Select All. Collapsing
-  // that selection to after the pill made Select All + Delete do nothing while a draft was open.
+  // Keep an expanded selection (including Select All) when it caused the draft to commit.
   const userRange = !state.selection.empty &&
     (state.selection.from < range.from || state.selection.to > effectiveTo);
-  if (userRange) {
-    tr.setSelection(state.selection.map(tr.doc, tr.mapping));
-  } else {
-    tr.setSelection(TextSelection.create(tr.doc, caretPos));
+  if (!userRange && !opts?.preserveSelection) {
+    tr.setSelection(TextSelection.create(tr.doc, Math.min(caret, tr.doc.content.size)));
   }
+  const caretPos = tr.selection.from;
   tr.setStoredMarks([]);
   tr.scrollIntoView();
   tr.setMeta('addToHistory', true);

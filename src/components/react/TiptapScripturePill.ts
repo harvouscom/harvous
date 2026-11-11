@@ -382,7 +382,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
         key: new PluginKey('scripturePillSnapCursor'),
         appendTransaction(_transactions, _oldState, newState) {
           const sel = newState.selection;
-          if (!(sel instanceof TextSelection)) return null;
+          if (!(sel instanceof TextSelection) || !sel.empty) return null;
           const markType = newState.schema.marks.scripturePill;
           if (!markType) return null;
 
@@ -399,16 +399,16 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           // Collapsed cursor at a pill's LEFT edge (pill is the next node, nothing pill-y before it)
           // is already OUTSIDE the pill — e.g. the start of a note that begins with a pill. Snapping it
           // to the pill end would make the front unreachable by ArrowLeft / Home / click. Leave it.
-          if (afterInPill && !beforeInPill && sel.empty) return null;
+          if (afterInPill && !beforeInPill) return null;
           // Cursor right after pill with nothing following — visually inside the pill box.
           // Can't fix here (inserting a paragraph would mark the note as changed); handled
           // by CardFullEditable.handleEditorReady and snapCursorOutsideScripturePill instead.
-          if (beforeInPill && !afterInPill && sel.empty) return null;
+          if (beforeInPill && !afterInPill) return null;
 
           // Cursor truly inside pill text — snap to end of mark range
           const range = getMarkRange($from, markType) || (beforeInPill ? getMarkRange(newState.doc.resolve(Math.max(0, sel.from - 1)), markType) : null);
           if (!range) return null;
-          if (sel.empty && sel.from === range.to) return null;
+          if (sel.from === range.to) return null;
           return newState.tr
             .setSelection(TextSelection.create(newState.doc, range.to))
             .setStoredMarks([])

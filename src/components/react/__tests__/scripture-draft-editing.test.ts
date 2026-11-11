@@ -126,6 +126,23 @@ describe('scriptureDraftInputDecision', () => {
   });
 });
 
+it('keeps the iOS period and caret when committing a draft after native input', () => {
+  const reference = 'Exodus 5:1';
+  const editor = editorWithDraft(reference);
+  try {
+    const draftEnd = reference.length + 1;
+    editor.commands.setTextSelection(draftEnd);
+    editor.view.dispatch(editor.state.tr.insertText('. ', draftEnd));
+    const caret = editor.state.selection.from;
+
+    expect(confirmScriptureDraftView(editor.view, draftEnd, { preserveSelection: true })).toBe(reference);
+    expect(editor.state.doc.textContent).toBe(reference + '. ');
+    expect(editor.state.selection.from).toBe(caret);
+  } finally {
+    editor.destroy();
+  }
+});
+
 describe('abandoning an invalid draft (onInvalid: finalize)', () => {
   it('keep (default): the ✓ path leaves the draft open to fix', () => {
     const editor = editorWithDraft('Exodus 16:1315');

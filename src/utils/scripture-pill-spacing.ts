@@ -7,7 +7,7 @@ import { hasBlockGapAfter, hasBlockGapBefore } from './scripture-pill-block-gaps
 
 export type ScripturePillSpacingMode = 'live' | 'hydrate';
 
-const WHITESPACE = new Set([' ', '\n', '\r', '\t']);
+const WHITESPACE = new Set([' ', '\n', '\r', '\t', '\u00a0']);
 
 function isWhitespaceChar(ch: string | undefined): boolean {
   return ch !== undefined && ch !== '' && WHITESPACE.has(ch);
@@ -104,7 +104,8 @@ export function ensureScripturePillSpacing(
         !hasBlockGapAfter(tr.doc, end)
       ) {
         const charAfter = tr.doc.textBetween(end, Math.min(end + 1, blockEnd));
-        if (charAfter && !isWhitespaceChar(charAfter)) {
+        // A period belongs directly after the reference, including one inserted by iOS.
+        if (charAfter && charAfter !== '.' && !isWhitespaceChar(charAfter)) {
           tr.insertText(' ', end);
           modified = true;
         }

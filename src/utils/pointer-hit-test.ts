@@ -46,12 +46,18 @@ function pointerCoords(e: MouseEvent | TouchEvent): { x: number; y: number } | n
  * Returns true for an event carrying no coordinates at all — a keyboard-driven `click`, for
  * instance. Those did not miss the element; they never aimed at a point.
  */
-export function pointerIsInsideElementRect(e: MouseEvent | TouchEvent, el: HTMLElement): boolean {
+export function pointerIsInsideElementRect(
+  e: MouseEvent | TouchEvent,
+  el: HTMLElement,
+  { touchPadding = true }: { touchPadding?: boolean } = {},
+): boolean {
   const point = pointerCoords(e);
   if (!point) return true;
-  const rect = el.getBoundingClientRect();
-  const padY = isTouchPointerEvent(e) ? TOUCH_SLOP_Y : 0;
-  return (
+  // A wrapped inline reference has a box for each line. Its bounding box
+  // also covers the surrounding prose in the space between those boxes.
+  const rects = touchPadding ? [el.getBoundingClientRect()] : Array.from(el.getClientRects());
+  const padY = touchPadding && isTouchPointerEvent(e) ? TOUCH_SLOP_Y : 0;
+  return rects.some((rect) =>
     point.x >= rect.left &&
     point.x <= rect.right &&
     point.y >= rect.top - padY &&

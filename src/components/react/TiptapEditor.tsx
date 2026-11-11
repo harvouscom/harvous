@@ -125,6 +125,7 @@ import {
   shouldSchedulePassiveScriptureDetection,
 } from '@/utils/scripture-pill-position';
 import { pointerIsInsideElementRect, isTouchPointerEvent } from '@/utils/pointer-hit-test';
+import { isMobileDevice } from '@/utils/pwa-prompt';
 import { getVisualViewportBox } from '@/utils/visual-viewport-box';
 import { sanitizeScripturePillHtml } from '@/utils/scripture-pill-display';
 import { safeRenderHtml } from '@/utils/content-renderer';
@@ -1050,12 +1051,13 @@ function placeCaretForEmptyOrEnd(editor: any, preferEndWhenNonEmpty: boolean): v
   }
 }
 
-/** If the cursor (collapsed or user-select:all range) is inside a scripture pill, move it after the pill. */
+/** Keep a collapsed caret out of the pill without collapsing a text selection. */
 export function snapCursorOutsideScripturePill(editor: any): void {
   if (!editor || editor.isDestroyed || !editor.state) return;
   try {
     const { state } = editor;
     const sel = state.selection;
+    if (!sel.empty) return;
 
     const markType = state.schema.marks.scripturePill;
     if (!markType) return;
@@ -1076,7 +1078,7 @@ export function snapCursorOutsideScripturePill(editor: any): void {
     // Snapping it to the pill's end would make the front unreachable by ArrowLeft / Home / click and
     // break navigation to the start. Leave it here; inclusive:false keeps any typed text out of the
     // pill. (A caret genuinely INSIDE the pill is beforeInPill && afterInPill and still snaps below.)
-    if (sel.empty && afterInPill && !beforeInPill) return;
+    if (afterInPill && !beforeInPill) return;
 
     // Cursor right after pill: insert a trailing space when prose follows flush
     // against the pill so the caret has a non-pill landing spot.
@@ -1095,7 +1097,7 @@ export function snapCursorOutsideScripturePill(editor: any): void {
       const charAfter = !atEndOfParent ? state.doc.textBetween(pillEnd, Math.min(pillEnd + 1, $from.end($from.depth))) : '';
       if (
         !skipTrailingSpace &&
-        (atEndOfParent || (charAfter && charAfter !== ' ' && charAfter !== '\n' && charAfter !== '\t'))
+        (atEndOfParent || (charAfter && !/^[\s.]$/.test(charAfter)))
       ) {
         const tr = state.tr;
         const insertPos = atEndOfParent ? $from.end($from.depth) : pillEnd;
@@ -1106,7 +1108,7 @@ export function snapCursorOutsideScripturePill(editor: any): void {
         editor.view.dispatch(tr);
         return;
       }
-      if (skipTrailingSpace && sel.empty && sel.from !== pillEnd) {
+      if (skipTrailingSpace && sel.from !== pillEnd) {
         const tr = state.tr
           .setSelection(TextSelection.create(state.doc, pillEnd))
           .setStoredMarks([])
@@ -1114,7 +1116,7 @@ export function snapCursorOutsideScripturePill(editor: any): void {
         editor.view.dispatch(tr);
         return;
       }
-      if (charAfter === ' ' && sel.empty && sel.from !== pillEnd + 1) {
+      if (charAfter === ' ' && sel.from !== pillEnd + 1) {
         const tr = state.tr
           .setSelection(TextSelection.create(state.doc, pillEnd + 1))
           .setStoredMarks([])
@@ -1122,13 +1124,13 @@ export function snapCursorOutsideScripturePill(editor: any): void {
         editor.view.dispatch(tr);
         return;
       }
-      if (sel.empty) return;
+      return;
     }
 
     const range = getMarkRange($from, markType)
       || (beforeInPill ? getMarkRange(state.doc.resolve(Math.max(0, sel.from - 1)), markType) : null);
     if (!range) return;
-    if (sel.empty && sel.from === range.to) return;
+    if (sel.from === range.to) return;
 
     const tr = state.tr
       .setSelection(TextSelection.create(state.doc, range.to))
@@ -4012,13 +4014,6 @@ function TiptapToolbarTrack({
   );
 }
 
-// Detect mobile device for different handling
-// On mobile, we don't want to interfere with native keyboard behavior (e.g., double-space-to-period)
-const isMobileDevice = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  return isIOS() || /Android/i.test(navigator.userAgent);
-};
-
 type SelectionActionBarState = {
   top: number;
   left: number;
@@ -4568,7 +4563,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       try {
         const { from: cursorPos } = editor.state.selection;
         // Only check when cursor is within the first 3 positions (typing at start)
-        if (cursorPos <= 3) {
+        if (!isIOS() && cursorPos <= 3) {
           const doc = editor.state.doc;
           const firstChild = doc.firstChild;
           if (firstChild && firstChild.isTextblock && firstChild.textContent.length >= 1) {
@@ -4752,6 +4747,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         class: 'prose prose-sm max-w-none focus:outline-none [&_ol]:list-decimal [&_ul]:list-disc',
         style: 'font-family: var(--font-sans); font-size: 16px; font-weight: 500; line-height: 1.6; color: var(--color-deep-grey); min-height: 200px;',
         tabindex: (tabindex || 0).toString(),
+        autocapitalize: 'sentences',
       },
       // Text input goes through the plugins' handleTextInput, not here. The one DOM event taken
       // is a delete-type beforeinput, and only to give the pill delete handlers a second chance.
@@ -5053,6 +5049,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             return true;
           }
         }
+
+        // Let the software keyboard own spaces, including at a pill boundary.
+        if (event.key === ' ' && isMobileDevice()) return false;
 
         // @ mention picker keyboard navigation. NEVER intercepts the space key (iOS
         // double-space-to-period) — a space simply breaks the trigger regex and the
@@ -5401,17 +5400,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   .run();
                 return true;
               } else if (event.key === ' ') {
-                // On mobile: Don't interfere with native keyboard behavior
-                // Let the space be handled naturally for double-space-to-period, etc.
-                if (isMobileDevice()) {
-                  // Just move cursor to end of pill, let native handle the space
-                  editor.chain()
-                    .setTextSelection(boundaries.end)
-                    .unsetAllMarks()
-                    .run();
-                  return false; // Let native keyboard handle the space
-                }
-
                 // On desktop: manually handle the space
                 event.preventDefault();
                 // Insert a space after the pill and move cursor after it
@@ -7331,28 +7319,48 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
 
-    let touchHandledPill: HTMLElement | null = null;
-
-    /**
-     * Inline targets that own their own tap and must beat ProseMirror to it.
-     *
-     * A committed pill was the only one here, so a suggestion tap had no touchstart path at
-     * all and fell through to the synthesized `click` — which arrives *after* ProseMirror has
-     * already handled the touch, placed a caret inside the word, and raised the keyboard. The
-     * dock then opened underneath a keyboard nobody asked for, which is what "tapping a
-     * suggested reference is funky" looked like from the outside.
-     */
-    const TOUCH_OWNED_INLINE_TARGETS = '.scripture-pill, .reference-suggestion, .mention-pill';
+    const inlineTargetSelector = '.scripture-pill, .reference-suggestion, .mention-pill, .ProseMirror mark';
+    const tapSlop = 8;
+    const maxTapDuration = 350;
+    let touchStart: { touch: Touch; target: HTMLElement; time: number } | null = null;
+    let lastInlineTouchEnd = -Infinity;
 
     const handlePillTouchStart = (e: TouchEvent) => {
-      const target = e.target as HTMLElement;
-      const pillSpan = target.closest(TOUCH_OWNED_INLINE_TARGETS) as HTMLElement | null;
-      if (!pillSpan) return;
+      touchStart = null;
+      const target = (e.target as HTMLElement).closest<HTMLElement>(inlineTargetSelector);
+      if (!target || e.touches.length !== 1 || !pointerIsInsideElementRect(e, target, { touchPadding: false })) return;
+      if (editor.isEditable && !editor.state.selection.empty) return;
+      touchStart = { touch: e.touches[0], target, time: e.timeStamp };
+    };
+
+    const clearPillTouch = () => {
+      touchStart = null;
+    };
+
+    const withinTapSlop = (start: Touch, end: Touch) =>
+      Math.hypot(start.clientX - end.clientX, start.clientY - end.clientY) <= tapSlop;
+
+    const handlePillTouchMove = (e: TouchEvent) => {
+      if (touchStart && (e.touches.length !== 1 || !withinTapSlop(touchStart.touch, e.touches[0]))) {
+        clearPillTouch();
+      }
+    };
+
+    const handlePillTouchEnd = (e: TouchEvent) => {
+      const target = (e.target as HTMLElement).closest(inlineTargetSelector);
+      if (target) lastInlineTouchEnd = e.timeStamp;
+      const start = touchStart;
+      clearPillTouch();
+      if (!start || target !== start.target || !e.cancelable || e.touches.length) return;
+      if (e.timeStamp - start.time > maxTapDuration) return;
+      const end = Array.from(e.changedTouches).find((touch) => touch.identifier === start.touch.identifier);
+      if (!end || !withinTapSlop(start.touch, end)) return;
+      if (!pointerIsInsideElementRect(e, start.target, { touchPadding: false })) return;
+      const selection = window.getSelection();
+      if (editor.isEditable && selection && !selection.isCollapsed && editor.view.dom.contains(selection.anchorNode)) {
+        return;
+      }
       handlePillPointer(e);
-      touchHandledPill = pillSpan;
-      window.setTimeout(() => {
-        touchHandledPill = null;
-      }, 400);
     };
 
     // iOS refuses to refocus a contenteditable on the first tap after a programmatic blur
@@ -7391,16 +7399,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const handlePillClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      // Match the same set touchstart claims, so the dedupe below covers every target that
-      // was already handled there — otherwise a suggestion opens its dock twice on one tap.
-      const pillSpan = target.closest(TOUCH_OWNED_INLINE_TARGETS) as HTMLElement | null;
-      if (pillSpan && touchHandledPill === pillSpan) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
+      const inlineTarget = target.closest(inlineTargetSelector);
+      // Some WebKit versions synthesize a MouseEvent after touchend without a pointerType.
+      // Touch has already been evaluated, including gestures that must keep native selection.
+      if (inlineTarget && ((e as PointerEvent).pointerType === 'touch' || (e.detail > 0 && e.timeStamp - lastInlineTouchEnd < 500))) {
         return;
       }
       handlePillPointer(e);
-      if (!pillSpan) focusEditorAtTapFallback(e.clientX, e.clientY, target);
+      if (!inlineTarget) focusEditorAtTapFallback(e.clientX, e.clientY, target);
     };
 
     const handleDismiss = (e: MouseEvent) => {
@@ -7431,12 +7437,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
 
-    // Use capture phase so we intercept pill taps before ProseMirror
-    wrapperDiv.addEventListener('touchstart', handlePillTouchStart, { capture: true, passive: false });
+    // Leave touchstart and touchmove to scrolling and the native selection gesture.
+    wrapperDiv.addEventListener('touchstart', handlePillTouchStart, { capture: true, passive: true });
+    wrapperDiv.addEventListener('touchmove', handlePillTouchMove, { capture: true, passive: true });
+    wrapperDiv.addEventListener('touchcancel', clearPillTouch, true);
+    wrapperDiv.addEventListener('touchend', handlePillTouchEnd, { capture: true, passive: false });
     wrapperDiv.addEventListener('click', handlePillClick, true);
     document.addEventListener('mousedown', handleDismiss);
     return () => {
-      wrapperDiv.removeEventListener('touchstart', handlePillTouchStart, { capture: true });
+      wrapperDiv.removeEventListener('touchstart', handlePillTouchStart, true);
+      wrapperDiv.removeEventListener('touchmove', handlePillTouchMove, true);
+      wrapperDiv.removeEventListener('touchcancel', clearPillTouch, true);
+      wrapperDiv.removeEventListener('touchend', handlePillTouchEnd, true);
       wrapperDiv.removeEventListener('click', handlePillClick, true);
       document.removeEventListener('mousedown', handleDismiss);
     };
@@ -7658,7 +7670,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   useEffect(() => {
     if (!editor || editorChromeMode !== 'prototypeNative') return;
 
-    const resolveDetachedDraft = () => {
+    const resolveDetachedDraft = ({ transaction }: { transaction: { docChanged: boolean } }) => {
       if (!isEditorValid(editor)) return;
       const detached = findDetachedScriptureDraft(editor.state);
       if (!detached) return;
@@ -7668,25 +7680,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // extendRangeOverTrailingContinuation into one clean pill.
       const state = editor.state;
       const caret = state.selection.from;
+      const mobileTyping = isMobileDevice() && editor.isFocused && transaction.docChanged && state.selection.empty;
       if (caret > detached.to) {
         const gap = state.doc.textBetween(detached.to, caret);
         const $a = state.doc.resolve(detached.from);
         const $c = state.doc.resolve(caret);
         const sameBlock = $a.start($a.depth) === $c.start($c.depth);
-        if (sameBlock && /^[\d:,\-–—]+$/.test(gap)) {
+        // Keep the DOM stable while iOS is handling the spaces and its period replacement.
+        if (sameBlock && (/^[\d:,\-–—]+$/.test(gap) || (mobileTyping && isIOS() && /^[ \u00a0]+$/.test(gap)))) {
           return;
         }
       }
-      // The caret left the draft. When it left by TYPING (the mobile space-commit route — space is
-      // never intercepted on mobile, so it lands as plain text and detaches the draft), this is a
-      // user confirm and must re-assert the native caret: iOS leaves the *painted* caret at the
-      // line end after the commit mutation even though the PM selection is correct. Every other
-      // commit route (Enter, the ✓) already passes `focus`; this one was the gap, and it is the
-      // one users actually hit. Guard on `isFocused` so a caret that left because focus went to a
-      // dock does NOT get stolen back (Round 9).
+      // Keep the caret after the user's input, including a period inserted by iOS.
       confirmScriptureDraftView(editor.view, detached.to, {
         onInvalid: 'finalize',
-        focus: editor.isFocused,
+        preserveSelection: mobileTyping || !state.selection.empty,
+        focus: editor.isFocused && state.selection.empty,
       });
     };
 
@@ -7714,7 +7723,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Mobile: never auto-confirm on blur while a draft is open. iOS fires transient blurs when
       // switching keyboard layers to reach "-" — that was committing "Numbers 5:5" before the user
       // could type the range tail. Confirm via ✓, Enter, or selection leaving the draft instead.
-      if (isMobileDevice() && hasActiveScriptureDraft(editor.state)) {
+      if (isMobileDevice() && hasActiveScriptureDraft(editor.state) && !findDetachedScriptureDraft(editor.state)) {
         const refocusAfterKeyboardBlur = () => {
           if (!isEditorValid(editor)) return;
           if (!hasActiveScriptureDraft(editor.state)) return;
@@ -8585,16 +8594,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   /* Prototype column bar: undefined = inline fallback; null = host pending; element = portal target. */
   const columnFormatToolbarPortal = formatToolbarPortalTarget !== undefined;
 
-  /* Touch: the selection actions take over the chrome slot rather than floating into the iOS
-     callout. Needs a real host to portal into.
-
-     This used to also require `!studyDockChromeTakesOver`, which was too broad. An expanded
-     dock owning the chrome is the right reason to hide the *format* bar — those tools act on
-     a note body the dock is covering. It is the wrong reason to hide the selection row, whose
-     tools act on the selection the user is looking at right now. With the dock open the row
-     fell through to the floating capsule, which is precisely the thing this branch exists to
-     avoid: ScripturePillChromeWeb refuses to draw one on touch for the same reason ("floating
-     capsule competes with iOS callout"), and it landed over the dock's own text. */
+  // Touch selection actions live in the bottom bar, away from the system callout.
   const selectionActionsInChromeBar =
     editorChromeMode === 'prototypeNative' &&
     isCoarsePointer &&
@@ -8602,13 +8602,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     selectionActionBar != null &&
     !!formatToolbarPortalTarget;
 
-  /* No chrome host on a touch device means no selection bar at all.
-
-     The floating capsule is a mouse affordance: on iOS it lands on top of the system
-     selection callout, and the two are indistinguishable to a finger. Showing nothing is the
-     better failure — the selection is still live, the system callout still offers copy, and
-     the actions come back the moment a host exists. Drawing a second capsule over the first
-     is what made a dock-open selection unusable. */
   /*
    * Re-keying the track remounts every button and replays the enter animation. That reads as
    * a deliberate arrival with a mouse, where focus changes once and stays. On a phone focus
@@ -8626,21 +8619,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   // without this the format bar offered editing tools that would do nothing.
   const shouldShowPrototypeFormatToolbar =
     editorChromeMode === 'prototypeNative' &&
-    formatToolbarEngaged &&
+    (formatToolbarEngaged || selectionActionsInChromeBar) &&
     !studyDockChromeTakesOver &&
-    // Both portal into the same host; the selection actions win while a selection is live.
-    !selectionActionsInChromeBar &&
+    !minimalToolbar &&
     editor?.isEditable !== false;
+  const selectionActionsInFormatToolbar = selectionActionsInChromeBar && shouldShowPrototypeFormatToolbar;
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative' || !onPrototypeChromeModeChange) return;
-    // Same guard as shouldShowPrototypeFormatToolbar: a read-only body still fires
-    // TipTap's focus event on click, so without this the parent's bottom bar would
-    // switch to 'format' — editing tools with nothing to act on — for a note the
-    // click can't actually edit.
-    // The selection row keeps the slot open even when the format bar itself has disengaged —
-    // on touch, tapping the bar's own buttons is not an editor-body signal — and it outranks
-    // an expanded dock, which hides the format tools but has no claim on a live selection.
+    if (shouldShowPrototypeFormatToolbar) {
+      onPrototypeChromeModeChange('format');
+      return;
+    }
     if (selectionActionsInChromeBar) {
       onPrototypeChromeModeChange('selection');
       return;
@@ -8649,17 +8639,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       onPrototypeChromeModeChange('hidden');
       return;
     }
-    if (!formatToolbarEngaged || editor?.isEditable === false) {
-      onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
-      return;
-    }
-    onPrototypeChromeModeChange('format');
+    onPrototypeChromeModeChange(prototypeNoteActionsChrome ? 'noteActions' : 'hidden');
   }, [
     editorChromeMode,
     onPrototypeChromeModeChange,
     prototypeNoteActionsChrome,
-    formatToolbarEngaged,
-    editor?.isEditable,
+    shouldShowPrototypeFormatToolbar,
     studyDockChromeTakesOver,
     selectionActionsInChromeBar,
   ]);
@@ -9035,6 +9020,410 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     [ToolbarButton],
   );
 
+  const selectionBar = selectionActionBar && enableCreateNoteFromSelection && !selectionBarSuppressedOnTouch && (
+    <SelectionBarShell
+      inChromeBar={selectionActionsInChromeBar}
+      barRef={createNoteBubbleRef}
+      top={selectionActionBar.top}
+      left={selectionActionBar.left}
+    >
+      {editorChromeMode === 'prototypeNative' ? (
+        <div
+          className={`pds-native-selection-bar${
+            selectionActionsInChromeBar
+              ? ' pds-native-selection-bar--toolbar'
+              : ' floating-picker-enter'
+          }`}
+          onMouseDown={(e) => e.preventDefault()}
+          onPointerDown={(e) => e.preventDefault()}
+        >
+          <button
+            type="button"
+            className="pds-native-selection-bar__btn"
+            title="Highlight selected text"
+            aria-label="Highlight selected text"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const range = resolveSelectionBarRange();
+              if (!range || !editor || !isEditorValid(editor)) return;
+              const { from, to, snippet } = range;
+              const defaultAccent = 'warmAmber';
+              const anchorLocation = sharedAnnotationOverlayMode
+                ? editor.state.doc.textBetween(0, from, '\n').length
+                : from;
+              const anchorLength = sharedAnnotationOverlayMode
+                ? snippet.length
+                : Math.max(0, to - from);
+
+              const noteIdAtTap = latestSourceNoteIdRef.current;
+              /* Never through the server for a guest — whether still the draft
+                 placeholder or already adopted to a `guest_note_…` id.
+                 `isPrototypeDraftNoteId` alone only catches the first of those (any
+                 signed-in compose passes through it too); a guest's highlight is the
+                 mark alone for the lifetime of the note, adopted or not. If it is ever
+                 adopted, the orphan backfill is what gives it a row, same as any other
+                 id-less mark. */
+              const canPersist =
+                editorChromeMode === 'prototypeNative' &&
+                !!noteIdAtTap &&
+                !isPrototypeDraftNoteId(noteIdAtTap) &&
+                !isGuestLocalNote(noteIdAtTap);
+              const postHighlight = async (proposedId?: string): Promise<string | null> => {
+                if (!canPersist || !noteIdAtTap) return null;
+                const body = JSON.stringify(
+                  withStudyThreadContext(
+                    {
+                      ...(proposedId ? { id: proposedId } : {}),
+                      entryKind: 'miniNote',
+                      sourceSnippet: snippet,
+                      highlightAccentRaw: defaultAccent,
+                      anchorTextSnapshot: snippet,
+                      anchorLocation,
+                      anchorLength,
+                    },
+                    contextSpaceId,
+                  ),
+                );
+                // One retry for a dropped connection or a 5xx. Safe with a proposed id: the
+                // route answers a repeat with the row the first attempt made.
+                for (let attempt = 0; attempt < (proposedId ? 2 : 1); attempt += 1) {
+                  try {
+                    const res = await fetch(`/api/notes/${noteIdAtTap}/study-threads`, {
+                      method: 'POST',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body,
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      return data.studyThread?.id ?? null;
+                    }
+                    if (res.status < 500) return null;
+                  } catch {
+                    /* retry below */
+                  }
+                  if (attempt === 0 && proposedId) await new Promise((r) => setTimeout(r, 1500));
+                }
+                return null;
+              };
+
+              /*
+                Someone else's note: the editor is read-only and the overlay paints the
+                span from the entry rows, so there is nothing to show until the row exists.
+                This path still waits.
+              */
+              if (sharedAnnotationOverlayMode) {
+                void (async () => {
+                  const studyId = await postHighlight();
+                  if (!studyId) {
+                    window.toast?.error('Could not create highlight. Try again.');
+                    return;
+                  }
+                  syncStudyThreadList(sourceNoteId);
+                  if (!editor || !isEditorValid(editor)) return;
+                  clearSelectionActionBar();
+                  releaseEditorFocusForStudyDock();
+                  setStudyDockStack((s) =>
+                    openOrFocusHighlight(s, {
+                      studyThreadEntryId: studyId,
+                      accent: defaultAccent,
+                      excerpt: snippet,
+                      range: { from, to },
+                      entryKind: 'miniNote',
+                      focusTitle: deriveHighlightFocusTitle(snippet),
+                      miniNoteBody: '',
+                      isOwnHighlight: true,
+                    }),
+                  );
+                  onSharedAnnotationCreated?.();
+                })();
+                return;
+              }
+
+              /*
+                Your own note: paint it and open its card now, and let the id catch up.
+                This used to wait for the POST before anything moved — no colour, no dock —
+                which on a slow connection read as the button not working. The dock
+                already holds anything typed before its id exists and flushes it when the
+                id lands. See pending-highlight.ts for what happens in between.
+              */
+              // The id goes on the mark now, so the mark is final from its first frame —
+              // see pending-highlight.ts for why an id-less mark could become two rows.
+              // A draft has no note to attach to yet; its plain mark is picked up by the
+              // orphan backfill once the note exists, as before.
+              const clientId = canPersist ? newClientStudyThreadEntryId() : null;
+              const applied = applyHighlightMark(
+                { from, to },
+                { color: defaultAccent, ...(clientId ? { studyThreadEntryId: clientId } : {}) },
+                { focusEditor: false },
+              );
+              if (!applied) {
+                if (import.meta.env.DEV) {
+                  console.warn('[TiptapEditor] setHighlight failed for range', { from, to });
+                }
+                return;
+              }
+              if (hiddenInputRef.current) {
+                hiddenInputRef.current.value = editor.getHTML();
+              }
+              onContentChange?.(editor.getHTML());
+              clearSelectionActionBar();
+              releaseEditorFocusForStudyDock();
+              if (editorChromeMode === 'prototypeNative') {
+                // Id-less until the row exists, so the card cannot PATCH ahead of it.
+                setStudyDockStack((s) =>
+                  openOrFocusHighlight(s, {
+                    studyThreadEntryId: null,
+                    accent: defaultAccent,
+                    excerpt: snippet,
+                    range: { from, to },
+                    entryKind: 'miniNote',
+                    focusTitle: deriveHighlightFocusTitle(snippet),
+                    miniNoteBody: '',
+                  }),
+                );
+              }
+              if (!clientId) return;
+
+              void (async () => {
+                const studyId = await postHighlight(clientId);
+                const live = editor && isEditorValid(editor) ? editor : null;
+                const markType = live?.state.schema.marks.highlight ?? null;
+
+                /* Re-point (or strip) the mark wherever it is now — found by its id, so
+                   nothing typed in the meantime can misplace it. */
+                const repointMark = (nextId: string | null) => {
+                  if (!live || !markType) return false;
+                  const ranges = highlightRangesWithId(live.state.doc, clientId);
+                  if (ranges.length === 0) return false;
+                  const tr = live.state.tr;
+                  for (const r of ranges) {
+                    const { studyThreadEntryId: _old, ...rest } = r.attrs;
+                    tr.addMark(r.from, r.to, markType.create(nextId ? { ...rest, studyThreadEntryId: nextId } : rest));
+                  }
+                  tr.setMeta('addToHistory', false);
+                  live.view.dispatch(tr);
+                  if (hiddenInputRef.current) hiddenInputRef.current.value = live.getHTML();
+                  // A real save, not `programmatic` (those skip it): the saved note must
+                  // carry the id the row actually has.
+                  onContentChange?.(live.getHTML());
+                  return true;
+                };
+
+                if (!studyId) {
+                  /* Never made (offline, refused). Strip the id so the mark is an orphan
+                     again, and let the backfill make its row when it can — what this path
+                     always did on failure. */
+                  if (repointMark(null) && live && spaceId) {
+                    void backfillOrphanHighlights({
+                      editor: live,
+                      sourceNoteId: noteIdAtTap!,
+                      spaceId,
+                      applyMark: (r, attrs) => applyHighlightMark(r, attrs, { focusEditor: false }),
+                    });
+                  }
+                  return;
+                }
+                // An API from before proposed ids ignores ours and mints its own (deploy skew).
+                if (studyId !== clientId) repointMark(studyId);
+                setStudyDockStack((s) => adoptHighlightEntryId(s, { from, to }, studyId));
+                /* A colour picked while the row was being made only reached the mark — the
+                   card had no id to PATCH. The row was created amber; catch it up. */
+                const paintedColor = live ? highlightColorWithId(live.state.doc, studyId) : null;
+                if (paintedColor && paintedColor !== defaultAccent) {
+                  try {
+                    await fetch(`/api/study-threads/${studyId}${studyThreadContextSuffix}`, {
+                      method: 'PATCH',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ highlightAccentRaw: paintedColor }),
+                    });
+                  } catch {
+                    /* the mark still carries the colour; the next save keeps it */
+                  }
+                }
+                syncStudyThreadList(noteIdAtTap);
+              })();
+            }}
+          >
+            <Icon name="highlighter" size={14} />
+            <span className="pds-native-selection-bar__label">Highlight</span>
+          </button>
+          {sourceNoteId && spaceId && !sharedAnnotationOverlayMode ? (
+            <>
+              <span className="pds-native-selection-bar__rule" aria-hidden />
+              <button
+                type="button"
+                className="pds-native-selection-bar__btn"
+                title="Connect existing note to selection"
+                aria-label="Connect existing note to selection"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const range = resolveSelectionBarRange();
+                  if (range && editor && isEditorValid(editor)) {
+                    const anchorLocation = editor.state.doc.textBetween(0, range.from, '\n').length;
+                    setConnectFromSelectionRange({
+                      from: range.from,
+                      to: range.to,
+                      text: range.snippet,
+                      anchorLocation,
+                      anchorLength: range.snippet.length,
+                    });
+                  } else {
+                    setConnectFromSelectionRange(null);
+                  }
+                  setConnectFromSelectionAnchorRect(
+                    createNoteBubbleRef.current?.getBoundingClientRect() ?? null,
+                  );
+                  setConnectFromSelectionOpen(true);
+                  clearSelectionActionBar();
+                }}
+              >
+                <Icon name="arrow-right-arrow-left" size={14} />
+                <span className="pds-native-selection-bar__label">Connect</span>
+              </button>
+            </>
+          ) : null}
+          <span className="pds-native-selection-bar__rule" aria-hidden />
+          <button
+            type="button"
+            className="pds-native-selection-bar__btn"
+            title="New Harvous note from selection"
+            aria-label="New Harvous note from selection"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const range = resolveSelectionBarRange();
+              void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
+              clearSelectionActionBar();
+            }}
+          >
+            <Icon name="pen-to-square" size={14} />
+            <span className="pds-native-selection-bar__label">New note</span>
+          </button>
+          {selectionActionBar &&
+          rangeHasHighlightMark(editor, selectionActionBar.from, selectionActionBar.to) ? (
+            <>
+              <span className="pds-native-selection-bar__rule" aria-hidden />
+              <button
+                type="button"
+                className="pds-native-selection-bar__btn"
+                title="Clear highlight from selection"
+                aria-label="Clear highlight from selection"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const range = resolveSelectionBarRange();
+                  if (!range || !editor || !isEditorValid(editor)) return;
+                  const { from, to } = range;
+                  const markType = editor.state.schema.marks.highlight;
+                  let studyId: string | null = null;
+                  // Left null in a guest's note — see `openStudyDockForHighlightMark`.
+                  if (!isGuestLocalNote(sourceNoteId)) {
+                    editor.state.doc.nodesBetween(from, to, (node: any) => {
+                      if (!node.isText || studyId) return;
+                      const m = node.marks.find((x: any) => x.type.name === 'highlight');
+                      if (m?.attrs?.studyThreadEntryId) {
+                        studyId = m.attrs.studyThreadEntryId;
+                      }
+                    });
+                  }
+                  void (async () => {
+                    if (studyId) {
+                      try {
+                        await fetch(`/api/study-threads/${studyId}${studyThreadContextSuffix}`, {
+                          method: 'DELETE',
+                          credentials: 'include',
+                        });
+                        syncStudyThreadList(sourceNoteId);
+                      } catch {
+                        /* still strip mark */
+                      }
+                    }
+                    if (editor && isEditorValid(editor)) {
+                      editor
+                        .chain()
+                        .focus()
+                        .setTextSelection({ from, to })
+                        .unsetHighlight()
+                        .run();
+                      if (hiddenInputRef.current) {
+                        hiddenInputRef.current.value = editor.getHTML();
+                      }
+                      onContentChange?.(editor.getHTML());
+                    }
+                    clearSelectionActionBar();
+                    if (studyId) {
+                      setStudyDockStack((s) => {
+                        const entry = s.entries.find(
+                          (e) =>
+                            e.kind === 'highlight' && e.session.studyThreadEntryId === studyId,
+                        );
+                        return entry ? closeDockEntry(s, entry.id) : s;
+                      });
+                    }
+                  })();
+                }}
+              >
+                <Icon name="eraser" size={14} />
+                <span className="pds-native-selection-bar__label">Clear</span>
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : (
+        <div
+          className="floating-picker-enter"
+          style={{
+            display: 'flex',
+            gap: '4px',
+            padding: '4px',
+            borderRadius: '10px',
+            backgroundColor: 'var(--color-snow-white)',
+            boxShadow: '0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <button
+            className="selection-action-btn"
+            onMouseDown={(e: React.MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const range = resolveSelectionBarRange();
+              void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
+              clearSelectionActionBar();
+            }}
+            type="button"
+            title="Create note from selection"
+          >
+            <Icon name="note-sticky" size={12} />
+            Create Note
+          </button>
+          <button
+            className="selection-action-btn"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const range = resolveSelectionBarRange();
+              if (!range) return;
+              navigator.clipboard.writeText(range.snippet).then(() => {
+                if (window.toast) window.toast.info('Copied to clipboard');
+              }).catch(() => {});
+              clearSelectionActionBar();
+            }}
+            type="button"
+            title="Copy selection"
+          >
+            <Icon name="copy" size={12} />
+            Copy
+          </button>
+        </div>
+      )}
+    </SelectionBarShell>
+  );
+
   const renderPrototypeNativeFormatToolbar = (placement: 'top' | 'bottom' | 'portal') => {
     if (!editor) return null;
     const isInListItem = editor.isActive('listItem');
@@ -9064,7 +9453,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           placement === 'bottom' ? 'tiptap-toolbar--bottom' : ''
         } ${isPortal ? 'tiptap-toolbar--portal' : ''}`}
         style={positionalStyle}
-        onPointerDownCapture={() => {
+        onPointerDownCapture={(e) => {
+          if ((e.target as HTMLElement).closest('.selection-action-bar')) return;
           formatToolbarPointerDownRef.current = true;
           formatToolbarInteractionUntilRef.current = Date.now() + 500;
           freezeFormatToolbarSelection();
@@ -9126,6 +9516,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 <Icon name="link" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
               </PrototypeToolbarButton>
               <FormatToolbarDivider />
+              {selectionActionsInFormatToolbar && selectionBar}
               <PrototypeToolbarButton
                 onClick={() => runPrototypeFormatCommand((chain) => chain.toggleBulletList())}
                 isActive={activeStates.bulletList}
@@ -9451,413 +9842,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             onQuote={sourceNoteId ? handleTypedPillQuote : undefined}
           />
         )}
-        {/* Custom floating selection action bar — positioned via selectionUpdate event */}
-        {/* Uses createPortal like the translation picker for reliable positioning */}
-        {selectionActionBar && enableCreateNoteFromSelection && !selectionBarSuppressedOnTouch && createPortal(
-          <SelectionBarShell
-            inChromeBar={selectionActionsInChromeBar}
-            barRef={createNoteBubbleRef}
-            top={selectionActionBar.top}
-            left={selectionActionBar.left}
-          >
-            {editorChromeMode === 'prototypeNative' ? (
-              <div
-                className={`pds-native-selection-bar${
-                  selectionActionsInChromeBar
-                    ? ' pds-native-selection-bar--toolbar'
-                    : ' floating-picker-enter'
-                }`}
-                onMouseDown={(e) => e.preventDefault()}
-                onPointerDown={(e) => e.preventDefault()}
-              >
-                <button
-                  type="button"
-                  className="pds-native-selection-bar__btn"
-                  title="Highlight selected text"
-                  aria-label="Highlight selected text"
-                  onPointerDownCapture={(e: React.PointerEvent) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const range = resolveSelectionBarRange();
-                    if (!range || !editor || !isEditorValid(editor)) return;
-                    const { from, to, snippet } = range;
-                    const defaultAccent = 'warmAmber';
-                    const anchorLocation = sharedAnnotationOverlayMode
-                      ? editor.state.doc.textBetween(0, from, '\n').length
-                      : from;
-                    const anchorLength = sharedAnnotationOverlayMode
-                      ? snippet.length
-                      : Math.max(0, to - from);
-
-                    const noteIdAtTap = latestSourceNoteIdRef.current;
-                    /* Never through the server for a guest — whether still the draft
-                       placeholder or already adopted to a `guest_note_…` id.
-                       `isPrototypeDraftNoteId` alone only catches the first of those (any
-                       signed-in compose passes through it too); a guest's highlight is the
-                       mark alone for the lifetime of the note, adopted or not. If it is ever
-                       adopted, the orphan backfill is what gives it a row, same as any other
-                       id-less mark. */
-                    const canPersist =
-                      editorChromeMode === 'prototypeNative' &&
-                      !!noteIdAtTap &&
-                      !isPrototypeDraftNoteId(noteIdAtTap) &&
-                      !isGuestLocalNote(noteIdAtTap);
-                    const postHighlight = async (proposedId?: string): Promise<string | null> => {
-                      if (!canPersist || !noteIdAtTap) return null;
-                      const body = JSON.stringify(
-                        withStudyThreadContext(
-                          {
-                            ...(proposedId ? { id: proposedId } : {}),
-                            entryKind: 'miniNote',
-                            sourceSnippet: snippet,
-                            highlightAccentRaw: defaultAccent,
-                            anchorTextSnapshot: snippet,
-                            anchorLocation,
-                            anchorLength,
-                          },
-                          contextSpaceId,
-                        ),
-                      );
-                      // One retry for a dropped connection or a 5xx. Safe with a proposed id: the
-                      // route answers a repeat with the row the first attempt made.
-                      for (let attempt = 0; attempt < (proposedId ? 2 : 1); attempt += 1) {
-                        try {
-                          const res = await fetch(`/api/notes/${noteIdAtTap}/study-threads`, {
-                            method: 'POST',
-                            credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
-                            body,
-                          });
-                          if (res.ok) {
-                            const data = await res.json();
-                            return data.studyThread?.id ?? null;
-                          }
-                          if (res.status < 500) return null;
-                        } catch {
-                          /* retry below */
-                        }
-                        if (attempt === 0 && proposedId) await new Promise((r) => setTimeout(r, 1500));
-                      }
-                      return null;
-                    };
-
-                    /*
-                      Someone else's note: the editor is read-only and the overlay paints the
-                      span from the entry rows, so there is nothing to show until the row exists.
-                      This path still waits.
-                    */
-                    if (sharedAnnotationOverlayMode) {
-                      void (async () => {
-                        const studyId = await postHighlight();
-                        if (!studyId) {
-                          window.toast?.error('Could not create highlight. Try again.');
-                          return;
-                        }
-                        syncStudyThreadList(sourceNoteId);
-                        if (!editor || !isEditorValid(editor)) return;
-                        clearSelectionActionBar();
-                        releaseEditorFocusForStudyDock();
-                        setStudyDockStack((s) =>
-                          openOrFocusHighlight(s, {
-                            studyThreadEntryId: studyId,
-                            accent: defaultAccent,
-                            excerpt: snippet,
-                            range: { from, to },
-                            entryKind: 'miniNote',
-                            focusTitle: deriveHighlightFocusTitle(snippet),
-                            miniNoteBody: '',
-                            isOwnHighlight: true,
-                          }),
-                        );
-                        onSharedAnnotationCreated?.();
-                      })();
-                      return;
-                    }
-
-                    /*
-                      Your own note: paint it and open its card now, and let the id catch up.
-                      This used to wait for the POST before anything moved — no colour, no dock —
-                      which on a slow connection read as the button not working. The dock
-                      already holds anything typed before its id exists and flushes it when the
-                      id lands. See pending-highlight.ts for what happens in between.
-                    */
-                    // The id goes on the mark now, so the mark is final from its first frame —
-                    // see pending-highlight.ts for why an id-less mark could become two rows.
-                    // A draft has no note to attach to yet; its plain mark is picked up by the
-                    // orphan backfill once the note exists, as before.
-                    const clientId = canPersist ? newClientStudyThreadEntryId() : null;
-                    const applied = applyHighlightMark(
-                      { from, to },
-                      { color: defaultAccent, ...(clientId ? { studyThreadEntryId: clientId } : {}) },
-                      { focusEditor: false },
-                    );
-                    if (!applied) {
-                      if (import.meta.env.DEV) {
-                        console.warn('[TiptapEditor] setHighlight failed for range', { from, to });
-                      }
-                      return;
-                    }
-                    if (hiddenInputRef.current) {
-                      hiddenInputRef.current.value = editor.getHTML();
-                    }
-                    onContentChange?.(editor.getHTML());
-                    clearSelectionActionBar();
-                    releaseEditorFocusForStudyDock();
-                    if (editorChromeMode === 'prototypeNative') {
-                      // Id-less until the row exists, so the card cannot PATCH ahead of it.
-                      setStudyDockStack((s) =>
-                        openOrFocusHighlight(s, {
-                          studyThreadEntryId: null,
-                          accent: defaultAccent,
-                          excerpt: snippet,
-                          range: { from, to },
-                          entryKind: 'miniNote',
-                          focusTitle: deriveHighlightFocusTitle(snippet),
-                          miniNoteBody: '',
-                        }),
-                      );
-                    }
-                    if (!clientId) return;
-
-                    void (async () => {
-                      const studyId = await postHighlight(clientId);
-                      const live = editor && isEditorValid(editor) ? editor : null;
-                      const markType = live?.state.schema.marks.highlight ?? null;
-
-                      /* Re-point (or strip) the mark wherever it is now — found by its id, so
-                         nothing typed in the meantime can misplace it. */
-                      const repointMark = (nextId: string | null) => {
-                        if (!live || !markType) return false;
-                        const ranges = highlightRangesWithId(live.state.doc, clientId);
-                        if (ranges.length === 0) return false;
-                        const tr = live.state.tr;
-                        for (const r of ranges) {
-                          const { studyThreadEntryId: _old, ...rest } = r.attrs;
-                          tr.addMark(r.from, r.to, markType.create(nextId ? { ...rest, studyThreadEntryId: nextId } : rest));
-                        }
-                        tr.setMeta('addToHistory', false);
-                        live.view.dispatch(tr);
-                        if (hiddenInputRef.current) hiddenInputRef.current.value = live.getHTML();
-                        // A real save, not `programmatic` (those skip it): the saved note must
-                        // carry the id the row actually has.
-                        onContentChange?.(live.getHTML());
-                        return true;
-                      };
-
-                      if (!studyId) {
-                        /* Never made (offline, refused). Strip the id so the mark is an orphan
-                           again, and let the backfill make its row when it can — what this path
-                           always did on failure. */
-                        if (repointMark(null) && live && spaceId) {
-                          void backfillOrphanHighlights({
-                            editor: live,
-                            sourceNoteId: noteIdAtTap!,
-                            spaceId,
-                            applyMark: (r, attrs) => applyHighlightMark(r, attrs, { focusEditor: false }),
-                          });
-                        }
-                        return;
-                      }
-                      // An API from before proposed ids ignores ours and mints its own (deploy skew).
-                      if (studyId !== clientId) repointMark(studyId);
-                      setStudyDockStack((s) => adoptHighlightEntryId(s, { from, to }, studyId));
-                      /* A colour picked while the row was being made only reached the mark — the
-                         card had no id to PATCH. The row was created amber; catch it up. */
-                      const paintedColor = live ? highlightColorWithId(live.state.doc, studyId) : null;
-                      if (paintedColor && paintedColor !== defaultAccent) {
-                        try {
-                          await fetch(`/api/study-threads/${studyId}${studyThreadContextSuffix}`, {
-                            method: 'PATCH',
-                            credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ highlightAccentRaw: paintedColor }),
-                          });
-                        } catch {
-                          /* the mark still carries the colour; the next save keeps it */
-                        }
-                      }
-                      syncStudyThreadList(noteIdAtTap);
-                    })();
-                  }}
-                >
-                  <Icon name="highlighter" size={14} />
-                  <span className="pds-native-selection-bar__label">Highlight</span>
-                </button>
-                {sourceNoteId && spaceId && !sharedAnnotationOverlayMode ? (
-                  <>
-                    <span className="pds-native-selection-bar__rule" aria-hidden />
-                    <button
-                      type="button"
-                      className="pds-native-selection-bar__btn"
-                      title="Connect existing note to selection"
-                      aria-label="Connect existing note to selection"
-                      onPointerDownCapture={(e: React.PointerEvent) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const range = resolveSelectionBarRange();
-                        if (range && editor && isEditorValid(editor)) {
-                          const anchorLocation = editor.state.doc.textBetween(0, range.from, '\n').length;
-                          setConnectFromSelectionRange({
-                            from: range.from,
-                            to: range.to,
-                            text: range.snippet,
-                            anchorLocation,
-                            anchorLength: range.snippet.length,
-                          });
-                        } else {
-                          setConnectFromSelectionRange(null);
-                        }
-                        setConnectFromSelectionAnchorRect(
-                          createNoteBubbleRef.current?.getBoundingClientRect() ?? null,
-                        );
-                        setConnectFromSelectionOpen(true);
-                        clearSelectionActionBar();
-                      }}
-                    >
-                      <Icon name="arrow-right-arrow-left" size={14} />
-                      <span className="pds-native-selection-bar__label">Connect</span>
-                    </button>
-                  </>
-                ) : null}
-                <span className="pds-native-selection-bar__rule" aria-hidden />
-                <button
-                  type="button"
-                  className="pds-native-selection-bar__btn"
-                  title="New Harvous note from selection"
-                  aria-label="New Harvous note from selection"
-                  onPointerDownCapture={(e: React.PointerEvent) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const range = resolveSelectionBarRange();
-                    void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
-                    clearSelectionActionBar();
-                  }}
-                >
-                  <Icon name="pen-to-square" size={14} />
-                  <span className="pds-native-selection-bar__label">New note</span>
-                </button>
-                {selectionActionBar &&
-                rangeHasHighlightMark(editor, selectionActionBar.from, selectionActionBar.to) ? (
-                  <>
-                    <span className="pds-native-selection-bar__rule" aria-hidden />
-                    <button
-                      type="button"
-                      className="pds-native-selection-bar__btn"
-                      title="Clear highlight from selection"
-                      aria-label="Clear highlight from selection"
-                      onPointerDownCapture={(e: React.PointerEvent) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const range = resolveSelectionBarRange();
-                        if (!range || !editor || !isEditorValid(editor)) return;
-                        const { from, to } = range;
-                        const markType = editor.state.schema.marks.highlight;
-                        let studyId: string | null = null;
-                        // Left null in a guest's note — see `openStudyDockForHighlightMark`.
-                        if (!isGuestLocalNote(sourceNoteId)) {
-                          editor.state.doc.nodesBetween(from, to, (node: any) => {
-                            if (!node.isText || studyId) return;
-                            const m = node.marks.find((x: any) => x.type.name === 'highlight');
-                            if (m?.attrs?.studyThreadEntryId) {
-                              studyId = m.attrs.studyThreadEntryId;
-                            }
-                          });
-                        }
-                        void (async () => {
-                          if (studyId) {
-                            try {
-                              await fetch(`/api/study-threads/${studyId}${studyThreadContextSuffix}`, {
-                                method: 'DELETE',
-                                credentials: 'include',
-                              });
-                              syncStudyThreadList(sourceNoteId);
-                            } catch {
-                              /* still strip mark */
-                            }
-                          }
-                          if (editor && isEditorValid(editor)) {
-                            editor
-                              .chain()
-                              .focus()
-                              .setTextSelection({ from, to })
-                              .unsetHighlight()
-                              .run();
-                            if (hiddenInputRef.current) {
-                              hiddenInputRef.current.value = editor.getHTML();
-                            }
-                            onContentChange?.(editor.getHTML());
-                          }
-                          clearSelectionActionBar();
-                          if (studyId) {
-                            setStudyDockStack((s) => {
-                              const entry = s.entries.find(
-                                (e) =>
-                                  e.kind === 'highlight' && e.session.studyThreadEntryId === studyId,
-                              );
-                              return entry ? closeDockEntry(s, entry.id) : s;
-                            });
-                          }
-                        })();
-                      }}
-                    >
-                      <Icon name="eraser" size={14} />
-                      <span className="pds-native-selection-bar__label">Clear</span>
-                    </button>
-                  </>
-                ) : null}
-              </div>
-            ) : (
-              <div
-                className="floating-picker-enter"
-                style={{
-                  display: 'flex',
-                  gap: '4px',
-                  padding: '4px',
-                  borderRadius: '10px',
-                  backgroundColor: 'var(--color-snow-white)',
-                  boxShadow: '0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
-                }}
-                onMouseDown={(e) => e.preventDefault()}
-              >
-                <button
-                  className="selection-action-btn"
-                  onMouseDown={(e: React.MouseEvent) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const range = resolveSelectionBarRange();
-                    void handleCreateNoteFromSelection(range ? { from: range.from, to: range.to } : undefined);
-                    clearSelectionActionBar();
-                  }}
-                  type="button"
-                  title="Create note from selection"
-                >
-                  <Icon name="note-sticky" size={12} />
-                  Create Note
-                </button>
-                <button
-                  className="selection-action-btn"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const range = resolveSelectionBarRange();
-                    if (!range) return;
-                    navigator.clipboard.writeText(range.snippet).then(() => {
-                      if (window.toast) window.toast.info('Copied to clipboard');
-                    }).catch(() => {});
-                    clearSelectionActionBar();
-                  }}
-                  type="button"
-                  title="Copy selection"
-                >
-                  <Icon name="copy" size={12} />
-                  Copy
-                </button>
-              </div>
-            )}
-          </SelectionBarShell>,
-          selectionActionsInChromeBar && formatToolbarPortalTarget
-            ? formatToolbarPortalTarget
-            : document.body,
+        {selectionBar && !selectionActionsInFormatToolbar && createPortal(
+          selectionBar,
+          selectionActionsInChromeBar && formatToolbarPortalTarget ? formatToolbarPortalTarget : document.body,
         )}
         {/* Delete confirmation floater — appears on first Backspace/Delete near a pill */}
         {deleteConfirmPill ? (

@@ -48,17 +48,29 @@ describe('selection actions on touch', () => {
   it('never draws the floating capsule on a touch device', () => {
     // ScripturePillChromeWeb refuses to for the same reason: it lands on the iOS callout.
     expect(source).toContain('const selectionBarSuppressedOnTouch =');
-    expect(source).toContain('!selectionBarSuppressedOnTouch && createPortal');
+    expect(block('const selectionBar =', '<SelectionBarShell')).toContain('!selectionBarSuppressedOnTouch');
+  });
+
+  it('keeps formatting available alongside selection actions in editable notes', () => {
+    const formatCondition = block('const shouldShowPrototypeFormatToolbar =', ';\n');
+    expect(formatCondition).toContain('formatToolbarEngaged || selectionActionsInChromeBar');
+    expect(formatCondition).not.toContain('!selectionActionsInChromeBar');
+    expect(source).toContain('{selectionActionsInFormatToolbar && selectionBar}');
   });
 });
 
 describe('inline targets that own their own tap', () => {
-  it('claims suggestions and mentions on touchstart, not only on the synthesized click', () => {
-    const set = block('const TOUCH_OWNED_INLINE_TARGETS =', ';\n');
+  it('opens inline targets only after a completed touch', () => {
+    const set = block('const inlineTargetSelector =', ';\n');
     expect(set).toContain('.scripture-pill');
     expect(set).toContain('.reference-suggestion');
     expect(set).toContain('.mention-pill');
-    expect(source).toContain('target.closest(TOUCH_OWNED_INLINE_TARGETS)');
+    const start = block('const handlePillTouchStart =', 'const clearPillTouch =');
+    const end = block('const handlePillTouchEnd =', 'const focusEditorAtTapFallback =');
+    expect(start).not.toContain('handlePillPointer(e)');
+    expect(end).toContain('withinTapSlop');
+    expect(end).toContain('maxTapDuration');
+    expect(end).toContain('handlePillPointer(e)');
   });
 });
 
