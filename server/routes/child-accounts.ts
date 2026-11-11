@@ -9,12 +9,20 @@ import { createClerkClient } from '@clerk/backend';
 import { and, eq, gt, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client';
-import { FamilyChildren, FamilyChildSessions, FamilySpaceApprovals, FamilyVerifications, Notes, Spaces } from '../db/schema';
+import { FamilyChildren, FamilyChildBibleReadings, FamilyChildSessions, FamilySpaceApprovals, FamilyVerifications, Notes, Spaces } from '../db/schema';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import { isPgUndefinedRelation } from '../utils/pg-undefined-relation';
 import { CHILD_CAPABILITIES, CHILD_NOTICE_VERSION, HANDOFF_TTL_MS, VERIFICATION_TTL_MS, childSecret, emailDigest, hashSecret, hasActiveChildConsent, verifyKwsSignature } from '../family/policy';
-import { kwsConfig, requireFamilyEnrollment, sendKwsVerification } from '../family/kws';
-import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, withChildSession } from '../family/service';
+import { familyEnrollmentConfig, kwsConfig, requireFamilyEnrollment, sendKwsVerification } from '../family/kws';
+import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, withChildSession, type Child } from '../family/service';
+import { childSchemes, childTextSizes, coverColors, coverPatterns, coverSymbols, defaultChildPreferences } from '../../shared/child-notebook';
+import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput } from '../family/bible';
+import { searchChildNotebook } from '../family/notebook-search';
+
+function requireActiveConsent(child: Child) {
+  if (!hasActiveChildConsent(child)) throw new HTTPException(403, { message: 'This child account is paused.' });
+  return child;
+}
 
 const route = new Hono();
 const base = '/api/child-accounts';
@@ -45,10 +53,8 @@ const token = (c: Parameters<typeof getAuthenticatedAuth>[0]) => c.req.header('A
 
 // The parent UI does not ask for child details until this flow is complete.
 route.get(`${base}/status`, requireAuth, async (c) => {
-  const config = kwsConfig();
   const publicConfig = familyPublicConfig();
-  const available = process.env.HARVOUS_CHILD_ACCOUNTS_ENABLED === 'true' && process.env.HARVOUS_CHILD_RETENTION_READY === 'true' && !!config && !!publicConfig &&
-    (process.env.NODE_ENV !== 'production' || config.environment === 'production');
+  const available = !!familyEnrollmentConfig();
   try {
     const children = await db.select().from(FamilyChildren).where(eq(FamilyChildren.parentUserId, parentId(c)));
     const verifications = await db.select({ id: FamilyVerifications.id, status: FamilyVerifications.status })
@@ -143,7 +149,7 @@ route.get(`${base}/children/:id`, requireAuth, async (c) => c.json(await db.tran
   const notes = await tx.select(childNoteSelection).from(Notes).where(eq(Notes.userId, child.id));
   const approvals = await tx.select().from(FamilySpaceApprovals).where(eq(FamilySpaceApprovals.childId, child.id));
   const ministries = await availableMinistries(tx, parentId(c));
-  return { child, notes, approvals, ministries, capabilities: CHILD_CAPABILITIES };
+  return { child, notes, approvals, ministries, readings: await familyReadings(tx, child), capabilities: CHILD_CAPABILITIES };
 })));
 
 route.get(`${base}/children/:id/export`, requireAuth, async (c) => c.json(await db.transaction(async (tx) => {
@@ -201,6 +207,46 @@ route.put(`${base}/children/:id/ministries`, requireAuth, async (c) => {
   return c.json({ success: true });
 });
 
+const translationsInput = z.object({ translations: z.array(translationInput).min(1).max(3) }).strict();
+route.put(`${base}/children/:id/bible/translations`, requireAuth, async (c) => {
+  const { translations } = translationsInput.parse(await c.req.json());
+  return c.json(await db.transaction(async (tx) => {
+    const child = requireActiveConsent(await ownedChild(tx, parentId(c), requireParam(c, 'id')));
+    const approved = [...new Set(translations)];
+    await tx.update(FamilyChildren).set({ bibleTranslations: approved }).where(eq(FamilyChildren.id, child.id));
+    return { translations: approved };
+  }));
+});
+
+route.post(`${base}/children/:id/bible/readings`, requireAuth, async (c) => {
+  const passage = passageInput.parse(await c.req.json());
+  return c.json(await db.transaction(async (tx) => {
+    const child = requireActiveConsent(await ownedChild(tx, parentId(c), requireParam(c, 'id')));
+    return { reading: await shareFamilyReading(tx, child, passage) };
+  }), 201);
+});
+
+route.get(`${base}/children/:id/bible/readings/:readingId`, requireAuth, async (c) => c.json(await db.transaction(async (tx) => {
+  const child = await ownedChild(tx, parentId(c), requireParam(c, 'id'));
+  const reading = await getFamilyReading(tx, child, requireParam(c, 'readingId'));
+  return { ...reading, ...await readChapter(tx, reading), thoughts: await familyThoughts(tx, reading.id) };
+})));
+
+route.post(`${base}/children/:id/bible/readings/:readingId/thoughts`, requireAuth, async (c) => {
+  const input = thoughtInput.parse(await c.req.json());
+  return c.json(await db.transaction(async (tx) => {
+    const child = requireActiveConsent(await ownedChild(tx, parentId(c), requireParam(c, 'id')));
+    return { thought: await addFamilyThought(tx, child, requireParam(c, 'readingId'), 'parent', input) };
+  }), 201);
+});
+
+route.delete(`${base}/children/:id/bible/readings/:readingId`, requireAuth, async (c) => c.json(await db.transaction(async (tx) => {
+  const child = await ownedChild(tx, parentId(c), requireParam(c, 'id'));
+  const reading = await getFamilyReading(tx, child, requireParam(c, 'readingId'));
+  await tx.delete(FamilyChildBibleReadings).where(eq(FamilyChildBibleReadings.id, reading.id));
+  return { success: true };
+})));
+
 route.post(`${base}/child/redeem`, async (c) => {
   requireFamilyEnrollment();
   const input = z.object({ token: z.string().regex(/^hvkid_[\w-]{43}$/) }).strict().parse(await c.req.json());
@@ -208,9 +254,62 @@ route.post(`${base}/child/redeem`, async (c) => {
 });
 route.get(`${base}/child/notebook`, async (c) => c.json(await withChildSession(token(c), async (tx, child) => ({
   displayName: child.displayName, capabilities: CHILD_CAPABILITIES, parentSignInUrl: familyPublicConfig()?.parentSignInUrl,
+  preferences: child.notebookPreferences ?? defaultChildPreferences,
+  translations: child.bibleTranslations,
+  readings: (await familyReadings(tx, child)).filter(reading => child.bibleTranslations.includes(reading.translation)),
   notes: await tx.select(childNoteSelection).from(Notes).where(eq(Notes.userId, child.id)).orderBy(desc(Notes.createdAt)).limit(500),
   materials: await ministryMaterials(tx, child)
 }))));
+
+const preferencesInput = z.object({
+  coverColor: z.enum(coverColors.map(color => color.id)), coverSymbol: z.enum(coverSymbols),
+  coverPattern: z.enum(coverPatterns), scheme: z.enum(childSchemes), textSize: z.enum(childTextSizes),
+  reduceMotion: z.boolean(), sounds: z.boolean()
+}).strict();
+route.put(`${base}/child/preferences`, async (c) => {
+  const preferences = preferencesInput.parse(await c.req.json());
+  return c.json(await withChildSession(token(c), async (tx, child) => {
+    await tx.update(FamilyChildren).set({ notebookPreferences: preferences }).where(eq(FamilyChildren.id, child.id));
+    return { preferences };
+  }));
+});
+
+const searchInput = z.object({
+  query: z.string().trim().max(120), scope: z.enum(['all', 'notebook', 'family']), offset: z.number().int().min(0).max(625)
+}).strict();
+route.post(`${base}/child/search`, async (c) => {
+  const { query, scope, offset } = searchInput.parse(await c.req.json());
+  return c.json(await withChildSession(token(c), (tx, child) => searchChildNotebook(tx, child, query, scope, offset)));
+});
+route.get(`${base}/child/materials/:spaceId/:id`, async (c) => c.json(await withChildSession(token(c), async (tx, child) => {
+  const [material] = await ministryMaterials(tx, child, { spaceId: requireParam(c, 'spaceId'), noteId: requireParam(c, 'id') });
+  if (!material) throw new HTTPException(404, { message: 'This reading is no longer shared.' });
+  return { material };
+})));
+route.get(`${base}/child/notes/:id`, async (c) => c.json(await withChildSession(token(c), async (tx, child) => {
+  const [note] = await tx.select(childNoteSelection).from(Notes).where(and(eq(Notes.id, requireParam(c, 'id')), eq(Notes.userId, child.id)));
+  if (!note) throw new HTTPException(404, { message: 'Note not found.' });
+  return { note };
+})));
+
+route.post(`${base}/child/bible/chapter`, async (c) => {
+  const passage = passageInput.parse(await c.req.json());
+  return c.json(await withChildSession(token(c), (tx, child) => {
+    requireApprovedTranslation(child, passage.translation);
+    return readChapter(tx, passage);
+  }));
+});
+route.get(`${base}/child/bible/readings/:readingId`, async (c) => c.json(await withChildSession(token(c), async (tx, child) => {
+  const reading = await getFamilyReading(tx, child, requireParam(c, 'readingId'));
+  requireApprovedTranslation(child, reading.translation);
+  return { ...reading, ...await readChapter(tx, reading), thoughts: await familyThoughts(tx, reading.id) };
+})));
+route.post(`${base}/child/bible/readings/:readingId/thoughts`, async (c) => {
+  const input = thoughtInput.parse(await c.req.json());
+  return c.json(await withChildSession(token(c), async (tx, child) => ({
+    thought: await addFamilyThought(tx, child, requireParam(c, 'readingId'), 'child', input)
+  })), 201);
+});
 
 const noteInput = z.object({ title: z.string().trim().max(100), content: z.string().max(10_000) }).strict();
 route.post(`${base}/child/notes`, async (c) => {

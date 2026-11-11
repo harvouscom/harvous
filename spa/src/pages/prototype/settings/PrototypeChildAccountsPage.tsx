@@ -7,6 +7,7 @@ import { api } from '../../../lib/api';
 import { useAuthReady } from '../../../hooks/useAuthReady';
 import { SettingsShell, SettingsIntro } from './SettingsShell';
 import ProtoConfirmDialog from '../ProtoConfirmDialog';
+import ManageChildFamilyBible from '../../family/ManageChildFamilyBible';
 import ChildPrivacyNotice from '../../family/ChildPrivacyNotice';
 import { downloadChildNotebook, type ChildExportFormat } from '../../family/download-child-notebook';
 import type { ChildDetail } from '../../family/types';
@@ -110,6 +111,7 @@ export default function PrototypeChildAccountsPage() {
               }), 'Ministry access updated.');
             }} />{space.title}
         </label>)}
+        <ManageChildFamilyBible key={selected} detail={detail.data} busy={busy} perform={perform} />
         <h3 className="pds-list-title">Notebook</h3>
         {detail.data.notes.length === 0 && <p className="pds-caption">No notes yet.</p>}
         {detail.data.notes.map((note) => <details key={note.id}><summary>{note.title || 'Untitled note'}</summary><p className="pds-family-note">{note.content}</p></details>)}

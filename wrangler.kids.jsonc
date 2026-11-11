@@ -15,5 +15,14 @@
   "vars": { "API_ORIGIN": "https://harvous.fly.dev" },
   "observability": { "enabled": false },
   "triggers": { "crons": ["17 4 * * *"] },
-  "workers_dev": true
+  "workers_dev": true,
+  "env": {
+    "staging": {
+      "name": "harvous-kids-staging",
+      "vars": { "API_ORIGIN": "https://unconfigured.invalid" },
+      "observability": { "enabled": false },
+      "triggers": { "crons": ["17 4 * * *"] },
+      "workers_dev": true
+    }
+  }
 }

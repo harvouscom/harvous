@@ -9,6 +9,7 @@ export function familyPublicConfig(env = process.env) {
         parentUrl.pathname !== '/' || parentUrl.hash || parentUrl.search || parentUrl.origin === childUrl.origin) return null;
     const parentSignInUrl = new URL('/sign-in', parentUrl);
     parentSignInUrl.searchParams.set('redirect_url', '/settings/child-accounts');
+    parentSignInUrl.searchParams.set('child_return', '1');
     const isLocal = env.NODE_ENV !== 'production' && childUrl.hostname === 'localhost';
     if ((childUrl.protocol !== 'https:' && !(isLocal && childUrl.protocol === 'http:')) || privacyUrl.protocol !== 'https:' ||
         childUrl.username || childUrl.password || childUrl.hash || childUrl.search ||

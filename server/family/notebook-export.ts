@@ -1,6 +1,8 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { Notes, NoteScriptureReferences, NoteTags, NoteThreads, ScriptureMetadata, Tags, Threads } from '../db/schema';
 import { parseNoteSecondaryCollections } from '../utils/note-secondary-collections';
+import { familyReadings, familyThoughts } from './bible';
+import { defaultChildPreferences } from '../../shared/child-notebook';
 import { childNoteSelection, type Child, type FamilyTx } from './service';
 
 export async function exportChildNotebook(tx: FamilyTx, child: Child) {
@@ -36,6 +38,11 @@ export async function exportChildNotebook(tx: FamilyTx, child: Child) {
     version: 1 as const,
     exportedAt: new Date().toISOString(),
     displayName: child.displayName,
+    preferences: child.notebookPreferences ?? defaultChildPreferences,
+    bibleTranslations: child.bibleTranslations,
+    familyBible: await Promise.all((await familyReadings(tx, child)).map(async reading => ({
+      ...reading, thoughts: (await familyThoughts(tx, reading.id)).filter(thought => thought.role === 'child')
+    }))),
     notes: notes.map(({ threadId, secondaryCollections, ...note }) => ({
       ...note,
       secondaryCollections: parseNoteSecondaryCollections(secondaryCollections),

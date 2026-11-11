@@ -5,8 +5,10 @@
  * returns native JS Date objects. JSON.stringify auto-converts them to ISO strings.
  */
 
-import { pgTable, text, integer, real, boolean, timestamp, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, real, boolean, jsonb, timestamp, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+
+import type { ChildBibleTranslation, ChildNotebookPreferences } from '../../shared/child-notebook';
 
 // Helper for date columns — Postgres TIMESTAMPTZ, returned as JS Date objects
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
@@ -3896,7 +3898,9 @@ export const FamilyChildren = pgTable('FamilyChildren', {
   status: text('status').notNull().default('active'),
   revokedAt: ts('revokedAt'),
   createdAt: ts('createdAt').notNull(),
-  lastActiveAt: ts('lastActiveAt').notNull()
+  lastActiveAt: ts('lastActiveAt').notNull(),
+  notebookPreferences: jsonb('notebookPreferences').$type<ChildNotebookPreferences>(),
+  bibleTranslations: text('bibleTranslations').array().$type<ChildBibleTranslation[]>().notNull().default(sql`ARRAY['BSB']::text[]`)
 }, (t) => [index('FamilyChildren_parentIndex').on(t.parentUserId)]);
 
 export const FamilyChildSessions = pgTable('FamilyChildSessions', {
@@ -3912,3 +3916,22 @@ export const FamilySpaceApprovals = pgTable('FamilySpaceApprovals', {
   spaceId: text('spaceId').notNull().references(() => Spaces.id, { onDelete: 'cascade' }),
   approvedAt: ts('approvedAt').notNull()
 }, (t) => [primaryKey({ columns: [t.childId, t.spaceId] })]);
+
+
+export const FamilyChildBibleReadings = pgTable('FamilyChildBibleReadings', {
+  id: text('id').primaryKey(),
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  translation: text('translation').$type<ChildBibleTranslation>().notNull(),
+  sharedAt: ts('sharedAt').notNull()
+}, (t) => [uniqueIndex('FamilyChildBibleReadings_passage').on(t.childId, t.book, t.chapter, t.translation)]);
+
+export const FamilyChildBibleThoughts = pgTable('FamilyChildBibleThoughts', {
+  id: text('id').primaryKey(),
+  readingId: text('readingId').notNull().references(() => FamilyChildBibleReadings.id, { onDelete: 'cascade' }),
+  verse: integer('verse').notNull(),
+  role: text('role').$type<'child' | 'parent'>().notNull(),
+  text: text('text').notNull(),
+  createdAt: ts('createdAt').notNull()
+}, (t) => [index('FamilyChildBibleThoughts_readingIndex').on(t.readingId)]);

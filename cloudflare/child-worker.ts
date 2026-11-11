@@ -7,7 +7,10 @@ export default {
       method: 'POST', headers: { Authorization: `Bearer ${env.FAMILY_RETENTION_CRON_SECRET}` },
       signal: AbortSignal.timeout(60_000)
     });
-    if (!response.ok) throw new Error('Family retention job failed.');
+    const result = await response.json<{ apply?: boolean; candidates?: number; deleted?: number }>().catch(() => null);
+    if (!response.ok || result?.apply !== true || !Number.isInteger(result.candidates) || !Number.isInteger(result.deleted)) {
+      throw new Error('Family retention job failed.');
+    }
   },
   async fetch(request: Request, env: ChildEnv): Promise<Response> {
     const url = new URL(request.url);

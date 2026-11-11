@@ -1,32 +1,63 @@
 import { isSiteInspiredAuthHost } from '@/lib/prototype-path';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useClerk } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import DevModeBadge from '../components/DevModeBadge';
 import ClerkPrebuiltAuth from '../components/auth/ClerkPrebuiltAuth';
 import ClassicAuthMeshColumn from '../components/auth/ClassicAuthMeshColumn';
 import HarvousAuthForm from '../components/auth/HarvousAuthForm';
 import { useClerkSignInSubtitlePatch } from '../hooks/useClerkSignInSubtitlePatch';
 import { useAuthHeroImage } from '../hooks/useAuthHeroImage';
+import { clearUserClientStorageCaches } from '@/utils/clear-user-client-caches';
+import { deletePersistedQueryCache } from '@/utils/query-cache-persistence';
+import { useQueryClient } from '@tanstack/react-query';
 import { postAuthDestination } from '../lib/notification-return';
 
 export default function SignInPage() {
   const { isLoaded, isSignedIn } = useAuth();
+  const clerk = useClerk();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const fromChild = new URLSearchParams(window.location.search).get('child_return') === '1';
+  const finishingChildReturn = useRef(false);
+  const [childReturnError, setChildReturnError] = useState(false);
+  const [retryChildReturn, setRetryChildReturn] = useState(0);
   const siteInspired = isSiteInspiredAuthHost();
   const { heroImage, isReady: isHeroReady } = useAuthHeroImage();
 
   useClerkSignInSubtitlePatch(!siteInspired);
 
+  // A child can open a handoff link in a browser that still has an adult session.
+  // Clear that session before the sign-in page can redirect into the adult app.
+  useEffect(() => {
+    if (!isLoaded || !fromChild || finishingChildReturn.current) return;
+    finishingChildReturn.current = true;
+    const destination = '/sign-in?redirect_url=%2Fsettings%2Fchild-accounts';
+    if (!isSignedIn) { window.location.replace(destination); return; }
+    void (async () => {
+      try {
+        await queryClient.cancelQueries();
+        clearUserClientStorageCaches();
+        await deletePersistedQueryCache();
+        await clerk.signOut();
+        queryClient.clear();
+        window.location.replace(destination);
+      } catch {
+        finishingChildReturn.current = false;
+        setChildReturnError(true);
+      }
+    })();
+  }, [clerk, fromChild, isLoaded, isSignedIn, queryClient, retryChildReturn]);
+
   // Redirect if already signed in.
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
+    if (isLoaded && isSignedIn && !fromChild) {
       const params = new URLSearchParams(window.location.search);
       const raw = params.get('redirect_url');
       const path = postAuthDestination(raw);
       navigate({ to: path as any });
     }
-  }, [isLoaded, isSignedIn, navigate]);
+  }, [isLoaded, isSignedIn, navigate, fromChild]);
 
   const params = new URLSearchParams(window.location.search);
   const redirectRaw = params.get('redirect_url');
@@ -34,9 +65,14 @@ export default function SignInPage() {
     ? `/sign-up?redirect_url=${encodeURIComponent(redirectRaw)}`
     : '/sign-up';
 
-  if (isLoaded && isSignedIn) {
-    return null;
-  }
+  if (fromChild) return <div className="auth-page auth-page--classic">
+    {childReturnError ? <div role="alert">
+      <p>We couldn’t open a fresh sign-in. Please try again.</p>
+      <button type="button" onClick={() => { setChildReturnError(false); setRetryChildReturn(value => value + 1); }}>Try again</button>
+    </div> : <p role="status">Opening parent sign-in…</p>}
+  </div>;
+
+  if (isLoaded && isSignedIn) return null;
 
   if (siteInspired) {
     return (

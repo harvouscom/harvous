@@ -1,3 +1,4 @@
+import { classifyDbTarget } from '@/utils/supabase-project-ref';
 import { familyPublicConfig } from './config';
 import { z } from 'zod';
 import { HTTPException } from 'hono/http-exception';
@@ -16,12 +17,23 @@ export function kwsConfig(env = process.env) {
   return { clientId, apiKey, sendEmailUrl, orgId, productId, webhookSecret, environment: environment! };
 }
 
+export function familyEnrollmentConfig(env = process.env) {
+  const config = kwsConfig(env);
+  const urls = familyPublicConfig(env);
+  if (env.HARVOUS_CHILD_ACCOUNTS_ENABLED !== 'true' || env.HARVOUS_CHILD_RETENTION_READY !== 'true' || !config || !urls) return null;
+  if (env.HARVOUS_CHILD_ENVIRONMENT === 'staging') {
+    const parent = new URL(urls.parentSignInUrl);
+    const database = classifyDbTarget(env.SUPABASE_DATABASE_URL ?? env.SUPABASE_DIRECT_URL);
+    if (config.environment !== 'test' || !env.CLERK_SECRET_KEY?.startsWith('sk_test_') || database.kind !== 'other' ||
+        env.FLY_APP_NAME === 'harvous' || ['harvous.com', 'app.harvous.com', 'new.harvous.com'].includes(parent.hostname) ||
+        new URL(urls.childAppUrl).hostname === 'kids.harvous.com') return null;
+  } else if (env.NODE_ENV === 'production' && config.environment !== 'production') return null;
+  return config;
+}
+
 export function requireFamilyEnrollment() {
-  const config = kwsConfig();
-  if (process.env.HARVOUS_CHILD_ACCOUNTS_ENABLED !== 'true' || process.env.HARVOUS_CHILD_RETENTION_READY !== 'true' || !config || !familyPublicConfig() ||
-      (process.env.NODE_ENV === 'production' && config.environment !== 'production')) {
-    throw new HTTPException(503, { message: 'Child account setup is not available yet.' });
-  }
+  const config = familyEnrollmentConfig();
+  if (!config) throw new HTTPException(503, { message: 'Child account setup is not available yet.' });
   return config;
 }
 

@@ -1,6 +1,6 @@
 # Parent-managed child accounts
 
-Implementation date: 2026-11-10. Status: code implemented for a US-first web pilot; **not enabled, migrated, deployed, or certified compliant**.
+Status: the US-first web pilot runs locally with fictional accounts. Enrollment remains disabled in production. External staging still needs its own Supabase project, Clerk test instance, and Kids Web Services Test product.
 
 ## Experience and boundaries
 
@@ -10,11 +10,13 @@ Implementation date: 2026-11-10. Status: code implemented for a US-first web pil
 - Each verification request can create only one child. KWS may recognize an already verified adult on subsequent requests. No child email, phone, full birth date, photo, Clerk identity, or payment account is created.
 - Children use an isolated `/kids.html` entry on a separate origin. Parent-generated links are 256-bit, single-use credentials, expire in five minutes, and travel in the URL fragment (not server logs or referrers). The fragment is removed immediately. Session tokens are held in memory only and expire after eight hours; refresh needs another link.
 - Parents may use “Sign me out and open child notebook” for a shared device. This awaits adult sign-out and clears adult query caches. Otherwise use the child’s device or a separate browser profile. This does not claim to secure a device where a parent deliberately leaves another account signed in.
-- Child notes remain canonical `Notes` owned by the child identity in its personal My Home. The isolated API accepts only plain text title/body fields. No public sharing, responses, direct messages, purchases, connectors, or optional telemetry endpoints are exposed.
+- Child notes remain canonical `Notes` owned by the child identity in its personal My Home. Private notes accept plain-text titles and bodies. The child API also supports notebook preferences, scoped search, and a private Family Bible. Public sharing, direct messages, purchases, connectors, and optional telemetry are unavailable.
 - Parents can read/export the child notebook, revoke every session, withdraw consent, and delete the account. Parent queries explicitly opt out of persisted query caching and are cleared on sign-out.
 - Children can start an export from their notebook. The parent signs in and chooses a readable text file or a versioned JSON backup in My Family. The backup preserves the child’s stored note IDs, folder assignments, tags, Thread relationships, and Scripture references.
 - Approved ministry access is **read-only channel reading**, not collaborative Shared Space membership. A parent must currently follow the ministry channel. That membership and the live association are checked on each read. Removing the parent’s membership or approval removes future access. Child identity and personal notes never enter the channel roster. Material is rendered as plain text without images, links, scripts, or embeds.
-- The pilot intentionally omits child responses, co-editing, uploads, rich text, peer discovery, push notifications, native sign-in, parent transfer, automatic graduation, and automatic reactivation after withdrawal. A notice version change blocks child access until a supported renewal flow is added; do not change the notice version on an active pilot without a migration/renewal plan.
+- Family Bible shares chapters and verse thoughts between the child and the parent managing that notebook. The parent chooses permitted translations and shared chapters. My Bible can read chapters in the same permitted translations. Neither mode offers comparison. Removing a translation hides readings in that translation from the child. Removing a shared chapter deletes its thoughts. The adult Family Space membership and sharing rules remain separate.
+- Search covers the child’s own notes, their Family Bible readings, and currently approved ministry resources. Opening a result checks access again. Notebook cover, light/dark mode, larger reading and writing text, and sound and motion preferences are stored on the child account.
+- The pilot omits ministry responses, co-editing, uploads, rich text, peer discovery, push notifications, native sign-in, parent transfer, automatic graduation, and automatic reactivation after withdrawal. A notice version change blocks child access until a supported renewal flow is added; do not change the notice version on an active pilot without a migration/renewal plan.
 
 ## KWS setup
 
@@ -57,11 +59,11 @@ References checked 2026-11-10:
 
 ## Data lifecycle
 
-Four additive tables: `FamilyVerifications`, `FamilyChildren`, `FamilyChildSessions`, `FamilySpaceApprovals`. All have RLS enabled without browser policies; only the server accesses them. Sessions are stored as SHA-256 digests. Consent contains the parent-child relationship, notice version, acceptance time, provider request/transaction, and verification environment. KWS receives an opaque request UUID, the adult email, language, and US location, never child notes or profile data.
+Additive tables include `FamilyVerifications`, `FamilyChildren`, `FamilyChildSessions`, `FamilySpaceApprovals`, `FamilyChildBibleReadings`, and `FamilyChildBibleThoughts`. All have RLS enabled without browser policies; only the server accesses them. Sessions are stored as SHA-256 digests. Consent contains the parent-child relationship, notice version, acceptance time, provider request/transaction, and verification environment. KWS receives an opaque request UUID, the adult email, language, and US location, never child notes or profile data.
 
 Child creation, one-time request consumption, and My Home creation are atomic. Child requests lock the child record and re-check the session after the lock, serializing against withdrawal/deletion. Parent reads and writes always constrain both parent and child IDs. Child bearer tokens bypass Clerk and cannot fall back to a parent cookie on adult endpoints.
 
-Immediate deletion uses the same relational note cascade as ordinary notes, in the child deletion transaction, then removes the child, sessions, approvals, My Home, and verification. No Clerk identity exists for the child. Parent account deletion is blocked until managed children are deleted; a short-lived deletion tombstone closes the concurrent child-enrollment race. Clerk deletion failures now return an incomplete-deletion error rather than success.
+Immediate deletion uses the same relational note cascade as ordinary notes, in the child deletion transaction, then removes the child, preferences, sessions, approvals, Family Bible readings and thoughts, My Home, and verification. No Clerk identity exists for the child. Parent account deletion is blocked until managed children are deleted; a short-lived deletion tombstone closes the concurrent child-enrollment race. Clerk deletion failures now return an incomplete-deletion error rather than success.
 
 Retention policy implemented by the daily job:
 
@@ -77,13 +79,19 @@ Retention policy implemented by the daily job:
 
 `family:retention` defaults to a read-only candidate count. `--apply` deletes due data and expired credentials. The job processes up to 100 child accounts per invocation; monitor backlog and run another bounded batch when necessary. Backup expiry, infrastructure log retention, and KWS data rights are operational policies, not controlled by this code. Complete and publish those terms before enabling enrollment. Do not add child IDs to adult lifecycle email campaigns or optional analytics, or run bulk authoring/enrichment scripts over child-owned notes without reviewing this boundary.
 
-## Deployment sequence (not executed)
+## Isolated staging setup
+
+The existing `new.harvous.com` frontend uses the live Fly API. Provision a separate Supabase project, a separate Fly API, and two separate web origins for the parent app and child Worker. Point the parent web proxy and `wrangler.kids.jsonc` staging Worker at that Fly API. Configure the staging Worker’s `API_ORIGIN` explicitly; its default is an invalid placeholder. The staged parent app needs the Clerk test publishable key, and the API needs the matching `sk_test_` key and allowed parent origin. Disable analytics and production jobs on the staging stack.
+
+Set `HARVOUS_CHILD_ENVIRONMENT=staging` on the staging API. That setting accepts KWS Test only alongside a recognized non-production Supabase URL, a Clerk test secret, and distinct staging origins. Staging rejects the production Fly app, database and child origin and the existing Harvous parent origins. Keep enrollment off until the staging retention Worker has successfully called the staging API. Import the Bible verse fixtures or seed the supported translations in the staging database so the reader can be exercised. Use only fictional child accounts.
+
+## Deployment sequence
 
 1. Review the child data flow, privacy notice, vendor contracts, jurisdiction scope, retention, ministry safeguards, and incident-response process with qualified counsel. KWS integration is not Harvous certification.
 2. Run `npm run child-accounts:schema` to inspect the additive SQL. Apply it to the explicitly reviewed staging target using `npm run child-accounts:schema -- --apply` and the existing database target guard. Do not use the Shared Spaces migration for these tables.
 3. Build API and SPA. `kids.html` is a separate Vite entry. Deploy the child front end with `wrangler.kids.jsonc` on its own origin. That worker blocks adult routes and service workers, strips cookies, has no SPA fallback, and sends restrictive content/security headers. Do not enable Cloudflare Web Analytics or other tracking injection on this origin.
 4. Configure the same retention secret in the child Worker and API. The child worker has a daily scheduled event at 04:17 UTC, calling the authenticated API retention job. Confirm successful execution and monitoring before setting `HARVOUS_CHILD_RETENTION_READY=true`. Include the child origin in API `ALLOWED_ORIGINS` when CSRF enforcement is enabled.
-5. Configure KWS Test, the reviewed privacy URL, and child origin. Use consenting adults and fictional child fixtures in staging. Enable enrollment only on that environment. Production rejects KWS Test credentials by environment label; operators must also ensure the actual secrets/endpoints belong to the declared environment.
+5. Configure KWS Test, the reviewed privacy URL, and child origin. Use consenting adults and fictional child fixtures in staging. Enable enrollment only on that environment. Production accepts production KWS credentials. Verify the actual secrets and endpoint in the KWS product’s integration settings.
 6. Exercise first-time verification, AgeGraph preverification, signature rotation/replay, wrong email/product, expired callbacks, failed KWS sends, double redemption, two parents/two children, revoked sessions during save, parent removal from a ministry, XSS-like note text, export, parent deletion, erasure including note versions, retention, and mobile sign-out. Offline tests mock external systems; they are not a substitute for these integration checks.
 7. After review, publish KWS Production, configure its distinct secrets, apply the additive schema to the explicitly reviewed production target, deploy, verify scheduled retention, and enable enrollment. Update the separate marketing repository’s age policy to explain parent-created accounts; do not simply remove the 13+ independent-account rule.
 
@@ -108,13 +116,13 @@ Design parity: web-only pilot (Tier C). Existing settings primitives/tokens are 
 
 The adult account menu links to Family to select a child. “Use child mode on this device” requires explicit confirmation, then creates a fresh handoff, clears adult caches, and signs the adult out before navigating. A sign-out failure stops the handoff. The isolated child entry ends its child session before returning to the configured parent sign-in page. Returning never restores a saved adult session.
 
-The design preview’s top-right child menu groups customization, the privacy guide, and a parent-only return action. Its return dialog signs out the preview’s Clerk session before opening real parent sign-in. Preview notes and decorations remain fictional and reset on reload. The isolated entry shares the preview’s note fields and uses the child API to save and reopen private notes. The rest of the preview, including search, notebook customization, and the collaborative Family Bible, still needs its own production integration.
+The child return action ends the child session and opens the parent sign-in page. The parent page clears any existing adult session before presenting fresh sign-in, including when the child opened a handoff link in the adult’s browser profile. Preview notes and decorations at `/kids.html?preview=1` are fictional and reset on reload.
 
-Local verification used a disposable PostgreSQL database and two fictional child accounts. The isolated app redeemed a single-use handoff, saved a note, and reopened it after a fresh session. A second child could neither see nor edit that note. The local check seeded consent and handoff records directly, so KWS, Clerk, and retention still require staging verification.
+Local verification used disposable PostgreSQL and fictional families. The real API handled simulated Clerk responses and signed KWS callbacks, blocked enrollment before consent, redeemed single-use links, kept notes and Bible thoughts isolated, revoked access when the parent removed approval, and exported the child’s work. The Worker’s scheduled handler called the retention endpoint and verified deletion of the expired child, note, reading, thought, sessions, and consent record. Browser checks used the built child app for search, cover changes, and shared verse thoughts. Live KWS Test email delivery, real Clerk sign-out and sign-in, and deployed scheduled execution remain staging checks.
 
 ## Notebook organization and a future account transition
 
-The preview puts private notes in My Notebook and parent-shared ministry readings and Bible bookmarks in Family Space. Search reads those two sources. Production search will need to apply the child's current access both when returning results and when opening an item, including after a parent removes it.
+The preview puts private notes in My Notebook and parent-shared ministry readings and Bible bookmarks in Family Space. Search reads those two sources. The isolated app uses current access on search and opening a result, including after a parent removes an approval.
 
 Use the adult note model for production organization. The folder is the note's `primaryCollection` label. Tags use `Tags` and `NoteTags`, and Threads use child-owned `Threads` and `NoteThreads`. The note inspector can edit those relationships inside the child's personal Home. Its preview data stays in memory. The current child API still accepts title and body only.
 

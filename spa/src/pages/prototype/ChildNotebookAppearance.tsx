@@ -6,16 +6,8 @@ import appearanceCatalog from '../../../../shared/appearance-presets.json';
 import imageCatalog from '../../lib/appearance-image-presets-data';
 import { childThemeTokens } from './child-notebook-theme';
 
-export const coverColors = [
-  { id: 'blue', label: 'Sky', color: 'var(--pds-thread-blue)' },
-  { id: 'green', label: 'Meadow', color: 'var(--pds-thread-green)' },
-  { id: 'purple', label: 'Lilac', color: 'var(--pds-thread-purple)' },
-  { id: 'pink', label: 'Rose', color: 'var(--pds-thread-pink)' },
-  { id: 'orange', label: 'Peach', color: 'var(--pds-thread-orange)' },
-  { id: 'yellow', label: 'Sunshine', color: 'var(--pds-thread-yellow)' }
-];
-export const coverSymbols = ['initial', 'cross', 'leaf', 'sun', 'star', 'book-open', 'puzzle-piece', 'bookmark', 'wand-magic-sparkles'] as const;
-export const coverPatterns = ['plain', 'dots', 'stripes', 'gingham'] as const;
+import { coverColors, coverPatterns, coverSymbols } from '../../../../shared/child-notebook';
+export { coverColors, coverPatterns, coverSymbols };
 export const childImageChoices = imageCatalog.presets;
 export const childImageUrl = (image: typeof childImageChoices[number]) => `${imageCatalog.basePath}/${image.mode}/${image.file}`;
 export type CoverSymbol = typeof coverSymbols[number];
@@ -36,7 +28,7 @@ const ChildAppearanceContext = createContext<Identity | null>(null);
 
 /** Fictional child preferences only: no parent appearance writes or browser persistence. */
 export function ChildNotebookAppearanceProvider({ children }: { children: ReactNode }) {
-  const [coverColor, setCoverColor] = useState(coverColors[0]);
+  const [coverColor, setCoverColor] = useState<CoverColor>(coverColors[0]);
   const [coverSymbol, setCoverSymbol] = useState<CoverSymbol>('initial');
   const [coverPattern, setCoverPattern] = useState<CoverPattern>('plain');
   const [appearance, setAppearance] = useState<ChildAppearance>({ scheme: 'system', canvas: 'device', darkCanvas: 'device', textSize: 'standard', reduceMotion: false });

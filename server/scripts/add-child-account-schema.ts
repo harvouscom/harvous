@@ -31,17 +31,32 @@ export const FAMILY_DDL = [
     "spaceId" text NOT NULL REFERENCES "Spaces" ("id") ON DELETE CASCADE,
     "approvedAt" timestamptz NOT NULL, PRIMARY KEY ("childId", "spaceId")
   )`,
-  ...['FamilyVerifications', 'FamilyChildren', 'FamilyChildSessions', 'FamilySpaceApprovals']
+  `ALTER TABLE "FamilyChildren" ADD COLUMN IF NOT EXISTS "notebookPreferences" jsonb`,
+  `ALTER TABLE "FamilyChildren" ADD COLUMN IF NOT EXISTS "bibleTranslations" text[] NOT NULL DEFAULT ARRAY['BSB']::text[]`,
+  `CREATE TABLE IF NOT EXISTS "FamilyChildBibleReadings" (
+    "id" text PRIMARY KEY, "childId" text NOT NULL REFERENCES "FamilyChildren" ("id") ON DELETE CASCADE,
+    "book" text NOT NULL, "chapter" integer NOT NULL, "translation" text NOT NULL, "sharedAt" timestamptz NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "FamilyChildBibleReadings_passage"
+    ON "FamilyChildBibleReadings" ("childId", "book", "chapter", "translation")`,
+  `CREATE TABLE IF NOT EXISTS "FamilyChildBibleThoughts" (
+    "id" text PRIMARY KEY, "readingId" text NOT NULL REFERENCES "FamilyChildBibleReadings" ("id") ON DELETE CASCADE,
+    "verse" integer NOT NULL, "role" text NOT NULL, "text" text NOT NULL, "createdAt" timestamptz NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "FamilyChildBibleThoughts_readingIndex" ON "FamilyChildBibleThoughts" ("readingId")`,
+  ...['FamilyVerifications', 'FamilyChildren', 'FamilyChildSessions', 'FamilySpaceApprovals',
+    'FamilyChildBibleReadings', 'FamilyChildBibleThoughts']
     .map((name) => `ALTER TABLE "${name}" ENABLE ROW LEVEL SECURITY`)
 ];
 
 export async function runFamilySchema(argv: string[], env = process.env) {
   if (!argv.includes('--apply')) {
-    console.log('[family:schema] Dry run; no database connection.');
+    console.log('[child-accounts:schema] Dry run; no database connection.');
     for (const statement of FAMILY_DDL) console.log(`${statement};`);
     return;
   }
-  requireDbTarget({ scriptName: 'child-accounts:schema', writes: true, argv, env });
+  requireDbTarget({ scriptName: 'child-accounts:schema', writes: true, argv,
+    env: { ...env, SUPABASE_DATABASE_URL: env.SUPABASE_DIRECT_URL } });
   if (!env.SUPABASE_DIRECT_URL) throw new Error('SUPABASE_DIRECT_URL is required.');
   const client = postgres(env.SUPABASE_DIRECT_URL, { max: 1 });
   try { await client.begin(async (tx) => { for (const statement of FAMILY_DDL) await tx.unsafe(statement); }); }

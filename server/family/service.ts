@@ -1,6 +1,6 @@
 import { deleteNoteRecordsInTransaction } from '../utils/delete-note-cascade';
 import { parseHTML } from 'linkedom';
-import { and, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { isPgUndefinedRelation } from '../utils/pg-undefined-relation';
 import { db } from '../db/client';
@@ -68,15 +68,17 @@ export async function availableMinistries(tx: FamilyTx, parentId: string) {
     .where(and(eq(Spaces.type, 'public'), sql`${Spaces.orgId} IS NOT NULL`, isNull(Spaces.deletedAt)));
 }
 
-export async function ministryMaterials(tx: FamilyTx, child: Child) {
-  const rows = await tx.select({ ...childNoteSelection, spaceTitle: Spaces.title }).from(FamilySpaceApprovals)
+export async function ministryMaterials(tx: FamilyTx, child: Child, item?: { spaceId: string; noteId: string }) {
+  const rows = await tx.select({ ...childNoteSelection, spaceId: Spaces.id, spaceTitle: Spaces.title }).from(FamilySpaceApprovals)
     .innerJoin(Spaces, eq(Spaces.id, FamilySpaceApprovals.spaceId))
     .innerJoin(SpaceMemberships, and(eq(SpaceMemberships.spaceId, Spaces.id), eq(SpaceMemberships.userId, child.parentUserId)))
     .innerJoin(SpaceNotes, and(eq(SpaceNotes.spaceId, Spaces.id), isNull(SpaceNotes.removedAt)))
     .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
     .where(and(eq(FamilySpaceApprovals.childId, child.id), eq(Spaces.type, 'public'),
-      sql`${Spaces.orgId} IS NOT NULL`, isNull(Spaces.deletedAt), eq(Notes.contentEncrypted, false)))
-    .limit(100);
+      sql`${Spaces.orgId} IS NOT NULL`, isNull(Spaces.deletedAt), eq(Notes.contentEncrypted, false),
+      item ? and(eq(Spaces.id, item.spaceId), eq(Notes.id, item.noteId)) : undefined))
+    .orderBy(desc(SpaceNotes.addedAt), asc(SpaceNotes.id))
+    .limit(item ? 1 : 100);
   return rows.map((row) => {
     const { document } = parseHTML(`<html><body>${row.content}</body></html>`);
     document.querySelectorAll('script,style,iframe,object').forEach((element) => element.remove());

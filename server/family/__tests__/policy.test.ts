@@ -43,7 +43,7 @@ describe('child policy', () => {
     expect(familyPublicConfig(env)?.childOrigin).toBe('https://kids.harvous.com');
     expect(familyPublicConfig({ ...env, HARVOUS_CHILD_APP_URL: 'https://app.harvous.com/kids.html' })).toBeNull();
     expect(familyPublicConfig({ ...env, HARVOUS_CHILD_APP_URL: 'http://kids.harvous.com/kids.html' })).toBeNull();
-    expect(familyPublicConfig(env)?.parentSignInUrl).toBe('https://app.harvous.com/sign-in?redirect_url=%2Fsettings%2Fchild-accounts');
+    expect(familyPublicConfig(env)?.parentSignInUrl).toBe('https://app.harvous.com/sign-in?redirect_url=%2Fsettings%2Fchild-accounts&child_return=1');
     expect(familyPublicConfig({ ...env, HARVOUS_PARENT_APP_URL: 'https://kids.harvous.com' })).toBeNull();
     expect(familyPublicConfig({ ...env, HARVOUS_PARENT_APP_URL: 'http://app.harvous.com' })).toBeNull();
     expect(familyPublicConfig({ ...env, HARVOUS_PARENT_APP_URL: 'https://user:password@app.harvous.com' })).toBeNull();
