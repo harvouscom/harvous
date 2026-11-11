@@ -111,13 +111,13 @@ describe('the card', () => {
     expect(document.querySelector('.proto-daily-passage__title')?.textContent).toBe('Luke 11:47-54');
     // No reading chips: the other readings are not on the card.
     expect(screen.queryByText('Ephesians 1:1-10')).toBeNull();
-    expect(screen.getByText('Open in Bible')).toBeTruthy();
-    expect(screen.getByText('Create note')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open in Bible' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Create note' })).toBeTruthy();
   });
 
   it('opening it in the reader folds it and tells the server', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    fireEvent.click(screen.getByText('Open in Bible'));
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Bible' }));
     expect(actedAfterUpdate()).toBe(true);
     expect(lastEngagement()).toBe('open_reader');
     expect(navigate).toHaveBeenCalled();
@@ -125,7 +125,7 @@ describe('the card', () => {
 
   it('taking a note composes on the passage, folds it, and records the note', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    fireEvent.click(screen.getByText('Create note'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create note' }));
     expect(beginPrototypeComposeSession).toHaveBeenCalled();
     expect(actedAfterUpdate()).toBe(true);
     expect(lastEngagement()).toBe('add_note');
@@ -135,7 +135,7 @@ describe('the card', () => {
     render(
       <PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={{ ...votd, translation: 'ESV' }} />,
     );
-    fireEvent.click(screen.getByText('Create note'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create note' }));
     const html = beginPrototypeComposeSession.mock.calls[0]?.[0]?.seed?.contentHtml as string;
     expect(html).toContain('data-scripture-reference="Psalm 18:1-2"');
     expect(html).toContain('data-scripture-translation="ESV"');
@@ -147,7 +147,7 @@ describe('the card', () => {
 
   it('offers the note already started today instead of a second one', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[todaysNote]} votd={votd} />);
-    fireEvent.click(screen.getByText('Open your note'));
+    fireEvent.click(screen.getByRole('button', { name: 'Open your note' }));
     expect(beginPrototypeComposeSession).not.toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith(expect.objectContaining({ params: { noteId: expect.any(String) } }));
   });
@@ -155,7 +155,7 @@ describe('the card', () => {
   it('"Not today" hides it without counting as acting on it', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
     fireEvent.click(screen.getByLabelText("Dismiss today's passage"));
-    expect(screen.queryByText('Open in Bible')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Open in Bible' })).toBeNull();
     expect(setQueryData).not.toHaveBeenCalled();
     expect(lastEngagement()).toBe('dismiss');
   });

@@ -25575,27 +25575,44 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
 }
 
-/*
- * "What's on your mind?" — Home's compose prompt, docked at the foot of the paper.
- *
- * The band's card chrome (2px hairline, 18px radius, the solid popover fill every dock in the
- * shell band uses — glass reads too translucent over the feed) on the button itself, so it reads
- * as one of the band's cards rather than a field floating on nothing.
- * One line tall — it is a way in, not a panel. The slot is `pointer-events: none` so the band
- * never blocks the page; the button takes clicks back.
- */
+/* Home's writing prompt uses the child notebook's field and shuffle inside the study dock band. */
+.proto-feed-compose-dock > .study-dock-card__outer {
+  filter: none;
+}
+
+.pds-feed-prompt-dock {
+  box-sizing: border-box;
+  padding: var(--pds-space-1);
+  border: 1px solid var(--pds-border-soft);
+  border-radius: calc(var(--pds-radius-card) + var(--pds-space-1));
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-card-elevated);
+}
+
+.pds-feed-prompt-field {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-1);
+  padding-inline-end: var(--pds-space-1);
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: calc(var(--pds-radius-card) - var(--pds-space-1));
+  background: var(--pds-bg-input);
+}
+
 .proto-feed-compose {
   appearance: none;
   display: flex;
   align-items: center;
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
   gap: var(--pds-space-2);
   box-sizing: border-box;
-  width: 100%;
   margin: 0;
-  padding: 13px 16px;
-  border: 2px solid var(--pds-border);
-  border-radius: 18px;
-  background: var(--pds-bg-popover-solid);
+  padding: var(--pds-space-2) var(--pds-space-3);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
   font: inherit;
   font-size: 15px;
   text-align: left;
@@ -25604,16 +25621,44 @@ button.proto-feed-sheet__stat:hover {
   transition: background-color var(--pds-duration-press) var(--pds-ease-standard);
 }
 
-/* Tints laid over the solid fill rather than replacing it, so hover and press never turn the
-   card see-through over the rows behind it. */
+.pds-feed-prompt-shuffle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: calc(var(--pds-radius-input) + var(--pds-space-1));
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
 @media (hover: hover) and (pointer: fine) {
-  .proto-feed-compose:hover {
-    background-image: linear-gradient(var(--pds-bg-input-hover), var(--pds-bg-input-hover));
+  .pds-feed-prompt-field:has(button:hover) {
+    background: var(--pds-bg-input-hover);
+  }
+  .pds-feed-prompt-shuffle:hover {
+    filter: brightness(1.06);
   }
 }
 
 .proto-feed-compose:active {
-  background-image: linear-gradient(var(--pds-bg-row-selected), var(--pds-bg-row-selected));
+  background: var(--pds-bg-row-selected);
+}
+
+.pds-feed-prompt-dock :is(.proto-feed-compose, .pds-feed-prompt-shuffle):focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+.pds-feed-prompt-dock__announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 .proto-feed-compose__label {
@@ -25653,7 +25698,7 @@ button.proto-feed-sheet__stat:hover {
 /*
  * Today's passage as an epigraph (Nov 2026): the words first, in the reading face
  * (`.proto-review-dock__verse--scripture`) under a soft opening quote mark, then a signature
- * line — the reference with its translation chip, and the two buttons (`.proto-review-dock__actions`).
+ * line with the reference, translation chip, and two icon buttons.
  * No sky and no header band: the card is told apart from its neighbours by leading with
  * Scripture rather than with a title.
  */
@@ -25685,14 +25730,14 @@ button.proto-feed-sheet__stat:hover {
  */
 .proto-daily-passage__dismiss {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  inset-block-start: 10px;
+  inset-inline-end: 10px;
   border-radius: 999px;
 }
 
 .proto-daily-passage__words {
   min-width: 0;
-  padding-right: 24px;
+  padding-inline-end: 24px;
 }
 
 /*
@@ -25759,29 +25804,46 @@ html.harvous-prototype-route h3.proto-daily-passage__title {
   line-height: 1.3;
 }
 
-.proto-daily-passage__foot .proto-review-dock__actions {
-  margin: 0;
+.proto-daily-passage__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--pds-space-1);
 }
 
-/* A phone keeps more of its width for the words: a smaller hung quote, a narrower margin. */
-@media (max-width: 600px) {
+.proto-daily-passage__actions .proto-settings-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+/* Give the verse the full measure by putting the quote and dismiss control above it. */
+@media (max-width: 1024px) {
   .proto-daily-passage {
-    padding: 18px 16px 16px 40px;
+    gap: var(--pds-space-2);
+    padding: var(--pds-space-3);
   }
 
   .proto-daily-passage::before {
-    left: 12px;
-    top: 8px;
+    position: static;
+    block-size: var(--pds-space-6);
     font-size: 46px;
   }
 
-  .proto-daily-passage .proto-review-dock__verse {
-    font-size: 18px;
+  .proto-daily-passage__words {
+    padding-inline-end: 0;
   }
 
   .proto-daily-passage__dismiss {
-    top: 8px;
-    right: 8px;
+    inset-block-start: var(--pds-space-2);
+    inset-inline-end: var(--pds-space-2);
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 600px) {
+  .proto-daily-passage .proto-review-dock__verse {
+    font-size: 18px;
   }
 }
 

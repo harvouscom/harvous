@@ -73,6 +73,7 @@ export default function PrototypeDailyPassageCard({
   if (!homeSpaceId || hidden) return null;
 
   const translation = TRANSLATIONS[votd.translation];
+  const noteActionLabel = todaysNote ? 'Open your note' : 'Create note';
   /* A Catholic's day: the Mass Gospel is the passage. The same card in every other way — the
      other readings are a tap away in the reader, not chips crowding the words. */
   const gospel = votd.readings?.items.find((r) => r.slot === 'gospel');
@@ -137,20 +138,24 @@ export default function PrototypeDailyPassageCard({
               {(translation?.abbreviation ?? votd.translation).toUpperCase()}
             </span>
           </div>
-          <div className="proto-review-dock__actions">
+          <div className="proto-daily-passage__actions">
             <button
               type="button"
               className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+              aria-label="Open in Bible"
+              title="Open in Bible"
               onClick={openInReader}
             >
-              Open in Bible
+              <Icon name="book-open" size={15} aria-hidden />
             </button>
             <button
               type="button"
               className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+              aria-label={noteActionLabel}
+              title={noteActionLabel}
               onClick={takeNote}
             >
-              {todaysNote ? 'Open your note' : 'Create note'}
+              <Icon name={todaysNote ? 'note-sticky' : 'pen-to-square'} size={15} aria-hidden />
             </button>
           </div>
         </div>
