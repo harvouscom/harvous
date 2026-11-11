@@ -13,6 +13,8 @@ export const childTextSizes = ['standard', 'bigger'] as const;
 export const childBibleTranslations = ['BSB', 'NIV', 'NLT'] as const;
 export type ChildBibleTranslation = typeof childBibleTranslations[number];
 
+export const CHILD_NOTICE_VERSION = '2026-11-11.2';
+
 export type ChildNotebookPreferences = {
   coverColor: typeof coverColors[number]['id'];
   coverSymbol: typeof coverSymbols[number];

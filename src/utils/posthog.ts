@@ -22,7 +22,7 @@
  * exactly the shape a lazily-loaded library wants — so `initPostHog` fetches it,
  * and the rest keep working unchanged.
  */
-import type { PostHog, PostHogInterface } from 'posthog-js';
+import type { BeforeSendFn, PostHog, PostHogInterface } from 'posthog-js';
 
 // Type definitions for window.posthog
 declare global {
@@ -58,6 +58,18 @@ function getPostHogHost(): string {
   const env = import.meta.env as Record<string, string | undefined>;
   return env.VITE_PUBLIC_POSTHOG_HOST || env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
 }
+
+const childNotebookContext = /\/(?:settings\/(?:family|child-accounts)|__dev\/child-notebook|kids\.html|api\/child-accounts)\b|\bchild_[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\b/i;
+
+const excludeChildNotebookEvents: BeforeSendFn = (event) => {
+  if (!event || childNotebookContext.test(window.location.href)) return null;
+  // The SDK can include an earlier URL, such as a referrer or initial URL, on another screen.
+  try {
+    return childNotebookContext.test(JSON.stringify(event)) ? null : event;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Initialize PostHog (client-side only)
@@ -113,6 +125,7 @@ export async function initPostHog(): Promise<void> {
       // SPA: capture initial load + history API / back-forward navigations
       capture_pageview: 'history_change' as const,
       capture_pageleave: true,
+      before_send: excludeChildNotebookEvents,
       // Respect Do Not Track
       respect_dnt: true,
       // Disable session recording by default (opt-in only)

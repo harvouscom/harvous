@@ -328,14 +328,14 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
         />
         <SettingsRow
           leadingIcon="chart-simple"
-          label="Parents see progress, never notes"
-          sublabel="Chapters read, books, notes written. Your child sees the same."
+          label="Teen family members share progress"
+          sublabel="Parents can see reading and writing progress. In a Child Notebook, the managing parent can also read the notes."
           trailing="none"
         />
         <SettingsRow
           leadingIcon="person"
-          label="For ages 13 and up"
-          sublabel="A child can ask to become an adult member, and can always leave."
+          label="Family memberships are for ages 13 and up"
+          sublabel="A teen family member can ask to become an adult member or leave the family."
           trailing="none"
         />
       </SettingsGroup>

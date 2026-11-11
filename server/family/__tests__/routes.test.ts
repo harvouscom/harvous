@@ -40,6 +40,20 @@ describe('family route boundaries', () => {
     const response = await app.request('/api/child-accounts/children', { method: 'POST', headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' }, body: '{}' });
     expect(response.status).toBe(503); expect(database.transaction).not.toHaveBeenCalled();
   });
+  it('keeps the original withdrawal date when a parent retries', async () => {
+    const revokedAt = new Date('2026-01-01T00:00:00Z');
+    const child = { id: 'child-a', revokedAt };
+    const select = vi.fn(() => ({ from: () => ({ where: () => ({ for: async () => [child] }) }) }));
+    const set = vi.fn(() => ({ where: async () => undefined }));
+    const remove = vi.fn(() => ({ where: async () => undefined }));
+    database.transaction.mockImplementationOnce(work => work({ select, update: () => ({ set }), delete: remove }));
+    const response = await app.request('/api/child-accounts/children/child-a/revoke', {
+      method: 'POST', headers: { Authorization: 'Bearer parent-token' }
+    });
+    expect(response.status).toBe(200);
+    expect(set).toHaveBeenCalledWith({ status: 'revoked', revokedAt });
+    expect(remove).toHaveBeenCalledTimes(2);
+  });
   it('does not accept Clerk credentials as a child session', async () => {
     const response = await app.request('/api/child-accounts/child/notebook', { headers: { Authorization: 'Bearer parent-token' } });
     expect(response.status).toBe(401); expect(database.transaction).not.toHaveBeenCalled();

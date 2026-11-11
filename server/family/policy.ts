@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
+import { CHILD_NOTICE_VERSION } from '../../shared/child-notebook';
 
-export const CHILD_NOTICE_VERSION = '2026-11-11.1';
+export { CHILD_NOTICE_VERSION };
 export const VERIFICATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const CHILD_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 export const HANDOFF_TTL_MS = 5 * 60 * 1000;

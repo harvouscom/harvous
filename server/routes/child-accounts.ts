@@ -241,7 +241,7 @@ route.delete(`${base}/children/:id/sessions`, requireAuth, async (c) => {
 route.post(`${base}/children/:id/revoke`, requireAuth, async (c) => {
   await db.transaction(async (tx) => {
     const child = await ownedChild(tx, parentId(c), requireParam(c, 'id'));
-    await tx.update(FamilyChildren).set({ status: 'revoked', revokedAt: new Date() }).where(eq(FamilyChildren.id, child.id));
+    await tx.update(FamilyChildren).set({ status: 'revoked', revokedAt: child.revokedAt ?? new Date() }).where(eq(FamilyChildren.id, child.id));
     await tx.delete(FamilyChildSessions).where(eq(FamilyChildSessions.childId, child.id));
     await tx.delete(FamilySpaceApprovals).where(eq(FamilySpaceApprovals.childId, child.id));
   });

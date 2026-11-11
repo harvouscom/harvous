@@ -14,6 +14,7 @@ import ManageChildNotebook from './ManageChildNotebook';
 import ChildPrivacyNotice from '../../family/ChildPrivacyNotice';
 import type { ChildDetail, FamilyChild, FamilyStatus } from '../../family/types';
 import { useChildAccountsStatus } from '../../family/useChildAccountsStatus';
+import { CHILD_NOTICE_VERSION } from '../../../../../shared/child-notebook';
 import '../../../styles/family.css';
 
 const enrollmentSteps = ['Verify adult', 'Review privacy', 'Create notebook'];
@@ -72,6 +73,7 @@ export default function PrototypeChildAccountsPage() {
   if (status.isPending) return <SettingsShell><ProtoSpaceLoading label="Loading your family" /></SettingsShell>;
   if (!status.data) return <SettingsShell><p role="alert">Could not load your family.</p><button className="proto-settings-btn" onClick={() => status.refetch()}>Try again</button></SettingsShell>;
   const data = status.data;
+  const noticeMatches = data.noticeVersion === CHILD_NOTICE_VERSION;
   const notebookRoute = prototypeHref('settings/child-accounts');
   function openNotebook(child: string, replace = false) {
     void navigate({ to: notebookRoute, search: { child }, replace });
@@ -144,7 +146,7 @@ export default function PrototypeChildAccountsPage() {
               <p className="pds-body">
                 {awaitingVerification
                   ? 'Open the email from Kids Web Services and complete verification. Then come back here to continue.'
-                  : 'Kids Web Services will send a verification link to the email on your Harvous account.'}
+                  : 'We share your verified Harvous email, country, and language with Kids Web Services so it can email you a link and verify that you’re an adult.'}
               </p>
             </div>
           </div>
@@ -162,6 +164,7 @@ export default function PrototypeChildAccountsPage() {
           </div>
           {verificationFeedback && awaitingVerification && <p className="pds-body" role="status">{verificationFeedback}</p>}
           {!awaitingVerification && <p className="pds-caption">For children under 13 in the United States.</p>}
+          <a className="pds-caption pds-kids-policy-link" href={data.privacyUrl} target="_blank" rel="noreferrer">Child privacy policy</a>
         </div>}
         {verification && <>
           <section aria-labelledby="child-privacy-title">
@@ -173,7 +176,7 @@ export default function PrototypeChildAccountsPage() {
                 sublabel="Approved channels are read-only. Ministry leaders can’t see your child’s notes or profile." />
               <SettingsRow leadingIcon="user-shield" trailing="none" label="Settings you manage"
                 sublabel="End sessions, remove ministry access, withdraw consent, or delete the notebook in Family settings." />
-              <details className="pds-family-privacy__disclosure">
+              <details className="pds-family-privacy__disclosure" open>
                 <summary className="proto-note-row proto-settings-row pds-family-privacy__action">
                   <span className="pds-list-title">Read the full privacy notice</span>
                   <Icon name="chevron-down" size={12} aria-hidden />
@@ -189,16 +192,17 @@ export default function PrototypeChildAccountsPage() {
 
           <section className="pds-family-consent" aria-labelledby="child-consent-title">
             <h3 id="child-consent-title" className="pds-caption pds-family-enrollment-label">Give permission</h3>
+            {!noticeMatches && <p role="status" className="pds-caption">Reload Harvous to review the latest child privacy notice before giving permission.</p>}
             <label className="pds-family-choice pds-subheadline">
               <input type="checkbox" className="proto-checkbox--accent" checked={noticeAccepted}
-                disabled={busy} onChange={(e) => setNoticeAccepted(e.target.checked)} />
+                disabled={busy || !noticeMatches} onChange={(e) => setNoticeAccepted(e.target.checked)} />
               <span>I am the parent or legal guardian. My child is under 13 and lives in the United States. I have read the notice and consent to the collection, use, and disclosure it describes.</span>
             </label>
-            {noticeAccepted && <form className="pds-family-stack pds-family-consent__form" onSubmit={(e) => {
+            {noticeAccepted && noticeMatches && <form className="pds-family-stack pds-family-consent__form" onSubmit={(e) => {
               e.preventDefault();
               void perform(async () => {
                 const { child } = await api.post<{ child: FamilyChild }>('/api/child-accounts/children', { verificationId: verification.id, displayName,
-                  noticeVersion: data.noticeVersion, consent: true, isGuardian: true });
+                  noticeVersion: CHILD_NOTICE_VERSION, consent: true, isGuardian: true });
                 qc.setQueryData<FamilyStatus>(['family', userId, 'child-accounts'], (current) => current && ({
                   ...current,
                   children: [...current.children.filter((item) => item.id !== child.id), child],
