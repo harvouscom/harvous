@@ -34,6 +34,7 @@
 .pds-family-management__identity h2,
 .pds-family-management__identity p { margin: 0; overflow-wrap: anywhere; }
 .pds-family-management__identity p { margin-block-start: var(--pds-space-1); }
+.pds-family-management__identity > .pds-kids-book { cursor: default; }
 .pds-family-management__inline {
   display: grid;
   gap: var(--pds-space-2);

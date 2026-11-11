@@ -1,5 +1,5 @@
 import { AppearancePreviewTile } from './settings/AppearancePreviewTile';
-import { ChildNotebookAvatar, childImageChoices, childImageUrl, coverColors, coverPatterns, coverSymbols, useChildNotebookAppearance, type CoverSymbol } from './ChildNotebookAppearance';
+import { ChildNotebookAvatar, ChildNotebookCover, childImageChoices, childImageUrl, coverColors, coverPatterns, coverSymbols, useChildNotebookAppearance } from './ChildNotebookAppearance';
 import { useEffect, useRef, useState, type CSSProperties, type ComponentProps, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
@@ -87,17 +87,6 @@ function attachmentKey(attachment: ChildNoteAttachment) {
 }
 
 
-
-function NotebookArt({ symbol, large = false }: { symbol: CoverSymbol; large?: boolean }) {
-  const { name } = useChildNotebookAppearance();
-  return <span className="pds-kids-book__volume" aria-hidden="true">
-    <span className="pds-kids-book__back" />
-    <span className="pds-kids-book__page" data-page="1" />
-    <span className="pds-kids-book__page" data-page="2" />
-    <span className="pds-kids-book__page" data-page="3" />
-    <span className="pds-kids-book__front proto-ink-on-accent">{symbol === 'initial' ? <span>{Array.from(name)[0]?.toUpperCase()}</span> : <Icon name={symbol} size={large ? 40 : 18} />}</span>
-  </span>;
-}
 
 export default function ChildNotebookView({ preview = false, privacyUrl, initial, renderBible, renderAttachment, renderSearch, onSaveNote, onReadResource, onSavePreferences, onFamilyReading, onParentSignIn, onEndSession }: Props) {
   const [saveError, setSaveError] = useState('');
@@ -407,7 +396,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         <div className="pds-kids-flip__front">
         <header className="pds-kids-preview__topline" data-cover={view === 'home' ? 'true' : undefined}>
           {view === 'home' ? <div className="pds-kids-preview__identity">
-              <span className="pds-kids-book" aria-hidden="true"><NotebookArt symbol={coverSymbol} /></span>
+              <ChildNotebookCover name={name} preferences={preferences} />
               <span className="pds-kids-preview__cover-title"><strong>{name}’s notebook</strong></span>
             </div>
             : <button className="proto-settings-btn proto-settings-btn--secondary pds-kids-back-button" disabled={saving} onClick={view === 'note' ? finish : () => setView(view === 'reading' ? 'family-thread' : 'home')}><Icon name="arrow-left" size={13} /> {view === 'reading' ? 'Read together' : 'My notebook'}</button>}
@@ -596,7 +585,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         <div className="proto-settings__detail"><section id="notebook-customize" ref={settingsPaneRef} tabIndex={-1} aria-label={settingsPanes.find(pane => pane.id === studioPage)?.title} className="pds-kids-settings-pane" data-studio-page={studioPage}>
           {studioPage === 'settings' ? <div className="pds-kids-inside-settings pds-kids-notebook-settings" data-pattern={coverPattern}>
             <div className="pds-kids-notebook-settings__preview">
-              <span className="pds-kids-book pds-kids-book--settings"><NotebookArt symbol={coverSymbol} large /></span>
+              <ChildNotebookCover name={name} preferences={preferences} large />
               <div><h2 className="pds-title">{name}’s notebook</h2><p className="pds-caption">Make it yours. Try a color, pattern, and symbol.</p></div>
             </div>
           <div className="pds-kids-preview__customizer">

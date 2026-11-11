@@ -10,7 +10,7 @@ import { api } from '../../../lib/api';
 import ManageChildFamilyBible from '../../family/ManageChildFamilyBible';
 import { downloadChildNotebook, type ChildExportFormat } from '../../family/download-child-notebook';
 import type { ChildDetail } from '../../family/types';
-import { ChildNotebookProfileAvatar } from '../ChildNotebookAppearance';
+import { ChildNotebookCover } from '../ChildNotebookAppearance';
 import ProtoConfirmDialog from '../ProtoConfirmDialog';
 import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShell, SettingsSubScreen, SettingsToggleRow } from './SettingsShell';
 import '../../../styles/child-notebook-preview.css';
@@ -108,7 +108,7 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
             <span aria-current="page">Child notebooks</span>
           </nav>
           <header className="pds-family-management__identity">
-            <ChildNotebookProfileAvatar name={child.displayName} preferences={child.notebookPreferences} />
+            <ChildNotebookCover name={child.displayName} preferences={child.notebookPreferences} />
             <div>
               <h2 className="pds-title">{title}</h2>
               <p className="pds-caption">{active ? 'Parent-managed notebook' : 'Consent withdrawn'}</p>
