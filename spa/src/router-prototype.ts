@@ -161,6 +161,12 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadPage')),
   });
 
+  const prototypeFamilyBibleRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'read/family/$childId/$readingId',
+    component: lazyRouteComponent(() => import('./pages/family/ParentFamilyBiblePage')),
+  });
+
   const prototypeReadTodayRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'read/today',
@@ -445,6 +451,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     prototypeAdminFamilyRoute,
     ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
     prototypeReadTodayRoute,
+    prototypeFamilyBibleRoute,
     prototypeReadRoute,
     prototypeReviewSessionRoute,
     prototypeReviewRoute,
