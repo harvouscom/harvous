@@ -43,6 +43,7 @@ export default {
     response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
     if (url.pathname === '/kids.html') {
       response.headers.set('Cache-Control', 'no-store');
+      response.headers.set('X-Robots-Tag', 'noindex, nofollow');
       response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
     }
     return response;

@@ -32,6 +32,17 @@ function emitBuildId(): Plugin {
   };
 }
 
+/** The child Worker serves its own routes. Netlify's adult redirects are invalid here. */
+function removeAdultRedirects(): Plugin {
+  return {
+    name: 'harvous-child-remove-adult-redirects',
+    apply: 'build',
+    writeBundle({ dir }) {
+      if (dir) fs.rmSync(path.join(dir, '_redirects'), { force: true });
+    }
+  };
+}
+
 /**
  * The text-recognition engine for "Scan a page", served from our own origin.
  *
@@ -127,7 +138,7 @@ function fullReloadOnHookModuleEdit(): Plugin {
 // The Hono server (server/dev.ts on port 3001) handles all API routes.
 // This builds spa/ → dist-spa/ which Capacitor bundles into the native app.
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), fullReloadOnHookModuleEdit(), emitBuildId(), ...(mode === 'child' ? [] : [ocrAssets()])],
+  plugins: [react(), fullReloadOnHookModuleEdit(), emitBuildId(), mode === 'child' ? removeAdultRedirects() : ocrAssets()],
   root: 'spa',
   // Serve public assets (fonts, icons, manifest, sw.js) from the project root's public/
   publicDir: path.resolve(__dirname, 'public'),
