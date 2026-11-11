@@ -105,7 +105,7 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
           <nav className="pds-family-breadcrumb pds-caption" aria-label="Settings breadcrumb">
             <Link to={prototypeHref('settings/family')}>My Family</Link>
             <Icon name="caret-right" size={10} aria-hidden />
-            <span aria-current="page">Child notebooks</span>
+            <Link to={prototypeHref('settings/child-accounts')} search={{}}>Child notebooks</Link>
           </nav>
           <header className="pds-family-management__identity">
             <ChildNotebookCover name={child.displayName} preferences={child.notebookPreferences} />
@@ -241,7 +241,7 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
               await api.post(`${endpoint}/revoke`);
               setHandoff('');
             }
-          }, action === 'delete' ? 'Child account deleted.' : 'Consent withdrawn. Child access has stopped.');
+          }, action === 'delete' ? '' : 'Consent withdrawn. Child access has stopped.');
         }} />}
     </div>
   );

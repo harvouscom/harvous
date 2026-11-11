@@ -20,6 +20,7 @@
   outline: 2px solid var(--pds-accent-focus-ring);
   outline-offset: 2px;
 }
+.proto-settings-list-row__leading.pds-family-notebook-row__cover { height: 48px; }
 .pds-family-signup {
   padding: 0 var(--pds-space-3) var(--pds-space-3);
 }

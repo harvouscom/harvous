@@ -59,6 +59,7 @@ import {
   SettingsShell,
   SettingsSubScreen,
 } from './SettingsShell';
+import ChildNotebookSettingsRow from './ChildNotebookSettingsRow';
 import '../../../styles/family.css';
 
 export type InFamily = Extract<FamilyResponse, { me: unknown }>;
@@ -80,8 +81,7 @@ function ChildAccountsRow() {
       <SectionLabel>Child notebooks</SectionLabel>
       <SettingsGroup>
         {hasNotebooks ? data.children.map((child) => (
-          <SettingsRow key={child.id} label={`${child.displayName}’s notebook`} leadingIcon="book-open"
-            sublabel={child.status === 'active' ? 'Open on this device, create a sign-in link, or manage access' : 'Consent withdrawn'}
+          <ChildNotebookSettingsRow key={child.id} child={child}
             onClick={() => void navigate({ to, search: { child: child.id } })} />
         )) : (
           <SettingsRow label="Choose an account" leadingIcon={inProgress ? 'circle-check' : 'circle-user'}

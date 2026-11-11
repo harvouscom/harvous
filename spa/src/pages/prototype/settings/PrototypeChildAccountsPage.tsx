@@ -7,6 +7,7 @@ import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../../lib/api';
 import { useAuthReady } from '../../../hooks/useAuthReady';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
+import ChildNotebookSettingsRow from './ChildNotebookSettingsRow';
 import ManageChildNotebook from './ManageChildNotebook';
 import ChildPrivacyNotice from '../../family/ChildPrivacyNotice';
 import type { ChildDetail, FamilyChild, FamilyStatus } from '../../family/types';
@@ -22,14 +23,17 @@ export default function PrototypeChildAccountsPage() {
   const navigate = useNavigate();
   const searchStr = useRouterState({ select: (state) => state.location.searchStr });
   const search = new URLSearchParams(searchStr);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [feedback, setFeedback] = useState<{ scope: string; kind: 'error' | 'success'; text: string } | null>(null);
   const [verificationFeedback, setVerificationFeedback] = useState('');
   const [busy, setBusy] = useState(false);
   const [noticeAccepted, setNoticeAccepted] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const status = useChildAccountsStatus();
   const requestedChild = search.get('child');
+  const feedbackScope = requestedChild ?? (search.get('setup') === 'true' ? 'setup' : '');
+  const visibleFeedback = feedback?.scope === feedbackScope ? feedback : null;
+  const error = visibleFeedback?.kind === 'error' ? visibleFeedback.text : '';
+  const message = visibleFeedback?.kind === 'success' ? visibleFeedback.text : '';
   const selected = status.data?.children.find((child) => child.id === requestedChild)?.id;
   const detail = useQuery({ queryKey: ['family-child', userId, selected], enabled: ready && !!selected, meta: { persist: false },
     queryFn: () => api.get<ChildDetail>(`/api/child-accounts/children/${selected}`), staleTime: 0 });
@@ -38,10 +42,16 @@ export default function PrototypeChildAccountsPage() {
   const awaitingVerification = status.data?.verifications.some((v) => v.status === 'pending');
   async function perform(work: () => Promise<unknown>, success: string) {
     if (busy) return;
-    setBusy(true); setError(''); setMessage('');
-    try { await work(); setMessage(success); await qc.invalidateQueries({ queryKey: ['family', userId, 'child-accounts'] });
-      await qc.invalidateQueries({ queryKey: ['family-child', userId] }); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); }
+    setBusy(true);
+    setFeedback(null);
+    try {
+      await work();
+      if (success) setFeedback({ scope: feedbackScope, kind: 'success', text: success });
+      await qc.invalidateQueries({ queryKey: ['family', userId, 'child-accounts'] });
+      await qc.invalidateQueries({ queryKey: ['family-child', userId] });
+    } catch (e) {
+      setFeedback({ scope: feedbackScope, kind: 'error', text: e instanceof Error ? e.message : 'Please try again.' });
+    }
     finally { setBusy(false); }
   }
   function sendVerification() {
@@ -71,17 +81,21 @@ export default function PrototypeChildAccountsPage() {
           ...current, children: current.children.filter(child => child.id !== selected),
         }));
         qc.removeQueries({ queryKey: ['family-child', userId, selected] });
+        setFeedback({ scope: '', kind: 'success', text: 'Child account deleted.' });
         void navigate({ to: notebookRoute, search: {}, replace: true });
       }} />;
   }
-  const showEnrollment = data.available && !data.requiresPlus && !selected && (
-    search.get('setup') === 'true' || data.children.length === 0 || verification || awaitingVerification
-  );
+  const canEnroll = data.available && !data.requiresPlus;
+  const showEnrollment = canEnroll && !selected && (search.get('setup') === 'true' || data.children.length === 0);
+  const showNotebookList = !selected && !showEnrollment && data.children.length > 0;
+  const setupInProgress = !!verification || awaitingVerification;
   return <SettingsShell>
     <nav className="pds-family-breadcrumb pds-caption" aria-label="Settings breadcrumb">
       <Link to={prototypeHref('settings/family')}>My Family</Link>
       <Icon name="caret-right" size={10} aria-hidden />
-      <span aria-current="page">Child notebooks</span>
+      {showEnrollment && data.children.length > 0
+        ? <Link to={notebookRoute} search={{}}>Child notebooks</Link>
+        : <span aria-current="page">Child notebooks</span>}
     </nav>
     {showEnrollment && !verification && <SettingsIntro>A private notebook for your child, with you beside them.</SettingsIntro>}
     <div className="pds-family-stack">
@@ -91,11 +105,16 @@ export default function PrototypeChildAccountsPage() {
         <SettingsRow leadingIcon="lock" label="Child notebook setup is included with Harvous Plus"
           sublabel="See Harvous Plus options" onClick={() => void navigate({ to: '/upgrade' })} />
       </SettingsGroup>}
-      {!selected && data.children.length > 0 && <SettingsGroup>
-        {data.children.map(child => <SettingsRow key={child.id} leadingIcon="book-open"
-          label={`${child.displayName}’s notebook`} sublabel={child.status === 'active' ? 'Open or manage notebook' : 'Consent withdrawn'}
-          onClick={() => openNotebook(child.id)} />)}
-      </SettingsGroup>}
+      {showNotebookList && <section className="pds-family-stack" aria-labelledby="child-notebook-list-title">
+        <h2 id="child-notebook-list-title" className="pds-title">Child notebooks</h2>
+        <SettingsGroup>
+          {data.children.map(child => <ChildNotebookSettingsRow key={child.id} child={child}
+            onClick={() => openNotebook(child.id)} />)}
+          {canEnroll && <SettingsRow leadingIcon={setupInProgress ? 'list-check' : 'plus'}
+            label={setupInProgress ? 'Continue notebook setup' : 'Add another notebook'}
+            onClick={() => void navigate({ to: notebookRoute, search: { setup: true } })} />}
+        </SettingsGroup>
+      </section>}
       {selected && detail.isPending && <p role="status">Loading child account…</p>}
       {selected && detail.isError && <p role="alert">Could not load this account. <button onClick={() => detail.refetch()}>Try again</button></p>}
       {showEnrollment && <section className={verification ? 'pds-family-stack pds-family-enrollment--verified' : 'pds-family-stack'} aria-labelledby="child-enrollment-title">
@@ -186,7 +205,7 @@ export default function PrototypeChildAccountsPage() {
                 openNotebook(child.id, true);
                 setDisplayName('');
                 setNoticeAccepted(false);
-              }, 'Your child’s account is ready.');
+              }, '');
             }}>
               <label className="pds-list-title pds-family-consent__name">First Name
                 <input className="proto-settings-field__input" placeholder="e.g. Sam" required maxLength={32} autoComplete="off"
