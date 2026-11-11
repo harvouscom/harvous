@@ -5,8 +5,8 @@ import { getTranslation } from '@/data/translations';
 import { canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
 import { bookChapterCount, orderedCanonBooks } from '@/utils/bible-book-chapters';
 import { bookAbbreviation } from '@/utils/scripture-osis';
-import { ChildNotebookAvatar, useChildNotebookAppearance } from './ChildNotebookAppearance';
-import { ChildPrivacyPolicyLink } from '../family/ChildPrivacyNotice';
+import { useChildNotebookAppearance } from './ChildNotebookAppearance';
+import FamilyVerseDiscussion from '../family/FamilyVerseDiscussion';
 import ProtoSelectMenu from './ProtoSelectMenu';
 import type { ReactNode } from 'react';
 import { legacyChildBibleTranslations, type ChildBibleTranslation, type ChildFamilyReading, type ChildFamilyThought } from '../../../../shared/child-notebook';
@@ -27,7 +27,7 @@ type FamilyThought = {
   id: string;
   chapterKey: string;
   verse: number;
-  author: 'child' | 'parent';
+  role: ChildFamilyThought['role'];
   text: string;
 };
 
@@ -36,7 +36,7 @@ const initialFamilyThoughts: FamilyThought[] = [{
   id: 'parent-question',
   chapterKey: familyChapterKey,
   verse: 1,
-  author: 'parent',
+  role: 'parent',
   text: 'Which words would you like to remember?'
 }];
 
@@ -74,10 +74,11 @@ type Props = ChildReaderProps & {
 
 /** The same chapter paper, pickers and Scripture source as the adult reader, with local sample activity. */
 export default function ChildNotebookBibleReader({ active, mode, passage, onModeChange, onNavigate, onStartNote, useChapter, renderEdge, live, privacyUrl }: Props) {
-  const { themeStyle, appearance, soundPreference, playCue } = useChildNotebookAppearance();
+  const { name, preferences, themeStyle, appearance, soundPreference, playCue } = useChildNotebookAppearance();
   const familyReading = mode === 'family' ? live?.activeReading : undefined;
   const { book, chapter } = familyReading ?? passage;
   const chapterKey = `${book}:${chapter}`;
+  const chapterTitle = `${book === 'Psalms' ? 'Psalm' : book} ${chapter}`;
   const isFamily = mode === 'family';
   const [personalTranslation, setPersonalTranslation] = useState<ChildBibleTranslation>(() => live?.translations[0] ?? familyTranslation);
   const available = live?.translations ?? approvedTranslations.map(option => option.value);
@@ -120,9 +121,9 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
       const thought = await live.saveThought(familyReading.id, verse, text);
       setSavedThoughts(current => [...current, { ...thought, positionKey }]);
     } else {
-      setThoughts(current => [...current, { id: crypto.randomUUID(), chapterKey, verse, author: 'child', text }]);
+      setThoughts(current => [...current, { id: crypto.randomUUID(), chapterKey, verse, role: 'child', text }]);
     }
-    setAnnouncement('Your thought was added to Family Bible.');
+    setAnnouncement('Your comment was posted.');
     playCue('organize.filed');
   }
 
@@ -149,14 +150,15 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
         positions.current.set(positionKey, event.currentTarget.scrollTop);
       }}>
         {!liveEmpty && (!live || !isFamily) && renderEdge(book, chapter, translation, 'behind', onNavigate)}
-        <article className="pds-reader__column" aria-label={`${book} ${chapter}`}>
+        <article className="pds-reader__column" aria-label={chapterTitle}>
           {liveEmpty ? <p className="pds-caption">Chapters your parent shares will show up here.</p> : <>
-          <div className="pds-reader__chapter-heading">
+          {familyReading && <p className="pds-family-reader__shared-label pds-caption">Shared by your parent</p>}
+          <div className={`pds-reader__chapter-heading${isFamily ? ' pds-family-reader__heading' : ''}`}>
             <h1 className="pds-reader-chapter-title pds-reader__chapter-picker">
-              {familyReading && live ? <ProtoSelectMenu label="Shared reading" value={familyReading.id}
+              {familyReading && live ? live.readings.length === 1 ? chapterTitle : <ProtoSelectMenu label="Shared reading" value={familyReading.id}
                 options={live.readings.map(reading => ({
                   value: reading.id, label: `${reading.book} ${reading.chapter} · ${reading.translation}`,
-                  triggerLabel: `${reading.book} ${reading.chapter}`
+                  triggerLabel: `${reading.book === 'Psalms' ? 'Psalm' : reading.book} ${reading.chapter}`
                 }))}
                 className="pds-reader__picker-trigger" menuStyle={themeStyle} soundPreference={soundPreference} onChange={live.onReading} /> : <>
               <ProtoSelectMenu label="Book" value={book} options={bookOptions} groupsAsTabs className="pds-reader__picker-trigger" menuClassName="pds-reader__book-menu" menuWidth={292} menuStyle={themeStyle} soundPreference={soundPreference} onChange={nextBook => onNavigate(nextBook, 1)} />
@@ -182,14 +184,14 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
               )}
             </div>
           </div>
-          {isFamily && (
+          {isFamily && !live && (
             <div className="pds-kids-bible__bookmark">
               <Icon name="bookmark" size={17} />
               <div>
                 <strong className="pds-list-title">Read together</strong>
-                <span className="pds-list-preview">{familyReading ? `${book} ${chapter}` : 'Your parent picked Psalm 23'} · You and your parent</span>
+                <span className="pds-list-preview">Your parent picked Psalm 23</span>
               </div>
-              {!live && !atBookmark && (
+              {!atBookmark && (
                 <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => onNavigate(familyBibleBookmark.book, familyBibleBookmark.chapter)}>
                   <Icon name="book-open" size={13} /> Open passage
                 </button>
@@ -212,12 +214,13 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                 const ownHighlight = Boolean(highlights[`${positionKey}:${verse.number}`]);
                 const parentHighlight = !live && isFamily && atBookmark && verse.number === 1;
                 const verseThoughts = isFamily ? live
-                  ? sharedThoughts.filter(thought => thought.verse === verse.number).map(thought => ({ ...thought, author: thought.role }))
+                  ? sharedThoughts.filter(thought => thought.verse === verse.number)
                   : thoughts.filter(thought => thought.chapterKey === chapterKey && thought.verse === verse.number) : [];
+                const toggle = () => setSelection(selected ? null : { positionKey, verse: verse.number });
                 return (
                   <div className="pds-reader__block" key={verse.number}>
                     <p className="pds-reader-text">
-                      <button type="button" className="pds-reader__verse pds-kids-bible__verse" aria-pressed={isFamily ? undefined : selected} aria-expanded={isFamily ? selected : undefined} data-selected={selected ? 'true' : undefined} data-highlighted={ownHighlight || parentHighlight ? 'true' : undefined} data-highlight-color={ownHighlight ? 'warmAmber' : 'skyBlue'} onClick={() => setSelection(selected ? null : { positionKey, verse: verse.number })}>
+                      <button type="button" className="pds-reader__verse pds-kids-bible__verse" aria-pressed={isFamily ? undefined : selected} aria-expanded={isFamily ? selected : undefined} data-selected={selected && !isFamily ? 'true' : undefined} data-highlighted={ownHighlight || parentHighlight ? 'true' : undefined} data-highlight-color={ownHighlight ? 'warmAmber' : 'skyBlue'} onClick={toggle}>
                         <sup className="pds-reader-verse-num">{verse.number}</sup>{' '}
                         <span className="pds-reader__verse-text">{verse.text}</span>
                       </button>
@@ -227,22 +230,13 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                         {ownHighlight && parentHighlight ? 'Highlighted by you and your parent' : ownHighlight ? 'Highlighted by you' : 'Highlighted by your parent'}
                       </div>
                     )}
-                    {isFamily && verseThoughts.length > 0 && (
-                      <button type="button" className="pds-kids-bible__verse-extra pds-kids-bible__thought-link pds-caption"
-                        aria-label={`${verseThoughts.length} family ${verseThoughts.length === 1 ? 'thought' : 'thoughts'} on verse ${verse.number}`}
-                        aria-expanded={selected} onClick={() => setSelection(selected ? null : { positionKey, verse: verse.number })}>
-                        {verseThoughts.length} {verseThoughts.length === 1 ? 'family thought' : 'family thoughts'}
-                        <Icon name="chevron-down" size={10} aria-hidden />
-                      </button>
-                    )}
-                    {isFamily && selected && (
-                      <FamilyVerseDiscussion key={`${positionKey}:${verse.number}`} verse={verse.number} thoughts={verseThoughts}
-                        privacyUrl={privacyUrl} onSave={text => saveThought(verse.number, text)}>
-                        {!live && <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => toggleHighlight(verse.number)}>
-                          <Icon name="highlighter" size={14} aria-hidden /> {ownHighlight ? 'Remove my highlight' : 'Highlight for family'}
-                        </button>}
-                      </FamilyVerseDiscussion>
-                    )}
+                    {isFamily && <FamilyVerseDiscussion key={positionKey} verse={verse.number} comments={verseThoughts}
+                      viewer="child" childName={name} preferences={preferences} expanded={selected} onToggle={toggle}
+                      privacyUrl={privacyUrl} onSave={text => saveThought(verse.number, text)}>
+                      {!live && <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => toggleHighlight(verse.number)}>
+                        <Icon name="highlighter" size={14} aria-hidden /> {ownHighlight ? 'Remove my highlight' : 'Highlight for family'}
+                      </button>}
+                    </FamilyVerseDiscussion>}
                     {!isFamily && selected && (
                       <div className="pds-kids-bible__verse-extra pds-kids-review__actions" role="group" aria-label={`Actions for ${reference}`}>
                         <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => toggleHighlight(verse.number)}>
@@ -266,85 +260,4 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
       <span className="pds-kids-preview__sr" role="status">{announcement}</span>
     </section>
   );
-}
-
-function FamilyVerseDiscussion({ verse, thoughts, privacyUrl, onSave, children }: {
-  verse: number;
-  thoughts: Pick<FamilyThought, 'id' | 'author' | 'text'>[];
-  privacyUrl?: string;
-  onSave: (text: string) => Promise<void>;
-  children?: ReactNode;
-}) {
-  const { name } = useChildNotebookAppearance();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [posting, setPosting] = useState(false);
-  const [error, setError] = useState('');
-  const addButton = useRef<HTMLButtonElement>(null);
-  const restoreFocus = useRef(false);
-
-  useLayoutEffect(() => {
-    if (!editing && restoreFocus.current) {
-      restoreFocus.current = false;
-      addButton.current?.focus();
-    }
-  }, [editing]);
-
-  function closeComposer() {
-    restoreFocus.current = true;
-    setEditing(false);
-    setDraft('');
-    setError('');
-  }
-
-  return <section className="pds-kids-bible__verse-extra pds-kids-bible__discussion" aria-label={`Family thoughts on verse ${verse}`}>
-    <h2 className="pds-list-title">Family thoughts</h2>
-    {thoughts.length > 0 && <ul className="pds-kids-bible__thoughts">
-      {thoughts.map(thought => <li className="pds-kids-bible__thought" key={thought.id}>
-        {thought.author === 'child' ? <ChildNotebookAvatar small /> : (
-          <span className="pds-kids-bible__parent-avatar" aria-hidden="true"><Icon name="user" size={11} /></span>
-        )}
-        <div>
-          <strong className="pds-caption">{thought.author === 'child' ? name : 'Your parent'}</strong>
-          <p className="pds-body">{thought.text}</p>
-        </div>
-      </li>)}
-    </ul>}
-    {editing ? (
-      <form className="pds-kids-bible__composer" onSubmit={async event => {
-        event.preventDefault();
-        const text = draft.trim();
-        if (!text || posting) return;
-        setPosting(true);
-        setError('');
-        try {
-          await onSave(text);
-          closeComposer();
-        } catch (failure) {
-          setError(failure instanceof Error ? failure.message : 'Couldn’t add your thought. Try again.');
-        } finally {
-          setPosting(false);
-        }
-      }}>
-        <textarea className="proto-settings-field__input" aria-label="Your thought" placeholder="What did you notice?"
-          value={draft} onChange={event => setDraft(event.target.value)} maxLength={500} rows={2} disabled={posting} autoFocus />
-        <p className="pds-caption">You and your parent can see this.</p>
-        <ChildPrivacyPolicyLink url={privacyUrl} />
-        {error && <p className="pds-caption" role="alert">{error}</p>}
-        <div className="pds-kids-review__actions">
-          <button type="button" className="proto-settings-btn proto-settings-btn--secondary" disabled={posting} onClick={closeComposer}>Cancel</button>
-          <button type="submit" className="proto-settings-btn" disabled={posting || !draft.trim()}>
-            <Icon name="check" size={14} aria-hidden /> Add thought
-          </button>
-        </div>
-      </form>
-    ) : (
-      <div className="pds-kids-review__actions">
-        <button ref={addButton} type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setEditing(true)}>
-          <Icon name="pen-to-square" size={14} aria-hidden /> Add a thought
-        </button>
-        {children}
-      </div>
-    )}
-  </section>;
 }

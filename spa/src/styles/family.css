@@ -253,80 +253,32 @@ body:has(.pds-child-app) { margin: 0; background: var(--pds-canvas-default); }
   height: 36px;
   padding: 0;
 }
-.pds-family-reader__nav {
+.pds-family-reader__context {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--pds-space-3);
   margin-block-end: var(--pds-space-5);
+  padding-inline: var(--pds-reader-text-inset);
 }
-.pds-family-reader__nav > .proto-settings-btn,
-.pds-family-reader .pds-family-reader__thought-count {
-  width: auto;
-  gap: var(--pds-space-2);
-}
-.pds-family-reader__thought-count,
-.pds-family-reader__discussion {
-  grid-column: 2;
+
+.pds-family-reader__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-3);
   min-width: 0;
 }
-.pds-family-reader__thought-count {
-  justify-self: start;
-  margin-block-start: var(--pds-space-2);
-}
-.pds-family-reader__discussion {
-  display: grid;
-  gap: var(--pds-space-2);
-  margin-block: var(--pds-space-2) var(--pds-space-4);
-  padding: var(--pds-space-4);
-  background: var(--pds-bg-subtle);
-  border-radius: var(--pds-radius-card);
-}
-.pds-family-reader__discussion h2 { margin: 0; }
+.pds-family-reader__identity p { margin: 0; overflow-wrap: anywhere; }
+.pds-family-reader__context > .proto-toolbar-icon-btn { flex: none; }
 .pds-family-reader .pds-reader__verse { text-align: start; }
-.pds-family-bible-thoughts {
-  display: grid;
-  list-style: none;
-  margin: 0;
-  padding: 0;
+
+.pds-reader__chapter-heading.pds-family-reader__heading {
+  flex-direction: row;
+  align-items: center;
 }
-.pds-family-bible-thoughts li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: var(--pds-space-3);
-  padding-block: var(--pds-space-2);
-}
-.pds-family-bible-thoughts li + li { border-block-start: 1px solid var(--pds-border-control-soft); }
-.pds-family-bible-thoughts__avatar {
-  display: grid;
-  place-items: center;
-  inline-size: 22px;
-  block-size: 22px;
-  border-radius: var(--pds-radius-pill);
-  background: var(--pds-bg-control);
-  color: var(--pds-text-secondary);
-}
-.pds-family-bible-thoughts strong { color: var(--pds-text-primary); }
-.pds-family-bible-thoughts p {
-  margin: var(--pds-space-1) 0 0;
-  color: var(--pds-text-primary);
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-}
-.pds-family-bible-thought-form { gap: var(--pds-space-2); }
-.pds-family-bible-thought-form textarea {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 60px;
-  resize: vertical;
-  line-height: 1.55;
-}
-.pds-family-bible-thought-form .proto-settings-btn {
-  align-self: end;
-  width: auto;
-  gap: var(--pds-space-2);
+
+.pds-family-reader__shared-label {
+  margin: 0 var(--pds-reader-text-inset) var(--pds-space-2);
 }
 
 @media (max-width: 375px) {
