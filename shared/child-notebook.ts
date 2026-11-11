@@ -21,6 +21,9 @@ export type ChildNotebookPreferences = {
   textSize: typeof childTextSizes[number];
   reduceMotion: boolean;
   sounds: boolean;
+  soundMode?: 'everywhere' | 'moments' | 'off';
+  canvas?: string;
+  darkCanvas?: string;
 };
 export const defaultChildPreferences: ChildNotebookPreferences = {
   coverColor: 'blue', coverSymbol: 'initial', coverPattern: 'plain',

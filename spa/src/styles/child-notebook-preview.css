@@ -1,4 +1,4 @@
-/* Extends the app's real paper, type, icon and list primitives. Dev fixture only. */
+/* Child notebook paper, type, icon and list treatments shared by both entries. */
 .pds-kids-preview .pds-kids-preview__paper { min-height: 0; padding: 0; }
 .pds-kids-preview__topline { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-3); padding: var(--pds-space-5) var(--pds-space-6); border-bottom: 1px solid var(--pds-border-soft); }
 .pds-kids-preview__identity, .pds-kids-preview__quiet { display: inline-flex; align-items: center; gap: var(--pds-space-2); }
@@ -818,3 +818,5 @@
   transform: rotateY(-9deg);
   transition: none;
 }
+
+.pds-kids-preview .proto-feed-compose { color: var(--pds-text-secondary); }

@@ -2,6 +2,7 @@ import { useRef, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import { useChildNotebookAppearance } from './ChildNotebookAppearance';
+import type { ChildFamilyResource } from './ChildNoteAttachmentPicker';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeSharedSpaceHeader from './PrototypeSharedSpaceHeader';
@@ -13,7 +14,8 @@ const threadTitle = 'Read together';
 export default function ChildFamilySpacePreview({
   threadOpen,
   headingRef,
-  resource,
+  resources,
+  readingLabel,
   onOpenThread,
   onBackToSpace,
   onOpenReading,
@@ -21,10 +23,11 @@ export default function ChildFamilySpacePreview({
 }: {
   threadOpen: boolean;
   headingRef: Ref<HTMLHeadingElement>;
-  resource: { title: string; source: string };
+  resources: ChildFamilyResource[];
+  readingLabel?: string;
   onOpenThread: () => void;
   onBackToSpace: () => void;
-  onOpenReading: () => void;
+  onOpenReading: (resource: ChildFamilyResource) => void;
   onOpenBible: () => void;
 }) {
   const { resolvedScheme, themeStyle, playCue } = useChildNotebookAppearance();
@@ -53,7 +56,7 @@ export default function ChildFamilySpacePreview({
             </div>
             <div className="proto-sidebar-scroll proto-shared-thread-drilldown__scroll">
               <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
-                <PrototypeHomeRow icon="book-open" title={resource.title} meta={[resource.source, 'Shared by your family']} onClick={onOpenReading} />
+                {resources.map(resource => <PrototypeHomeRow key={resource.id} icon="book-open" title={resource.title} meta={[resource.source, 'Shared by your family']} onClick={() => onOpenReading(resource)} />)}
               </div>
             </div>
           </>
@@ -74,10 +77,10 @@ export default function ChildFamilySpacePreview({
             <div className="proto-sidebar-scroll">
               <div className="proto-home-view">
                 <PrototypeHomeSection title="Current Thread">
-                  <PrototypeHomeRow icon="arrow-right-arrow-left" title={threadTitle} meta={['1 reading']} onClick={onOpenThread} />
+                  <PrototypeHomeRow icon="arrow-right-arrow-left" title={threadTitle} meta={[`${resources.length} ${resources.length === 1 ? 'reading' : 'readings'}`]} onClick={onOpenThread} />
                 </PrototypeHomeSection>
                 <PrototypeHomeSection title="Scripture">
-                  <PrototypeHomeRow icon="book-open" title="Family Bible" meta={['Psalm 23', 'Read together']} onClick={onOpenBible} />
+                  <PrototypeHomeRow icon="book-open" title="Family Bible" meta={[readingLabel, 'Read together']} onClick={onOpenBible} />
                 </PrototypeHomeSection>
               </div>
             </div>

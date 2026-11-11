@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useChildNotebookAppearance } from '../prototype/ChildNotebookAppearance';
+import PrototypeSearchInput from '../prototype/components/PrototypeSearchInput';
+import PrototypeSectionHeader from '../prototype/design-system/PrototypeSectionHeader';
+import PrototypeHomeRow from '../prototype/PrototypeHomeRow';
 import Icon from '@/components/react/Icon';
 import type { ChildSearchResult, ChildSearchScope } from './types';
 
@@ -9,6 +14,7 @@ const icons = { note: 'note-sticky', reading: 'book-open', material: 'file-lines
 export default function ChildNotebookSearchPanel({ search, onOpen, onClose }: {
   search: Search; onOpen: (item: ChildSearchResult) => Promise<boolean>; onClose: () => void;
 }) {
+  const { themeStyle } = useChildNotebookAppearance();
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<ChildSearchScope>('all');
   const [offset, setOffset] = useState(0);
@@ -34,31 +40,43 @@ export default function ChildNotebookSearchPanel({ search, onOpen, onClose }: {
     return () => { current = false; window.clearTimeout(timeout); };
   }, [query, scope, offset, search]);
   function reset() { setOffset(0); setItems([]); setTotal(0); }
-  return <dialog className="pds-child-settings pds-child-search" ref={dialog} onClose={onClose} aria-labelledby="child-search-title">
-    <header className="pds-child-settings__header">
+  async function open(item: ChildSearchResult) {
+    if (opening) return;
+    setOpening(true); setError('');
+    try { if (await onOpen(item)) dialog.current?.close(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not open the result.'); }
+    finally { setOpening(false); }
+  }
+  return createPortal(<dialog className="pds-kids-privacy-modal pds-kids-search proto-theme" style={themeStyle} ref={dialog} onClose={onClose} aria-labelledby="child-search-title">
+    <header className="pds-kids-info__header">
       <h2 className="pds-title" id="child-search-title">Search</h2>
-      <button type="button" className="pds-child-button pds-child-icon" aria-label="Close search" onClick={() => dialog.current?.close()}><Icon name="xmark" size={16} /></button>
+      <button type="button" className="proto-toolbar-icon-btn" aria-label="Close search" onClick={() => dialog.current?.close()}><Icon name="xmark" size={15} /></button>
     </header>
-    <div className="pds-child-search__body pds-family-stack">
-      <label className="pds-child-search__field"><Icon name="magnifying-glass" size={16} /><input type="search" ref={input} aria-label="Search notes and family readings"
-        placeholder="Search notes and family readings…" value={query} maxLength={120} onChange={e => { reset(); setQuery(e.target.value); }} /></label>
-      <div className="pds-child-segmented" role="group" aria-label="Where to search">
-        {scopes.map(([id, label]) => <button key={id} type="button" className="pds-child-button" aria-pressed={scope === id}
-          onClick={() => { if (scope !== id) { reset(); setScope(id); } }}>{label}</button>)}
-      </div>
-      {error && <p role="alert">{error}</p>}
-      <p className="pds-caption" role="status">{pending ? 'Searching…' : `${total} ${total === 1 ? 'result' : 'results'}`}</p>
-      <div className="pds-child-search__results" aria-busy={pending}>
-        {items.map(item => <button type="button" className="pds-child-button pds-child-row" key={`${item.kind}:${item.kind === 'material' ? item.spaceId : ''}:${item.id}`}
-          disabled={opening} onClick={async () => {
-            setOpening(true); setError('');
-            try { if (await onOpen(item)) dialog.current?.close(); }
-            catch (e) { setError(e instanceof Error ? e.message : 'Could not open the result.'); }
-            finally { setOpening(false); }
-          }}><Icon name={icons[item.kind]} size={16} /><span><strong>{item.title}</strong><small>{item.source}</small></span><Icon name="caret-right" size={12} /></button>)}
-      </div>
-      {!pending && !error && items.length === 0 && <p>{query ? 'Try a different word or look in All.' : 'Your notes and family readings will appear here.'}</p>}
-      {items.length < total && <button type="button" className="pds-child-button" disabled={pending} onClick={() => setOffset(items.length)}>More results</button>}
+    <PrototypeSearchInput inputRef={input} value={query} onChange={value => { reset(); setQuery(value.slice(0, 120)); }}
+      placeholder="Search notes and family readings…" onKeyDown={event => {
+        if (event.key === 'Enter' && !event.nativeEvent.isComposing && items[0]) { event.preventDefault(); void open(items[0]); }
+      }} />
+    <div className="proto-appearance-segmented pds-kids-search__scopes" role="group" aria-label="Search in">
+      {scopes.map(([id, label]) => <button key={id} type="button" className="proto-appearance-segmented__btn" aria-pressed={scope === id}
+        data-active={scope === id ? 'true' : undefined} onClick={() => { if (scope !== id) { reset(); setScope(id); } }}>{label}</button>)}
     </div>
-  </dialog>;
+    <div className="pds-kids-search__scroll" aria-busy={pending}>
+      {error && <p role="alert">{error}</p>}
+      {pending && <p className="pds-caption" role="status">Searching…</p>}
+      {!pending && !error && !items.length && <p className="pds-kids-search__empty pds-caption" role="status">
+        {query ? 'No matches here. Try another word.' : 'There’s nothing to search here yet.'}</p>}
+      {!!query && !!total && <p className="pds-kids-search__count pds-caption" role="status">{total} {total === 1 ? 'match' : 'matches'}</p>}
+      {(['notebook', 'family'] as const).map(group => {
+        const results = items.filter(item => (item.kind === 'note') === (group === 'notebook'));
+        if (!results.length) return null;
+        return <section key={group} className="pds-kids-search__results">
+          <PrototypeSectionHeader as="h3" variant="search">{group === 'family' ? 'Family Space' : query ? 'My notebook' : 'Recent notes'}</PrototypeSectionHeader>
+          <div className="proto-list-panel">{results.map(item => <PrototypeHomeRow icon={icons[item.kind]} title={item.title}
+            key={`${item.kind}:${item.kind === 'material' ? item.spaceId : ''}:${item.id}`} meta={[item.source]} onClick={() => void open(item)} />)}</div>
+        </section>;
+      })}
+      {items.length < total && <button type="button" className="proto-settings-btn proto-settings-btn--secondary pds-kids-search__more" disabled={pending}
+        onClick={() => setOffset(items.length)}>More results</button>}
+    </div>
+  </dialog>, document.body);
 }

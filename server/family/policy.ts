@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 
-export const CHILD_NOTICE_VERSION = '2026-11-10.2';
+export const CHILD_NOTICE_VERSION = '2026-11-10.3';
 export const VERIFICATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const CHILD_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 export const HANDOFF_TTL_MS = 5 * 60 * 1000;

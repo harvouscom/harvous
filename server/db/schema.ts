@@ -3935,3 +3935,9 @@ export const FamilyChildBibleThoughts = pgTable('FamilyChildBibleThoughts', {
   text: text('text').notNull(),
   createdAt: ts('createdAt').notNull()
 }, (t) => [index('FamilyChildBibleThoughts_readingIndex').on(t.readingId)]);
+
+export const ChildNoteResources = pgTable('ChildNoteResources', {
+  noteId: text('noteId').notNull().references(() => Notes.id, { onDelete: 'cascade' }),
+  spaceId: text('spaceId').notNull().references(() => Spaces.id, { onDelete: 'cascade' }),
+  resourceNoteId: text('resourceNoteId').notNull().references(() => Notes.id, { onDelete: 'cascade' })
+}, table => [primaryKey({ columns: [table.noteId, table.spaceId, table.resourceNoteId] })]);

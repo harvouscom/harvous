@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import { bookChapterCount, orderedCanonBooks } from '@/utils/bible-book-chapters';
-import { usePrototypeBibleChapter } from '../../hooks/queries/usePrototypeBibleChapter';
 import { useChildNotebookAppearance } from './ChildNotebookAppearance';
+import type { ChildBibleTranslation } from '../../../../shared/child-notebook';
 import { approvedTranslations, familyBibleBookmark } from './ChildNotebookBibleReader';
 
 export type ChildNoteAttachment =
@@ -12,9 +12,14 @@ export type ChildNoteAttachment =
 
 export type ChildFamilyResource = { id: string; title: string; source: string; question: string };
 
-export default function ChildNoteAttachmentPicker({ kind, resource, existing, onAdd, onClose }: {
+export default function ChildNoteAttachmentPicker({ kind, resource, resources = [], existing, onAdd, onClose, useChapter, translations = approvedTranslations.map(option => option.value) }: {
   kind: ChildNoteAttachment['kind'];
-  resource: ChildFamilyResource;
+  resource?: ChildFamilyResource;
+  resources?: ChildFamilyResource[];
+  translations?: ChildBibleTranslation[];
+  useChapter: (book: string | undefined, chapter: number | undefined, translation: ChildBibleTranslation) => {
+    data?: { verses: { number: number; text: string }[] }; isLoading: boolean; isError: boolean
+  };
   existing?: ChildNoteAttachment;
   onAdd: (attachment: ChildNoteAttachment) => void;
   onClose: () => void;
@@ -22,17 +27,19 @@ export default function ChildNoteAttachmentPicker({ kind, resource, existing, on
   const dialog = useRef<HTMLDialogElement>(null);
   const { themeStyle } = useChildNotebookAppearance();
   const scripture = existing?.kind === 'scripture' ? existing : undefined;
-  const [passage, setPassage] = useState(scripture ?? { ...familyBibleBookmark, verse: 1, translation: 'BSB' });
+  const [passage, setPassage] = useState<{ book: string; chapter: number; verse: number; translation: string }>(scripture ?? { ...familyBibleBookmark, verse: 1, translation: translations[0] });
+  const [resourceId, setResourceId] = useState(existing?.kind === 'resource' ? existing.resourceId : resource?.id);
+  const selectedResource = resources.find(item => item.id === resourceId);
   const { book, chapter, verse, translation } = passage;
-  const { data, isLoading, isError } = usePrototypeBibleChapter(
-    kind === 'scripture' ? book : undefined,
+  const { data, isLoading, isError } = useChapter(
+    kind === 'scripture' && translations.includes(translation as ChildBibleTranslation) ? book : undefined,
     kind === 'scripture' ? chapter : undefined,
-    translation
+    translation as ChildBibleTranslation
   );
   const selectedVerse = data?.verses.find(item => item.number === verse) ?? data?.verses[0];
   const reference = selectedVerse ? `${book} ${chapter}:${selectedVerse.number}` : `${book} ${chapter}`;
   const title = existing
-    ? kind === 'scripture' ? reference : resource.title
+    ? kind === 'scripture' ? reference : selectedResource?.title ?? 'Reading no longer shared'
     : kind === 'scripture' ? 'Add Scripture' : 'Add a resource';
 
   useEffect(() => { dialog.current?.showModal(); }, []);
@@ -56,7 +63,7 @@ export default function ChildNoteAttachmentPicker({ kind, resource, existing, on
               {data?.verses.map(item => <option key={item.number}>{item.number}</option>)}
             </select></label>
             <label>Translation<select className="proto-settings-field__input" value={translation} onChange={event => setPassage(current => ({ ...current, translation: event.target.value }))}>
-              {approvedTranslations.map(option => <option key={option.value} value={option.value}>{option.triggerLabel}</option>)}
+              {approvedTranslations.filter(option => translations.includes(option.value)).map(option => <option key={option.value} value={option.value}>{option.triggerLabel}</option>)}
             </select></label>
           </div>}
           {isLoading && <p className="pds-caption" role="status">Opening Scripture…</p>}
@@ -68,12 +75,17 @@ export default function ChildNoteAttachmentPicker({ kind, resource, existing, on
         </>
       ) : (
         <>
-          <div className="pds-kids-review__note">
-            <span className="pds-caption">Family Space · {resource.source}</span>
-            {!existing && <h3 className="pds-title">{resource.title}</h3>}
-            <p>{resource.question}</p>
-          </div>
-          {!existing && <button type="button" className="proto-settings-btn" onClick={() => onAdd({ kind: 'resource', resourceId: resource.id })}><Icon name="plus" size={13} /> Add to note</button>}
+          {!existing && resources.length > 1 && <label>Reading
+            <select className="proto-settings-field__input" value={resourceId} onChange={event => setResourceId(event.target.value)}>
+              {resources.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
+            </select>
+          </label>}
+          {selectedResource ? <div className="pds-kids-review__note">
+            <span className="pds-caption">Family Space · {selectedResource.source}</span>
+            {!existing && <h3 className="pds-title">{selectedResource.title}</h3>}
+            <p>{selectedResource.question}</p>
+          </div> : <p className="pds-caption">{existing ? 'This reading is no longer shared.' : 'Readings your parent approves will appear here.'}</p>}
+          {!existing && selectedResource && <button type="button" className="proto-settings-btn" onClick={() => onAdd({ kind: 'resource', resourceId: selectedResource.id })}><Icon name="plus" size={13} /> Add to note</button>}
         </>
       )}
     </dialog>,

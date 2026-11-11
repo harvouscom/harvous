@@ -44,7 +44,13 @@ export const FAMILY_DDL = [
     "verse" integer NOT NULL, "role" text NOT NULL, "text" text NOT NULL, "createdAt" timestamptz NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS "FamilyChildBibleThoughts_readingIndex" ON "FamilyChildBibleThoughts" ("readingId")`,
-  ...['FamilyVerifications', 'FamilyChildren', 'FamilyChildSessions', 'FamilySpaceApprovals',
+  `CREATE TABLE IF NOT EXISTS "ChildNoteResources" (
+    "noteId" text NOT NULL REFERENCES "Notes" ("id") ON DELETE CASCADE,
+    "spaceId" text NOT NULL REFERENCES "Spaces" ("id") ON DELETE CASCADE,
+    "resourceNoteId" text NOT NULL REFERENCES "Notes" ("id") ON DELETE CASCADE,
+    PRIMARY KEY ("noteId", "spaceId", "resourceNoteId")
+  )`,
+  ...['ChildNoteResources', 'FamilyVerifications', 'FamilyChildren', 'FamilyChildSessions', 'FamilySpaceApprovals',
     'FamilyChildBibleReadings', 'FamilyChildBibleThoughts']
     .map((name) => `ALTER TABLE "${name}" ENABLE ROW LEVEL SECURITY`)
 ];

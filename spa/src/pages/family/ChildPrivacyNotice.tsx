@@ -3,7 +3,7 @@ export default function ChildPrivacyNotice() {
   return <div className="pds-family-notice pds-caption">
     <h2 className="pds-title">Your child’s privacy</h2>
     <p>Child accounts are for children under 13 in the United States, managed by their parent or legal guardian.</p>
-    <p>Harvous stores a nickname, age band, parent connection, notes, approved ministry channels,
+    <p>Harvous stores a nickname, age band, parent connection, notes and their organization and attachments, approved ministry channels,
       notebook appearance preferences, Family Bible readings and thoughts, a consent record, and temporary sign-in information. Hosting and security services also process
       information needed to deliver and protect the service, such as IP addresses.</p>
     <p>You can read and export your child’s notes. Ministry leaders and other members cannot read

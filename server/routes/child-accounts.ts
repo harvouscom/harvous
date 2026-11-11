@@ -1,3 +1,5 @@
+import { childNoteDetails, noteDetailsInput, writeChildNoteDetails } from '../family/note-details';
+import imagePresets from '../../shared/appearance-image-presets.json';
 import { timingSafeEqual } from 'node:crypto';
 import { purgeExpiredFamilyData } from '../family/retention';
 import { exportChildNotebook } from '../family/notebook-export';
@@ -257,14 +259,17 @@ route.get(`${base}/child/notebook`, async (c) => c.json(await withChildSession(t
   preferences: child.notebookPreferences ?? defaultChildPreferences,
   translations: child.bibleTranslations,
   readings: (await familyReadings(tx, child)).filter(reading => child.bibleTranslations.includes(reading.translation)),
-  notes: await tx.select(childNoteSelection).from(Notes).where(eq(Notes.userId, child.id)).orderBy(desc(Notes.createdAt)).limit(500),
+  ...await childNoteDetails(tx, child),
   materials: await ministryMaterials(tx, child)
 }))));
 
 const preferencesInput = z.object({
   coverColor: z.enum(coverColors.map(color => color.id)), coverSymbol: z.enum(coverSymbols),
   coverPattern: z.enum(coverPatterns), scheme: z.enum(childSchemes), textSize: z.enum(childTextSizes),
-  reduceMotion: z.boolean(), sounds: z.boolean()
+  reduceMotion: z.boolean(), sounds: z.boolean(),
+  soundMode: z.enum(['everywhere', 'moments', 'off']).optional(),
+  canvas: z.string().refine(value => value === 'device' || imagePresets.presets.some(image => image.mode === 'light' && value === `image:${image.id}`)).optional(),
+  darkCanvas: z.string().refine(value => value === 'device' || imagePresets.presets.some(image => image.mode === 'dark' && value === `image:${image.id}`)).optional()
 }).strict();
 route.put(`${base}/child/preferences`, async (c) => {
   const preferences = preferencesInput.parse(await c.req.json());
@@ -287,7 +292,7 @@ route.get(`${base}/child/materials/:spaceId/:id`, async (c) => c.json(await with
   return { material };
 })));
 route.get(`${base}/child/notes/:id`, async (c) => c.json(await withChildSession(token(c), async (tx, child) => {
-  const [note] = await tx.select(childNoteSelection).from(Notes).where(and(eq(Notes.id, requireParam(c, 'id')), eq(Notes.userId, child.id)));
+  const { notes: [note] } = await childNoteDetails(tx, child, [requireParam(c, 'id')]);
   if (!note) throw new HTTPException(404, { message: 'Note not found.' });
   return { note };
 })));
@@ -311,23 +316,27 @@ route.post(`${base}/child/bible/readings/:readingId/thoughts`, async (c) => {
   })), 201);
 });
 
-const noteInput = z.object({ title: z.string().trim().max(100), content: z.string().max(10_000) }).strict();
+const noteInput = z.object({ title: z.string().trim().max(100), content: z.string().max(10_000), details: noteDetailsInput.optional() }).strict();
 route.post(`${base}/child/notes`, async (c) => {
-  const input = noteInput.parse(await c.req.json());
+  const { details, ...input } = noteInput.parse(await c.req.json());
   return c.json(await withChildSession(token(c), async (tx, child) => {
     const [count] = await tx.select({ count: sql<number>`count(*)::int` }).from(Notes).where(eq(Notes.userId, child.id));
     if (count.count >= 500) throw new HTTPException(409, { message: 'Your notebook is full. Ask your parent for help.' });
     const [note] = await tx.insert(Notes).values({ id: `note_${crypto.randomUUID()}`, ...input, userId: child.id,
       spaceId: child.homeSpaceId, threadId: 'unorganized', createdAt: new Date(), updatedAt: new Date() }).returning(childNoteSelection);
-    return { note };
+    if (details) await writeChildNoteDetails(tx, child, note.id, details);
+    const saved = await childNoteDetails(tx, child, [note.id]);
+    return { note: saved.notes[0], catalog: saved.catalog };
   }), 201);
 });
 route.put(`${base}/child/notes/:id`, async (c) => {
-  const input = noteInput.parse(await c.req.json());
+  const { details, ...input } = noteInput.parse(await c.req.json());
   return c.json(await withChildSession(token(c), async (tx, child) => {
     const [note] = await tx.update(Notes).set({ ...input, updatedAt: new Date() }).where(and(eq(Notes.id, requireParam(c, 'id')), eq(Notes.userId, child.id))).returning(childNoteSelection);
     if (!note) throw new HTTPException(404, { message: 'Note not found.' });
-    return { note };
+    if (details) await writeChildNoteDetails(tx, child, note.id, details);
+    const saved = await childNoteDetails(tx, child, [note.id]);
+    return { note: saved.notes[0], catalog: saved.catalog };
   }));
 });
 route.delete(`${base}/child/session`, async (c) => c.json(await withChildSession(token(c), async (tx) => {

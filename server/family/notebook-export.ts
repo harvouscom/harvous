@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
-import { Notes, NoteScriptureReferences, NoteTags, NoteThreads, ScriptureMetadata, Tags, Threads } from '../db/schema';
+import { ChildNoteResources, Notes, NoteScriptureReferences, NoteTags, NoteThreads, ScriptureMetadata, Tags, Threads } from '../db/schema';
 import { parseNoteSecondaryCollections } from '../utils/note-secondary-collections';
 import { familyReadings, familyThoughts } from './bible';
 import { defaultChildPreferences } from '../../shared/child-notebook';
@@ -50,6 +50,7 @@ export async function exportChildNotebook(tx: FamilyTx, child: Child) {
     })),
     tags,
     threads,
+    resourceLinks: await tx.select().from(ChildNoteResources).where(inArray(ChildNoteResources.noteId, ownNotes)),
     tagLinks,
     threadLinks,
     scriptureReferences: [...directReferences, ...linkedReferences]

@@ -4,7 +4,7 @@ import { and, asc, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { isPgUndefinedRelation } from '../utils/pg-undefined-relation';
 import { db } from '../db/client';
-import { FamilyChildren, FamilyChildSessions, FamilySpaceApprovals, FamilyVerifications, Notes, Spaces, SpaceMemberships, SpaceNotes } from '../db/schema';
+import { FamilyChildren, FamilyChildSessions, FamilySpaceApprovals, FamilyVerifications, Notes, Spaces, SpaceMemberships, SpaceNotes, Tags, Threads } from '../db/schema';
 import { CHILD_SESSION_TTL_MS, hashSecret, hasActiveChildConsent, childSecret } from './policy';
 
 export type FamilyTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -90,6 +90,8 @@ export async function ministryMaterials(tx: FamilyTx, child: Child, item?: { spa
 export async function deleteChildData(tx: FamilyTx, child: Child) {
   const notes = await tx.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, child.id));
   await deleteNoteRecordsInTransaction(tx, child.id, notes.map((note) => note.id));
+  await tx.delete(Tags).where(eq(Tags.userId, child.id));
+  await tx.delete(Threads).where(eq(Threads.userId, child.id));
   await tx.delete(FamilyChildren).where(eq(FamilyChildren.id, child.id)); // session + approval FK cascades
   await tx.delete(Spaces).where(and(eq(Spaces.id, child.homeSpaceId), eq(Spaces.userId, child.id)));
   await tx.delete(FamilyVerifications).where(eq(FamilyVerifications.id, child.verificationId));

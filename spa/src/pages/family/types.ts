@@ -1,3 +1,4 @@
+import type { ChildNoteAttachment } from '../prototype/ChildNoteAttachmentPicker';
 import type { ChildBibleTranslation, ChildFamilyReading, ChildNotebookPreferences } from '../../../../shared/child-notebook';
 
 export type FamilyChild = {
@@ -5,7 +6,7 @@ export type FamilyChild = {
   bibleTranslations: ChildBibleTranslation[]; notebookPreferences: ChildNotebookPreferences | null;
   consentedAt: string; noticeVersion: string; revokedAt: string | null;
 };
-export type ChildNote = { id: string; title: string | null; content: string; updatedAt: string | null };
+export type ChildNote = { id: string; title: string | null; content: string; updatedAt: string | null; primaryCollection?: string | null; tagIds?: string[]; threadIds?: string[]; attachments?: ChildNoteAttachment[] };
 export type FamilyStatus = {
   available: boolean; children: FamilyChild[]; noticeVersion: string;
   verifications: { id: string; status: string }[];

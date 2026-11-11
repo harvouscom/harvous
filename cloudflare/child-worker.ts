@@ -1,3 +1,6 @@
+import imagePresets from '../shared/appearance-image-presets.json';
+const childWallpapers = new Set(imagePresets.presets.map(image => `${imagePresets.basePath}/${image.mode}/${image.file}`));
+
 /** Dedicated child origin. No adult SPA fallback, ambient cookies, tracking, or service worker. */
 interface ChildEnv { ASSETS: { fetch(request: Request): Promise<Response> }; API_ORIGIN: string; FAMILY_RETENTION_CRON_SECRET: string }
 export default {
@@ -29,7 +32,7 @@ export default {
         return result;
       } catch { return Response.json({ error: 'Your notebook is temporarily unavailable.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } }); }
     }
-    if (url.pathname !== '/kids.html' && !url.pathname.startsWith('/assets/') && !url.pathname.startsWith('/fonts/')) {
+    if (url.pathname !== '/kids.html' && !url.pathname.startsWith('/assets/') && !url.pathname.startsWith('/fonts/') && !childWallpapers.has(url.pathname)) {
       return new Response('Not found', { status: 404 });
     }
     const asset = await env.ASSETS.fetch(request);

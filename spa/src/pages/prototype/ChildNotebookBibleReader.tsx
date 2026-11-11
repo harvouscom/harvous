@@ -5,10 +5,10 @@ import { getTranslation } from '@/data/translations';
 import { canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
 import { bookChapterCount, orderedCanonBooks } from '@/utils/bible-book-chapters';
 import { bookAbbreviation } from '@/utils/scripture-osis';
-import { usePrototypeBibleChapter } from '../../hooks/queries/usePrototypeBibleChapter';
 import { ChildNotebookAvatar, useChildNotebookAppearance } from './ChildNotebookAppearance';
 import ProtoSelectMenu from './ProtoSelectMenu';
-import PrototypeReaderChapterStack from './PrototypeReaderChapterStack';
+import type { ReactNode } from 'react';
+import type { ChildBibleTranslation, ChildFamilyReading, ChildFamilyThought } from '../../../../shared/child-notebook';
 
 export type ChildBiblePassage = { book: string; chapter: number };
 export type ChildBibleMode = 'personal' | 'family';
@@ -26,7 +26,7 @@ type FamilyThought = {
   id: string;
   chapterKey: string;
   verse: number;
-  author: 'Sam' | 'Your parent';
+  author: 'child' | 'parent';
   text: string;
 };
 
@@ -35,7 +35,7 @@ const initialFamilyThoughts: FamilyThought[] = [{
   id: 'parent-question',
   chapterKey: familyChapterKey,
   verse: 1,
-  author: 'Your parent',
+  author: 'parent',
   text: 'Which words would you like to remember?'
 }];
 
@@ -46,7 +46,7 @@ const bookOptions = orderedCanonBooks().map(book => ({
   group: canonGroupForBook(book)?.testament === 'nt' ? 'New Testament' : 'Old Testament'
 }));
 
-type Props = {
+export type ChildReaderProps = {
   active: boolean;
   mode: ChildBibleMode;
   passage: ChildBiblePassage;
@@ -54,21 +54,38 @@ type Props = {
   onNavigate: (book: string, chapter: number) => void;
   onStartNote: (reference: string, translation: string) => void;
 };
+type ChapterQuery = {
+  data?: { verses: { number: number; text: string }[]; thoughts?: ChildFamilyThought[] };
+  isLoading: boolean; isError: boolean; refetch: () => unknown;
+};
+type Props = ChildReaderProps & {
+  useChapter: (book: string | undefined, chapter: number | undefined, translation: ChildBibleTranslation, readingId?: string) => ChapterQuery;
+  renderEdge: (book: string, chapter: number, translation: ChildBibleTranslation, direction: 'behind' | 'ahead', onSelect: ChildReaderProps['onNavigate']) => ReactNode;
+  live?: {
+    translations: ChildBibleTranslation[];
+    readings: ChildFamilyReading[];
+    activeReading?: ChildFamilyReading;
+    onReading: (id: string) => void;
+    saveThought: (readingId: string, verse: number, text: string) => Promise<ChildFamilyThought>;
+  };
+};
 
 /** The same chapter paper, pickers and Scripture source as the adult reader, with local sample activity. */
-export default function ChildNotebookBibleReader({ active, mode, passage, onModeChange, onNavigate, onStartNote }: Props) {
-  const { themeStyle, appearance, soundPreference, playCue } = useChildNotebookAppearance();
-  const { book, chapter } = passage;
+export default function ChildNotebookBibleReader({ active, mode, passage, onModeChange, onNavigate, onStartNote, useChapter, renderEdge, live }: Props) {
+  const { name, themeStyle, appearance, soundPreference, playCue } = useChildNotebookAppearance();
+  const familyReading = mode === 'family' ? live?.activeReading : undefined;
+  const { book, chapter } = familyReading ?? passage;
   const chapterKey = `${book}:${chapter}`;
   const isFamily = mode === 'family';
   const [personalTranslation, setPersonalTranslation] = useState<(typeof approvedTranslations)[number]['value']>('BSB');
-  const translation = isFamily ? familyTranslation : personalTranslation;
+  const available = live?.translations ?? approvedTranslations.map(option => option.value);
+  const currentPersonal = available.includes(personalTranslation) ? personalTranslation : available[0];
+  const translation = familyReading?.translation ?? (isFamily ? familyTranslation : currentPersonal);
+  const liveEmpty = Boolean(live && isFamily && !familyReading);
   const positionKey = `${mode}:${chapterKey}:${translation}`;
   const atBookmark = chapterKey === familyChapterKey;
-  const { data, isLoading, isError, refetch } = usePrototypeBibleChapter(
-    active ? book : undefined,
-    active ? chapter : undefined,
-    translation
+  const { data, isLoading, isError, refetch } = useChapter(
+    active && !liveEmpty ? book : undefined, active && !liveEmpty ? chapter : undefined, translation, familyReading?.id
   );
   const chapterOptions = useMemo(() => Array.from(
     { length: bookChapterCount(book) || 1 },
@@ -80,6 +97,8 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
   const [thoughts, setThoughts] = useState(initialFamilyThoughts);
   const [editing, setEditing] = useState(false);
   const [thoughtDraft, setThoughtDraft] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [thoughtError, setThoughtError] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const dialogRef = useRef<HTMLDialogElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -108,16 +127,17 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
     setHighlights(current => ({ ...current, [key]: !current[key] }));
   }
 
-  function saveThought() {
+  async function saveThought() {
     const text = thoughtDraft.trim();
-    if (!text || selectedVerse === null || !isFamily) return;
-    setThoughts(current => [...current, {
-      id: crypto.randomUUID(),
-      chapterKey,
-      verse: selectedVerse,
-      author: 'Sam',
-      text
-    }]);
+    if (!text || selectedVerse === null || !isFamily || posting) return;
+    if (live && familyReading) {
+      setPosting(true); setThoughtError('');
+      try { await live.saveThought(familyReading.id, selectedVerse, text); void refetch(); }
+      catch (error) { setThoughtError(error instanceof Error ? error.message : 'Could not save your thought.'); return; }
+      finally { setPosting(false); }
+    } else {
+      setThoughts(current => [...current, { id: crypto.randomUUID(), chapterKey, verse: selectedVerse, author: 'child', text }]);
+    }
     setEditing(false);
     setThoughtDraft('');
     setAnnouncement('Your thought was added to Family Bible.');
@@ -141,12 +161,17 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
       <div className="pds-reader__scroll pds-reader-stack" ref={scrollRef} onScroll={event => {
         positions.current.set(positionKey, event.currentTarget.scrollTop);
       }}>
-        <PrototypeReaderChapterStack soundPreference={soundPreference} book={book} chapter={chapter} translation={translation} onSelect={onNavigate} />
+        {!liveEmpty && (!live || !isFamily) && renderEdge(book, chapter, translation, 'behind', onNavigate)}
         <article className="pds-reader__column" aria-label={`${book} ${chapter}`}>
+          {liveEmpty ? <p className="pds-caption">Chapters your parent shares will show up here.</p> : <>
           <div className="pds-reader__chapter-heading">
             <h1 className="pds-reader-chapter-title pds-reader__chapter-picker">
+              {familyReading && live ? <ProtoSelectMenu label="Shared reading" value={familyReading.id}
+                options={live.readings.map(reading => ({ value: reading.id, label: `${reading.book} ${reading.chapter}` }))}
+                className="pds-reader__picker-trigger" menuStyle={themeStyle} soundPreference={soundPreference} onChange={live.onReading} /> : <>
               <ProtoSelectMenu label="Book" value={book} options={bookOptions} groupsAsTabs className="pds-reader__picker-trigger" menuClassName="pds-reader__book-menu" menuWidth={292} menuStyle={themeStyle} soundPreference={soundPreference} onChange={nextBook => onNavigate(nextBook, 1)} />
               <ProtoSelectMenu label="Chapter" value={chapter} options={chapterOptions} className="pds-reader__picker-trigger" menuClassName="pds-reader__chapter-menu" menuWidth={232} menuStyle={themeStyle} soundPreference={soundPreference} onChange={nextChapter => onNavigate(book, nextChapter)} />
+              </>}
             </h1>
             <div className="pds-reader__chapter-controls">
               {isFamily ? (
@@ -156,8 +181,8 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
               ) : (
                 <ProtoSelectMenu
                   label="Translation"
-                  value={personalTranslation}
-                  options={approvedTranslations}
+                  value={currentPersonal}
+                  options={approvedTranslations.filter(option => available.includes(option.value))}
                   className="pds-reader__trans-trigger pds-reader__trans-trigger--showing scripture-pill-chrome__trans-chip"
                   menuWidth={248}
                   menuStyle={themeStyle} soundPreference={soundPreference}
@@ -172,9 +197,9 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
               <Icon name="bookmark" size={17} />
               <div>
                 <strong className="pds-list-title">Read together</strong>
-                <span className="pds-list-preview">Your parent picked Psalm 23 · You and your parent</span>
+                <span className="pds-list-preview">{familyReading ? `${book} ${chapter}` : 'Your parent picked Psalm 23'} · You and your parent</span>
               </div>
-              {!atBookmark && (
+              {!live && !atBookmark && (
                 <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => onNavigate(familyBibleBookmark.book, familyBibleBookmark.chapter)}>
                   <Icon name="book-open" size={13} /> Open passage
                 </button>
@@ -195,9 +220,11 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
               {data.verses.map(verse => {
                 const selected = verse.number === selectedVerse;
                 const ownHighlight = Boolean(highlights[`${positionKey}:${verse.number}`]);
-                const parentHighlight = isFamily && atBookmark && verse.number === 1;
-                const verseThoughts = isFamily ? thoughts.filter(thought => thought.chapterKey === chapterKey && thought.verse === verse.number) : [];
-                const showThoughts = selected || parentHighlight;
+                const parentHighlight = !live && isFamily && atBookmark && verse.number === 1;
+                const verseThoughts = isFamily ? live
+                  ? (data.thoughts ?? []).filter(thought => thought.verse === verse.number).map(thought => ({ ...thought, author: thought.role }))
+                  : thoughts.filter(thought => thought.chapterKey === chapterKey && thought.verse === verse.number) : [];
+                const showThoughts = selected || parentHighlight || (live && verseThoughts.some(thought => thought.author === 'parent'));
                 return (
                   <div className="pds-reader__block" key={verse.number}>
                     <p className="pds-reader-text">
@@ -215,13 +242,13 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                       <ul className="pds-kids-bible__verse-extra pds-kids-bible__thoughts" aria-label={`Family thoughts on verse ${verse.number}`}>
                         {verseThoughts.map(thought => (
                           <li className="pds-kids-bible__thought" key={thought.id}>
-                            {thought.author === 'Sam' ? <ChildNotebookAvatar small /> : (
+                            {thought.author === 'child' ? <ChildNotebookAvatar small /> : (
                               <span className="pds-kids-bible__parent-avatar" aria-hidden="true">
                                 <Icon name="user" size={11} />
                               </span>
                             )}
                             <div>
-                              <strong className="pds-caption">{thought.author}</strong>
+                              <strong className="pds-caption">{thought.author === 'child' ? name : 'Your parent'}</strong>
                               <p className="pds-body">{thought.text}</p>
                             </div>
                           </li>
@@ -235,11 +262,11 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                     )}
                     {selected && (
                       <div className="pds-kids-bible__verse-extra pds-kids-review__actions" role="group" aria-label={`Actions for ${reference}`}>
-                        <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => toggleHighlight(verse.number)}>
+                        {(!live || !isFamily) && <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => toggleHighlight(verse.number)}>
                           <Icon name="highlighter" size={14} /> {ownHighlight ? 'Remove my highlight' : isFamily ? 'Highlight for family' : 'Highlight'}
-                        </button>
+                        </button>}
                         <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => {
-                          if (isFamily) { setThoughtDraft(''); setEditing(true); }
+                          if (isFamily) { setThoughtDraft(''); setThoughtError(''); setEditing(true); }
                           else onStartNote(reference, translation);
                         }}>
                           <Icon name="pen-to-square" size={14} /> {isFamily ? 'Add to Family Bible' : 'Write a note'}
@@ -251,21 +278,24 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
               })}
             </div>
           )}
+          {live && data && <p className="pds-caption">{getTranslation(translation)?.copyright}</p>}
+          </>}
         </article>
-        <PrototypeReaderChapterStack soundPreference={soundPreference} book={book} chapter={chapter} translation={translation} direction="ahead" onSelect={onNavigate} />
+        {!liveEmpty && (!live || !isFamily) && renderEdge(book, chapter, translation, 'ahead', onNavigate)}
       </div>
       <span className="pds-kids-preview__sr" role="status">{announcement}</span>
       {createPortal(
         <dialog ref={dialogRef} className="pds-kids-privacy-modal pds-kids-bible__dialog proto-theme" style={themeStyle} aria-labelledby="family-bible-thought-title" onClose={() => setEditing(false)}>
-          <form onSubmit={event => { event.preventDefault(); saveThought(); }}>
+          <form onSubmit={event => { event.preventDefault(); void saveThought(); }}>
             <h2 id="family-bible-thought-title" className="pds-title">Add to Family Bible</h2>
             <p className="pds-caption">{reference} · You and your parent can see this.</p>
             <label className="pds-caption">Your thought
               <textarea className="proto-settings-field__input" value={thoughtDraft} onChange={event => setThoughtDraft(event.target.value)} maxLength={500} rows={4} autoFocus />
             </label>
+            {thoughtError && <p role="alert">{thoughtError}</p>}
             <div className="pds-kids-review__actions">
               <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setEditing(false)}>Cancel</button>
-              <button type="submit" className="proto-settings-btn" disabled={!thoughtDraft.trim()}><Icon name="check" size={14} /> Add thought</button>
+              <button type="submit" className="proto-settings-btn" disabled={posting || !thoughtDraft.trim()}><Icon name="check" size={14} /> Add thought</button>
             </div>
           </form>
         </dialog>,

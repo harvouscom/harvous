@@ -1,17 +1,17 @@
 // Development fixture loaded only from the isolated entry's dev-only preview branch.
-import { defaultChildPreferences, type ChildFamilyThought, type ChildNotebookPreferences } from '../../../../shared/child-notebook';
+import { defaultChildPreferences, type ChildBibleTranslation, type ChildFamilyThought, type ChildNotebookPreferences } from '../../../../shared/child-notebook';
 import type { ChildSearchResult, ChildSearchScope } from './types';
+import { initialNotes, initialCatalog } from '../prototype/ChildNotebookView';
 import type { Notebook } from './child-main';
-import verses from './child-preview-psalm.json';
+import chapters from './child-preview-chapters.json';
+const verses = chapters.BSB['Psalms:23'];
 
 const reading = { id: 'preview-psalm', book: 'Psalms', chapter: 23, translation: 'BSB' as const };
 const thoughts: ChildFamilyThought[] = [{ id: 'preview-thought', verse: 1, role: 'parent', text: 'Which words would you like to remember?' }];
 const notebook: Notebook = {
-  displayName: 'Sam', preferences: { ...defaultChildPreferences }, translations: ['BSB'], readings: [reading],
-  notes: [
-    { id: 'preview-1', title: 'What I want to remember', content: 'I want to talk with my family about what we read together today.', updatedAt: null },
-    { id: 'preview-2', title: 'A question for Sunday', content: 'What did you notice in this week’s reading?', updatedAt: null }
-  ],
+  displayName: 'Sam', preferences: { ...defaultChildPreferences }, translations: ['BSB', 'NIV', 'NLT'], readings: [reading],
+  catalog: structuredClone(initialCatalog),
+  notes: initialNotes.map(({ date, ...note }) => ({ ...note, updatedAt: date })),
   materials: [{ id: 'preview-reading', spaceId: 'preview-ministry', title: 'This week’s reading', content: 'What’s one kind thing you could do for someone this week?', spaceTitle: 'Kids ministry', updatedAt: null }]
 };
 export function previewRequest(path: string, method: string, body: unknown): unknown {
@@ -38,9 +38,11 @@ export function previewRequest(path: string, method: string, body: unknown): unk
     return { results: all.slice(offset, offset + 20), total: all.length };
   }
   if (path === 'bible/chapter') {
-    const passage = body as { book: string; chapter: number };
-    if (passage.book !== 'Psalms' || passage.chapter !== 23) throw new Error('Psalm 23 is available in this design preview.');
-    return { verses };
+    const { book, chapter, translation } = body as { book: string; chapter: number; translation: ChildBibleTranslation };
+    const available: Record<string, { verse: number; text: string }[]> = chapters[translation];
+    const passage = available?.[`${book}:${chapter}`];
+    if (!passage?.length) throw new Error('John 1, John 2, Luke 24, and Psalm 23 are available in this design preview.');
+    return { verses: passage };
   }
   if (path === `bible/readings/${reading.id}`) return { ...reading, verses, thoughts: [...thoughts] };
   if (path === `bible/readings/${reading.id}/thoughts`) {
@@ -51,9 +53,33 @@ export function previewRequest(path: string, method: string, body: unknown): unk
   if (path.startsWith('materials/')) return { material: notebook.materials.find(item => path === `materials/${item.spaceId}/${item.id}`) };
   if (path.startsWith('notes/') && method === 'GET') return { note: notebook.notes.find(note => note.id === path.slice(6)) };
   if (path === 'notes' || path.startsWith('notes/')) {
-    const note = { ...(body as { title: string; content: string }), id: path === 'notes' ? `preview-${crypto.randomUUID()}` : path.slice(6), updatedAt: new Date().toISOString() };
+    const input = body as { title: string; content: string; details?: {
+      folder: string | null; tags: string[]; threads: string[];
+      scripture: { book: string; chapter: number; verse: number; translation: string }[];
+      resources: { spaceId: string; noteId: string }[];
+    } };
+    const details = input.details;
+    const catalog = notebook.catalog!;
+    const tagIds = details?.tags.map(name => {
+      const tag = catalog.tags.find(item => item.name === name) ?? { id: crypto.randomUUID(), name };
+      if (!catalog.tags.includes(tag)) catalog.tags.push(tag);
+      return tag.id;
+    });
+    const threadIds = details?.threads.map(title => {
+      const thread = catalog.threads.find(item => item.title === title) ?? { id: crypto.randomUUID(), title };
+      if (!catalog.threads.includes(thread)) catalog.threads.push(thread);
+      return thread.id;
+    });
+    if (details?.folder && !catalog.folders.includes(details.folder)) catalog.folders.push(details.folder);
+    const note = { title: input.title, content: input.content, primaryCollection: details?.folder, tagIds, threadIds,
+      attachments: details && [
+        ...details.scripture.map(item => ({ ...item, kind: 'scripture' as const, reference: `${item.book} ${item.chapter}:${item.verse}` })),
+        ...details.resources.map(item => ({ kind: 'resource' as const, resourceId: JSON.stringify([item.spaceId, item.noteId]) }))
+      ],
+      id: path === 'notes' ? `preview-${crypto.randomUUID()}` : path.slice(6), updatedAt: 'Today'
+    };
     notebook.notes = [note, ...notebook.notes.filter(item => item.id !== note.id)];
-    return { note };
+    return { note, catalog: structuredClone(catalog) };
   }
   throw new Error('This action is unavailable in the design preview.');
 }
