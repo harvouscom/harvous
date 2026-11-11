@@ -27,6 +27,7 @@ const ROOT = join(__dirname, '../../..');
 
 // Map our translation IDs to Bolls.life translation codes
 // KJV excluded — bolls serves Strong's-numbered KJV; our KJV is from a clean public-domain source.
+const BULK_CODES = { ERV: 'ERV', CEV: 'CEVD', NLV: 'NLV' };
 const BOLLS_CODES = {
   ESV:  'ESV',    // English Standard Version (2016)
   NIV:  'NIV2011',// New International Version (2011)
@@ -94,11 +95,46 @@ async function fetchJson(url) {
   throw new Error(`Failed to fetch ${url} after 3 attempts`);
 }
 
+async function downloadChildBible(translationId, code) {
+  const canon = JSON.parse(readFileSync(join(ROOT, 'src/data/bible-chapters.json'), 'utf-8'));
+  const chapterNames = new Map(canon.map(({ bookOrder, chapter, book }) => [`${bookOrder}:${chapter}`, book]));
+  const rows = await fetchJson(`https://bolls.life/static/translations/${code}.json`);
+  const chapters = new Set();
+  const references = new Set();
+  const verses = [];
+  for (const row of rows) {
+    // Child Notebook uses the existing Genesis–Revelation book scope. CEVD has additional books.
+    if (row.book > USFM_BOOKS.length) continue;
+    const chapterKey = `${row.book}:${row.chapter}`;
+    const book = chapterNames.get(chapterKey);
+    const key = `${chapterKey}:${row.verse}`;
+    const text = stripHtml(row.text);
+    if (!book || !Number.isInteger(row.verse) || row.verse < 1 || references.has(key)) {
+      throw new Error(`Invalid ${translationId} verse at ${key}.`);
+    }
+    references.add(key);
+    // ERV marks intentionally omitted verses with a footnote alone. Keep the gap in numbering.
+    if (!text && /^<sup>\[\d+\]<\/sup>$/.test(row.text.trim())) continue;
+    if (!text) throw new Error(`Empty ${translationId} verse at ${key}.`);
+    chapters.add(chapterKey);
+    verses.push({ book, chapter: row.chapter, verse: row.verse, text });
+  }
+  if (chapters.size !== chapterNames.size) {
+    throw new Error(`${translationId} is missing ${chapterNames.size - chapters.size} chapters.`);
+  }
+  const directory = process.env.HARVOUS_BIBLE_DATA_DIR || __dirname;
+  mkdirSync(directory, { recursive: true });
+  const outPath = join(directory, `${translationId}.json`);
+  writeFileSync(outPath, JSON.stringify(verses, null, 2));
+  console.log(`Saved ${verses.length} verses in ${chapters.size} chapters to ${outPath}.`);
+}
+
 async function main() {
   const translationId = (process.argv[2] || '').trim().toUpperCase();
+  if (Object.hasOwn(BULK_CODES, translationId)) return downloadChildBible(translationId, BULK_CODES[translationId]);
   if (!translationId || !BOLLS_CODES[translationId]) {
     console.error(`Usage: node _download_bolls.mjs <TRANSLATION_ID>`);
-    console.error(`Available: ${Object.keys(BOLLS_CODES).join(', ')}`);
+    console.error(`Available: ${Object.keys({ ...BOLLS_CODES, ...BULK_CODES }).join(', ')}`);
     process.exit(1);
   }
 

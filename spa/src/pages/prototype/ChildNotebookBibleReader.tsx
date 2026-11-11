@@ -10,7 +10,7 @@ import { ChildNotebookAvatar, useChildNotebookAppearance } from './ChildNotebook
 import { ChildPrivacyPolicyLink } from '../family/ChildPrivacyNotice';
 import ProtoSelectMenu from './ProtoSelectMenu';
 import type { ReactNode } from 'react';
-import type { ChildBibleTranslation, ChildFamilyReading, ChildFamilyThought } from '../../../../shared/child-notebook';
+import { legacyChildBibleTranslations, type ChildBibleTranslation, type ChildFamilyReading, type ChildFamilyThought } from '../../../../shared/child-notebook';
 
 export type ChildBiblePassage = { book: string; chapter: number };
 export type ChildBibleMode = 'personal' | 'family';
@@ -18,11 +18,11 @@ export type ChildBibleMode = 'personal' | 'family';
 export const familyBibleBookmark = { book: 'Psalms', chapter: 23 };
 const familyTranslation = 'BSB';
 // Sample preferences for the preview. Real approvals belong to the parent account.
-export const approvedTranslations = (['BSB', 'NIV', 'NLT'] as const).map(id => ({
-  value: id,
-  label: getTranslation(id)?.name ?? id,
-  triggerLabel: id
-}));
+function translationOptions(translations: readonly ChildBibleTranslation[]) {
+  return translations.map(id => ({ value: id, label: getTranslation(id)?.name ?? id, triggerLabel: id }));
+}
+
+export const approvedTranslations = translationOptions(legacyChildBibleTranslations);
 
 type FamilyThought = {
   id: string;
@@ -80,7 +80,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
   const { book, chapter } = familyReading ?? passage;
   const chapterKey = `${book}:${chapter}`;
   const isFamily = mode === 'family';
-  const [personalTranslation, setPersonalTranslation] = useState<(typeof approvedTranslations)[number]['value']>('BSB');
+  const [personalTranslation, setPersonalTranslation] = useState<ChildBibleTranslation>(() => live?.translations[0] ?? familyTranslation);
   const available = live?.translations ?? approvedTranslations.map(option => option.value);
   const currentPersonal = available.includes(personalTranslation) ? personalTranslation : available[0];
   const translation = familyReading?.translation ?? (isFamily ? familyTranslation : currentPersonal);
@@ -170,7 +170,10 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
           <div className="pds-reader__chapter-heading">
             <h1 className="pds-reader-chapter-title pds-reader__chapter-picker">
               {familyReading && live ? <ProtoSelectMenu label="Shared reading" value={familyReading.id}
-                options={live.readings.map(reading => ({ value: reading.id, label: `${reading.book} ${reading.chapter}` }))}
+                options={live.readings.map(reading => ({
+                  value: reading.id, label: `${reading.book} ${reading.chapter} · ${reading.translation}`,
+                  triggerLabel: `${reading.book} ${reading.chapter}`
+                }))}
                 className="pds-reader__picker-trigger" menuStyle={themeStyle} soundPreference={soundPreference} onChange={live.onReading} /> : <>
               <ProtoSelectMenu label="Book" value={book} options={bookOptions} groupsAsTabs className="pds-reader__picker-trigger" menuClassName="pds-reader__book-menu" menuWidth={292} menuStyle={themeStyle} soundPreference={soundPreference} onChange={nextBook => onNavigate(nextBook, 1)} />
               <ProtoSelectMenu label="Chapter" value={chapter} options={chapterOptions} className="pds-reader__picker-trigger" menuClassName="pds-reader__chapter-menu" menuWidth={232} menuStyle={themeStyle} soundPreference={soundPreference} onChange={nextChapter => onNavigate(book, nextChapter)} />
@@ -185,7 +188,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                 <ProtoSelectMenu
                   label="Translation"
                   value={currentPersonal}
-                  options={approvedTranslations.filter(option => available.includes(option.value))}
+                  options={translationOptions(available)}
                   className="pds-reader__trans-trigger pds-reader__trans-trigger--showing scripture-pill-chrome__trans-chip"
                   menuWidth={248}
                   menuStyle={themeStyle} soundPreference={soundPreference}

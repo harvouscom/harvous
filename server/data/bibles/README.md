@@ -7,6 +7,7 @@ Harvous stores full-Bible text as JSON arrays of `{ "book", "chapter", "verse", 
 | Translation | Source | Notes |
 |-------------|--------|-------|
 | **KJV** | Public-domain text (committed) | Clean, no Strong's numbers. Do **not** re-download from Bolls — Bolls serves the Strong's-numbered KJV. |
+| **ERV, CEV, NLV** | Child Notebook editions from Bolls bulk JSON. CEV uses the 66-book portion of CEVD. | `npm run bible:download:bolls -- ERV` (substitute CEV or NLV) |
 | **ESV, NIV, NLT, NKJV, BSB, NET** | Downloaded from [Bolls.life](https://bolls.life) API | `npm run bible:download:bolls -- ESV` (no API key required) |
 | **NASB 1995, CSB, AMP, MSG** | Downloaded from [Bolls.life](https://bolls.life) API | `npm run bible:download:bolls -- NASB` (no API key required) |
 | **NET** (alt) | [labs.bible.org](https://labs.bible.org) | `node server/data/bibles/_download_net.mjs` (NET only) |
@@ -140,3 +141,20 @@ The full list goes to `raw/red-letter-report.txt`. Hand corrections go in `src/d
    ```
 
 2. Ensure the translation id exists in `src/data/translations.ts` (registry + copyright strings).
+
+
+### Child Notebook import
+
+Set `HARVOUS_BIBLE_DATA_DIR` to a directory outside the repository when downloading the child editions. Use the same directory when seeding, and verify the target database before running the seed. Each edition must contain all 1,189 chapters in the Child Notebook reader.
+
+```sh
+export HARVOUS_BIBLE_DATA_DIR="$(mktemp -d)"
+for edition in ERV CEV NLV; do
+  npm run bible:download:bolls -- "$edition" || break
+done
+
+# Run after checking the database target and confirming all three downloads passed.
+for edition in ERV CEV NLV; do
+  npx tsx server/scripts/seed-bible-verses.ts "$edition" || break
+done
+```

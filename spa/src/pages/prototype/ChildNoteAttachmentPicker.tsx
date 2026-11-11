@@ -64,7 +64,7 @@ export default function ChildNoteAttachmentPicker({ kind, resource, resources = 
               {data?.verses.map(item => <option key={item.number}>{item.number}</option>)}
             </select></label>
             <label>Translation<select className="proto-settings-field__input" value={translation} onChange={event => setPassage(current => ({ ...current, translation: event.target.value }))}>
-              {approvedTranslations.filter(option => translations.includes(option.value)).map(option => <option key={option.value} value={option.value}>{option.triggerLabel}</option>)}
+              {translations.map(translation => <option key={translation} value={translation}>{translation}</option>)}
             </select></label>
           </div>}
           {isLoading && <ProtoSpaceLoading label="Opening Scripture" />}

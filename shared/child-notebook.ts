@@ -10,8 +10,9 @@ export const coverSymbols = ['initial', 'cross', 'leaf', 'sun', 'star', 'book-op
 export const coverPatterns = ['plain', 'dots', 'stripes', 'gingham'] as const;
 export const childSchemes = ['system', 'light', 'dark'] as const;
 export const childTextSizes = ['standard', 'bigger'] as const;
-export const childBibleTranslations = ['BSB', 'NIV', 'NLT'] as const;
-export type ChildBibleTranslation = typeof childBibleTranslations[number];
+export const childBibleTranslations = ['ERV', 'CEV', 'NLV'] as const;
+export const legacyChildBibleTranslations = ['BSB', 'NIV', 'NLT'] as const;
+export type ChildBibleTranslation = typeof childBibleTranslations[number] | typeof legacyChildBibleTranslations[number];
 
 export const CHILD_NOTICE_VERSION = '2026-11-11.2';
 
@@ -34,6 +35,10 @@ export const defaultChildPreferences: ChildNotebookPreferences = {
 
 export type ChildPassage = { book: string; chapter: number; translation: ChildBibleTranslation };
 export type ChildFamilyReading = ChildPassage & { id: string };
+
+export function childBibleTranslationChoices(approved: ChildBibleTranslation[], readings: ChildFamilyReading[]) {
+  return [...new Set([...childBibleTranslations, ...approved, ...readings.map(reading => reading.translation)])];
+}
 export type ChildFamilyThought = { id: string; verse: number; role: 'parent' | 'child'; text: string };
 export type ChildBibleChapter = { verses: { verse: number; text: string }[] };
 export type ChildFamilyChapter = ChildFamilyReading & ChildBibleChapter & { thoughts: ChildFamilyThought[] };

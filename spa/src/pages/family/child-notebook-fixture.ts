@@ -39,7 +39,7 @@ export function previewRequest(path: string, method: string, body: unknown): unk
   }
   if (path === 'bible/chapter') {
     const { book, chapter, translation } = body as { book: string; chapter: number; translation: ChildBibleTranslation };
-    const available: Record<string, { verse: number; text: string }[]> = chapters[translation];
+    const available = (chapters as Partial<Record<ChildBibleTranslation, Record<string, { verse: number; text: string }[]>>>)[translation];
     const passage = available?.[`${book}:${chapter}`];
     if (!passage?.length) throw new Error('John 1, John 2, Luke 24, and Psalm 23 are available in this design preview.');
     return { verses: passage };

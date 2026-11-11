@@ -2,6 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import { createHmac } from 'node:crypto';
 import type { SQL } from 'drizzle-orm';
+import { CHILD_NOTICE_VERSION } from '../policy';
 const database = vi.hoisted(() => ({ update: vi.fn(), transaction: vi.fn() }));
 vi.mock('../../db/client', () => ({ db: database }));
 vi.mock('../../middleware/auth', () => ({
@@ -54,6 +55,30 @@ describe('family route boundaries', () => {
   it('does not accept child details while enrollment is disabled', async () => {
     const response = await app.request('/api/child-accounts/children', { method: 'POST', headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' }, body: '{}' });
     expect(response.status).toBe(503); expect(database.transaction).not.toHaveBeenCalled();
+  });
+  it.each([
+    { requested: ['ERV', 'CEV', 'NLV'], status: 200 },
+    { requested: ['BSB', 'ERV', 'CEV', 'NLV'], status: 200 },
+    { requested: ['NIV', 'ERV'], status: 400 },
+    { requested: ['NIV', 'ERV'], status: 200, shared: [{ translation: 'NIV' }] }
+  ])('applies child translation choices $requested to an existing notebook', async ({ requested, status, shared = [] }) => {
+    const child = { id: 'child-a', status: 'active', noticeVersion: CHILD_NOTICE_VERSION, consentedAt: new Date(), revokedAt: null, bibleTranslations: ['BSB'] };
+    const select = vi.fn(() => ({ from: () => ({ where: () => ({
+      for: async () => [child], orderBy: async () => shared
+    }) }) }));
+    const set = vi.fn(() => ({ where: async () => undefined }));
+    database.transaction.mockImplementationOnce(work => work({ select, update: () => ({ set }) }));
+    const response = await app.request('/api/child-accounts/children/child-a/bible/translations', {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ translations: requested })
+    });
+    expect(response.status).toBe(status);
+    if (status === 200) {
+      expect(set).toHaveBeenCalledWith({ bibleTranslations: requested });
+    } else {
+      expect(set).not.toHaveBeenCalled();
+    }
   });
   it('keeps the original withdrawal date when a parent retries', async () => {
     const revokedAt = new Date('2026-01-01T00:00:00Z');

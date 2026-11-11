@@ -20,7 +20,7 @@ import { sponsorFeatureKeys } from '../utils/family-entitlements';
 import { CHILD_CAPABILITIES, CHILD_NOTICE_VERSION, HANDOFF_TTL_MS, VERIFICATION_TTL_MS, childSecret, emailDigest, hashSecret, hasActiveChildConsent, kwsWebhookSignatureResult } from '../family/policy';
 import { familyEnrollmentConfig, kwsConfig, requireFamilyEnrollment, sendKwsVerification } from '../family/kws';
 import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, withChildSession, type Child } from '../family/service';
-import { childSchemes, childTextSizes, coverColors, coverPatterns, coverSymbols, defaultChildPreferences } from '../../shared/child-notebook';
+import { childBibleTranslationChoices, childBibleTranslations, childSchemes, childTextSizes, legacyChildBibleTranslations, coverColors, coverPatterns, coverSymbols, defaultChildPreferences } from '../../shared/child-notebook';
 import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput } from '../family/bible';
 import { searchChildNotebook } from '../family/notebook-search';
 
@@ -209,7 +209,7 @@ route.post(`${base}/children`, requireAuth, async (c) => {
     await tx.insert(Spaces).values({ id: homeSpaceId, title: 'My Home', userId: id, type: 'personal', createdAt: new Date() });
     const [created] = await tx.insert(FamilyChildren).values({ id, homeSpaceId, parentUserId: parentId(c), displayName: input.displayName,
       ageBand: 'under-13', verificationId: verification.id, noticeVersion: input.noticeVersion, consentedAt: new Date(),
-      status: 'active', createdAt: new Date(), lastActiveAt: new Date() }).returning();
+      status: 'active', createdAt: new Date(), lastActiveAt: new Date(), bibleTranslations: [childBibleTranslations[0]] }).returning();
     return created;
   });
   return c.json({ child }, 201);
@@ -278,12 +278,16 @@ route.put(`${base}/children/:id/ministries`, requireAuth, async (c) => {
   return c.json({ success: true });
 });
 
-const translationsInput = z.object({ translations: z.array(translationInput).min(1).max(3) }).strict();
+const translationsInput = z.object({ translations: z.array(translationInput).min(1).max(childBibleTranslations.length + legacyChildBibleTranslations.length) }).strict();
 route.put(`${base}/children/:id/bible/translations`, requireAuth, async (c) => {
   const { translations } = translationsInput.parse(await c.req.json());
   return c.json(await db.transaction(async (tx) => {
     const child = requireActiveConsent(await ownedChild(tx, parentId(c), requireParam(c, 'id')));
     const approved = [...new Set(translations)];
+    const available = childBibleTranslationChoices(child.bibleTranslations, await familyReadings(tx, child));
+    if (approved.some(translation => !available.includes(translation))) {
+      throw new HTTPException(400, { message: 'Choose from the translations available for this notebook.' });
+    }
     await tx.update(FamilyChildren).set({ bibleTranslations: approved }).where(eq(FamilyChildren.id, child.id));
     return { translations: approved };
   }));

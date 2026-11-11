@@ -91,7 +91,7 @@ function SessionNotebook({ notebook, privacyUrl, request, onEnd, onRefresh, revi
     catalog: notebook.catalog,
     days: isDesignPreview ? notebookDays : undefined,
     resources: notebook.materials.map(item => ({ id: materialKey(item.spaceId, item.id), title: item.title || 'Reading', source: item.spaceTitle, question: item.content })),
-    readingLabel: notebook.readings[0] ? `${notebook.readings[0].book === 'Psalms' ? 'Psalm' : notebook.readings[0].book} ${notebook.readings[0].chapter}` : undefined
+    readingLabel: reading ? `${reading.book === 'Psalms' ? 'Psalm' : reading.book} ${reading.chapter} · ${reading.translation}` : undefined
   };
   function useChildChapter(book: string | undefined, chapter: number | undefined, translation: ChildBibleTranslation, sharedId?: string) {
     const [refresh, setRefresh] = useState(0);

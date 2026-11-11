@@ -45,7 +45,7 @@ interface VerseEntry {
   text: string;
 }
 
-const BIBLES_DIR = resolve(__dirname, '../data/bibles');
+const BIBLES_DIR = process.env.HARVOUS_BIBLE_DATA_DIR || resolve(__dirname, '../data/bibles');
 
 // Common book name variants → canonical name
 const BOOK_NAME_MAP: Record<string, string> = {

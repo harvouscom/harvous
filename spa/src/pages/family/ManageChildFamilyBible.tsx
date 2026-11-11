@@ -6,7 +6,7 @@ import ProtoConfirmDialog from '../prototype/ProtoConfirmDialog';
 import ProtoSelectMenu from '../prototype/ProtoSelectMenu';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsToggleRow } from '../prototype/settings/SettingsShell';
 import { api } from '../../lib/api';
-import { childBibleTranslations, type ChildFamilyChapter, type ChildFamilyReading, type ChildFamilyThought, type ChildPassage } from '../../../../shared/child-notebook';
+import { childBibleTranslationChoices, type ChildFamilyChapter, type ChildFamilyReading, type ChildFamilyThought, type ChildPassage } from '../../../../shared/child-notebook';
 import type { ChildDetail } from './types';
 import ChildBiblePassagePicker from './ChildBiblePassagePicker';
 import { ChildFamilyThoughtForm, ChildFamilyThoughts } from './ChildFamilyThoughts';
@@ -21,6 +21,7 @@ export default function ManageChildFamilyBible({ detail, busy, perform }: Props)
   const { child, readings } = detail;
   const base = `/api/child-accounts/children/${encodeURIComponent(child.id)}/bible`;
   const translations = child.bibleTranslations;
+  const translationChoices = childBibleTranslationChoices(translations, readings);
   const [passage, setPassage] = useState<ChildPassage>({ book: 'Psalms', chapter: 23, translation: translations[0] });
   const [opened, setOpened] = useState<ChildFamilyChapter | null>(null);
   const [verse, setVerse] = useState(1);
@@ -48,7 +49,7 @@ export default function ManageChildFamilyBible({ detail, busy, perform }: Props)
       <SettingsRow label="Approved translations" leadingIcon="book-open" expanded={translationsOpen}
         sublabel={translations.map(translation => getTranslation(translation)?.name ?? translation).join(', ')}
         onClick={() => setTranslationsOpen(!translationsOpen)} />
-      {translationsOpen && childBibleTranslations.map(translation => (
+      {translationsOpen && translationChoices.map(translation => (
         <SettingsToggleRow key={translation} label={getTranslation(translation)?.name ?? translation}
           checked={translations.includes(translation)}
           disabled={disabled || !active || (translations.length === 1 && translations.includes(translation))}
