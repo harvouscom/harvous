@@ -4,7 +4,19 @@ Production enrollment is off. Use fictional child accounts in [Harvous Staging](
 
 ## Family-selected Bible translations
 
-Today, Harvous offers BSB, NIV, and NLT for child notebooks. BSB starts enabled, and a parent can turn on any of the three for a specific child. All three opened Psalm 23 in both My Bible and Family Bible during the staging rehearsal.
+The staging prototype offers BSB, NIV, and NLT. BSB starts enabled, and a parent can turn on any of the three for a specific child. All three opened Psalm 23 in both My Bible and Family Bible during the staging rehearsal.
+
+Use a dedicated early-reader catalog for Child Notebooks. Offer several translations so a family can match what their elementary ministry uses. Suggested choices:
+
+- [New International Reader’s Version (NIrV)](https://www.zondervan.com/bibles/nirv-bibles/) is written around a third-grade reading level and used in [Orange’s kids curriculum](https://thinkorange.com/blog/announced-weekly-parent-hellobaby-updates-that-serve-your-strategy/). It is the suggested default.
+- [International Children’s Bible (ICB)](https://arc.dbs.org/data/scripture/ENGICB/) is written specifically for children at around a third-grade reading level.
+- [Easy-to-Read Version (ERV)](https://www.bibleleague.org/bible-translation/) uses short sentences and everyday vocabulary at around a third-grade reading level.
+- [Contemporary English Version (CEV)](https://cev.bible/about/) uses plain English designed to read well aloud.
+- [New Life Version (NLV)](https://www.barbourbooks.com/bibles/new-life-version/) uses a limited vocabulary and appears in Barbour’s children’s Bibles.
+
+The parent chooses what is available in each notebook. The child chooses one approved translation at a time in My Bible or Family Bible.
+
+The existing download and import pipeline can ingest another edition from Bolls when its catalog provides usable text. The [Bolls catalog](https://bolls.life/static/bolls/app/views/languages.json) lists ERV, CEV as CEVD (the edition with Apocrypha), and NLV. ERV and CEVD returned distinct verse text in Genesis 1, Psalm 23, and John 3. Verify CEVD verse numbering and book scope before importing. NLV is listed, but the endpoint rate-limited the sample check. NIrV is listed but returned the same placeholder for every verse sampled. ICB was absent from the catalog. Source NIrV and ICB separately if included, and use the same Harvous verse storage and reader.
 
 - [ ] Let a family build its approved translation list from the wider catalog of translations Harvous can serve in child mode. Add an **Add translation** action in **Family Bible → Approved translations** using the existing Harvous translation picker.
 - [ ] Decide how a family’s approved list applies when it has more than one child notebook. Preserve the existing per-notebook approvals during rollout and make the scope of a change clear in Settings.
