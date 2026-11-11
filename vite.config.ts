@@ -126,22 +126,22 @@ function fullReloadOnHookModuleEdit(): Plugin {
 // Vite config for the SPA build (Capacitor + web client)
 // The Hono server (server/dev.ts on port 3001) handles all API routes.
 // This builds spa/ → dist-spa/ which Capacitor bundles into the native app.
-export default defineConfig({
-  plugins: [react(), fullReloadOnHookModuleEdit(), emitBuildId(), ocrAssets()],
+export default defineConfig(({ mode }) => ({
+  plugins: [react(), fullReloadOnHookModuleEdit(), emitBuildId(), ...(mode === 'child' ? [] : [ocrAssets()])],
   root: 'spa',
   // Serve public assets (fonts, icons, manifest, sw.js) from the project root's public/
   publicDir: path.resolve(__dirname, 'public'),
   // Load .env from the project root (not spa/) where all env vars live
-  envDir: path.resolve(__dirname),
+  envDir: mode === 'child' ? false : path.resolve(__dirname),
   // VITE_* for SPA config; PUBLIC_* keeps PostHog (and legacy Astro-style) keys available to the client
   envPrefix: ['VITE_', 'PUBLIC_'],
   build: {
-    outDir: '../dist-spa',
+    outDir: mode === 'child' ? '../dist-kids' : '../dist-spa',
     emptyOutDir: true,
-    sourcemap: 'hidden',
+    sourcemap: mode === 'child' ? false : 'hidden',
     chunkSizeWarningLimit: 2500,
     rollupOptions: {
-      input: { main: path.resolve(__dirname, "spa/index.html"), kids: path.resolve(__dirname, "spa/kids.html") },
+      input: mode === 'child' ? path.resolve(__dirname, 'spa/kids.html') : undefined,
       output: {
         // Matched on resolved module path, not package name. The object form
         // (`{'react-vendor': ['react', 'react-dom']}`) silently produced a 1-byte
@@ -264,4 +264,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

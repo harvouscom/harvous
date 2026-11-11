@@ -101,3 +101,5 @@ docs/future/SCRIPTURE_CONCORDANCE.md
 
 # Isolated child enrollment staging build
 /dist-child-staging/
+/dist-kids/
+/dist-kids-staging/

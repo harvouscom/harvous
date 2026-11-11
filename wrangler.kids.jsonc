@@ -6,7 +6,7 @@
   "main": "cloudflare/child-worker.ts",
   "compatibility_date": "2026-08-01",
   "assets": {
-    "directory": "./dist-spa",
+    "directory": "./dist-kids",
     "binding": "ASSETS",
     "not_found_handling": "none",
     "html_handling": "none",
@@ -20,7 +20,7 @@
     "staging": {
       "name": "harvous-kids-staging",
       "assets": {
-        "directory": "./dist-child-staging",
+        "directory": "./dist-kids-staging",
         "binding": "ASSETS",
         "not_found_handling": "none",
         "html_handling": "none",

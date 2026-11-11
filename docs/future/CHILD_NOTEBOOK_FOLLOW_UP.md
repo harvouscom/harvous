@@ -19,13 +19,14 @@ Completed November 11, 2026, on the isolated Harvous staging sites with fictiona
 - [x] **Use child mode on this device** signed out the parent in desktop and mobile Chromium. Returning to parent mode ended the child session and required fresh Clerk sign-in, including when an adult session was already open in a second tab. Desktop Back did not reopen the notebook. Refresh on mobile required a new link. The rehearsal used short-lived Clerk test tickets for the fictional parent.
 - [x] Two fictional families exercised note and parent-control isolation, export, search, Family Bible, and ministry permissions. The intended family saw both verse thoughts. Removing a shared chapter removed its thoughts. Removing ministry approval or the parent's membership removed the reading from search and blocked direct access.
 - [x] Cloudflare automatically ran the staging retention job, reported success, and deleted an expired fictional verification record. The staging trigger was returned to 04:17 UTC daily.
-- [ ] Review the populated live notebook alongside the approved localhost design in light and dark mode, including the Bible and privacy panels. The rehearsal checked the shared interface and viewed the empty notebook on desktop and mobile.
+- [x] Compared the populated staging notebook with the local preview in light and dark mode, including the welcome layout, writing dock, Family Bible, and privacy panel. The live activity stack and labels use the actual dates and note details. Also checked the empty state on desktop and mobile.
 - [ ] Confirm production Scripture attribution and permission scope for the separate child origin. The NLT seed reported verse-count differences in Numbers 1–2, where several entries represent combined verses. Check verse numbering and anchoring when a family reads or discusses those passages.
 
 ## Prepare production enrollment
 
 - [ ] Review the production child privacy notice and age-policy update, along with the actual data handling, backup retention, vendor arrangements, and parent rights procedures in the publication checklist.
-- [ ] Commit and merge the staging-tested changes. Set up KWS Production with its own credentials and signed callback, deploy the separate child origin, and apply the reviewed additive database migration to the intended production target.
+- [x] Open a [draft release pull request](https://github.com/harvouscom/harvous/pull/320) against the current production code. The API, adult SPA, and separate child build passed. The adult bundle passed the CI-equivalent size budget without changing the budget. The offline suite passed locally (8,513 passed, eight database-backed tests skipped).
+- [ ] Set up KWS Production with its own credentials and signed callback. Apply the reviewed additive database migration to the production target before merging the release, and provision the separate child origin.
 - [ ] Verify the production callback, scheduled retention, and parent and child smoke tests. Enable real enrollment after those checks and the privacy review pass.
 
 ## Handoff when a child turns 13

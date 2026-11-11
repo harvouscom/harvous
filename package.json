@@ -27,6 +27,7 @@
     "dev:prod-spa": "VITE_CLERK_PUBLISHABLE_KEY=pk_live_Y2xlcmsuaGFydm91cy5jb20k VITE_API_PROXY_TARGET=https://app.harvous.com vite",
     "build:fly": "node scripts/generate-founder-letter.js && esbuild server/fly.ts --bundle --platform=node --target=node22 --format=cjs --alias:@=src --alias:punycode=./node_modules/punycode/punycode.js --loader:.md=text --external:@sparticuz/chromium --outfile=dist-server/api.cjs",
     "build:spa": "vite build",
+    "build:child": "vite build --mode child",
     "preview:spa": "vite preview",
     "build:native": "npm run build:spa && node_modules/.bin/cap sync",
     "cap:sync": "npm run build:spa && node_modules/.bin/cap sync",
