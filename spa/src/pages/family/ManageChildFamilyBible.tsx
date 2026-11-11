@@ -52,7 +52,7 @@ export default function ManageChildFamilyBible({ detail, busy, perform }: Props)
           disabled={disabled || !active || (translations.length === 1 && translations.includes(translation))}
           onChange={enabled => {
             const approved = enabled ? [...translations, translation] : translations.filter(item => item !== translation);
-            void perform(() => api.put(`${base}/translations`, { translations: approved }), 'Approved translations updated.');
+            void perform(() => api.put(`${base}/translations`, { translations: approved }), '');
           }} />
       ))}
     </SettingsGroup>
