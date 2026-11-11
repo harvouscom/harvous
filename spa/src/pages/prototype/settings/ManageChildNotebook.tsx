@@ -162,11 +162,13 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
               disabled={disabled} onClick={() => showPane('privacy')} />
           </SettingsGroup>
         </SettingsShell>
+      ) : pane === 'bible' ? (
+        <ManageChildFamilyBible detail={detail} busy={busy} perform={perform} feedback={feedback}
+          backLabel={`Back to ${title}`} onBack={() => showPane(null)} />
       ) : (
         <SettingsSubScreen title={paneTitles[pane]} backLabel={`Back to ${title}`} onBack={() => showPane(null)}>
           <div className="proto-settings__content">
             {feedback}
-            {pane === 'bible' && <ManageChildFamilyBible detail={detail} busy={busy} perform={perform} />}
             {pane === 'ministries' && <>
               <SettingsIntro>Your child can read approved channels. Their notebook and profile stay private.</SettingsIntro>
               <SettingsGroup>
