@@ -5,7 +5,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { purgeExpiredFamilyData } from '../family/retention';
 import { exportChildNotebook } from '../family/notebook-export';
 import { familyPublicConfig } from '../family/config';
-import { Hono } from 'hono';
+import { Hono, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { bodyLimit } from 'hono/body-limit';
 import { createClerkClient } from '@clerk/backend';
@@ -31,6 +31,18 @@ function requireActiveConsent(child: Child) {
 
 const route = new Hono();
 const base = '/api/child-accounts';
+const kwsWebhook = '/api/webhooks/kws';
+const retentionJob = '/api/admin/child-account-retention';
+const pauseDuringRecovery: MiddlewareHandler = async (c, next) => {
+  if (process.env.HARVOUS_CHILD_RECOVERY_PAUSED === 'true') {
+    c.header('Cache-Control', 'no-store');
+    return c.json({ error: 'Child notebooks are temporarily unavailable.' }, 503);
+  }
+  await next();
+};
+route.use(`${base}/*`, pauseDuringRecovery);
+route.use(kwsWebhook, pauseDuringRecovery);
+route.use(retentionJob, pauseDuringRecovery);
 route.use(`${base}/*`, async (c, next) => {
   if (c.req.path.startsWith(`${base}/child/`)) {
     const config = familyPublicConfig();
@@ -137,7 +149,7 @@ function logStagingKwsWebhook(
 }
 
 // External callback is signed, bounded and not authenticated with an adult session.
-route.post('/api/webhooks/kws', bodyLimit({ maxSize: 16 * 1024 }), async (c) => {
+route.post(kwsWebhook, bodyLimit({ maxSize: 16 * 1024 }), async (c) => {
   c.header('Cache-Control', 'no-store');
   const config = kwsConfig();
   if (!config) {
@@ -408,7 +420,7 @@ route.delete(`${base}/child/session`, async (c) => c.json(await withChildSession
   return { success: true };
 })));
 
-route.post('/api/admin/child-account-retention', async (c) => {
+route.post(retentionJob, async (c) => {
   const expected = process.env.FAMILY_RETENTION_CRON_SECRET;
   const received = c.req.header('Authorization')?.replace(/^Bearer /, '');
   if (!expected || expected.length < 32 || !received ||

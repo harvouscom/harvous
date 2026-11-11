@@ -22,6 +22,21 @@ function configured() {
 beforeEach(() => { vi.clearAllMocks(); configured(); });
 afterEach(() => vi.unstubAllEnvs());
 describe('family route boundaries', () => {
+  it.each([
+    ['GET', '/api/child-accounts/status'],
+    ['GET', '/api/child-accounts/children/child-a/export'],
+    ['POST', '/api/child-accounts/child/redeem'],
+    ['GET', '/api/child-accounts/child/notebook'],
+    ['POST', '/api/webhooks/kws'],
+    ['POST', '/api/admin/child-account-retention']
+  ])('pauses %s %s during a database recovery', async (method, path) => {
+    vi.stubEnv('HARVOUS_CHILD_RECOVERY_PAUSED', 'true');
+    const response = await app.request(path, { method, headers: { Authorization: 'Bearer parent-token' } });
+    expect(response.status).toBe(503);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(database.transaction).not.toHaveBeenCalled();
+    expect(database.update).not.toHaveBeenCalled();
+  });
   it.each(['/api/child-accounts/children/other', '/api/child-accounts/children/other/export', '/api/child-accounts/status'])('requires parent authentication for %s', async (path) => {
     const response = await app.request(path); expect(response.status).toBe(401); expect(database.transaction).not.toHaveBeenCalled();
   });

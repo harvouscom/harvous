@@ -31,6 +31,7 @@ Server-only configuration (never VITE_ or PUBLIC_, never commit credentials):
 ```
 HARVOUS_CHILD_ACCOUNTS_ENABLED=false
 HARVOUS_CHILD_RETENTION_READY=false
+HARVOUS_CHILD_RECOVERY_PAUSED=false
 HARVOUS_CHILD_APP_URL=https://kids.harvous.com/kids.html
 HARVOUS_PARENT_APP_URL=https://app.harvous.com
 HARVOUS_CHILD_PRIVACY_URL=<published, reviewed child privacy policy URL>
@@ -80,6 +81,14 @@ Retention policy implemented by the daily job:
 | Parent deletion tombstone | Seven days |
 
 `family:retention` defaults to a read-only candidate count. `--apply` deletes due data and expired credentials. The job processes up to 100 child accounts per invocation; monitor backlog and run another bounded batch when necessary. Child-owned notes are excluded from the nightly adult CSV backups and product usage metrics. Database snapshots, infrastructure log retention, and KWS data rights follow the operational policies for those providers. Complete and publish those terms before enabling enrollment. Do not add child IDs to adult lifecycle email campaigns or optional analytics, or run bulk authoring/enrichment scripts over child-owned notes without reviewing this boundary.
+
+## Recovering a database backup
+
+Before directing the app at a restored backup, set `HARVOUS_CHILD_RECOVERY_PAUSED=true` on the API and verify it is active on every instance. Parent management, child requests, KWS callbacks, and scheduled retention return an uncached 503 during recovery. Wait for in-flight writers to finish before switching databases. The public child privacy notice and its contact information stay available on the marketing site.
+
+Reconcile restored notebooks against the authoritative consent and deletion state from outside the restored database. For a planned recovery, capture only notebook IDs and current withdrawal timestamps from the original database after pausing writers. Keep this reconciliation record encrypted and access-restricted, and delete it when recovery is complete. Do not restore a notebook whose deletion or consent status cannot be established.
+
+Purge restored records for deleted notebooks using the normal child deletion cascade. Reapply withdrawals with their original timestamps and clear all restored child sessions and handoff credentials. Remove unused verification requests created before the restore, keeping the verification records linked to existing notebooks. Run retention against the reviewed target and verify the affected records are gone before clearing the pause. Rehearse on a disposable database with fictional records, including one active notebook, one deleted since the backup, and one withdrawn since the backup.
 
 ## Isolated staging setup
 
