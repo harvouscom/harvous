@@ -4,6 +4,7 @@
 node_modules
 dist
 dist-spa
+dist-child-staging
 dist-server
 
 # Native clients

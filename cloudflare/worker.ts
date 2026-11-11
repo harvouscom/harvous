@@ -70,7 +70,7 @@ const SHARE_PATH = /^\/shared\/(note|thread)\/([A-Za-z0-9]{12})\/?$/;
  * `localhost` is omitted deliberately — it is in the app's set for dev, but this Worker
  * never serves it.
  */
-const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com']);
+const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com', 'family-test.harvous.com']);
 
 function isCrawler(userAgent: string | null): boolean {
   if (!userAgent) return false;

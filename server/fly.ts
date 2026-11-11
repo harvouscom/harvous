@@ -10,9 +10,19 @@
  * module init, and importing them lazily keeps startup ordering explicit.
  */
 
+import { classifyDbTarget } from '@/utils/supabase-project-ref';
+
 const port = Number(process.env.API_PORT ?? 8080);
 
 async function main() {
+  const childStaging = process.env.HARVOUS_CHILD_ENVIRONMENT === 'staging';
+  if (childStaging) {
+    const database = classifyDbTarget(process.env.SUPABASE_DATABASE_URL ?? process.env.SUPABASE_DIRECT_URL);
+    if (process.env.FLY_APP_NAME === 'harvous' || database.kind !== 'other' ||
+        !process.env.CLERK_SECRET_KEY?.startsWith('sk_test_')) {
+      throw new Error('Child staging requires a separate Fly app, a non-production database, and Clerk test credentials.');
+    }
+  }
   const { serve } = await import('@hono/node-server');
   const { default: app } = await import('./app');
   const { warmPostgresConnection } = await import('./db/client');
@@ -30,11 +40,11 @@ async function main() {
   // token is well-formed but unknown, so this renders the error card through
   // the real path — warming Chromium, the SPA fetch, and V8's code cache.
   const appOrigin = process.env.PUBLIC_APP_ORIGIN?.trim();
-  if (appOrigin) {
+  if (appOrigin && !childStaging) {
     void prewarmOgRenderer(`${appOrigin}/shared/note/aaaaaaaaaaaa?ogCapture=1`);
   }
 
-  const stopScheduler = startScheduler();
+  const stopScheduler = childStaging ? () => {} : startScheduler();
 
   // Fly sends SIGTERM and waits before killing the machine. Stop accepting new
   // connections and let in-flight requests finish; a stuck drain must not

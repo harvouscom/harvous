@@ -19,10 +19,19 @@
   "env": {
     "staging": {
       "name": "harvous-kids-staging",
-      "vars": { "API_ORIGIN": "https://unconfigured.invalid" },
+      "assets": {
+        "directory": "./dist-child-staging",
+        "binding": "ASSETS",
+        "not_found_handling": "none",
+        "html_handling": "none",
+        "run_worker_first": true
+      },
+      "vars": { "API_ORIGIN": "https://harvous-family-staging.fly.dev" },
       "observability": { "enabled": false },
       "triggers": { "crons": ["17 4 * * *"] },
-      "workers_dev": true
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{ "pattern": "kids-test.harvous.com", "custom_domain": true }]
     }
   }
 }

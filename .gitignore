@@ -98,3 +98,6 @@ docs/future/SCRIPTURE_CONCORDANCE.md
 
 # CI-only archive of earlier builds' hashed assets (scripts/carry-forward-assets.mjs)
 .asset-archive/
+
+# Isolated child enrollment staging build
+/dist-child-staging/
