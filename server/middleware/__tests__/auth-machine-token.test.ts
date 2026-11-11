@@ -19,10 +19,13 @@ function jwt(header: Record<string, unknown>, payload: Record<string, unknown>):
   return `${b64url(header)}.${b64url(payload)}.${Buffer.from("s".repeat(64)).toString("base64url")}`;
 }
 
-async function run(authorization: string) {
+async function run(authorization: string | undefined, path = '/api/user/get-profile', cookie?: string) {
   const vars = new Map<string, unknown>();
   const c = {
-    req: { header: (name: string) => (name.toLowerCase() === 'authorization' ? authorization : undefined) },
+    req: {
+      path,
+      header: (name: string) => ({ authorization, cookie })[name.toLowerCase() as 'authorization' | 'cookie'],
+    },
     set: (key: string, value: unknown) => vars.set(key, value),
   };
   const next = vi.fn();
@@ -34,6 +37,20 @@ async function run(authorization: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.CLERK_SECRET_KEY = 'sk_test_dummy';
+});
+
+describe('child account session boundaries', () => {
+  it('does not use an adult cookie with a child credential on an adult route', async () => {
+    const auth = await run('Bearer hvkid_example', '/api/user/get-profile', '__session=adult');
+    expect(auth.userId).toBeNull();
+    expect(verifyToken).not.toHaveBeenCalled();
+  });
+
+  it('requires a parent bearer token for child account management', async () => {
+    const auth = await run(undefined, '/api/child-accounts/status', '__session=adult');
+    expect(auth.userId).toBeNull();
+    expect(verifyToken).not.toHaveBeenCalled();
+  });
 });
 
 describe('session middleware refuses Connector (OAuth) tokens', () => {
