@@ -7409,11 +7409,17 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   Grace (ProtoSpaceLoading's default): invisible for 150ms, then in. A load that resolves
   inside the window never shows dots at all. The block keeps its place in flow from the first
   frame, so the arrival moves nothing. 150ms matches LOADER_GRACE_MS (useProtoHomeViewEnter.ts)
-  and PROTO_ROUTE_PENDING_DELAY_MS (proto-motion.ts). Reduced motion zeroes the duration, not
-  the delay — the hold is a wait, not motion.
+  and PROTO_ROUTE_PENDING_DELAY_MS (proto-motion.ts). With reduced motion, show the
+  static indicator immediately.
 */
 .proto-home-loading--grace {
   animation: proto-home-loading-grace var(--pds-duration-popover) var(--pds-ease-standard) 150ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-home-loading--grace {
+    animation-name: none;
+  }
 }
 
 @keyframes proto-home-loading-grace {
