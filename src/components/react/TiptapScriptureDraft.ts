@@ -775,8 +775,12 @@ export function resyncMobileCaret(view: any, opts?: MobileCaretResyncOpts): void
   if (!isMobileDevice() || !view) return;
   // Post-confirm: wait for PM DOM patch before placing the caret outside the pill span.
   if (opts?.focus) {
+    const { doc, selection } = view.state;
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => runMobileCaretResync(view, opts));
+      requestAnimationFrame(() => {
+        if (view.isDestroyed || view.state.doc !== doc || !view.state.selection.eq(selection)) return;
+        runMobileCaretResync(view, opts);
+      });
     });
     return;
   }
@@ -993,6 +997,7 @@ export function confirmScriptureDraftView(
   atPos?: number,
   opts?: {
     focus?: boolean;
+    preserveSelection?: boolean;
     /**
      * What to do when the reference parses but fails canon validation.
      * 'keep' (default) leaves the draft open so the user can fix it in place — right for
@@ -1129,8 +1134,10 @@ export function confirmScriptureDraftView(
   let caret = pillEnd;
   const charAfter = tr.doc.textBetween(pillEnd, Math.min(pillEnd + 1, tr.doc.content.size));
   if (charAfter === ' ') caret = pillEnd + 1;
-  const caretPos = Math.min(caret, tr.doc.content.size);
-  tr.setSelection(TextSelection.create(tr.doc, caretPos));
+  if (!opts?.preserveSelection) {
+    tr.setSelection(TextSelection.create(tr.doc, Math.min(caret, tr.doc.content.size)));
+  }
+  const caretPos = tr.selection.from;
   tr.setStoredMarks([]);
   tr.scrollIntoView();
   tr.setMeta('addToHistory', true);

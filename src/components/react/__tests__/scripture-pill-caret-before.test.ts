@@ -43,6 +43,21 @@ describe('caret can rest before a scripture pill', () => {
     }
   });
 
+  it('keeps a text selection that starts at a pill', () => {
+    const editor = editorWithLeadingPill();
+    try {
+      const to = editor.state.doc.firstChild!.nodeSize - 1;
+      editor.commands.setTextSelection({ from: 1, to });
+
+      snapCursorOutsideScripturePill(editor);
+
+      expect(editor.state.selection.from).toBe(1);
+      expect(editor.state.selection.to).toBe(to);
+    } finally {
+      editor.destroy();
+    }
+  });
+
   it('still snaps a caret that is genuinely inside the pill to the pill end', () => {
     const editor = editorWithLeadingPill();
     try {
