@@ -10,8 +10,12 @@ export type PublicJoinSpaceHeroSpace = {
   cover?: SpaceCoverAppearance;
 };
 
-export default function PublicJoinSpaceHero({ space }: { space: PublicJoinSpaceHeroSpace | null }) {
-  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
+export default function PublicJoinSpaceHero({ space, colorScheme: schemeOverride }: {
+  space: PublicJoinSpaceHeroSpace | null;
+  colorScheme?: 'light' | 'dark';
+}) {
+  const inheritedScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
+  const colorScheme = schemeOverride ?? inheritedScheme;
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
 
   const heroImageUrl = space ? resolveJoinHeroImageUrl(space, colorScheme) : null;

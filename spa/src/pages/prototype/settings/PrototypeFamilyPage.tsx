@@ -26,6 +26,7 @@ import {
   type FamilyRole,
 } from '@/lib/family-roles';
 import { APIError } from '../../../lib/api';
+import { useChildAccountsStatus } from '../../family/useChildAccountsStatus';
 import {
   useChangeFamilyRole,
   useCreateFamily,
@@ -60,6 +61,22 @@ import {
 } from './SettingsShell';
 
 export type InFamily = Extract<FamilyResponse, { me: unknown }>;
+
+function ChildAccountsRow() {
+  const { data } = useChildAccountsStatus();
+  const navigate = useNavigate();
+  if (!data?.available && !data?.children.length) return null;
+  return (
+    <SettingsGroup>
+      <SettingsRow
+        label="Child notebooks"
+        sublabel="Manage parent-supervised notebooks for children under 13"
+        leadingIcon="book-open"
+        onClick={() => void navigate({ to: prototypeHref('settings/child-accounts') })}
+      />
+    </SettingsGroup>
+  );
+}
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
@@ -272,6 +289,7 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
           trailing="none"
         />
       </SettingsGroup>
+      <ChildAccountsRow />
       <PreviewNote />
     </SettingsShell>
   );
@@ -893,6 +911,7 @@ export function FamilyView({ data }: { data: InFamily }) {
           onCancel={() => setConfirmLeave(false)}
         />
       ) : null}
+      <ChildAccountsRow />
       <PreviewNote />
     </SettingsShell>
   );

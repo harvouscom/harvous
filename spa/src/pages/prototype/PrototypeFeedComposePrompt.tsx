@@ -54,7 +54,7 @@ function prefersReducedMotion(): boolean {
  * takes it away once the line is written — the settled line keeps no cursor, because a caret
  * blinking for the rest of a visit is motion that never stops.
  */
-function TypedLine({
+export function TypedLine({
   text,
   animate,
   caret,

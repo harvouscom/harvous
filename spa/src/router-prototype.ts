@@ -307,6 +307,12 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeConnectorPage')),
   });
 
+  const prototypeSettingsChildAccountsRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'child-accounts',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChildAccountsPage')),
+  });
+
   const prototypeSettingsDataRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'data',
@@ -406,7 +412,16 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
       })
     : null;
 
+  const childNotebookPreviewRoute = import.meta.env.DEV
+    ? createRoute({
+        getParentRoute: () => simplifiedPrototypeRoute,
+        path: '__dev/child-notebook',
+        component: lazyRouteComponent(() => import('./pages/prototype/PrototypeChildNotebookPreview')),
+      })
+    : null;
+
   return simplifiedPrototypeRoute.addChildren([
+    ...(childNotebookPreviewRoute ? [childNotebookPreviewRoute] : []),
     prototypeLegacySpaceNoteRedirectRoute,
     prototypeLegacySpaceRedirectRoute,
     prototypeNoteNestedRoute,
@@ -448,6 +463,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
       prototypeSettingsAddonsRoute,
       prototypeSettingsConnectorRoute,
       prototypeSettingsDataRoute,
+      prototypeSettingsChildAccountsRoute,
       prototypeSettingsSupportRoute,
       prototypeSettingsKeyboardShortcutsRoute,
     ]),

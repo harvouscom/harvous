@@ -21,6 +21,11 @@ export interface DesignSystemScene {
 /** Core design-system scenes — foundations + primitives. */
 export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
   {
+    id: 'ds-26-family-privacy', title: 'Family privacy and child notebook', phase: 'Patterns',
+    editFiles: ['spa/src/pages/family/child-main.tsx', 'spa/src/styles/family.css', 'spa/src/pages/prototype/settings/PrototypeFamilyPage.tsx'],
+    screenshotSlug: 'ds-26-family-privacy', visualBaseline: true
+  },
+  {
     id: 'ds-01-typography',
     title: 'Typography scale',
     phase: 'Foundations',

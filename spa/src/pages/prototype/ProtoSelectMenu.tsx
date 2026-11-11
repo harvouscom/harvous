@@ -21,13 +21,14 @@
  * where a band of chips would take a line of its own — Discover's topics were ten chips under
  * the header before this.
  */
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import { PROTO_MENU_CHECK_ICON_SIZE } from './proto-toolbar-tokens';
 import { playSound } from '@/utils/sounds';
+import type { SoundPreference } from '@/utils/sound-prefs';
 
 const FALLBACK_WIDTH = 220;
 const FALLBACK_HEIGHT = 240;
@@ -107,6 +108,9 @@ type ProtoSelectMenuCommonProps<T extends string | number> = {
   menuWidth?: number;
   /** Extra class on the popover, for callers whose options are not a list of labels. */
   menuClassName?: string;
+  /** Theme variables for a picker whose surface has its own scoped appearance. */
+  menuStyle?: CSSProperties;
+  soundPreference?: SoundPreference;
   /**
    * Rendered as its own section under the options.
    *
@@ -157,6 +161,7 @@ export default function ProtoSelectMenu<T extends string | number>(
     className,
     menuWidth,
     menuClassName,
+    menuStyle,
     footer,
     groupsAsTabs = false,
     filterPlaceholder,
@@ -367,6 +372,7 @@ export default function ProtoSelectMenu<T extends string | number>(
               role="menu"
               aria-label={label}
               style={{
+                ...menuStyle,
                 position: 'fixed',
                 top: pos?.top ?? -9999,
                 left: pos?.left ?? 0,
@@ -483,8 +489,9 @@ export default function ProtoSelectMenu<T extends string | number>(
                         onClick={() => {
                           /* A tick for a box, a detent for a choice — and nothing for re-picking
                              what was already chosen, which changes nothing. */
-                          if (props.multiple) playSound('nav.toggle');
-                          else if (!checked) playSound('nav.select');
+                          const soundOptions = props.soundPreference === undefined ? undefined : { preference: props.soundPreference };
+                          if (props.multiple) playSound('nav.toggle', soundOptions);
+                          else if (!checked) playSound('nav.select', soundOptions);
                           if (props.multiple) {
                             const next = checked
                               ? chosen.filter((v) => v !== option.value)

@@ -94,6 +94,8 @@ export function clearUserClientStorageCaches() {
 
 /** Removes React Query entries that are scoped to the signed-in user (call when session ends). */
 export function removeUserScopedReactQueryCaches(queryClient: QueryClient) {
+  queryClient.removeQueries({ queryKey: ['family'] });
+  queryClient.removeQueries({ queryKey: ['family-child'] });
   queryClient.removeQueries({ queryKey: ['profile'] });
   queryClient.removeQueries({ queryKey: ['navigation'] });
   queryClient.removeQueries({ queryKey: ['xp'] });

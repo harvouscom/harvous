@@ -14424,6 +14424,7 @@ p.proto-teaching-plan__divider {
 }
 
 .proto-shared-space-header__title {
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -26848,4 +26849,29 @@ html.harvous-prototype-route h3.proto-daily-passage__title {
   ):focus-visible {
   outline: var(--focus-ring-width, 2px) solid var(--pds-accent-focus-ring);
   outline-offset: -2px;
+}
+
+/* The child notebook places the writing dock inside its paper. */
+.proto-feed-sheet[data-compose-prompt] {
+  --feed-prompt-inset: var(--pds-space-4);
+  --feed-prompt-bottom: calc(var(--feed-prompt-inset) + var(--proto-study-dock-band-height, 0px) + env(safe-area-inset-bottom));
+  --feed-prompt-clearance: calc(60px + var(--feed-prompt-bottom) + var(--pds-space-3));
+}
+
+.pds-feed-prompt-dock--sheet {
+  position: absolute;
+  inset-inline: var(--feed-prompt-inset);
+  bottom: var(--feed-prompt-bottom);
+  z-index: var(--pds-z-sticky);
+}
+
+.proto-feed-sheet[data-compose-prompt] > .proto-feed-sheet__body {
+  padding-bottom: var(--feed-prompt-clearance);
+  scroll-padding-bottom: var(--feed-prompt-clearance);
+}
+
+@media (max-width: 600px) {
+  .proto-feed-sheet[data-compose-prompt] {
+    --feed-prompt-inset: var(--pds-space-3);
+  }
 }
