@@ -45,6 +45,19 @@ describe('pointerIsInsideElementRect', () => {
     expect(pointerIsInsideElementRect(mouseAt(60, 125), inlineWord())).toBe(false);
   });
 
+  it('requires a hit on a painted inline box for a deliberate tap', () => {
+    const el = inlineWord();
+    const firstLine = { ...el.getBoundingClientRect(), left: 70 };
+    const secondLine = { ...el.getBoundingClientRect(), right: 60, top: 119, bottom: 138 };
+    el.getClientRects = () => [firstLine, secondLine] as unknown as DOMRectList;
+
+    const options = { touchPadding: false };
+    expect(pointerIsInsideElementRect(touchAt(80, 110), el, options)).toBe(true);
+    expect(pointerIsInsideElementRect(touchAt(50, 124), el, options)).toBe(true);
+    expect(pointerIsInsideElementRect(touchAt(60, 110), el, options)).toBe(false);
+    expect(pointerIsInsideElementRect(touchAt(80, 124), el, options)).toBe(false);
+  });
+
   it('still rejects a touch well outside the box', () => {
     expect(pointerIsInsideElementRect(touchAt(60, 140), inlineWord())).toBe(false);
   });
