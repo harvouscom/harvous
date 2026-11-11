@@ -100,7 +100,7 @@ export default function ManageChildFamilyBible({ detail, backLabel, onBack, feed
   }
 
   return <SettingsSubScreen title="Family Bible" backLabel={backLabel} onBack={onBack}>
-    <section className="proto-settings__content" aria-label="Family Bible settings" ref={screenRef}>
+    <div className="proto-settings__content" role="region" aria-label="Family Bible settings" ref={screenRef}>
       {feedback}
       <SettingsIntro>Share chapters and verse thoughts with {child.displayName}.</SettingsIntro>
       {loading && <ProtoSpaceLoading label="Opening the shared chapter" />}
@@ -138,6 +138,6 @@ export default function ManageChildFamilyBible({ detail, backLabel, onBack, feed
           ))}
         </SettingsGroup>
       </div>
-    </section>
+    </div>
   </SettingsSubScreen>;
 }
