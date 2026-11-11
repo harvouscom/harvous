@@ -501,13 +501,20 @@
   grid-column: 2;
   margin-top: var(--pds-space-2);
 }
+.pds-kids-bible__discussion {
+  display: grid;
+  min-width: 0;
+  gap: var(--pds-space-2);
+  padding: var(--pds-space-3) var(--pds-space-4);
+  border: 1px solid var(--pds-border-soft);
+  border-radius: var(--pds-radius-card);
+  background: var(--pds-bg-subtle);
+}
+.pds-kids-bible__discussion h2 { margin: 0; }
 .pds-kids-bible__thoughts {
   list-style: none;
-  margin: var(--pds-space-3) 0 0 var(--pds-space-2);
-  padding: 0 var(--pds-space-4);
-  border: 1px solid var(--pds-border-soft);
-  background: linear-gradient(var(--pds-paper-panel-top), var(--pds-paper-panel-bottom));
-  border-radius: var(--pds-radius-card);
+  margin: 0;
+  padding: 0;
 }
 .pds-kids-bible__thought {
   display: grid;
@@ -539,18 +546,38 @@
   white-space: pre-wrap;
 }
 .pds-kids-bible__thought-link {
+  display: inline-flex;
+  align-items: center;
   justify-self: start;
+  gap: var(--pds-space-2);
   min-height: 32px;
-  padding: 0 var(--pds-space-2);
-  border: 0;
+  padding: 0 var(--pds-space-3);
+  border: 1px solid var(--pds-border-soft);
   border-radius: var(--pds-radius-pill);
   background: var(--pds-bg-subtle);
+  color: var(--pds-text-primary);
   cursor: pointer;
 }
-.pds-kids-bible__dialog textarea {
-  display: block;
+.pds-kids-bible__thought-link:hover,
+.pds-kids-bible__thought-link[aria-expanded='true'] {
+  background: var(--pds-bg-input);
+}
+.pds-kids-bible__thought-link[aria-expanded='true'] svg { transform: rotate(180deg); }
+.pds-kids-bible__composer {
+  display: grid;
+  min-width: 0;
+  gap: var(--pds-space-2);
+}
+.pds-kids-bible__composer textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
   resize: vertical;
-  margin-bottom: var(--pds-space-4);
+}
+.pds-kids-bible__composer p { margin: 0; }
+.pds-kids-bible__discussion .proto-settings-btn {
+  width: auto;
+  gap: var(--pds-space-2);
 }
 
 /* Activity groups sit on paper, so they use the same panel material as adult Home. */
