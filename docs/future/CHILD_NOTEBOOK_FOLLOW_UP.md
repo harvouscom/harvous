@@ -8,8 +8,9 @@ Today, Harvous offers BSB, NIV, and NLT for child notebooks. BSB starts enabled,
 
 - [ ] Let a family build its approved translation list from the wider catalog of translations Harvous can serve in child mode. Add an **Add translation** action in **Family Bible → Approved translations** using the existing Harvous translation picker.
 - [ ] Decide how a family’s approved list applies when it has more than one child notebook. Preserve the existing per-notebook approvals during rollout and make the scope of a change clear in Settings.
-- [ ] Keep at least one approved translation available. Enforce approvals on the server for **My Bible**, **Family Bible**, and chapter sharing. Make sure offered translations have readable text in the target environment.
-- [ ] Verify the default, adding and removing a translation, the picker when multiple translations are approved, and what happens to shared chapters when their translation is removed and later approved again.
+- [x] Keep at least one translation approved per notebook. The server enforces approvals for **My Bible**, child access to **Family Bible**, and sharing a chapter. Staging verified that removing an approval hides a shared chapter from the child and restoring it brings the chapter and its thoughts back.
+- [x] Verify that the current approval controls save and retain a change after reload. Staging also verified that BSB, NIV, and NLT return readable text in both Bible views.
+- [ ] Verify the wider catalog in the child picker with multiple translations approved. Confirm text availability for every offered translation in the target environment.
 
 ## Staging rehearsal
 
@@ -20,11 +21,13 @@ Completed November 11, 2026, on the isolated Harvous staging sites with fictiona
 - [x] Two fictional families exercised note and parent-control isolation, export, search, Family Bible, and ministry permissions. The intended family saw both verse thoughts. Removing a shared chapter removed its thoughts. Removing ministry approval or the parent's membership removed the reading from search and blocked direct access.
 - [x] Cloudflare automatically ran the staging retention job, reported success, and deleted an expired fictional verification record. The staging trigger was returned to 04:17 UTC daily.
 - [x] Compared the populated staging notebook with the local preview in light and dark mode, including the welcome layout, writing dock, Family Bible, and privacy panel. The live activity stack and labels use the actual dates and note details. Also checked the empty state on desktop and mobile.
+- [x] Verified that the parent export preserves the child’s note IDs, folders, tag and Thread links, and Scripture references. Verified that a withdrawn session cannot save an edit.
 - [ ] Confirm production Scripture attribution and permission scope for the separate child origin. The NLT seed reported verse-count differences in Numbers 1–2, where several entries represent combined verses. Check verse numbering and anchoring when a family reads or discusses those passages.
 
 ## Prepare production enrollment
 
 - [ ] Review the production child privacy notice and age-policy update, along with the actual data handling, backup retention, vendor arrangements, and parent rights procedures in the publication checklist.
+- [x] Verify the privacy policy link in staging. It opens from the child landing and notebook, and appears in search, the note editor, notebook settings, and the Family Bible thought form. The published production policy still needs its own verification.
 - [x] Open a [draft release pull request](https://github.com/harvouscom/harvous/pull/320) against the current production code. The API, adult SPA, and separate child build passed. The adult bundle passed the CI-equivalent size budget without changing the budget. The offline suite passed locally (8,513 passed, eight database-backed tests skipped).
 - [ ] Set up KWS Production with its own credentials and signed callback. Apply the reviewed additive database migration to the production target before merging the release, and provision the separate child origin.
 - [ ] Verify the production callback, scheduled retention, and parent and child smoke tests. Enable real enrollment after those checks and the privacy review pass.
