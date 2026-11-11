@@ -19,6 +19,7 @@ import {
   inArray,
   sql,
 } from '../db';
+import { notChildAccount } from '../family/identity';
 import { nowISO } from '../db/dates';
 import { deleteNotesCascadeForUser } from './delete-note-cascade';
 
@@ -58,10 +59,10 @@ export const NOT_ONBOARDING_WELCOME_FOLDER = sql`(
 
 /** Drizzle WHERE for user-authored notes that count toward usage metrics. */
 export function countableUserNotesWhere() {
-  return and(NOT_ONBOARDING_NOTES_THREAD, NOT_ONBOARDING_SYSTEM_NOTES, NOT_ONBOARDING_WELCOME_FOLDER);
+  return and(notChildAccount(Notes.userId), NOT_ONBOARDING_NOTES_THREAD, NOT_ONBOARDING_SYSTEM_NOTES, NOT_ONBOARDING_WELCOME_FOLDER);
 }
 
-/** JS mirror of {@link countableUserNotesWhere} for tests and client-side checks. */
+/** Note-level checks for callers that already have an adult owner. */
 export function isCountableUserNote(note: {
   threadId: string;
   addedBy: string | null;
@@ -76,7 +77,8 @@ export function isCountableUserNote(note: {
 
 /** Raw SQL predicate for db.execute() subqueries against unaliased "Notes" columns. */
 export const COUNTABLE_USER_NOTES_SQL = sql`
-  NOT starts_with("threadId"::text, 'thread_onboarding_')
+  ${notChildAccount(sql`"userId"`)}
+  AND NOT starts_with("threadId"::text, 'thread_onboarding_')
   AND "addedBy" IS DISTINCT FROM 'system'
   AND (
     "primaryCollection" IS NULL
@@ -87,7 +89,8 @@ export const COUNTABLE_USER_NOTES_SQL = sql`
 
 /** Same predicate when "Notes" is aliased (e.g. JOIN ... AS n). */
 export const COUNTABLE_USER_NOTES_N_SQL = sql`
-  NOT starts_with(n."threadId"::text, 'thread_onboarding_')
+  ${notChildAccount(sql`n."userId"`)}
+  AND NOT starts_with(n."threadId"::text, 'thread_onboarding_')
   AND n."addedBy" IS DISTINCT FROM 'system'
   AND (
     n."primaryCollection" IS NULL

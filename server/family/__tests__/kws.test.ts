@@ -33,6 +33,26 @@ describe('KWS integration', () => {
     expect(familyEnrollmentConfig({ ...staging, HARVOUS_CHILD_APP_URL: 'https://kids.harvous.com/kids.html' })).toBeNull();
     expect(familyEnrollmentConfig({ ...staging, SUPABASE_DATABASE_URL: 'postgres://postgres.mhriprqpyvhjgdssjlfl:dummy@aws-1-us-east-1.pooler.supabase.com/postgres' })).toBeNull();
   });
+  it('limits the production rehearsal to one exact adult account while public enrollment is off', () => {
+    const production = {
+      NODE_ENV: 'production', HARVOUS_CHILD_ACCOUNTS_ENABLED: 'false', HARVOUS_CHILD_PILOT_PARENT_ID: 'user_testPilot',
+      HARVOUS_CHILD_RETENTION_READY: 'true', HARVOUS_CHILD_APP_URL: 'https://kids.harvous.com/kids.html',
+      HARVOUS_CHILD_PRIVACY_URL: 'https://harvous.com/children', CLERK_SECRET_KEY: 'sk_live_placeholder',
+      KWS_ENVIRONMENT: 'production', KWS_CLIENT_ID: 'client', KWS_API_KEY: 'key',
+      KWS_SEND_EMAIL_URL: 'https://api.kidswebservices.com/configured/send-email', KWS_ORG_ID: 'org',
+      KWS_PRODUCT_ID: 'product', KWS_WEBHOOK_SECRET: 'webhook',
+      SUPABASE_DATABASE_URL: 'postgres://postgres.mhriprqpyvhjgdssjlfl:dummy@aws-1-us-east-1.pooler.supabase.com/postgres'
+    };
+    expect(familyEnrollmentConfig(production, 'user_testPilot')?.environment).toBe('production');
+    expect(familyEnrollmentConfig(production, 'user_testPilotExtra')).toBeNull();
+    expect(familyEnrollmentConfig(production)).toBeNull();
+    expect(familyEnrollmentConfig({ ...production, KWS_ENVIRONMENT: 'test' }, 'user_testPilot')).toBeNull();
+    expect(familyEnrollmentConfig({ ...production, HARVOUS_CHILD_ENVIRONMENT: 'staging' }, 'user_testPilot')).toBeNull();
+    expect(familyEnrollmentConfig({ ...production, HARVOUS_CHILD_RETENTION_READY: 'false' }, 'user_testPilot')).toBeNull();
+    expect(familyEnrollmentConfig({ ...production, CLERK_SECRET_KEY: 'sk_test_placeholder' }, 'user_testPilot')).toBeNull();
+    expect(familyEnrollmentConfig({ ...production, SUPABASE_DATABASE_URL: 'postgres://localhost:5432/harvous' }, 'user_testPilot')).toBeNull();
+  });
+
   it('does not contact KWS without explicit enrollment enablement', async () => {
     vi.stubEnv('HARVOUS_CHILD_ACCOUNTS_ENABLED', 'false'); const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
     await expect(sendKwsVerification('p@example.com', 'id', 'US')).rejects.toMatchObject({ status: 503 });

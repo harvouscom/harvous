@@ -17,10 +17,16 @@ export function kwsConfig(env = process.env) {
   return { clientId, apiKey, sendEmailUrl, orgId, productId, webhookSecret, environment: environment! };
 }
 
-export function familyEnrollmentConfig(env = process.env) {
+export function familyEnrollmentConfig(env = process.env, parentId?: string) {
+  const pilotParentId = env.HARVOUS_CHILD_PILOT_PARENT_ID;
+  const pilot = env.NODE_ENV === 'production' && env.HARVOUS_CHILD_ENVIRONMENT !== 'staging' &&
+    env.CLERK_SECRET_KEY?.startsWith('sk_live_') && pilotParentId?.startsWith('user_') &&
+    parentId === pilotParentId &&
+    classifyDbTarget(env.SUPABASE_DATABASE_URL ?? env.SUPABASE_DIRECT_URL).kind === 'production';
+  if ((env.HARVOUS_CHILD_ACCOUNTS_ENABLED !== 'true' && !pilot) || env.HARVOUS_CHILD_RETENTION_READY !== 'true') return null;
   const config = kwsConfig(env);
   const urls = familyPublicConfig(env);
-  if (env.HARVOUS_CHILD_ACCOUNTS_ENABLED !== 'true' || env.HARVOUS_CHILD_RETENTION_READY !== 'true' || !config || !urls) return null;
+  if (!config || !urls) return null;
   if (env.HARVOUS_CHILD_ENVIRONMENT === 'staging') {
     const parent = new URL(urls.parentSignInUrl);
     const database = classifyDbTarget(env.SUPABASE_DATABASE_URL ?? env.SUPABASE_DIRECT_URL);
@@ -31,15 +37,15 @@ export function familyEnrollmentConfig(env = process.env) {
   return config;
 }
 
-export function requireFamilyEnrollment() {
-  const config = familyEnrollmentConfig();
+export function requireFamilyEnrollment(parentId?: string) {
+  const config = familyEnrollmentConfig(process.env, parentId);
   if (!config) throw new HTTPException(503, { message: 'Child account setup is not available yet.' });
   return config;
 }
 
 /** Endpoint is copied from the product's authenticated KWS API reference, never guessed. */
-export async function sendKwsVerification(email: string, requestId: string, location: string) {
-  const config = requireFamilyEnrollment();
+export async function sendKwsVerification(email: string, requestId: string, location: string, parentId?: string) {
+  const config = requireFamilyEnrollment(parentId);
   const tokenResponse = await fetch('https://auth.kidswebservices.com/auth/realms/kws/protocol/openid-connect/token', {
     method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15_000),
     headers: {

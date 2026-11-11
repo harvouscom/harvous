@@ -28,6 +28,7 @@
  */
 
 import { Hono } from 'hono';
+import { notChildAccount } from '../family/identity';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
 import {
   deleteUserExports,
@@ -435,12 +436,11 @@ app.post('/api/admin/backup-exports', async (c) => {
       return c.json({ error: 'Backup storage is not configured', success: false }, 503);
     }
 
-    const userIdRows = await db.select({ userId: Notes.userId }).from(Notes);
-    const userIds = [...new Set(userIdRows.map((r) => r.userId))];
+    const userIds = await db.selectDistinct({ userId: Notes.userId }).from(Notes).where(notChildAccount(Notes.userId));
 
     let exported = 0;
     const errors: string[] = [];
-    for (const userId of userIds) {
+    for (const { userId } of userIds) {
       try {
         const { content, fileExtension } = await generateUserExport(userId, 'csv-threads');
         const key = `${userId}/${date}.${fileExtension}`;

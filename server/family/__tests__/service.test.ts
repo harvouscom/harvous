@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 const database = vi.hoisted(() => ({ transaction: vi.fn() }));
 vi.mock('../../db/client', () => ({ db: database }));
@@ -23,7 +23,21 @@ function fakeTx(results: unknown[][]) {
   database.transaction.mockImplementation((work) => work(tx));
   return { tx, queries };
 }
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.stubEnv('HARVOUS_CHILD_ACCOUNTS_ENABLED', 'true');
+  vi.stubEnv('HARVOUS_CHILD_RETENTION_READY', 'true');
+  vi.stubEnv('HARVOUS_CHILD_APP_URL', 'http://localhost:4322/kids.html');
+  vi.stubEnv('HARVOUS_CHILD_PRIVACY_URL', 'https://example.com/privacy');
+  vi.stubEnv('KWS_ENVIRONMENT', 'test');
+  vi.stubEnv('KWS_CLIENT_ID', 'client');
+  vi.stubEnv('KWS_API_KEY', 'secret');
+  vi.stubEnv('KWS_SEND_EMAIL_URL', 'https://api.kidswebservices.com/configured/send-email');
+  vi.stubEnv('KWS_ORG_ID', 'org');
+  vi.stubEnv('KWS_PRODUCT_ID', 'product');
+  vi.stubEnv('KWS_WEBHOOK_SECRET', 'webhook');
+});
+afterEach(() => vi.unstubAllEnvs());
 describe('family account isolation', () => {
   it('requires both child ID and parent ID on parent reads and writes', async () => {
     const { tx, queries } = fakeTx([[]]);
@@ -53,6 +67,18 @@ describe('family account isolation', () => {
     expect(await withChildSession(childSecret(), work)).toBe('notebook');
     expect(work.mock.calls[0][1].id).toBe('child-a');
   });
+  it('blocks saved links and sessions when the child’s parent is outside the enabled rollout', async () => {
+    vi.stubEnv('HARVOUS_CHILD_ACCOUNTS_ENABLED', 'false');
+    const session = { childId: child.id, tokenHash: 'hash' };
+    const { tx } = fakeTx([[session], [child], [session], [child]]);
+    const work = vi.fn();
+    await expect(withChildSession(childSecret(), work)).rejects.toMatchObject({ status: 403 });
+    await expect(redeemHandoff(childSecret())).rejects.toMatchObject({ status: 503 });
+    expect(work).not.toHaveBeenCalled();
+    expect(tx.delete).not.toHaveBeenCalled();
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
   it('cannot redeem a handoff twice or after expiry', async () => {
     const { tx } = fakeTx([[{ childId: child.id, tokenHash: 'hash' }], [child]]);
     await expect(redeemHandoff(childSecret())).rejects.toMatchObject({ status: 401 });

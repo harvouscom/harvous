@@ -5,6 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import { isPgUndefinedRelation } from '../utils/pg-undefined-relation';
 import { db } from '../db/client';
 import { FamilyChildren, FamilyChildSessions, FamilySpaceApprovals, FamilyVerifications, Notes, Spaces, SpaceMemberships, SpaceNotes, Tags, Threads } from '../db/schema';
+import { familyEnrollmentConfig, requireFamilyEnrollment } from './kws';
 import { CHILD_SESSION_TTL_MS, hashSecret, hasActiveChildConsent, childSecret } from './policy';
 
 export type FamilyTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -29,6 +30,9 @@ export async function withChildSession<T>(token: string | undefined, work: (tx: 
     if (!session) throw new HTTPException(401, { message: 'Ask your parent for a new sign-in link.' });
     const [child] = await tx.select().from(FamilyChildren).where(eq(FamilyChildren.id, session.childId)).for('update');
     if (!child || !hasActiveChildConsent(child)) throw new HTTPException(403, { message: 'Your parent needs to review your account.' });
+    if (!familyEnrollmentConfig(process.env, child.parentUserId)) {
+      throw new HTTPException(403, { message: 'Child notebooks are paused right now.' });
+    }
     // Check again after acquiring the lock: a parent may have ended sessions while we waited.
     const [stillValid] = await tx.select().from(FamilyChildSessions).where(and(
       eq(FamilyChildSessions.tokenHash, session.tokenHash), gt(FamilyChildSessions.expiresAt, new Date())
@@ -48,6 +52,7 @@ export async function redeemHandoff(token: string) {
     if (!candidate) throw new HTTPException(401, { message: 'This link has expired or was already used.' });
     const [child] = await tx.select().from(FamilyChildren).where(eq(FamilyChildren.id, candidate.childId)).for('update');
     if (!child || !hasActiveChildConsent(child)) throw new HTTPException(403, { message: 'Your parent needs to review your account.' });
+    requireFamilyEnrollment(child.parentUserId);
     const consumed = await tx.delete(FamilyChildSessions).where(and(
       eq(FamilyChildSessions.tokenHash, candidate.tokenHash), gt(FamilyChildSessions.expiresAt, new Date())
     )).returning();

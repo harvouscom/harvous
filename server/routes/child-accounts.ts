@@ -1,3 +1,4 @@
+import { CHILD_ACCOUNT_ID_PREFIX } from '../family/identity';
 import { childNoteDetails, noteDetailsInput, writeChildNoteDetails } from '../family/note-details';
 import imagePresets from '../../shared/appearance-image-presets.json';
 import { timingSafeEqual } from 'node:crypto';
@@ -71,7 +72,7 @@ async function canEnrollChild(userId: string): Promise<boolean> {
 // The parent UI does not ask for child details until this flow is complete.
 route.get(`${base}/status`, requireAuth, async (c) => {
   const publicConfig = familyPublicConfig();
-  const available = !!familyEnrollmentConfig();
+  const available = !!familyEnrollmentConfig(process.env, parentId(c));
   try {
     const children = await db.select().from(FamilyChildren).where(eq(FamilyChildren.parentUserId, parentId(c)));
     const verifications = await db.select({ id: FamilyVerifications.id, status: FamilyVerifications.status })
@@ -88,7 +89,7 @@ route.get(`${base}/status`, requireAuth, async (c) => {
 });
 
 route.post(`${base}/verification`, requireAuth, async (c) => {
-  const config = requireFamilyEnrollment();
+  const config = requireFamilyEnrollment(parentId(c));
   if (!await canEnrollChild(parentId(c))) return c.json(needsPlus, 402);
   const input = z.object({ location: z.literal('US') }).strict().parse(await c.req.json());
   const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
@@ -108,7 +109,7 @@ route.post(`${base}/verification`, requireAuth, async (c) => {
       environment: config.environment, location: input.location, status: 'pending', createdAt: new Date(),
       expiresAt: new Date(Date.now() + VERIFICATION_TTL_MS) });
   });
-  try { await sendKwsVerification(email, id, input.location); }
+  try { await sendKwsVerification(email, id, input.location, parentId(c)); }
   catch (error) {
     await db.update(FamilyVerifications).set({ status: 'failed' }).where(and(eq(FamilyVerifications.id, id), eq(FamilyVerifications.status, 'pending')));
     throw error;
@@ -175,7 +176,7 @@ route.post('/api/webhooks/kws', bodyLimit({ maxSize: 16 * 1024 }), async (c) => 
 });
 
 route.post(`${base}/children`, requireAuth, async (c) => {
-  const config = requireFamilyEnrollment();
+  const config = requireFamilyEnrollment(parentId(c));
   if (!await canEnrollChild(parentId(c))) return c.json(needsPlus, 402);
   const input = z.object({ verificationId: z.string().uuid(), displayName: z.string().trim().min(1).max(32),
     // Accept the old form's age band during rollout. New records store only under-13 eligibility.
@@ -191,7 +192,7 @@ route.post(`${base}/children`, requireAuth, async (c) => {
       gt(FamilyVerifications.expiresAt, new Date())
     )).returning();
     if (!verification) throw new HTTPException(403, { message: 'Complete parent verification before creating this account.' });
-    const id = `child_${crypto.randomUUID()}`;
+    const id = `${CHILD_ACCOUNT_ID_PREFIX}${crypto.randomUUID()}`;
     const homeSpaceId = `space_${crypto.randomUUID()}`;
     await tx.insert(Spaces).values({ id: homeSpaceId, title: 'My Home', userId: id, type: 'personal', createdAt: new Date() });
     const [created] = await tx.insert(FamilyChildren).values({ id, homeSpaceId, parentUserId: parentId(c), displayName: input.displayName,
@@ -217,7 +218,7 @@ route.get(`${base}/children/:id/export`, requireAuth, async (c) => c.json(await 
 })));
 
 route.post(`${base}/children/:id/handoff`, requireAuth, async (c) => {
-  requireFamilyEnrollment();
+  requireFamilyEnrollment(parentId(c));
   const secret = childSecret();
   await db.transaction(async (tx) => {
     const child = await ownedChild(tx, parentId(c), requireParam(c, 'id'));
@@ -306,7 +307,7 @@ route.delete(`${base}/children/:id/bible/readings/:readingId`, requireAuth, asyn
 })));
 
 route.post(`${base}/child/redeem`, async (c) => {
-  requireFamilyEnrollment();
+  requireFamilyEnrollment(process.env.HARVOUS_CHILD_PILOT_PARENT_ID);
   const input = z.object({ token: z.string().regex(/^hvkid_[\w-]{43}$/) }).strict().parse(await c.req.json());
   return c.json(await redeemHandoff(input.token));
 });
