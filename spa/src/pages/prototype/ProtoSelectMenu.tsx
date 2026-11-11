@@ -13,8 +13,8 @@
  * is exactly how a fifth call site reaches for the native element instead: the
  * convention was real but there was nothing to import.
  *
- * Portaled and fixed-positioned like its siblings, so an ancestor with
- * `overflow: hidden` — every sheet and rail in this app — cannot clip it.
+ * Portaled and fixed-positioned like its siblings. In mobile Settings the
+ * portal stays inside the sheet so the modal can keep focus within it.
  *
  * `multiple` turns it into a filter: checkbox rows that stay open while you tick them, and a
  * first row that clears. For choosing several of a list from the same row as other controls,
@@ -192,6 +192,7 @@ export default function ProtoSelectMenu<T extends string | number>(
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
+  const settingsSheet = open ? triggerRef.current?.closest<HTMLElement>('.proto-settings-sheet') : null;
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const menuId = useId();
 
@@ -280,6 +281,13 @@ export default function ProtoSelectMenu<T extends string | number>(
         el?.offsetHeight || FALLBACK_HEIGHT,
         OFFSET,
       );
+      if (settingsSheet && el) {
+        const bounds = settingsSheet.getBoundingClientRect();
+        const top = next.top - bounds.top - settingsSheet.clientTop;
+        const left = next.left - bounds.left - settingsSheet.clientLeft;
+        next.top = Math.max(OFFSET, Math.min(top, settingsSheet.clientHeight - el.offsetHeight - OFFSET));
+        next.left = Math.max(OFFSET, Math.min(left, settingsSheet.clientWidth - el.offsetWidth - OFFSET));
+      }
       // Scroll fires per frame; re-rendering on an unchanged position is pure churn.
       setPos((prev) =>
         prev && prev.top === next.top && prev.left === next.left
@@ -296,7 +304,14 @@ export default function ProtoSelectMenu<T extends string | number>(
      * than 'nearest' so the neighbours either side come with it, which is what makes the
      * position legible as a position.
      */
-    selectedRef.current?.scrollIntoView({ block: 'center' });
+    const selectedRow = selectedRef.current;
+    const popover = popoverRef.current;
+    if (settingsSheet && selectedRow && popover) {
+      popover.scrollTop = selectedRow.offsetTop - (popover.clientHeight - selectedRow.offsetHeight) / 2;
+    } else {
+      selectedRow?.scrollIntoView({ block: 'center' });
+    }
+    filterInputRef.current?.focus({ preventScroll: true });
 
     /*
      * Reposition when the menu's own box changes, not only when the window moves.
@@ -310,6 +325,7 @@ export default function ProtoSelectMenu<T extends string | number>(
      */
     const observer = new ResizeObserver(update);
     if (popoverRef.current) observer.observe(popoverRef.current);
+    if (settingsSheet) observer.observe(settingsSheet);
 
     /* Capture-phase: these open inside scrolling sheets, and a menu that stays
        put while its trigger slides away points at nothing. */
@@ -320,7 +336,7 @@ export default function ProtoSelectMenu<T extends string | number>(
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
-  }, [open, width]);
+  }, [open, width, settingsSheet]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -371,16 +387,16 @@ export default function ProtoSelectMenu<T extends string | number>(
               className={`proto-menu__popover proto-menu__popover--list-view proto-select-menu__popover${menuClassName ? ` ${menuClassName}` : ''}`}
               role="menu"
               aria-label={label}
+              data-vaul-no-drag={settingsSheet ? '' : undefined}
               style={{
                 ...menuStyle,
-                position: 'fixed',
+                position: settingsSheet ? 'absolute' : 'fixed',
                 top: pos?.top ?? -9999,
                 left: pos?.left ?? 0,
                 width,
-                /* Portaled to the body, so it stacks against every overlay rather than its own
-                   surface: at the in-pane popover layer (6000) a picker inside Settings (9950)
-                   opened *under* the modal — the caret flipped and nothing appeared. A menu is
-                   only open because its trigger was just tapped, so above modals is always right. */
+                ...(settingsSheet ? { maxHeight: 'min(440px, 72dvh, calc(100% - 12px))' } : {}),
+                /* Body portals must stack above the Settings overlay. A picker in
+                   the mobile sheet uses the same layer within the sheet. */
                 zIndex: 'var(--pds-z-modal-popover)',
               }}
             >
@@ -393,9 +409,6 @@ export default function ProtoSelectMenu<T extends string | number>(
                     onChange={(e) => setFilter(e.target.value)}
                     placeholder={filterPlaceholder}
                     aria-label={filterPlaceholder}
-                    /* The menu is already focused for keyboard nav; typing should reach the
-                       field without a tab, the way the destination picker's does. */
-                    autoFocus
                   />
                   {/*
                     The app's own clear, not the platform's. A bare `type="search"` renders
@@ -529,7 +542,7 @@ export default function ProtoSelectMenu<T extends string | number>(
               ))}
               {footer?.(() => setOpen(false))}
             </ProtoPopoverShell>,
-            document.body,
+            settingsSheet ?? document.body,
           )
         : null}
     </>
