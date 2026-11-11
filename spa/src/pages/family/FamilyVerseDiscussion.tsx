@@ -25,7 +25,7 @@ export default function FamilyVerseDiscussion({
 }: Props) {
   const id = useId();
   const count = `${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}`;
-  const title = viewer === 'child' ? 'Talk about this verse' : 'Verse discussion';
+  const title = viewer === 'child' ? 'Talk about this verse' : 'Verse comments';
   if (!expanded && comments.length === 0) return null;
   return <div className="pds-verse-discussion">
     <button type="button" className="pds-verse-discussion__text-action pds-caption"
@@ -35,7 +35,7 @@ export default function FamilyVerseDiscussion({
       {expanded ? title : count}
       <Icon name="chevron-down" size={9} className="pds-verse-discussion__chevron" aria-hidden />
     </button>
-    {expanded && <section id={id} className="pds-verse-discussion__thread" aria-label={`Verse ${verse} discussion`}>
+    {expanded && <section id={id} className="pds-verse-discussion__thread" aria-label={`Comments on verse ${verse}`}>
       {comments.length > 0 && <ul className="pds-verse-discussion__comments">
         {comments.map(comment => <li key={comment.id}>
           {comment.role === 'child'

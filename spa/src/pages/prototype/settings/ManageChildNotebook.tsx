@@ -143,7 +143,7 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
               }, '')} />
             {handoff && <div className="pds-family-management__inline">
               <SettingsCopyRow value="One-time sign-in link" copyValue={handoff} layout="field" copyLabel="Copy link" />
-              <p className="pds-caption" role="status">Open on your child’s device or in a separate browser profile within five minutes.</p>
+              <p className="pds-caption pds-family-management__link-help" role="status">Open on your child’s device or in a separate browser profile within five minutes.</p>
             </div>}
           </SettingsGroup>
 

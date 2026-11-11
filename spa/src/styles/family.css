@@ -44,6 +44,7 @@
   border-block-start: 1px solid var(--pds-border-control-soft);
 }
 .pds-family-management__inline > p { margin: 0; }
+.pds-family-management__link-help.pds-caption { line-height: 1.55; }
 .pds-family-management__message { margin: 0 0 var(--pds-space-3); color: var(--pds-text-secondary); }
 .pds-family-management__error { margin: 0 0 var(--pds-space-3); color: var(--pds-destructive); }
 .pds-family-verification {
