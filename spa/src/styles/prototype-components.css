@@ -4571,10 +4571,19 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 /* Blue is for "you picked this one", not for "this is included". A selected
    translation or note is an answer to a question the user just asked, so it earns
    the accent; a feature list marking what a plan contains does not. */
-.proto-accent-check-orb--selected {
+.proto-accent-check-orb--selected,
+input[type='checkbox'].proto-checkbox--accent:checked {
   background: var(--pds-bg-accent-button);
   color: var(--pds-on-accent) !important;
+}
+
+.proto-accent-check-orb--selected,
+input[type='checkbox'].proto-checkbox--accent:checked:not(:focus-visible) {
   box-shadow: var(--pds-shadow-accent-button);
+}
+
+input[type='checkbox'].proto-checkbox--accent:checked::before {
+  background: var(--pds-on-accent);
 }
 
 .proto-accent-check-orb--selected svg,
@@ -5742,6 +5751,15 @@ html.harvous-prototype-route
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* Keep the bottom inset inside the scrollport so rows can scroll to the modal edge. */
+.proto-settings__nav--desktop {
+  padding-block-end: 0;
+}
+
+.proto-settings__nav--desktop > .proto-settings__nav-list {
+  padding-block-end: var(--pds-space-3);
 }
 
 .proto-settings__admin-card {

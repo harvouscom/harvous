@@ -68,7 +68,18 @@ export function useChildNotebookAppearance() {
 }
 
 export function ChildNotebookAvatar({ small = false }: { small?: boolean }) {
-  const { name, coverColor, coverSymbol, coverPattern } = useChildNotebookAppearance();
+  const { name, preferences } = useChildNotebookAppearance();
+  return <ChildNotebookProfileAvatar name={name} preferences={preferences} small={small} />;
+}
+
+export function ChildNotebookProfileAvatar({ name, preferences, small = false }: {
+  name: string;
+  preferences: ChildNotebookPreferences | null;
+  small?: boolean;
+}) {
+  const coverColor = coverColors.find(color => color.id === preferences?.coverColor) ?? coverColors[0];
+  const coverSymbol = preferences?.coverSymbol ?? 'initial';
+  const coverPattern = preferences?.coverPattern ?? 'plain';
   return <span className="pds-kids-avatar" data-small={small ? 'true' : undefined} data-pattern={coverPattern} aria-hidden="true" style={{ '--kids-cover-color': coverColor.color, '--kids-cover-ink': 'color-mix(in oklab, var(--kids-cover-color) 65%, var(--pds-text-primary))' } as CSSProperties}>
     <span className="pds-kids-avatar__cover proto-ink-on-accent">{coverSymbol === 'initial' ? <span>{Array.from(name)[0]?.toUpperCase()}</span> : <Icon name={coverSymbol} size={small ? 12 : 19} />}</span>
   </span>;

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Navigate, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
-import { prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib/prototype-path';
+import { prototypeHref, prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { readSettingsOpenerPath } from '../../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { prefetchSettingsCategoryChunks } from './prefetch-settings-chunks';
@@ -30,6 +30,8 @@ export default function PrototypeSettingsLayout() {
   const { isMobileSidebar } = useProtoShell();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isChildAccountsPage = pathname === prototypeHref('settings/child-accounts');
+  const categoryPath = isChildAccountsPage ? prototypeHref('settings/family') : pathname;
 
   const closeSettings = useCallback(() => {
     // A pane can be mid-flight (an import run); tearing the modal down under it
@@ -43,8 +45,8 @@ export default function PrototypeSettingsLayout() {
 
   const goToSettingsList = useCallback(() => {
     playSound('nav.drillOut');
-    navigate({ to: prototypeSettingsRouteTo(), replace: true });
-  }, [navigate]);
+    navigate({ to: isChildAccountsPage ? prototypeHref('settings/family') : prototypeSettingsRouteTo(), replace: true });
+  }, [isChildAccountsPage, navigate]);
 
   useEffect(() => {
     prefetchSettingsCategoryChunks();
@@ -60,15 +62,15 @@ export default function PrototypeSettingsLayout() {
   }, [isMobileSidebar, closeSettings]);
 
   const categories = useSettingsCategories();
-  const activeCategory = categories.find((cat) => pathname === cat.route);
+  const activeCategory = categories.find((cat) => categoryPath === cat.route);
   const isSettingsSubpage = !isSettingsIndexPath(pathname);
-  const sheetTitle = isSettingsSubpage ? (activeCategory?.title ?? 'Settings') : 'Settings';
+  const sheetTitle = isChildAccountsPage ? 'Child notebooks' : (activeCategory?.title ?? 'Settings');
 
   const categoryNav = (
-    <nav className="proto-settings__nav" aria-label="Settings categories">
+    <nav className="proto-settings__nav proto-settings__nav--desktop" aria-label="Settings categories">
       <div className="proto-settings__nav-list">
         {categories.map((cat, i) => {
-          const active = pathname === cat.route;
+          const active = categoryPath === cat.route;
           // A small gap where one run ends and the next begins (settingsCategories `group`).
           const startsGroup = i > 0 && categories[i - 1]!.group !== cat.group;
           return (
@@ -78,9 +80,9 @@ export default function PrototypeSettingsLayout() {
               className="proto-settings__nav-item"
               data-active={active ? 'true' : 'false'}
               data-group-start={startsGroup ? 'true' : undefined}
-              aria-current={active ? 'page' : undefined}
+              aria-current={active ? (isChildAccountsPage ? 'location' : 'page') : undefined}
               onClick={() => {
-                if (!active) playSound('nav.select');
+                if (pathname !== cat.route) playSound('nav.select');
                 navigate({ to: cat.route as '/settings/account', replace: true });
               }}
             >
@@ -150,7 +152,7 @@ export default function PrototypeSettingsLayout() {
               <button
                 type="button"
                 className="proto-toolbar-icon-btn"
-                aria-label="Back to settings list"
+                aria-label={isChildAccountsPage ? 'Back to My Family' : 'Back to settings list'}
                 onClick={goToSettingsList}
               >
                 <Icon name="caret-left" size={20} />

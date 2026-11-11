@@ -310,6 +310,10 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
   const prototypeSettingsChildAccountsRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'child-accounts',
+    validateSearch: (search: Record<string, unknown>): { child?: string; setup?: boolean } => ({
+      ...(typeof search.child === 'string' ? { child: search.child } : {}),
+      ...(search.setup === true ? { setup: true } : {}),
+    }),
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChildAccountsPage')),
   });
 

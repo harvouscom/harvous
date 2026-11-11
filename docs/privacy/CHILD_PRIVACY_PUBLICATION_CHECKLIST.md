@@ -6,7 +6,7 @@ Before publishing that policy, supply and verify:
 
 - The legal operator’s actual name, mailing address, telephone number, and privacy contact email. Do not invent or substitute a developer nickname.
 - The operators/service providers collecting or maintaining information, their purposes, and their child-specific contracts. Review API hosting, CDN/security logs, database/backups, parent authentication, and KWS and its verification processors.
-- Exactly what is collected before verification (adult account/email plus the consent request), after verification/consent (nickname, age band, notes, notebook preferences, Family Bible readings and thoughts, and permissions), and automatically for necessary service/security functions.
+- Exactly what is collected before verification (adult account/email plus the consent request), after verification/consent (first name or nickname, under-13 eligibility, notes, notebook preferences, Family Bible readings and thoughts, and permissions), and automatically for necessary service/security functions.
 - Parent review/export, consent withdrawal, deletion, and contact procedures, including verification of an off-platform rights request and handling guardianship disputes.
 - The retention schedule in `docs/CHILD_ACCOUNTS.md`, plus the **actual** backup expiry, logging retention, deletion propagation, and restoration safeguards. The code does not erase a provider’s backups.
 - No optional advertising, sale, behavioral tracking, social discovery, direct messaging, public child content, or third-party AI processing in this pilot.

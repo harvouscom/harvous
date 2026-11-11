@@ -59,22 +59,69 @@ import {
   SettingsShell,
   SettingsSubScreen,
 } from './SettingsShell';
+import '../../../styles/family.css';
 
 export type InFamily = Extract<FamilyResponse, { me: unknown }>;
 
 function ChildAccountsRow() {
   const { data } = useChildAccountsStatus();
   const navigate = useNavigate();
+  const [ageChoice, setAgeChoice] = useState<'choose' | 'teen' | null>(null);
   if (!data?.available && !data?.children.length) return null;
+  const verified = data.verifications.some((verification) => verification.status === 'verified');
+  const inProgress = !data.requiresPlus && (verified || data.verifications.some((verification) => verification.status === 'pending'));
+  const hasNotebooks = data.children.length > 0;
+  const to = prototypeHref('settings/child-accounts');
+  const openSetup = () => void navigate({ to, search: { setup: true } });
+  const openUpgrade = () => void navigate({ to: '/upgrade' });
+
   return (
-    <SettingsGroup>
-      <SettingsRow
-        label="Child notebooks"
-        sublabel="Manage parent-supervised notebooks for children under 13"
-        leadingIcon="book-open"
-        onClick={() => void navigate({ to: prototypeHref('settings/child-accounts') })}
-      />
-    </SettingsGroup>
+    <section aria-label="Child notebooks">
+      <SectionLabel>Child notebooks</SectionLabel>
+      <SettingsGroup>
+        {hasNotebooks ? data.children.map((child) => (
+          <SettingsRow key={child.id} label={`${child.displayName}’s notebook`} leadingIcon="book-open"
+            sublabel={child.status === 'active' ? 'Open on this device, create a sign-in link, or manage access' : 'Consent withdrawn'}
+            onClick={() => void navigate({ to, search: { child: child.id } })} />
+        )) : (
+          <SettingsRow label="Choose an account" leadingIcon={inProgress ? 'circle-check' : 'circle-user'}
+            sublabel={inProgress ? 'Parent-managed notebook' : 'Under 13 or 13 and older'}
+            expanded={!!ageChoice}
+            onClick={() => setAgeChoice(ageChoice ? null : 'choose')} />
+        )}
+        {data.available && hasNotebooks && !inProgress && (
+          <SettingsRow label="Add another notebook" leadingIcon="plus" expanded={!!ageChoice}
+            onClick={() => setAgeChoice(ageChoice ? null : 'choose')} />
+        )}
+        {data.available && ageChoice && (
+          <>
+            <SettingsRow label="Under 13" sublabel={data.requiresPlus ? 'Parent-managed notebooks are included with Harvous Plus' : 'Set up a parent-managed notebook for a child in the United States'}
+              leadingIcon="book-open" onClick={data.requiresPlus ? openUpgrade : openSetup} />
+            <SettingsRow label="13 and older" sublabel="Sign up for a standard Harvous account"
+              leadingIcon="circle-user" expanded={ageChoice === 'teen'}
+              onClick={() => setAgeChoice(ageChoice === 'teen' ? 'choose' : 'teen')} />
+            {ageChoice === 'teen' && (
+              <div className="pds-family-signup">
+                <p className="pds-caption">Share this link so they can sign up with their own email on their device or in a separate browser profile.</p>
+                <SettingsCopyRow value={new URL('/sign-up', window.location.origin).href} copyLabel="Copy signup link" />
+              </div>
+            )}
+          </>
+        )}
+        {data.available && (inProgress || !hasNotebooks) && (
+          data.requiresPlus ? <SettingsRow label="Set up the notebook" sublabel="Included with Harvous Plus"
+            leadingIcon="lock" onClick={openUpgrade} /> : (
+            <SettingsRow label={inProgress ? 'Continue notebook setup' : 'Set up the notebook'} leadingIcon="list-check"
+              sublabel={inProgress ? (verified ? 'In progress · Review privacy' : 'In progress · Verify adult') : 'Verify an adult, review privacy, and give permission'}
+              trailing={inProgress ? 'chevron' : 'none'} onClick={inProgress ? openSetup : undefined} />
+          )
+        )}
+        {!hasNotebooks && (
+          <SettingsRow label="Open the notebook" sublabel="Use this device or create a sign-in link after setup"
+            leadingIcon="book-open" trailing="none" />
+        )}
+      </SettingsGroup>
+    </section>
   );
 }
 
@@ -223,6 +270,7 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
    */
   return (
     <SettingsShell>
+      <ChildAccountsRow />
       <SettingsGroup>
         <div className="proto-lock-pin-settings__body">
           <div className="proto-lock-pin-settings__hero">
@@ -289,7 +337,6 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
           trailing="none"
         />
       </SettingsGroup>
-      <ChildAccountsRow />
       <PreviewNote />
     </SettingsShell>
   );
@@ -797,6 +844,7 @@ export function FamilyView({ data }: { data: InFamily }) {
         ) : null}
       </SettingsGroup>
 
+      <ChildAccountsRow />
       <SectionLabel>{`People · ${family.members.length} of ${maxMembers}`}</SectionLabel>
       <SettingsGroup>
         {family.members.map((member) => (
@@ -911,7 +959,6 @@ export function FamilyView({ data }: { data: InFamily }) {
           onCancel={() => setConfirmLeave(false)}
         />
       ) : null}
-      <ChildAccountsRow />
       <PreviewNote />
     </SettingsShell>
   );

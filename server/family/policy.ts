@@ -9,16 +9,20 @@ export const hashSecret = (value: string) => createHash('sha256').update(value).
 export const emailDigest = (value: string) => hashSecret(value.trim().toLowerCase());
 
 /** KWS uses milliseconds, raw UTF-8 body and potentially multiple v1 signatures during rotation. */
-export function verifyKwsSignature(raw: string, header: string | undefined, secrets: string[], now = Date.now()) {
-  const parts = (header ?? '').split(',').map((p) => p.trim());
+export function kwsWebhookSignatureResult(raw: string, header: string | undefined, secrets: string[], now = Date.now()) {
+  if (!header) return 'missing-signature';
+  const parts = header.split(',').map((p) => p.trim());
   const times = parts.filter((p) => p.startsWith('t=')).map((p) => p.slice(2));
-  if (times.length !== 1 || !/^\d{13}$/.test(times[0])) return false;
-  if (Math.abs(now - Number(times[0])) > 5 * 60 * 1000) return false;
+  if (times.length !== 1 || !/^\d{13}$/.test(times[0])) return 'malformed-signature';
   const signatures = parts.filter((p) => /^v1=[a-f0-9]{64}$/i.test(p)).map((p) => Buffer.from(p.slice(3), 'hex'));
-  return secrets.filter(Boolean).some((secret) => {
+  if (signatures.length === 0) return 'malformed-signature';
+  const matches = secrets.filter(Boolean).some((secret) => {
     const expected = createHmac('sha256', secret).update(`${times[0]}.${raw}`).digest();
     return signatures.some((signature) => timingSafeEqual(expected, signature));
   });
+  if (!matches) return 'signature-mismatch';
+  if (Math.abs(now - Number(times[0])) > 5 * 60 * 1000) return 'stale-signature';
+  return 'valid';
 }
 
 export function hasActiveChildConsent(child: { status: string; noticeVersion: string; consentedAt: Date | null }) {

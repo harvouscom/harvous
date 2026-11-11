@@ -8,7 +8,7 @@ export type FamilyChild = {
 };
 export type ChildNote = { id: string; title: string | null; content: string; updatedAt: string | null; primaryCollection?: string | null; tagIds?: string[]; threadIds?: string[]; attachments?: ChildNoteAttachment[] };
 export type FamilyStatus = {
-  available: boolean; children: FamilyChild[]; noticeVersion: string;
+  available: boolean; requiresPlus: boolean; children: FamilyChild[]; noticeVersion: string;
   verifications: { id: string; status: string }[];
 };
 export type ChildDetail = {

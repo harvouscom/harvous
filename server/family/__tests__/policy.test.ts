@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { CHILD_NOTICE_VERSION, childSecret, emailDigest, hashSecret, hasActiveChildConsent, verifyKwsSignature } from '../policy';
+import { CHILD_NOTICE_VERSION, childSecret, emailDigest, hashSecret, hasActiveChildConsent, kwsWebhookSignatureResult } from '../policy';
 import { familyPublicConfig } from '../config';
 import { kwsConfig } from '../kws';
 import { retentionDue } from '../retention';
@@ -10,17 +10,17 @@ const raw = '{"name":"parent-verified","payload":{"verified":true}}';
 const signature = (body = raw, at = now, secret = 'test-secret') => createHmac('sha256', secret).update(`${at}.${body}`).digest('hex');
 describe('KWS signature trust boundary', () => {
   it('accepts an authentic raw body and either signature during rotation', () => {
-    expect(verifyKwsSignature(raw, `t=${now},v1=${signature()}`, ['test-secret'], now)).toBe(true);
-    expect(verifyKwsSignature(raw, `t=${now},v1=${signature(raw, now, 'new')},v1=${signature()}`, ['test-secret'], now)).toBe(true);
+    expect(kwsWebhookSignatureResult(raw, `t=${now},v1=${signature()}`, ['test-secret'], now)).toBe('valid');
+    expect(kwsWebhookSignatureResult(raw, `t=${now},v1=${signature(raw, now, 'new')},v1=${signature()}`, ['test-secret'], now)).toBe('valid');
   });
   it.each([undefined, '', `t=${now},v1=invalid`, `t=${now},v1=${'a'.repeat(64)}`, `t=${now},t=${now},v1=${signature()}`])('refuses malformed or forged headers %s', (header) => {
-    expect(verifyKwsSignature(raw, header, ['test-secret'], now)).toBe(false);
+    expect(kwsWebhookSignatureResult(raw, header, ['test-secret'], now)).not.toBe('valid');
   });
   it('refuses tampering, replay, seconds instead of milliseconds, and absent secrets', () => {
-    expect(verifyKwsSignature(raw + ' ', `t=${now},v1=${signature()}`, ['test-secret'], now)).toBe(false);
-    expect(verifyKwsSignature(raw, `t=${now},v1=${signature()}`, ['test-secret'], now + 301_000)).toBe(false);
-    expect(verifyKwsSignature(raw, `t=${now / 1000},v1=${signature()}`, ['test-secret'], now)).toBe(false);
-    expect(verifyKwsSignature(raw, `t=${now},v1=${signature()}`, [], now)).toBe(false);
+    expect(kwsWebhookSignatureResult(raw + ' ', `t=${now},v1=${signature()}`, ['test-secret'], now)).toBe('signature-mismatch');
+    expect(kwsWebhookSignatureResult(raw, `t=${now},v1=${signature()}`, ['test-secret'], now + 301_000)).toBe('stale-signature');
+    expect(kwsWebhookSignatureResult(raw, `t=${now / 1000},v1=${signature()}`, ['test-secret'], now)).not.toBe('valid');
+    expect(kwsWebhookSignatureResult(raw, `t=${now},v1=${signature()}`, [], now)).not.toBe('valid');
   });
 });
 describe('child policy', () => {

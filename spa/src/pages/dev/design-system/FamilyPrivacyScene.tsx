@@ -12,6 +12,9 @@ export default function FamilyPrivacyScene() {
       <button className="pds-child-button">Save note</button>
       <p className="pds-caption">Your parent can read your notes. Ministry leaders and other children cannot.</p>
     </div>
-    <ChildPrivacyNotice />
+    <section className="pds-family-notice pds-family-stack">
+      <h3 className="pds-title">Your child’s privacy</h3>
+      <ChildPrivacyNotice />
+    </section>
   </div>;
 }

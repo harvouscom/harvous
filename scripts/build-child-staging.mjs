@@ -19,7 +19,7 @@ const root = new URL('../', import.meta.url);
 const path = (relative) => fileURLToPath(new URL(relative, root));
 await build({ envDir: false, build: { outDir: path('dist-child-staging'), emptyOutDir: true } });
 
-for (const name of ['_redirects', '.assetsignore']) {
+for (const name of ['_redirects', '.assetsignore', 'child-staging-privacy.html']) {
   await copyFile(path(`cloudflare/${name}`), path(`dist-child-staging/${name}`));
 }
 const originalHeaders = await readFile(path('cloudflare/_headers'), 'utf8');

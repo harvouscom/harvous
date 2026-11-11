@@ -1,38 +1,41 @@
-import { clearUserClientStorageCaches } from '@/utils/clear-user-client-caches';
-import { deletePersistedQueryCache } from '@/utils/query-cache-persistence';
+import Icon from '@/components/react/Icon';
+import { prototypeHref } from '@/lib/prototype-path';
 import { useState } from 'react';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth, useClerk } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../../lib/api';
 import { useAuthReady } from '../../../hooks/useAuthReady';
-import { SettingsShell, SettingsIntro } from './SettingsShell';
-import ProtoConfirmDialog from '../ProtoConfirmDialog';
-import ManageChildFamilyBible from '../../family/ManageChildFamilyBible';
+import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './SettingsShell';
+import ManageChildNotebook from './ManageChildNotebook';
 import ChildPrivacyNotice from '../../family/ChildPrivacyNotice';
-import { downloadChildNotebook, type ChildExportFormat } from '../../family/download-child-notebook';
-import type { ChildDetail } from '../../family/types';
+import type { ChildDetail, FamilyChild, FamilyStatus } from '../../family/types';
 import { useChildAccountsStatus } from '../../family/useChildAccountsStatus';
 import '../../../styles/family.css';
 
+const enrollmentSteps = ['Verify adult', 'Review privacy', 'Create notebook'];
+
 export default function PrototypeChildAccountsPage() {
   const ready = useAuthReady();
-  const clerk = useClerk();
   const { userId } = useAuth();
   const qc = useQueryClient();
-  const [selected, setSelected] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const searchStr = useRouterState({ select: (state) => state.location.searchStr });
+  const search = new URLSearchParams(searchStr);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [verificationFeedback, setVerificationFeedback] = useState('');
   const [busy, setBusy] = useState(false);
-  const [confirmChildMode, setConfirmChildMode] = useState(false);
   const [noticeAccepted, setNoticeAccepted] = useState(false);
-  const [nickname, setNickname] = useState('');
-  const [ageBand, setAgeBand] = useState('8-12');
-  const [handoff, setHandoff] = useState('');
-  const [confirm, setConfirm] = useState<{ action: 'delete' | 'revoke'; rect: DOMRect } | null>(null);
+  const [displayName, setDisplayName] = useState('');
   const status = useChildAccountsStatus();
+  const requestedChild = search.get('child');
+  const selected = status.data?.children.find((child) => child.id === requestedChild)?.id;
   const detail = useQuery({ queryKey: ['family-child', userId, selected], enabled: ready && !!selected, meta: { persist: false },
     queryFn: () => api.get<ChildDetail>(`/api/child-accounts/children/${selected}`), staleTime: 0 });
   const verification = status.data?.verifications.find((v) => v.status === 'verified');
+  const enrollmentStep = verification ? (noticeAccepted ? 2 : 1) : 0;
+  const awaitingVerification = status.data?.verifications.some((v) => v.status === 'pending');
   async function perform(work: () => Promise<unknown>, success: string) {
     if (busy) return;
     setBusy(true); setError(''); setMessage('');
@@ -41,118 +44,162 @@ export default function PrototypeChildAccountsPage() {
     catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); }
     finally { setBusy(false); }
   }
-  async function startChildMode() {
-    if (busy || !selected || !status.data?.childAppUrl || detail.data?.child.status !== 'active') return;
-    setBusy(true); setError('');
-    try {
-      // Mint at confirmation time, not when the settings page or dialog first opened.
-      const result = await api.post<{ token: string }>(`/api/child-accounts/children/${selected}/handoff`);
-      const childUrl = new URL(status.data.childAppUrl); childUrl.hash = result.token;
-      await qc.cancelQueries();
-      clearUserClientStorageCaches();
-      await deletePersistedQueryCache();
-      await clerk.signOut();
-      qc.clear();
-      window.location.assign(childUrl.href);
-    } catch {
-      setError('We couldn’t switch safely. Please try again before handing over this device.');
-      setBusy(false);
+  function sendVerification() {
+    setVerificationFeedback('');
+    void perform(() => api.post('/api/child-accounts/verification', { location: 'US' }), '');
+  }
+  async function checkVerification() {
+    setVerificationFeedback('');
+    const result = await status.refetch();
+    if (result.isError) {
+      setVerificationFeedback('Couldn’t check verification. Please try again.');
+    } else if (!result.data?.verifications.some((v) => v.status === 'verified')) {
+      setVerificationFeedback('Verification is still pending.');
     }
   }
-  async function exportData(format: ChildExportFormat) {
-    if (!ready || !selected || busy) return;
-    setBusy(true); setError(''); setMessage('');
-    try { await downloadChildNotebook(selected, format); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Could not download the notebook.'); }
-    finally { setBusy(false); }
-  }
   if (status.isPending) return <SettingsShell><p role="status">Loading your family…</p></SettingsShell>;
-  if (status.isError) return <SettingsShell><p role="alert">Could not load your family.</p><button className="proto-settings-btn" onClick={() => status.refetch()}>Try again</button></SettingsShell>;
+  if (!status.data) return <SettingsShell><p role="alert">Could not load your family.</p><button className="proto-settings-btn" onClick={() => status.refetch()}>Try again</button></SettingsShell>;
   const data = status.data;
+  const notebookRoute = prototypeHref('settings/child-accounts');
+  function openNotebook(child: string, replace = false) {
+    void navigate({ to: notebookRoute, search: { child }, replace });
+  }
+  if (selected && detail.data) {
+    return <ManageChildNotebook key={selected} detail={detail.data} childAppUrl={data.available ? data.childAppUrl : undefined}
+      busy={busy} error={error} message={message} perform={perform} onDelete={() => {
+        qc.setQueryData<FamilyStatus>(['family', userId, 'child-accounts'], current => current && ({
+          ...current, children: current.children.filter(child => child.id !== selected),
+        }));
+        qc.removeQueries({ queryKey: ['family-child', userId, selected] });
+        void navigate({ to: notebookRoute, search: {}, replace: true });
+      }} />;
+  }
+  const showEnrollment = data.available && !data.requiresPlus && !selected && (
+    search.get('setup') === 'true' || data.children.length === 0 || verification || awaitingVerification
+  );
   return <SettingsShell>
-    <SettingsIntro>A private notebook for your child, with you beside them.</SettingsIntro>
+    <nav className="pds-family-breadcrumb pds-caption" aria-label="Settings breadcrumb">
+      <Link to={prototypeHref('settings/family')}>My Family</Link>
+      <Icon name="caret-right" size={10} aria-hidden />
+      <span aria-current="page">Child notebooks</span>
+    </nav>
+    {showEnrollment && !verification && <SettingsIntro>A private notebook for your child, with you beside them.</SettingsIntro>}
     <div className="pds-family-stack">
       {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
       {!data.available && <p className="pds-caption" role="status">Child account setup is not open yet. Existing family accounts can still be managed here.</p>}
-      {data.children.map((child) => <button key={child.id} className="proto-settings-btn proto-settings-btn--secondary"
-        onClick={() => { setSelected(child.id); setHandoff(''); setConfirmChildMode(false); }}>
-        {child.displayName} · {child.status === 'active' ? 'Active' : 'Consent withdrawn'}
-      </button>)}
+      {data.available && data.requiresPlus && !selected && <SettingsGroup>
+        <SettingsRow leadingIcon="lock" label="Child notebook setup is included with Harvous Plus"
+          sublabel="See Harvous Plus options" onClick={() => void navigate({ to: '/upgrade' })} />
+      </SettingsGroup>}
+      {!selected && data.children.length > 0 && <SettingsGroup>
+        {data.children.map(child => <SettingsRow key={child.id} leadingIcon="book-open"
+          label={`${child.displayName}’s notebook`} sublabel={child.status === 'active' ? 'Open or manage notebook' : 'Consent withdrawn'}
+          onClick={() => openNotebook(child.id)} />)}
+      </SettingsGroup>}
       {selected && detail.isPending && <p role="status">Loading child account…</p>}
       {selected && detail.isError && <p role="alert">Could not load this account. <button onClick={() => detail.refetch()}>Try again</button></p>}
-      {selected && detail.data && <section className="pds-family-stack" aria-label={`${detail.data.child.displayName} account`}>
-        <h2 className="pds-title">{detail.data.child.displayName}</h2>
-        <p className="pds-caption">You can review this notebook. Ministry leaders cannot read it.</p>
-        <button className="proto-settings-btn" disabled={busy || !data.available || detail.data.child.status !== 'active'} onClick={() => perform(async () => {
-          const result = await api.post<{ token: string }>(`/api/child-accounts/children/${selected}/handoff`);
-          const url = new URL(data.childAppUrl!); url.hash = result.token; setHandoff(url.href);
-        }, 'The sign-in link is ready. It works once and expires in five minutes.')}>Create child sign-in link</button>
-        {handoff && <label className="pds-caption">Open on your child’s device or a separate browser profile. Do not share publicly.
-          <input className="proto-settings-field__input" aria-label="Child sign-in link" readOnly value={handoff} onFocus={(e) => e.target.select()} />
-        </label>}
-        <button className="proto-settings-btn" disabled={busy || !data.available || detail.data.child.status !== 'active'} onClick={() => setConfirmChildMode(true)}>Use child mode on this device</button>
-        {confirmChildMode && <section className="pds-family-notice pds-family-stack" aria-label="Confirm child mode">
-          <h3 className="pds-title">Switch to {detail.data.child.displayName}’s notebook?</h3>
-          <p>You’ll be signed out before the notebook opens. Your child can use their approved features. Returning to your account requires signing in again.</p>
-          <button className="proto-settings-btn" disabled={busy} onClick={() => void startChildMode()}>{busy ? 'Switching safely…' : 'Start child mode'}</button>
-          <button className="proto-settings-btn proto-settings-btn--secondary" disabled={busy} onClick={() => setConfirmChildMode(false)}>Keep using my account</button>
-        </section>}
-        <button className="proto-settings-btn proto-settings-btn--secondary" disabled={busy} onClick={() => perform(() => api.delete(`/api/child-accounts/children/${selected}/sessions`), 'All child sessions ended.')}>End all sessions</button>
-        <h3 className="pds-list-title">Approved ministries</h3>
-        <p className="pds-caption">Your child can read these channels. Their notes and profile stay private.</p>
-        {detail.data.ministries.length === 0 && <p className="pds-caption">Follow a ministry channel from your own account to approve it here.</p>}
-        {detail.data.ministries.map((space) => <label className="pds-family-choice" key={space.id}>
-          <input type="checkbox" disabled={busy || detail.data!.child.status !== 'active'}
-            checked={detail.data!.approvals.some((a) => a.spaceId === space.id)}
-            onChange={(e) => {
-              const ids = detail.data!.approvals.map((a) => a.spaceId).filter((id) => detail.data!.ministries.some((s) => s.id === id));
-              void perform(() => api.put(`/api/child-accounts/children/${selected}/ministries`, {
-                spaceIds: e.target.checked ? [...ids, space.id] : ids.filter((id) => id !== space.id)
-              }), 'Ministry access updated.');
-            }} />{space.title}
-        </label>)}
-        <ManageChildFamilyBible key={selected} detail={detail.data} busy={busy} perform={perform} />
-        <h3 className="pds-list-title">Notebook</h3>
-        {detail.data.notes.length === 0 && <p className="pds-caption">No notes yet.</p>}
-        {detail.data.notes.map((note) => <details key={note.id}><summary>{note.title || 'Untitled note'}</summary><p className="pds-family-note">{note.content}</p></details>)}
-        <button className="proto-settings-btn proto-settings-btn--secondary" disabled={busy} onClick={() => void exportData('text')}>Download readable copy</button>
-        <button className="proto-settings-btn proto-settings-btn--secondary" disabled={busy} onClick={() => void exportData('backup')}>Download notebook backup</button>
-        <button className="proto-settings-btn proto-settings-btn--secondary" disabled={busy || detail.data.child.status !== 'active'} onClick={(e) => setConfirm({ action: 'revoke', rect: e.currentTarget.getBoundingClientRect() })}>Withdraw consent</button>
-        <button className="proto-settings-btn proto-settings-btn--destructive" disabled={busy} onClick={(e) => setConfirm({ action: 'delete', rect: e.currentTarget.getBoundingClientRect() })}>Delete child account</button>
-      </section>}
-      {data.available && <section className="pds-family-stack" aria-label="Add a child">
-        <h2 className="pds-title">Add a child</h2>
-        <p className="pds-caption">First verify that you are an adult using the verified email on your Harvous account. This pilot is for children in the United States.</p>
-        {!verification && <>
-          <button className="proto-settings-btn" disabled={busy} onClick={() => perform(() => api.post('/api/child-accounts/verification', { location: 'US' }), 'Check your email for the Kids Web Services verification link.')}>Verify parent with KWS</button>
-          <button className="proto-settings-btn proto-settings-btn--secondary" disabled={busy} onClick={() => status.refetch()}>Check verification status</button>
-        </>}
+      {showEnrollment && <section className={verification ? 'pds-family-stack pds-family-enrollment--verified' : 'pds-family-stack'} aria-labelledby="child-enrollment-title">
+        <header className="pds-family-enrollment-heading">
+          <h2 id="child-enrollment-title" className="pds-title">Set up a child notebook</h2>
+          <ol className="pds-family-enrollment-progress" aria-label="Notebook setup progress">
+            {enrollmentSteps.map((step, index) => (
+              <li key={step} className="pds-caption" aria-current={index === enrollmentStep ? 'step' : undefined}
+                data-complete={index < enrollmentStep || undefined}>
+                <span className="pds-family-enrollment-progress__marker" aria-hidden="true">
+                  {index < enrollmentStep ? <Icon name="check" size={11} /> : index + 1}
+                </span>
+                {step}{index < enrollmentStep && <span className="sr-only">, complete</span>}
+              </li>
+            ))}
+          </ol>
+        </header>
+        {!verification && <div className="pds-family-verification pds-family-stack">
+          <div className="pds-family-verification__header">
+            <span className="pds-family-verification__icon" aria-hidden="true">
+              <Icon name={awaitingVerification ? 'envelope' : 'user-shield'} size={18} />
+            </span>
+            <div role="status">
+              <h3 className="pds-list-title">{awaitingVerification ? 'Check your email' : 'Verify you’re an adult'}</h3>
+              <p className="pds-body">
+                {awaitingVerification
+                  ? 'Open the email from Kids Web Services and complete verification. Then come back here to continue.'
+                  : 'Kids Web Services will send a verification link to the email on your Harvous account.'}
+              </p>
+            </div>
+          </div>
+          <div className="pds-family-verification__actions">
+            {awaitingVerification ? <>
+              <button className="proto-settings-btn" disabled={busy || status.isFetching} onClick={() => void checkVerification()}>
+                Check verification status
+              </button>
+              <button className="proto-settings-btn proto-settings-btn--secondary" disabled={busy} onClick={sendVerification}>
+                Send a new email
+              </button>
+            </> : <button className="proto-settings-btn" disabled={busy} onClick={sendVerification}>
+              <Icon name="envelope" size={14} aria-hidden /> Send verification email
+            </button>}
+          </div>
+          {verificationFeedback && awaitingVerification && <p className="pds-body" role="status">{verificationFeedback}</p>}
+          {!awaitingVerification && <p className="pds-caption">For children under 13 in the United States.</p>}
+        </div>}
         {verification && <>
-          <ChildPrivacyNotice />
-          <a href={data.privacyUrl} target="_blank" rel="noreferrer">Full child privacy policy and contact details</a>
-          <label className="pds-family-choice"><input type="checkbox" checked={noticeAccepted} onChange={(e) => setNoticeAccepted(e.target.checked)} />
-            I am the parent or legal guardian. My child is under 13 and lives in the United States. I have read the notice and consent to the collection and use described.</label>
-          {noticeAccepted && <form className="pds-family-stack" onSubmit={(e) => { e.preventDefault(); void perform(async () => {
-            await api.post('/api/child-accounts/children', { verificationId: verification.id, displayName: nickname, ageBand,
-              noticeVersion: data.noticeVersion, consent: true, isGuardian: true });
-            setNickname(''); setNoticeAccepted(false);
-          }, 'Your child’s account is ready.'); }}>
-            <label className="pds-caption">Nickname, not full name<input className="proto-settings-field__input" required maxLength={32} autoComplete="off" value={nickname} onChange={(e) => setNickname(e.target.value)} /></label>
-            <label className="pds-caption">Age group<select className="proto-settings-field__input" value={ageBand} onChange={(e) => setAgeBand(e.target.value)}><option value="under-8">Under 8</option><option value="8-12">8–12</option></select></label>
-            <button className="proto-settings-btn" disabled={busy || !nickname.trim()}>Agree and create child account</button>
-          </form>}
+          <section aria-labelledby="child-privacy-title">
+            <h3 id="child-privacy-title" className="pds-caption pds-family-enrollment-label">Your child’s privacy</h3>
+            <SettingsGroup>
+              <SettingsRow leadingIcon="lock" trailing="none" label="A private notebook"
+                sublabel="You and your child can read their notes. You can also download a copy." />
+              <SettingsRow leadingIcon="book-open" trailing="none" label="Ministry reading you approve"
+                sublabel="Approved channels are read-only. Ministry leaders can’t see your child’s notes or profile." />
+              <SettingsRow leadingIcon="user-shield" trailing="none" label="Settings you manage"
+                sublabel="End sessions, remove ministry access, withdraw consent, or delete the notebook in Family settings." />
+              <details className="pds-family-privacy__disclosure">
+                <summary className="proto-note-row proto-settings-row pds-family-privacy__action">
+                  <span className="pds-list-title">Read the full privacy notice</span>
+                  <Icon name="chevron-down" size={12} aria-hidden />
+                </summary>
+                <ChildPrivacyNotice />
+              </details>
+              <a className="proto-note-row proto-settings-row pds-family-privacy__action" href={data.privacyUrl} target="_blank" rel="noreferrer">
+                <span className="pds-list-title">Privacy policy and contact details</span>
+                <Icon name="arrow-up-right-from-square" size={12} aria-hidden />
+              </a>
+            </SettingsGroup>
+          </section>
+
+          <section className="pds-family-consent" aria-labelledby="child-consent-title">
+            <h3 id="child-consent-title" className="pds-caption pds-family-enrollment-label">Give permission</h3>
+            <label className="pds-family-choice pds-subheadline">
+              <input type="checkbox" className="proto-checkbox--accent" checked={noticeAccepted}
+                disabled={busy} onChange={(e) => setNoticeAccepted(e.target.checked)} />
+              <span>I am the parent or legal guardian. My child is under 13 and lives in the United States. I have read the notice and consent to the collection and use described.</span>
+            </label>
+            {noticeAccepted && <form className="pds-family-stack pds-family-consent__form" onSubmit={(e) => {
+              e.preventDefault();
+              void perform(async () => {
+                const { child } = await api.post<{ child: FamilyChild }>('/api/child-accounts/children', { verificationId: verification.id, displayName,
+                  noticeVersion: data.noticeVersion, consent: true, isGuardian: true });
+                qc.setQueryData<FamilyStatus>(['family', userId, 'child-accounts'], (current) => current && ({
+                  ...current,
+                  children: [...current.children.filter((item) => item.id !== child.id), child],
+                  verifications: current.verifications.filter((item) => item.id !== verification.id),
+                }));
+                openNotebook(child.id, true);
+                setDisplayName('');
+                setNoticeAccepted(false);
+              }, 'Your child’s account is ready.');
+            }}>
+              <label className="pds-list-title pds-family-consent__name">First Name
+                <input className="proto-settings-field__input" placeholder="e.g. Sam" required maxLength={32} autoComplete="off"
+                  aria-describedby="child-first-name-hint" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+                <span id="child-first-name-hint" className="pds-caption">Use a first name or nickname. Leave out the last name.</span>
+              </label>
+              <button className="proto-settings-btn" type="submit" disabled={busy || !displayName.trim()}>
+                <Icon name="book-open" size={14} aria-hidden /> {busy ? 'Creating notebook…' : 'Agree and create notebook'}
+              </button>
+            </form>}
+          </section>
         </>}
       </section>}
     </div>
-    {confirm && <ProtoConfirmDialog anchorRect={confirm.rect} title={confirm.action === 'delete' ? 'Delete child account?' : 'Withdraw consent?'}
-      description={confirm.action === 'delete' ? 'This permanently deletes the child’s notebook and ends all sessions. Export anything you want to keep first.' : 'Access stops immediately. You can export or delete the notebook for 30 days before automatic deletion.'}
-      confirmLabel={confirm.action === 'delete' ? 'Delete account' : 'Withdraw consent'}
-      onCancel={() => setConfirm(null)} onConfirm={() => {
-        const action = confirm.action; setConfirm(null); setHandoff('');
-        void perform(async () => {
-          if (action === 'delete') { await api.delete(`/api/child-accounts/children/${selected}`); qc.removeQueries({ queryKey: ['family-child', userId, selected] }); setSelected(null); }
-          else await api.post(`/api/child-accounts/children/${selected}/revoke`);
-        }, action === 'delete' ? 'Child account deleted.' : 'Consent withdrawn. Child access has stopped.');
-      }} />}
   </SettingsShell>;
 }

@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import Icon from '@/components/react/Icon';
 import { getTranslation } from '@/data/translations';
 import ProtoConfirmDialog from '../prototype/ProtoConfirmDialog';
+import ProtoSelectMenu from '../prototype/ProtoSelectMenu';
+import { SettingsGroup, SettingsIntro, SettingsRow, SettingsToggleRow } from '../prototype/settings/SettingsShell';
 import { api } from '../../lib/api';
 import { childBibleTranslations, type ChildFamilyChapter, type ChildFamilyReading, type ChildFamilyThought, type ChildPassage } from '../../../../shared/child-notebook';
 import type { ChildDetail } from './types';
@@ -22,6 +25,7 @@ export default function ManageChildFamilyBible({ detail, busy, perform }: Props)
   const [verse, setVerse] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [translationsOpen, setTranslationsOpen] = useState(false);
   const [removeAnchor, setRemoveAnchor] = useState<DOMRect | null>(null);
   const active = child.status === 'active';
   const selectedPassage = translations.includes(passage.translation) ? passage : { ...passage, translation: translations[0] };
@@ -35,38 +39,48 @@ export default function ManageChildFamilyBible({ detail, busy, perform }: Props)
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open the reading.'); }
     finally { setLoading(false); }
   }
-  return <section className="pds-family-stack" aria-label="Family Bible">
-    <h3 className="pds-list-title">Family Bible</h3>
-    <p className="pds-caption">Pick translations and share chapters with {child.displayName}. Family thoughts here are visible to the two of you.</p>
-    {error && <p role="alert">{error}</p>}
-    <fieldset className="pds-family-bible-choices" disabled={disabled || !active}>
-      <legend>Approved translations</legend>
-      {childBibleTranslations.map(translation => <label className="pds-family-choice" key={translation}>
-        <input type="checkbox" checked={translations.includes(translation)}
-          disabled={translations.length === 1 && translations.includes(translation)}
-          onChange={e => {
-            const approved = e.target.checked ? [...translations, translation] : translations.filter(item => item !== translation);
+  return <section aria-label="Family Bible settings">
+    <SettingsIntro>Share chapters and verse thoughts with {child.displayName}.</SettingsIntro>
+    {error && <p className="pds-caption pds-family-management__error" role="alert">{error}</p>}
+    <SettingsGroup>
+      <SettingsRow label="Approved translations" leadingIcon="book-open" expanded={translationsOpen}
+        sublabel={translations.map(translation => getTranslation(translation)?.name ?? translation).join(', ')}
+        onClick={() => setTranslationsOpen(!translationsOpen)} />
+      {translationsOpen && childBibleTranslations.map(translation => (
+        <SettingsToggleRow key={translation} label={getTranslation(translation)?.name ?? translation}
+          checked={translations.includes(translation)}
+          disabled={disabled || !active || (translations.length === 1 && translations.includes(translation))}
+          onChange={enabled => {
+            const approved = enabled ? [...translations, translation] : translations.filter(item => item !== translation);
             void perform(() => api.put(`${base}/translations`, { translations: approved }), 'Approved translations updated.');
-          }} />{getTranslation(translation)?.name ?? translation}
-      </label>)}
-    </fieldset>
-    {active && <form className="pds-family-stack" onSubmit={e => {
-      e.preventDefault();
-      void perform(() => api.post(`${base}/readings`, selectedPassage), 'Chapter shared in Family Bible.');
-    }}>
-      <ChildBiblePassagePicker value={selectedPassage} translations={translations} onChange={setPassage} />
-      <button type="submit" className="proto-settings-btn" disabled={disabled}>Share chapter</button>
-    </form>}
-    {readings.map(reading => <button type="button" key={reading.id} className="proto-settings-btn proto-settings-btn--secondary"
-      disabled={disabled} aria-pressed={opened?.id === reading.id} onClick={() => void openReading(reading)}>
-      {reading.book} {reading.chapter} · {reading.translation}
-    </button>)}
+          }} />
+      ))}
+    </SettingsGroup>
+    {active && <SettingsGroup>
+      <form className="pds-family-bible-share pds-family-stack" onSubmit={e => {
+        e.preventDefault();
+        void perform(() => api.post(`${base}/readings`, selectedPassage), 'Chapter shared in Family Bible.');
+      }}>
+        <h3 className="pds-list-title">Share a chapter</h3>
+        <ChildBiblePassagePicker value={selectedPassage} translations={translations} onChange={setPassage} disabled={disabled} />
+        <button type="submit" className="proto-settings-btn" disabled={disabled}><Icon name="book-open" size={14} aria-hidden /> Share chapter</button>
+      </form>
+    </SettingsGroup>}
+    <div>
+      <h3 className="pds-caption pds-family-enrollment-label">Shared chapters</h3>
+      <SettingsGroup>
+        {readings.length === 0 ? <SettingsRow label="No shared chapters yet" leadingIcon="book-open" trailing="none" /> : readings.map(reading => (
+          <SettingsRow key={reading.id} label={`${reading.book} ${reading.chapter}`} sublabel={reading.translation}
+            leadingIcon="book-open" disabled={disabled} onClick={() => void openReading(reading)} />
+        ))}
+      </SettingsGroup>
+    </div>
     {opened && readings.some(reading => reading.id === opened.id) && <div className="pds-family-notice pds-family-stack">
-      <label className="pds-family-bible-picker__single">Verse in {opened.book} {opened.chapter}
-        <select value={verse} onChange={e => setVerse(Number(e.target.value))}>
-          {opened.verses.map(item => <option key={item.verse}>{item.verse}</option>)}
-        </select>
-      </label>
+      <div className="pds-family-bible-picker__single">
+        <span className="pds-caption">Verse in {opened.book} {opened.chapter}</span>
+        <ProtoSelectMenu label="Verse" value={verse} onChange={setVerse} disabled={disabled} filterPlaceholder="Find a verse"
+          options={opened.verses.map(item => ({ value: item.verse, label: String(item.verse) }))} />
+      </div>
       <p>{opened.verses.find(item => item.verse === verse)?.text}</p>
       <ChildFamilyThoughts thoughts={opened.thoughts.filter(thought => thought.verse === verse)} childName={child.displayName} />
       {active && translations.includes(opened.translation) && <ChildFamilyThoughtForm key={`${opened.id}:${verse}`} disabled={disabled} onSave={async text => {

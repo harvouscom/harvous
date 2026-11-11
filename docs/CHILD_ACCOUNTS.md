@@ -1,12 +1,14 @@
 # Parent-managed child accounts
 
-Status: the US-first web pilot runs locally with fictional accounts. Enrollment remains disabled in production. External staging still needs its own Supabase project, Clerk test instance, and Kids Web Services Test product.
+See [Child notebook follow-up](future/CHILD_NOTEBOOK_FOLLOW_UP.md) for family-selected translations, remaining staging and production checks, and the age-13 handoff.
+
+The US-first web pilot runs in isolated staging with fictional child accounts. The staging database, Clerk test instance, and Kids Web Services Test integration are configured. Production enrollment remains off.
 
 ## Experience and boundaries
 
 - Adult Harvous accounts keep the existing 13+ signup. My Family links to Child notebooks at `/settings/child-accounts` when enrollment is available or the parent already manages a child. Child account API routes use `/api/child-accounts`.
 - The parent verifies the primary verified email of their Clerk account through Kids Web Services (KWS).
-- Adult verification does not create a child or constitute consent. A signed, matching KWS webhook marks a short-lived request verified. The parent separately accepts the versioned Harvous notice and attests guardianship and US residence before submitting a nickname and age band.
+- Adult verification does not create a child or constitute consent. A signed, matching KWS webhook marks a short-lived request verified. The parent separately accepts the versioned Harvous notice and attests guardianship, under-13 eligibility, and US residence before submitting a first name or nickname.
 - Each verification request can create only one child. KWS may recognize an already verified adult on subsequent requests. No child email, phone, full birth date, photo, Clerk identity, or payment account is created.
 - Children use an isolated `/kids.html` entry on a separate origin. Parent-generated links are 256-bit, single-use credentials, expire in five minutes, and travel in the URL fragment (not server logs or referrers). The fragment is removed immediately. Session tokens are held in memory only and expire after eight hours; refresh needs another link.
 - Parents may use “Sign me out and open child notebook” for a shared device. This awaits adult sign-out and clears adult query caches. Otherwise use the child’s device or a separate browser profile. This does not claim to secure a device where a parent deliberately leaves another account signed in.
@@ -120,14 +122,14 @@ The adult account menu links to Family to select a child. “Use child mode on t
 
 The child return action ends the child session and opens the parent sign-in page. The parent page clears any existing adult session before presenting fresh sign-in, including when the child opened a handoff link in the adult’s browser profile. Preview notes and decorations at `/kids.html?preview=1` are fictional and reset on reload.
 
-Local verification used disposable PostgreSQL and fictional families. The real API handled simulated Clerk responses and signed KWS callbacks, blocked enrollment before consent, redeemed single-use links, kept notes and Bible thoughts isolated, revoked access when the parent removed approval, and exported the child’s work. The Worker’s scheduled handler called the retention endpoint and verified deletion of the expired child, note, reading, thought, sessions, and consent record. Browser checks used the built child app for search, cover changes, and shared verse thoughts. Live KWS Test email delivery, real Clerk sign-out and sign-in, and deployed scheduled execution remain staging checks.
+Local verification used disposable PostgreSQL and fictional families. The real API handled simulated Clerk responses and signed KWS callbacks, blocked enrollment before consent, redeemed single-use links, kept notes and Bible thoughts isolated, revoked access when the parent removed approval, and exported the child’s work. The Worker’s scheduled handler called the retention endpoint and verified deletion of the expired child, note, reading, thought, sessions, and consent record. Browser checks used the built child app for search, cover changes, and shared verse thoughts. The staging rehearsal later verified live KWS Test email and callback, real Clerk session handoff in a browser, and a successful Cloudflare scheduled cleanup. See the follow-up for the evidence and remaining production checks.
 
 ## Notebook organization and a future account transition
 
 The preview puts private notes in My Notebook and parent-shared ministry readings and Bible bookmarks in Family Space. Search reads those two sources. The isolated app uses current access on search and opening a result, including after a parent removes an approval.
 
-Use the adult note model for production organization. The folder is the note's `primaryCollection` label. Tags use `Tags` and `NoteTags`, and Threads use child-owned `Threads` and `NoteThreads`. The note inspector can edit those relationships inside the child's personal Home. Its preview data stays in memory. The current child API still accepts title and body only.
+Use the adult note model for production organization. The folder is the note's `primaryCollection` label. Tags use `Tags` and `NoteTags`, and Threads use child-owned `Threads` and `NoteThreads`. The note inspector can edit those relationships inside the child's personal Home. Preview edits stay in memory. The isolated child API persists titles, bodies, and note details, including organization and approved resource references.
 
 For a future transition to an independent account, preserve canonical note and organization IDs. After verifying both sides of the handoff, a server transaction should transfer ownership of the personal Home, notes, tags and Threads together. Preserve their relationships and Scripture references, reconcile account-local note numbers if needed, and end child sessions and guardian access at cutover. Family Space resources and membership should remain governed by the family's permissions. The transition needs its own identity, authorization, and data integrity checks before it can be enabled.
 
-Before enabling shared-device access, exercise the real Clerk sign-out/sign-in flow on staging, including the selected sign-in methods, back/refresh, and an existing provider session. Parent session freshness must be verified for the deployed authentication configuration.
+Repeat the shared-device handoff against the production Clerk configuration before opening real enrollment. Verify parent session freshness, browser Back and refresh, and the supported sign-in methods.

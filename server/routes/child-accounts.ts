@@ -14,7 +14,9 @@ import { db } from '../db/client';
 import { FamilyChildren, FamilyChildBibleReadings, FamilyChildSessions, FamilySpaceApprovals, FamilyVerifications, Notes, Spaces } from '../db/schema';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import { isPgUndefinedRelation } from '../utils/pg-undefined-relation';
-import { CHILD_CAPABILITIES, CHILD_NOTICE_VERSION, HANDOFF_TTL_MS, VERIFICATION_TTL_MS, childSecret, emailDigest, hashSecret, hasActiveChildConsent, verifyKwsSignature } from '../family/policy';
+import { syncEntitlementsFromProvider } from '../utils/entitlements';
+import { sponsorFeatureKeys } from '../utils/family-entitlements';
+import { CHILD_CAPABILITIES, CHILD_NOTICE_VERSION, HANDOFF_TTL_MS, VERIFICATION_TTL_MS, childSecret, emailDigest, hashSecret, hasActiveChildConsent, kwsWebhookSignatureResult } from '../family/policy';
 import { familyEnrollmentConfig, kwsConfig, requireFamilyEnrollment, sendKwsVerification } from '../family/kws';
 import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, withChildSession, type Child } from '../family/service';
 import { childSchemes, childTextSizes, coverColors, coverPatterns, coverSymbols, defaultChildPreferences } from '../../shared/child-notebook';
@@ -53,6 +55,19 @@ route.onError((error, c) => {
 const parentId = (c: Parameters<typeof getAuthenticatedAuth>[0]) => getAuthenticatedAuth(c).userId;
 const token = (c: Parameters<typeof getAuthenticatedAuth>[0]) => c.req.header('Authorization')?.match(/^Bearer (hvkid_[\w-]{43})$/)?.[1];
 
+const needsPlus = {
+  error: 'Setting up a child notebook requires Harvous Plus.',
+  code: 'CHILD_NOTEBOOK_NEEDS_PLUS',
+  upgradeUrl: '/upgrade',
+};
+
+async function canEnrollChild(userId: string): Promise<boolean> {
+  if ((await sponsorFeatureKeys(userId)).length > 0) return true;
+  // Match Family Space creation when a checkout has finished ahead of its webhook.
+  await syncEntitlementsFromProvider(userId).catch(() => undefined);
+  return (await sponsorFeatureKeys(userId)).length > 0;
+}
+
 // The parent UI does not ask for child details until this flow is complete.
 route.get(`${base}/status`, requireAuth, async (c) => {
   const publicConfig = familyPublicConfig();
@@ -62,10 +77,11 @@ route.get(`${base}/status`, requireAuth, async (c) => {
     const verifications = await db.select({ id: FamilyVerifications.id, status: FamilyVerifications.status })
       .from(FamilyVerifications).where(and(eq(FamilyVerifications.parentUserId, parentId(c)),
         gt(FamilyVerifications.expiresAt, new Date()))).orderBy(desc(FamilyVerifications.createdAt));
-    return c.json({ available, children, verifications, ...publicConfig, noticeVersion: CHILD_NOTICE_VERSION });
+    const requiresPlus = available && (await sponsorFeatureKeys(parentId(c))).length === 0;
+    return c.json({ available, requiresPlus, children, verifications, ...publicConfig, noticeVersion: CHILD_NOTICE_VERSION });
   } catch (error) {
     if (isPgUndefinedRelation(error, 'FamilyChildren') || isPgUndefinedRelation(error, 'FamilyVerifications')) {
-      return c.json({ available: false, children: [], verifications: [], noticeVersion: CHILD_NOTICE_VERSION });
+      return c.json({ available: false, requiresPlus: false, children: [], verifications: [], noticeVersion: CHILD_NOTICE_VERSION });
     }
     throw error;
   }
@@ -73,6 +89,7 @@ route.get(`${base}/status`, requireAuth, async (c) => {
 
 route.post(`${base}/verification`, requireAuth, async (c) => {
   const config = requireFamilyEnrollment();
+  if (!await canEnrollChild(parentId(c))) return c.json(needsPlus, 402);
   const input = z.object({ location: z.literal('US') }).strict().parse(await c.req.json());
   const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
   const user = await clerk.users.getUser(parentId(c));
@@ -99,31 +116,70 @@ route.post(`${base}/verification`, requireAuth, async (c) => {
   return c.json({ id, status: 'pending' }, 202);
 });
 
+const kwsWebhookEvent = z.object({
+  name: z.string(),
+  orgId: z.string(),
+  productId: z.string(),
+  payload: z.object({
+    parentEmail: z.string().email(),
+    externalPayload: z.string().uuid(),
+    status: z.object({ verified: z.boolean(), transactionId: z.string().min(1).max(200) }),
+  }),
+});
+
+function logStagingKwsWebhook(
+  outcome: 'not-configured' | 'missing-signature' | 'malformed-signature' | 'signature-mismatch' | 'stale-signature' | 'invalid-event' | 'wrong-product' | 'ignored' | 'matched' | 'no-match',
+) {
+  if (process.env.HARVOUS_CHILD_ENVIRONMENT === 'staging') {
+    console.info('[kws-test-webhook]', outcome);
+  }
+}
+
 // External callback is signed, bounded and not authenticated with an adult session.
 route.post('/api/webhooks/kws', bodyLimit({ maxSize: 16 * 1024 }), async (c) => {
   c.header('Cache-Control', 'no-store');
   const config = kwsConfig();
-  if (!config) throw new HTTPException(503, { message: 'Verification is not configured.' });
+  if (!config) {
+    logStagingKwsWebhook('not-configured');
+    throw new HTTPException(503, { message: 'Verification is not configured.' });
+  }
   const raw = await c.req.text();
-  if (!verifyKwsSignature(raw, c.req.header('x-kws-signature'), [config.webhookSecret, process.env.KWS_PREVIOUS_WEBHOOK_SECRET ?? ''])) {
+  const signature = kwsWebhookSignatureResult(raw, c.req.header('x-kws-signature'), [
+    config.webhookSecret, process.env.KWS_PREVIOUS_WEBHOOK_SECRET ?? '',
+  ]);
+  if (signature !== 'valid') {
+    logStagingKwsWebhook(signature);
     throw new HTTPException(401, { message: 'Invalid signature.' });
   }
-  const event = z.object({ name: z.string(), orgId: z.string(), productId: z.string(),
-    payload: z.object({ parentEmail: z.string().email(), externalPayload: z.string().uuid(),
-      status: z.object({ verified: z.boolean(), transactionId: z.string().min(1).max(200) }) }) }).parse(JSON.parse(raw));
-  if (event.orgId !== config.orgId || event.productId !== config.productId) throw new HTTPException(403, { message: 'Wrong verification product.' });
-  if (event.name !== 'parent-verified' || event.payload.status.verified !== true) return c.json({ received: true });
-  await db.update(FamilyVerifications).set({ status: 'verified', verifiedAt: new Date(), transactionId: event.payload.status.transactionId })
+  let event: z.infer<typeof kwsWebhookEvent>;
+  try {
+    event = kwsWebhookEvent.parse(JSON.parse(raw));
+  } catch (error) {
+    logStagingKwsWebhook('invalid-event');
+    throw error;
+  }
+  if (event.orgId !== config.orgId || event.productId !== config.productId) {
+    logStagingKwsWebhook('wrong-product');
+    throw new HTTPException(403, { message: 'Wrong verification product.' });
+  }
+  if (event.name !== 'parent-verified' || event.payload.status.verified !== true) {
+    logStagingKwsWebhook('ignored');
+    return c.json({ received: true });
+  }
+  const result = await db.update(FamilyVerifications).set({ status: 'verified', verifiedAt: new Date(), transactionId: event.payload.status.transactionId })
     .where(and(eq(FamilyVerifications.id, event.payload.externalPayload), eq(FamilyVerifications.status, 'pending'),
       eq(FamilyVerifications.environment, config.environment), eq(FamilyVerifications.parentEmailHash, emailDigest(event.payload.parentEmail)),
       gt(FamilyVerifications.expiresAt, new Date())));
+  logStagingKwsWebhook(result.count > 0 ? 'matched' : 'no-match');
   return c.json({ received: true });
 });
 
 route.post(`${base}/children`, requireAuth, async (c) => {
   const config = requireFamilyEnrollment();
+  if (!await canEnrollChild(parentId(c))) return c.json(needsPlus, 402);
   const input = z.object({ verificationId: z.string().uuid(), displayName: z.string().trim().min(1).max(32),
-    ageBand: z.enum(['under-8', '8-12']), noticeVersion: z.literal(CHILD_NOTICE_VERSION),
+    // Accept the old form's age band during rollout. New records store only under-13 eligibility.
+    ageBand: z.enum(['under-8', '8-12']).optional(), noticeVersion: z.literal(CHILD_NOTICE_VERSION),
     isGuardian: z.literal(true), consent: z.literal(true) }).strict().parse(await c.req.json());
   const child = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${parentId(c)}))`);
@@ -139,7 +195,7 @@ route.post(`${base}/children`, requireAuth, async (c) => {
     const homeSpaceId = `space_${crypto.randomUUID()}`;
     await tx.insert(Spaces).values({ id: homeSpaceId, title: 'My Home', userId: id, type: 'personal', createdAt: new Date() });
     const [created] = await tx.insert(FamilyChildren).values({ id, homeSpaceId, parentUserId: parentId(c), displayName: input.displayName,
-      ageBand: input.ageBand, verificationId: verification.id, noticeVersion: input.noticeVersion, consentedAt: new Date(),
+      ageBand: 'under-13', verificationId: verification.id, noticeVersion: input.noticeVersion, consentedAt: new Date(),
       status: 'active', createdAt: new Date(), lastActiveAt: new Date() }).returning();
     return created;
   });
