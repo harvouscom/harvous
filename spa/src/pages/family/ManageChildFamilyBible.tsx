@@ -85,7 +85,7 @@ export default function ManageChildFamilyBible({ detail, backLabel, onBack, feed
           <footer className="pds-family-reading__footer">
             <button type="button" className="proto-settings-btn proto-settings-btn--secondary" disabled={busy}
               onClick={e => setRemoveAnchor(e.currentTarget.getBoundingClientRect())}>
-              <Icon name="trash" size={13} aria-hidden /> Remove shared reading
+              <Icon name="trash-can" size={13} aria-hidden /> Remove shared reading
             </button>
           </footer>
           {removeAnchor && <ProtoConfirmDialog anchorRect={removeAnchor} title="Remove shared reading?"
