@@ -310,8 +310,15 @@ route.post(`${base}/child/redeem`, async (c) => {
   const input = z.object({ token: z.string().regex(/^hvkid_[\w-]{43}$/) }).strict().parse(await c.req.json());
   return c.json(await redeemHandoff(input.token));
 });
+route.get(`${base}/child/privacy`, (c) => {
+  const config = familyPublicConfig();
+  if (!config) throw new HTTPException(404, { message: 'The child privacy notice is unavailable.' });
+  return c.json({ privacyUrl: config.privacyUrl });
+});
+
 route.get(`${base}/child/notebook`, async (c) => c.json(await withChildSession(token(c), async (tx, child) => ({
   displayName: child.displayName, capabilities: CHILD_CAPABILITIES, parentSignInUrl: familyPublicConfig()?.parentSignInUrl,
+  privacyUrl: familyPublicConfig()?.privacyUrl,
   preferences: child.notebookPreferences ?? defaultChildPreferences,
   translations: child.bibleTranslations,
   readings: (await familyReadings(tx, child)).filter(reading => child.bibleTranslations.includes(reading.translation)),

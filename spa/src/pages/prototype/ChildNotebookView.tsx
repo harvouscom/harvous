@@ -13,6 +13,7 @@ import { ChildNoteInfo, type ChildNoteOrganization, type ChildNotebookCatalog, t
 import ChildNotebookSearch, { type ChildSearchItem } from './ChildNotebookSearch';
 import ChildFamilySpacePreview from './ChildFamilySpacePreview';
 import ChildNotebookTextFields from '../family/ChildNotebookTextFields';
+import { ChildPrivacyPolicyLink } from '../family/ChildPrivacyNotice';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
@@ -23,6 +24,7 @@ const familyBibleBookmark = { book: 'Psalms', chapter: 23 };
 
 type Props = {
   preview?: boolean;
+  privacyUrl?: string;
   initial?: { notes: Note[]; resources: ChildFamilyResource[]; readingLabel?: string; catalog?: ChildNotebookCatalog; days?: string[] };
   renderBible: (props: ChildReaderProps) => ReactNode;
   renderAttachment?: (props: Omit<ComponentProps<typeof ChildNoteAttachmentPicker>, 'useChapter'>) => ReactNode;
@@ -97,7 +99,7 @@ function NotebookArt({ symbol, large = false }: { symbol: CoverSymbol; large?: b
   </span>;
 }
 
-export default function ChildNotebookView({ preview = false, initial, renderBible, renderAttachment, renderSearch, onSaveNote, onReadResource, onSavePreferences, onFamilyReading, onParentSignIn, onEndSession }: Props) {
+export default function ChildNotebookView({ preview = false, privacyUrl, initial, renderBible, renderAttachment, renderSearch, onSaveNote, onReadResource, onSavePreferences, onFamilyReading, onParentSignIn, onEndSession }: Props) {
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const [selectedResource, setSelectedResource] = useState<ChildFamilyResource | null>(null);
@@ -412,6 +414,7 @@ export default function ChildNotebookView({ preview = false, initial, renderBibl
 
           {view === 'note' && renderAttachment && <button type="button" ref={infoButtonRef} className="proto-toolbar-icon-btn" aria-label="Note info" title="Note info" aria-expanded={infoOpen} aria-controls={infoOpen ? 'child-note-info' : undefined} onClick={() => setInfoOpen(current => !current)}><Icon name="circle-info" size={17} /></button>}
           {view === 'home' && <div className="proto-feed-sheet__controls">
+            <ChildPrivacyPolicyLink url={privacyUrl} />
             <span className="pds-caption">{dayLabel}</span>
             {newerDay && <button type="button" className="proto-sidebar-back-tile proto-feed-sheet__forward" aria-label={`Forward to ${newerDay}`} title={`Forward to ${newerDay}`} onClick={() => openNotebookDay(notebookDay - 1)}>
               <Icon name="caret-right" size={16} aria-hidden />
@@ -477,6 +480,7 @@ export default function ChildNotebookView({ preview = false, initial, renderBibl
         {view === 'note' && draft && <div className="pds-kids-note-layout">
         <div className="pds-kids-preview__body pds-kids-preview__editor">
           {draft.reference && <span className="pds-caption">{[draft.reference, draft.translation, 'My Bible'].filter(Boolean).join(' · ')}</span>}
+          <ChildPrivacyPolicyLink url={privacyUrl} />
           <ChildNotebookTextFields title={draft.title} content={draft.content} titleRef={titleRef} disabled={saving} onTitleChange={title => setDraft({ ...draft, title })} onContentChange={content => setDraft({ ...draft, content })}>
           {renderAttachment && <div className="pds-kids-note-attachments" role="group" aria-label="Add to note">
             <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setAttachmentPicker({ kind: 'scripture' })}><Icon name="book-open" size={14} /> Add Scripture</button>
@@ -583,7 +587,7 @@ export default function ChildNotebookView({ preview = false, initial, renderBibl
     })}
 
     {createPortal(<dialog ref={settingsDialogRef} className="proto-settings-modal pds-kids-settings-modal proto-theme" data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby="kids-settings-title" style={themeStyle} onCancel={event => { event.preventDefault(); void closeSettings(); }} onClose={() => setCustomizing(false)} onClick={event => { if (event.target === event.currentTarget) { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) void closeSettings(); } }}>
-      <header className="proto-settings-modal__header"><h2 id="kids-settings-title" className="proto-settings-modal__title">Settings</h2><button className="proto-toolbar-icon-btn proto-settings-modal__close" aria-label="Close settings" disabled={saving} onClick={() => void closeSettings()}><Icon name="xmark" size={18} /></button></header>
+      <header className="proto-settings-modal__header"><h2 id="kids-settings-title" className="proto-settings-modal__title">Settings</h2><ChildPrivacyPolicyLink url={privacyUrl} /><button className="proto-toolbar-icon-btn proto-settings-modal__close" aria-label="Close settings" disabled={saving} onClick={() => void closeSettings()}><Icon name="xmark" size={18} /></button></header>
       {customizing && saveError && <p className="pds-caption pds-kids-status" role="alert">{saveError}</p>}
       <div className="proto-settings-modal__body"><div className="proto-settings">
         <nav className="proto-settings__nav" aria-label="Settings categories"><div className="proto-settings__nav-list">

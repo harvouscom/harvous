@@ -12,6 +12,7 @@ import ChildNotebookShell from '../prototype/ChildNotebookShell';
 import { ChildNotebookAppearanceProvider, useChildNotebookAppearance } from '../prototype/ChildNotebookAppearance';
 import ChildNotebookBibleReader from '../prototype/ChildNotebookBibleReader';
 import ChildNotebookSearchPanel from './ChildNotebookSearchPanel';
+import { ChildPrivacyPolicyLink } from './ChildPrivacyNotice';
 import '../../styles/prototype-components.css';
 import '../../styles/prototype-tokens.css';
 import '../../styles/prototype-shell.css';
@@ -20,6 +21,7 @@ import '../../styles/child-notebook-preview.css';
 
 export type Notebook = {
   parentSignInUrl?: string; displayName: string; notes: ChildNote[]; materials: ChildMaterial[];
+  privacyUrl?: string;
   catalog?: ChildNotebookCatalog;
   preferences: ChildNotebookPreferences; translations: ChildBibleTranslation[]; readings: ChildFamilyReading[];
 };
@@ -71,7 +73,8 @@ function materialKey(spaceId: string, id: string) { return JSON.stringify([space
 
 type RequestChild = typeof request;
 
-function SessionNotebook({ notebook, request, onEnd, onRefresh, revision }: {
+function SessionNotebook({ notebook, privacyUrl, request, onEnd, onRefresh, revision }: {
+  privacyUrl?: string;
   notebook: Notebook; request: RequestChild; onEnd: (returnToParent: boolean) => Promise<void>;
   onRefresh: (update: (current: Notebook) => Notebook) => void; revision: number;
 }) {
@@ -107,8 +110,8 @@ function SessionNotebook({ notebook, request, onEnd, onRefresh, revision }: {
   }
 
   return <ChildNotebookShell onFinish={() => window.dispatchEvent(new CustomEvent('harvousChildNotebookPreviewAction', { detail: 'finish' }))}>
-    <ChildNotebookView preview={isDesignPreview} initial={initial}
-      renderBible={props => <ChildNotebookBibleReader {...props} useChapter={useChildChapter}
+    <ChildNotebookView preview={isDesignPreview} initial={initial} privacyUrl={privacyUrl}
+      renderBible={props => <ChildNotebookBibleReader {...props} useChapter={useChildChapter} privacyUrl={privacyUrl}
         live={{ translations: notebook.translations, readings: notebook.readings, activeReading: reading, onReading: setReadingId,
           saveThought: async (id, verse, text) => (await request<{ thought: ChildFamilyThought }>(`bible/readings/${encodeURIComponent(id)}/thoughts`, 'POST', { verse, text })).thought }}
         renderEdge={(book, chapter, translation, direction, onSelect) => {
@@ -120,7 +123,7 @@ function SessionNotebook({ notebook, request, onEnd, onRefresh, revision }: {
           </div>;
         }} />}
       renderAttachment={props => <ChildNoteAttachmentPicker {...props} translations={notebook.translations} useChapter={useChildChapter} />}
-      renderSearch={({ onClose, onOpenNote, onOpenBible, onOpenResource }) => <ChildNotebookSearchPanel search={search} onClose={onClose}
+      renderSearch={({ onClose, onOpenNote, onOpenBible, onOpenResource }) => <ChildNotebookSearchPanel search={search} onClose={onClose} privacyUrl={privacyUrl}
         onOpen={async item => {
           if (item.kind === 'note') return onOpenNote(viewNote((await request<{ note: ChildNote }>(`notes/${encodeURIComponent(item.id)}`)).note));
           if (item.kind === 'reading') return onOpenBible(item.id);
@@ -171,6 +174,7 @@ function ChildNotebook() {
   const [notebook, setNotebook] = useState<Notebook | null>(null);
   const [status, setStatus] = useState('Opening your notebook…');
   const [error, setError] = useState('');
+  const [privacyUrl, setPrivacyUrl] = useState<string>();
   const [revision, setRevision] = useState(0);
   const refreshVersion = useRef(0);
   const applyLocalChange = useCallback((update: (current: Notebook) => Notebook) => {
@@ -189,6 +193,9 @@ function ChildNotebook() {
   }, []);
   useEffect(() => {
     let current = true;
+    if (!isDesignPreview) void request<{ privacyUrl: string }>('privacy').then(data => {
+      if (current) setPrivacyUrl(data.privacyUrl);
+    }).catch(() => {});
     void openNotebook().then(data => {
       if (current) { setNotebook(data); setStatus(''); }
     }).catch(cause => { if (current) { setError(cause.message); setStatus(''); } });
@@ -210,9 +217,10 @@ function ChildNotebook() {
   if (!notebook) return <main className="pds-child-app pds-family-stack">
     <h1 className="pds-title">My notebook</h1>
     {status && <p role="status">{status}</p>}{error && <p role="alert">{error}</p>}
+    <ChildPrivacyPolicyLink url={privacyUrl} />
   </main>;
   return <ChildNotebookAppearanceProvider name={notebook.displayName} initial={notebook.preferences}>
-    <SessionNotebook notebook={notebook} request={childRequest} revision={revision} onRefresh={applyLocalChange}
+    <SessionNotebook notebook={notebook} privacyUrl={notebook.privacyUrl ?? privacyUrl} request={childRequest} revision={revision} onRefresh={applyLocalChange}
       onEnd={async returnToParent => {
         if (returnToParent && !notebook.parentSignInUrl) throw new Error('Parent sign-in is unavailable in the design preview.');
         await childRequest('session', 'DELETE');

@@ -1,3 +1,7 @@
+export function ChildPrivacyPolicyLink({ url }: { url?: string }) {
+  return url ? <a className="pds-caption pds-kids-policy-link" href={url} target="_blank" rel="noopener noreferrer">Child privacy policy</a> : null;
+}
+
 /** Versioned alongside CHILD_NOTICE_VERSION. Changes require renewed consent, never automatic activation. */
 export default function ChildPrivacyNotice() {
   return (
@@ -5,6 +9,7 @@ export default function ChildPrivacyNotice() {
       <section>
         <h4 className="pds-note-card-title">Eligibility and information we store</h4>
         <p className="pds-subheadline">Child accounts are for children under 13 in the United States, managed by their parent or legal guardian.</p>
+        <p className="pds-subheadline">We need your consent to collect and use information from your child. If you do not give permission, we will not collect, use, or disclose their personal information through a child notebook.</p>
         <p className="pds-subheadline">Harvous stores a display name (a first name or nickname), your confirmation that your child is under 13, parent connection, notes and their organization and attachments, approved ministry channels,
           notebook appearance preferences, Family Bible readings and thoughts, a consent record, and temporary sign-in information. Hosting and security services also process
           information needed to deliver and protect the service, such as IP addresses.</p>

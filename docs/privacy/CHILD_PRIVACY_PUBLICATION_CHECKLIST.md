@@ -4,7 +4,8 @@ The in-app direct notice is `spa/src/pages/family/ChildPrivacyNotice.tsx`, versi
 
 Before publishing that policy, supply and verify:
 
-- The legal operator’s actual name, mailing address, telephone number, and privacy contact email. Do not invent or substitute a developer nickname.
+- Testament Made LLC and derek@harvous.com are confirmed. Supply the public business mailing address and telephone number for parent privacy inquiries. [COPPA notice rule](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312/section-312.4)
+- Verify the published policy opens from the child landing and notebook, and beside the note, search, Family Bible thought, and settings controls that send child information. The link and the parent consent notice should use the same reviewed policy URL.
 - The operators/service providers collecting or maintaining information, their purposes, and their child-specific contracts. Review API hosting, CDN/security logs, database/backups, parent authentication, and KWS and its verification processors.
 - Exactly what is collected before verification (adult account/email plus the consent request), after verification/consent (first name or nickname, under-13 eligibility, notes, notebook preferences, Family Bible readings and thoughts, and permissions), and automatically for necessary service/security functions.
 - Parent review/export, consent withdrawal, deletion, and contact procedures, including verification of an off-platform rights request and handling guardianship disputes.

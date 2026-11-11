@@ -6,6 +6,7 @@ import { canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
 import { bookChapterCount, orderedCanonBooks } from '@/utils/bible-book-chapters';
 import { bookAbbreviation } from '@/utils/scripture-osis';
 import { ChildNotebookAvatar, useChildNotebookAppearance } from './ChildNotebookAppearance';
+import { ChildPrivacyPolicyLink } from '../family/ChildPrivacyNotice';
 import ProtoSelectMenu from './ProtoSelectMenu';
 import type { ReactNode } from 'react';
 import type { ChildBibleTranslation, ChildFamilyReading, ChildFamilyThought } from '../../../../shared/child-notebook';
@@ -59,6 +60,7 @@ type ChapterQuery = {
   isLoading: boolean; isError: boolean; refetch: () => unknown;
 };
 type Props = ChildReaderProps & {
+  privacyUrl?: string;
   useChapter: (book: string | undefined, chapter: number | undefined, translation: ChildBibleTranslation, readingId?: string) => ChapterQuery;
   renderEdge: (book: string, chapter: number, translation: ChildBibleTranslation, direction: 'behind' | 'ahead', onSelect: ChildReaderProps['onNavigate']) => ReactNode;
   live?: {
@@ -71,7 +73,7 @@ type Props = ChildReaderProps & {
 };
 
 /** The same chapter paper, pickers and Scripture source as the adult reader, with local sample activity. */
-export default function ChildNotebookBibleReader({ active, mode, passage, onModeChange, onNavigate, onStartNote, useChapter, renderEdge, live }: Props) {
+export default function ChildNotebookBibleReader({ active, mode, passage, onModeChange, onNavigate, onStartNote, useChapter, renderEdge, live, privacyUrl }: Props) {
   const { name, themeStyle, appearance, soundPreference, playCue } = useChildNotebookAppearance();
   const familyReading = mode === 'family' ? live?.activeReading : undefined;
   const { book, chapter } = familyReading ?? passage;
@@ -289,6 +291,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
           <form onSubmit={event => { event.preventDefault(); void saveThought(); }}>
             <h2 id="family-bible-thought-title" className="pds-title">Add to Family Bible</h2>
             <p className="pds-caption">{reference} · You and your parent can see this.</p>
+            <ChildPrivacyPolicyLink url={privacyUrl} />
             <label className="pds-caption">Your thought
               <textarea className="proto-settings-field__input" value={thoughtDraft} onChange={event => setThoughtDraft(event.target.value)} maxLength={500} rows={4} autoFocus />
             </label>

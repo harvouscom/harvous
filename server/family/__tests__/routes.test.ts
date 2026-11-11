@@ -48,6 +48,12 @@ describe('family route boundaries', () => {
     const response = await app.request('/api/child-accounts/child/notebook', { headers: { Origin: 'https://app.harvous.com' } });
     expect(response.status).toBe(403);
   });
+  it('serves the public child privacy URL without a session or database access', async () => {
+    const response = await app.request('/api/child-accounts/child/privacy', { headers: { Origin: 'http://localhost:4322' } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ privacyUrl: 'https://example.com/privacy' });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
   it('rejects forged callbacks without touching the database', async () => {
     const response = await app.request('/api/webhooks/kws', { method: 'POST', body: '{}' });
     expect(response.status).toBe(401); expect(database.update).not.toHaveBeenCalled();

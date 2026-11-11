@@ -820,3 +820,11 @@
 }
 
 .pds-kids-preview .proto-feed-compose { color: var(--pds-text-secondary); }
+.pds-kids-policy-link {
+  width: fit-content;
+  color: var(--pds-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.pds-kids-policy-link:hover { color: var(--pds-text-primary); }
+.pds-kids-policy-link:focus-visible { outline-offset: 3px; }
