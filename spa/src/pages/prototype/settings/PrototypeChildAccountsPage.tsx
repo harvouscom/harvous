@@ -192,7 +192,7 @@ export default function PrototypeChildAccountsPage() {
             <label className="pds-family-choice pds-subheadline">
               <input type="checkbox" className="proto-checkbox--accent" checked={noticeAccepted}
                 disabled={busy} onChange={(e) => setNoticeAccepted(e.target.checked)} />
-              <span>I am the parent or legal guardian. My child is under 13 and lives in the United States. I have read the notice and consent to the collection and use described.</span>
+              <span>I am the parent or legal guardian. My child is under 13 and lives in the United States. I have read the notice and consent to the collection, use, and disclosure it describes.</span>
             </label>
             {noticeAccepted && <form className="pds-family-stack pds-family-consent__form" onSubmit={(e) => {
               e.preventDefault();

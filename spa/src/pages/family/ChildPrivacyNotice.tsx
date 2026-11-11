@@ -9,10 +9,9 @@ export default function ChildPrivacyNotice() {
       <section>
         <h4 className="pds-note-card-title">Eligibility and information we store</h4>
         <p className="pds-subheadline">Child accounts are for children under 13 in the United States, managed by their parent or legal guardian.</p>
-        <p className="pds-subheadline">We need your consent to collect and use information from your child. If you do not give permission, we will not collect, use, or disclose their personal information through a child notebook.</p>
-        <p className="pds-subheadline">Harvous stores a display name (a first name or nickname), your confirmation that your child is under 13, parent connection, notes and their organization and attachments, approved ministry channels,
-          notebook appearance preferences, Family Bible readings and thoughts, a consent record, and temporary sign-in information. Hosting and security services also process
-          information needed to deliver and protect the service, such as IP addresses.</p>
+        <p className="pds-subheadline">We need your permission to collect, use, and disclose your child’s information as described here. If you do not give permission, we will not collect, use, or disclose their personal information through a child notebook.</p>
+        <p className="pds-subheadline">Harvous stores a first name or nickname, your confirmation of eligibility, a link to your account, and your consent. We use these to create and manage the notebook. We save notes, folders, tags, Threads, Scripture and resource references, approved ministry channels, Family Bible readings and thoughts, and notebook preferences so you and your child can return to them.</p>
+        <p className="pds-subheadline">Temporary sign-in information lets your child open the notebook. Fly.io hosts the notebook service, Cloudflare delivers and protects it, and Supabase stores its data and backups. Hosting and security providers process information such as IP addresses to operate and protect the notebook.</p>
       </section>
       <section>
         <h4 className="pds-note-card-title">Who can see your child’s activity</h4>
@@ -24,9 +23,8 @@ export default function ChildPrivacyNotice() {
       </section>
       <section>
         <h4 className="pds-note-card-title">Adult verification</h4>
-        <p className="pds-subheadline">Kids Web Services verifies that you are an adult. Harvous receives the verification result,
-          not your payment card, identification documents, or verification images.
-          KWS may remember your verified status in its AgeGraph under its own privacy policy.</p>
+        <p className="pds-subheadline">Kids Web Services (KWS) uses your adult account email to verify that you are an adult. KWS handles any card details, identification documents, or verification images you provide. Harvous receives the verification result. KWS may remember your verified status in its AgeGraph under its own privacy policy.</p>
+        <p className="pds-subheadline">After verification, confirm that you are your child’s parent or legal guardian and agree to this notice. Select “Agree and create notebook” to give permission and create the notebook.</p>
       </section>
       <section>
         <h4 className="pds-note-card-title">Your controls and how long we keep information</h4>
@@ -35,9 +33,7 @@ export default function ChildPrivacyNotice() {
           export before the account is deleted. Accounts inactive for one year are deleted.
           Temporary verification requests expire after seven days. Deleted data may remain in restricted
           backups until those backups expire under our published retention policy.</p>
-        <p className="pds-subheadline">Read the full child privacy policy linked below for operator contact details, service providers,
-          backup retention, and how to exercise your rights. You do not need to agree to optional sharing
-          to let your child use their notebook.</p>
+        <p className="pds-subheadline">The child privacy policy linked below includes operator contact details, backup retention, and how to exercise your rights. We do not ask you to permit disclosures beyond those needed to provide and protect the notebook.</p>
       </section>
     </div>
   );

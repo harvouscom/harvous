@@ -29,7 +29,8 @@ Completed November 11, 2026, on the isolated Harvous staging sites with fictiona
 - [ ] Review the production child privacy notice and age-policy update, along with the actual data handling, backup retention, vendor arrangements, and parent rights procedures in the publication checklist.
 - [x] Verify the privacy policy link in staging. It opens from the child landing and notebook, and appears in search, the note editor, notebook settings, and the Family Bible thought form. The published production policy still needs its own verification.
 - [x] Open a [draft release pull request](https://github.com/harvouscom/harvous/pull/320) against the current production code. The API, adult SPA, and separate child build passed. The adult bundle passed the CI-equivalent size budget without changing the budget. The offline suite passed locally (8,513 passed, eight database-backed tests skipped).
-- [ ] Set up KWS Production with its own credentials and signed callback. Apply the reviewed additive database migration to the production target before merging the release, and provision the separate child origin.
+- [x] Apply the reviewed additive production migration with enrollment closed. Verify row-level security on all seven new tables.
+- [ ] Set up KWS Production with its own credentials and signed callback. Provision the separate production child origin with enrollment closed.
 - [ ] Verify the production callback, scheduled retention, and parent and child smoke tests. Enable real enrollment after those checks and the privacy review pass.
 
 ## Handoff when a child turns 13
