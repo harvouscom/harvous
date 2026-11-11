@@ -104,7 +104,7 @@ describe('the home enter window matches the CSS it waits for', () => {
   it('the loading dots are honoured by reduced motion', () => {
     // No guard existed at all: the one mark on screen for every wait, repeating forever,
     // was the one piece of motion the setting could not switch off.
-    const css = read('src/styles/global.css');
+    const css = read('src/styles/loading-dots.css');
     const blocks = [...css.matchAll(/@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/g)]
       .map((m) => m[1]!)
       .filter((body) => body.includes('.load-more-indicator__dot'));
