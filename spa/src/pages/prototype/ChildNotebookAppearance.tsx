@@ -82,7 +82,7 @@ export function ChildNotebookCover({ name, preferences, large = false }: {
   const { coverColor, coverPattern, coverSymbol } = preferences ?? defaultChildPreferences;
   const color = coverColors.find(option => option.id === coverColor) ?? coverColors[0];
   return <span className={large ? 'pds-kids-book pds-kids-book--settings' : 'pds-kids-book'}
-    aria-hidden="true" data-pattern={coverPattern} style={coverStyle(color)}>
+    aria-hidden="true" data-pattern={coverPattern} data-reduce-motion={preferences?.reduceMotion || undefined} style={coverStyle(color)}>
     <span className="pds-kids-book__volume">
       <span className="pds-kids-book__back" />
       <span className="pds-kids-book__page" data-page="1" />

@@ -110,7 +110,7 @@
 }
 
 /* The cover and paper hinge from the spine; only transforms move on interaction. */
-.pds-kids-book { flex: 0 0 44px; width: 44px; height: 48px; padding: 0; border: 0; background: transparent; cursor: pointer; perspective: 220px; overflow: visible; }
+.pds-kids-book { flex: 0 0 44px; width: 44px; height: 48px; padding: 0; border: 0; background: transparent; perspective: 220px; overflow: visible; }
 .pds-kids-book__volume { display: block; position: relative; width: 36px; height: 45px; transform: rotate(-7deg); transform-style: flat; animation: pds-kids-book-arrive var(--pds-duration-home-section) var(--pds-ease-emphasized) backwards; transition: transform var(--pds-duration-home-row) var(--pds-ease-standard); }
 .pds-kids-book__back, .pds-kids-book__page, .pds-kids-book__front { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 2px 5px 5px 2px; transform-origin: 2px 50%; backface-visibility: hidden; transition: transform var(--pds-duration-home-row) var(--pds-ease-standard); }
 .pds-kids-book__back { z-index: 0; background: var(--kids-cover-ink); box-shadow: 1px 2px 2px var(--pds-border); transform: translateX(2px); }
@@ -119,16 +119,23 @@
 .pds-kids-book__page[data-page='2'] { z-index: 2; transform: translateX(0.5px) rotateY(-5deg); }
 .pds-kids-book__page[data-page='3'] { z-index: 3; transform: rotateY(-9deg); }
 .pds-kids-book__front { z-index: 4; background: var(--kids-cover-ink); border-left: 4px solid color-mix(in oklab, var(--kids-cover-ink) 75%, var(--pds-text-primary)); color: var(--pds-on-accent); font-family: var(--pds-font-display); font-size: 21px; font-weight: 600; transform: rotateY(-20deg); }
-.pds-kids-book:focus-visible .pds-kids-book__volume { transform: translateY(-2px) rotate(-10deg); }
-.pds-kids-book:focus-visible .pds-kids-book__front { transform: rotateY(-38deg); animation: none; }
-.pds-kids-book:focus-visible .pds-kids-book__page[data-page='3'] { z-index: 3; transform: rotateY(-15deg); }
-@media (hover: hover) and (pointer: fine) {
-  .pds-kids-book:hover .pds-kids-book__volume { transform: translateY(-2px) rotate(-10deg); }
-  .pds-kids-book:hover .pds-kids-book__front { transform: rotateY(-38deg); animation: none; }
-  .pds-kids-book:hover .pds-kids-book__page[data-page='3'] { z-index: 3; transform: rotateY(-15deg); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .pds-kids-book:not([data-reduce-motion], [data-reduce-motion] *) {
+    &:hover,
+    .pds-kids-preview__topline[data-cover]:hover &,
+    .proto-settings-row:is(:hover, :focus-visible) > .pds-family-notebook-row__cover & {
+      .pds-kids-book__volume { transform: translateY(-2px) rotate(-10deg); }
+      .pds-kids-book__front { transform: rotateY(-38deg); }
+      .pds-kids-book__page[data-page='3'] { transform: rotateY(-15deg); }
+    }
+  }
 }
 @keyframes pds-kids-book-arrive { from { opacity: 0; transform: translateY(4px) rotate(-12deg); } to { opacity: 1; transform: rotate(-7deg); } }
 @starting-style { .pds-kids-book__front { transform: rotateY(0deg); } }
+.pds-kids-book[data-reduce-motion] :is(.pds-kids-book__volume, .pds-kids-book__front, .pds-kids-book__page) {
+  animation: none;
+  transition: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .pds-kids-book__volume, .pds-kids-book__front { animation: none; }
   .pds-kids-book__volume, .pds-kids-book__front, .pds-kids-book__page { transition: none; }
@@ -806,16 +813,6 @@
 }
 .pds-kids-settings-modal[data-reduce-motion] .pds-kids-book__volume {
   animation: none;
-  transition: none;
-}
-:is(.pds-kids-appearance-scope, .pds-kids-settings-modal)[data-reduce-motion] .pds-kids-book:hover .pds-kids-book__volume {
-  transform: rotate(-7deg);
-}
-:is(.pds-kids-appearance-scope, .pds-kids-settings-modal)[data-reduce-motion] .pds-kids-book:hover .pds-kids-book__front {
-  transform: rotateY(-20deg);
-}
-:is(.pds-kids-appearance-scope, .pds-kids-settings-modal)[data-reduce-motion] .pds-kids-book:hover .pds-kids-book__page[data-page='3'] {
-  transform: rotateY(-9deg);
   transition: none;
 }
 
