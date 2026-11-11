@@ -142,8 +142,8 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
                 setHandoff(await makeHandoffUrl());
               }, '')} />
             {handoff && <div className="pds-family-management__inline">
-              <p className="pds-caption" role="status">This link works once and expires in five minutes. Open it on your child’s device or in a separate browser profile.</p>
-              <SettingsCopyRow value={handoff} layout="field" copyLabel="Copy sign-in link" />
+              <SettingsCopyRow value="One-time sign-in link" copyValue={handoff} layout="field" copyLabel="Copy link" />
+              <p className="pds-caption" role="status">Open on your child’s device or in a separate browser profile within five minutes.</p>
             </div>}
           </SettingsGroup>
 
