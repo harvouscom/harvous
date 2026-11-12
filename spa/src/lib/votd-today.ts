@@ -192,11 +192,18 @@ export function isVotdPassageCardDismissedToday(userId?: string | null): boolean
  * `staleTime` — so one blip while the tab was loading meant no passage row until the reader
  * reloaded, with `retry` given nothing to retry because a resolved promise is a success.
  */
-export async function fetchVotdToday(tradition: Tradition = 'protestant'): Promise<VotdToday | null> {
+export async function fetchVotdToday(
+  tradition: Tradition = 'protestant',
+  day: string = todayCalendarDayKey(),
+): Promise<VotdToday | null> {
   const tz = browserIanaTimeZone();
   /* The server reads a member's tradition from the account; a guest's is only on the device. */
   const traditionParam = tradition === 'catholic' ? '&tradition=catholic' : '';
-  const res = await fetch(`/api/votd/today?tz=${encodeURIComponent(tz)}${traditionParam}`, {
+  /*
+   * `day` is for caches, not the server (which works the date out from `tz`): with only the time
+   * zone in the URL, yesterday's response was a valid HTTP cache hit for today.
+   */
+  const res = await fetch(`/api/votd/today?tz=${encodeURIComponent(tz)}&day=${day}${traditionParam}`, {
     credentials: 'include',
     headers: { 'X-Votd-Timezone': tz },
   });

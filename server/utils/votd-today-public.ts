@@ -11,7 +11,7 @@ import { db, desc, eq, first, lte } from '../db';
 import { now } from '../db/dates';
 import { VotdPublishHistory } from '../db/schema';
 import { getAuth } from '../middleware/auth';
-import { getLocalCalendarDateString, isValidIanaTimeZone } from './votd-local-date';
+import { getLocalCalendarDateString, isValidIanaTimeZone, secondsUntilLocalMidnight } from './votd-local-date';
 import { getUserReadingPrefs } from './votd-user-translation';
 import { fetchVerseText } from './fetch-verse-text';
 import { votdActedOnToday } from './votd-record-engagement';
@@ -21,8 +21,12 @@ import { dateForCalendarDay, todaysReadingsFor, type TodaysReadings } from '@/ut
 export interface ResolvedVotd {
   reference: string;
   translation: string;
-  /** Set only when the exact day had no row and an older verse stood in for it. */
   featuredItemId: string | null;
+  /**
+   * True when the exact day had no row and an older verse stood in for it. Today's will replace
+   * it as soon as the publish lands, so a stand-in must never be cached as if it were today's.
+   */
+  isFallback?: boolean;
 }
 
 /**
@@ -79,6 +83,7 @@ export async function resolveVotdForLocalDate(
     reference: fallbackRow.reference,
     translation: fallbackRow.translation,
     featuredItemId: fallbackRow.featuredItemId ?? null,
+    isFallback: true,
   };
 }
 
@@ -109,9 +114,22 @@ export async function votdTodayPublicHandler(c: Context) {
   try {
     const tzHeader = (c.req.query('tz') ?? c.req.header('X-Votd-Timezone') ?? '').trim();
     const timeZone = isValidIanaTimeZone(tzHeader) ? tzHeader : 'UTC';
-    const localCalendarDate = getLocalCalendarDateString(timeZone, now());
+    const at = now();
+    const localCalendarDate = getLocalCalendarDateString(timeZone, at);
 
     const row = await resolveVotdForLocalDate(localCalendarDate);
+
+    /*
+     * Cached for an hour, but never past the reader's midnight, and barely at all for a stand-in.
+     *
+     * The URL carries only the time zone, so yesterday's answer was a perfectly good cache hit for
+     * the first hour of today; and when today's verse had not been published yet, the stand-in
+     * (yesterday's) was held for that same hour after the publish landed. Either way the reader
+     * saw yesterday's passage until they reloaded — and often after, since a reload does not
+     * bypass the HTTP cache for a fetch. No `stale-while-revalidate`: serving yesterday while
+     * revalidating is exactly the fault.
+     */
+    const maxAge = row?.isFallback ? 60 : Math.min(3600, secondsUntilLocalMidnight(timeZone, at));
 
     const auth = getAuth(c);
     let translation = row?.translation?.trim() || 'NET';
@@ -119,10 +137,10 @@ export async function votdTodayPublicHandler(c: Context) {
     let tradition = normalizeTradition(c.req.query('tradition'));
     if (auth.userId) {
       ({ translation, tradition } = await getUserReadingPrefs(auth.userId));
-      c.res.headers.set('Cache-Control', 'private, max-age=3600, stale-while-revalidate=300');
+      c.res.headers.set('Cache-Control', `private, max-age=${maxAge}`);
       c.res.headers.append('Vary', 'Authorization, Cookie');
     } else {
-      c.res.headers.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=300');
+      c.res.headers.set('Cache-Control', `public, max-age=${maxAge}`);
     }
 
     /*

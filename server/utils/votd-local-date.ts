@@ -37,3 +37,25 @@ export function getLocalCalendarDateString(timeZone: string, date: Date): string
     }).format(date);
   }
 }
+
+/**
+ * Seconds from `date` until the next local midnight in `timeZone` (at least 1).
+ *
+ * The passage changes at the reader's midnight, so no cache of it may outlive that. Computed from
+ * the local wall clock, which is right on every day but the ones a DST change lands on — and then
+ * it is off by the hour change at most, in the short direction or an hour too long on a day the
+ * caller already caps at an hour.
+ */
+export function secondsUntilLocalMidnight(timeZone: string, date: Date): number {
+  const zone = isValidIanaTimeZone(timeZone) ? timeZone : 'UTC';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: zone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const n = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const elapsed = n('hour') * 3600 + n('minute') * 60 + n('second');
+  return Math.max(1, 86_400 - elapsed);
+}
