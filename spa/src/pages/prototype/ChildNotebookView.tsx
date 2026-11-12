@@ -508,29 +508,32 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         </div>}
 
         {view === 'remember' && reviewNote && <div className="pds-kids-preview__body pds-kids-review">
-          <div className="pds-kids-review__hero"><span className="pds-kids-review__art" aria-hidden="true"><Icon name="rotate-left" size={28} /><span><Icon name="star" size={12} /></span></span>
-            <span className="pds-kids-preview__label">A little look back</span>
+          <div className="pds-kids-review__hero">
             <h1 ref={headingRef} tabIndex={-1} className="pds-title-xl">What stayed with you?</h1>
             <p>There’s no test here. Just a chance to revisit a thought.</p>
           </div>
-          <div className="proto-menu-tabs pds-kids-review-tabs" role="tablist" aria-label="Revisit your note" onKeyDown={event => {
+          {/* The same pill tabs as Home's filters. */}
+          <div className="proto-appearance-segmented pds-kids-home-filters pds-kids-review-tabs" role="tablist" aria-label="Revisit your note" onKeyDown={event => {
             const next = event.key === 'ArrowRight' || event.key === 'End' ? true : event.key === 'ArrowLeft' || event.key === 'Home' ? false : null;
             if (next === null) return;
             event.preventDefault(); setRevealed(next);
             event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next ? 1 : 0]?.focus();
           }}>
-            <button id="kids-think-tab" className="proto-menu-tab" role="tab" aria-selected={!revealed} aria-controls="kids-review-panel" tabIndex={!revealed ? 0 : -1} onClick={() => setRevealed(false)}><Icon name="rotate-left" size={12} /> Think back</button>
-            <button id="kids-look-tab" className="proto-menu-tab" role="tab" aria-selected={revealed} aria-controls="kids-review-panel" tabIndex={revealed ? 0 : -1} onClick={() => setRevealed(true)}><Icon name="book-open" size={12} /> Take a look</button>
+            <button id="kids-think-tab" className="proto-appearance-segmented__btn" role="tab" aria-selected={!revealed} data-active={!revealed ? 'true' : undefined} aria-controls="kids-review-panel" tabIndex={!revealed ? 0 : -1} onClick={() => setRevealed(false)}><Icon name="rotate-left" size={15} /> Think back</button>
+            <button id="kids-look-tab" className="proto-appearance-segmented__btn" role="tab" aria-selected={revealed} data-active={revealed ? 'true' : undefined} aria-controls="kids-review-panel" tabIndex={revealed ? 0 : -1} onClick={() => setRevealed(true)}><Icon name="book-open" size={15} /> Take a look</button>
           </div>
-          <section id="kids-review-panel" className="pds-kids-review__card" role="tabpanel" aria-labelledby={revealed ? 'kids-look-tab' : 'kids-think-tab'}><span className="pds-kids-preview__label">From your notebook · {reviewNote.date}</span><h2 className="pds-title">{reviewNote.title}</h2>
-            {revealed ? <blockquote className="pds-kids-review__note">{reviewNote.content}</blockquote> : <p>Close your eyes for a moment if you like. What do you remember about this note?</p>}
+          {/* The note as a page from their own notebook, with their cover colour on the spine. The notebook
+              behind it already carries their paper, so the page itself stays plain. */}
+          <section id="kids-review-panel" className="pds-kids-review__page" role="tabpanel" aria-labelledby={revealed ? 'kids-look-tab' : 'kids-think-tab'}>
+            <span className="pds-kids-review__date">{reviewNote.date}</span>
+            <h2 className="pds-kids-review__title">{reviewNote.title}</h2>
+            {revealed ? <p className="pds-kids-review__text">{reviewNote.content}</p> : <p className="pds-kids-review__text pds-kids-review__text--prompt">Close your eyes for a moment if you like. What do you remember about this note?</p>}
           </section>
           <div className="pds-kids-review__actions">
             {!revealed ? <button className="proto-settings-btn" onClick={() => setRevealed(true)}><Icon name="book-open" size={14} /> Show my note</button>
               : <button className="proto-settings-btn" onClick={() => openNote(reviewNote)}><Icon name="pen" size={13} /> Add a thought</button>}
             <button className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setView('home')}><Icon name="arrow-left" size={12} /> Back to my notebook</button>
           </div>
-          <p className="pds-caption">A little is enough. Come back whenever you like.</p>
         </div>}
 
         {view === 'reading' && selectedResource && <div className="pds-kids-preview__body pds-kids-preview__reading-page">

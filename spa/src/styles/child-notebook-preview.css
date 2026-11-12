@@ -232,17 +232,11 @@
 @media (prefers-reduced-motion: reduce) { .pds-kids-welcome-action { transition: none; } .pds-kids-welcome-action:hover { transform: none; } }
 .pds-kids-appearance-scope[data-reduce-motion] .pds-kids-welcome-action { transition: none; transform: none; }
 .pds-kids-back-button { width: auto; gap: var(--pds-space-2); min-height: 44px; font-size: 12px; }
-.pds-kids-review-tabs.proto-menu-tabs { position: static; margin: 0; }
-.pds-kids-review-tabs .proto-menu-tab { display: inline-flex; justify-content: center; align-items: center; gap: var(--pds-space-2); min-height: 44px; }
 .pds-kids-review__hero { display: flex; flex-direction: column; align-items: flex-start; gap: var(--pds-space-3); }
 .pds-kids-review__hero h1, .pds-kids-review__hero p, .pds-kids-review__hero .pds-kids-preview__label { margin: 0; }
 .pds-kids-review__hero p { color: var(--pds-text-secondary); line-height: 1.6; }
 .pds-kids-review__art { position: relative; display: grid; place-items: center; width: 64px; height: 64px; border-radius: var(--pds-radius-card); background: color-mix(in oklab, var(--kids-cover-color) 25%, var(--pds-bg-page)); color: var(--kids-cover-ink); }
 .pds-kids-review__art > span:last-child:not(:only-child) { position: absolute; top: -4px; right: -4px; width: 23px; height: 23px; display: grid; place-items: center; border-radius: var(--pds-radius-pill); background: var(--pds-bg-page); }
-.pds-kids-review__card { border: 1px solid var(--pds-border-soft); background: var(--pds-bg-subtle); border-radius: var(--pds-radius-card); padding: var(--pds-space-5); }
-.pds-kids-review__card h2 { margin: var(--pds-space-3) 0; }
-.pds-kids-review__card p { color: var(--pds-text-secondary); line-height: 1.7; }
-.pds-kids-review__card .pds-kids-review__note { background: var(--pds-bg-page); }
 .pds-kids-review__actions { display: flex; flex-wrap: wrap; gap: var(--pds-space-3); }
 .pds-kids-review__actions .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); }
 /* This footer belongs to the main pane, outside its scrolling paper. */
@@ -1154,3 +1148,32 @@
 /* One category: the list steps aside and the pane gets the whole sheet. */
 .pds-kids-settings-modal[data-sheet='pane'] .proto-settings__nav { display: none; }
 .pds-kids-settings-modal[data-sheet='pane'] .proto-settings__detail { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+/* ─── Review: the note as a page from the child's notebook ────────────────────────────────
+   One page with their cover colour on the spine; the notebook body behind it carries their paper. */
+.pds-kids-review__page {
+  --kids-paper-line: color-mix(in oklab, var(--kids-cover-color) 30%, var(--pds-border-soft));
+  position: relative; box-sizing: border-box; padding: 20px 26px 26px 34px;
+  border-left: 6px solid var(--kids-cover-ink); border-radius: 4px 14px 14px 4px;
+  background-color: var(--pds-bg-page);
+  box-shadow: 0 0 0 1px var(--pds-border-soft), 0 14px 28px -18px color-mix(in oklab, var(--pds-text-primary) 35%, transparent);
+  line-height: 28px;
+}
+.pds-kids-review__date { display: block; font-size: 13px; line-height: 28px; color: var(--pds-text-secondary); }
+.pds-kids-review__title { margin: 0; font: 600 20px/28px var(--pds-font-display); color: var(--pds-text-primary); }
+.pds-kids-review__text { margin: 0; font-size: 17px; line-height: 28px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--pds-text-primary); }
+.pds-kids-review__text--prompt { color: var(--pds-text-secondary); }
+.pds-kids-appearance-scope[data-text-size='bigger'] .pds-kids-review__text { font-size: 19px; }
+.pds-kids-review-tabs.pds-kids-home-filters { margin: 0; }
+
+/* The notebook's pages carry the chosen paper, so lined pages read as lined wherever the book
+   opens. In the studio the cover rests a little open, so the paper shows on every step. */
+.pds-kids-book[data-paper='lined'] .pds-kids-book__page {
+  background-image:
+    linear-gradient(90deg, transparent 14%, color-mix(in oklab, var(--pds-thread-pink) 55%, transparent) 14% calc(14% + 1px), transparent calc(14% + 1px)),
+    repeating-linear-gradient(to bottom, transparent 0 calc(10% - 1px), color-mix(in oklab, var(--kids-cover-color) 35%, var(--pds-border-soft)) calc(10% - 1px) 10%);
+}
+.pds-kids-studio__book .pds-kids-book--settings { perspective: 420px; }
+.pds-kids-studio__book .pds-kids-book--settings .pds-kids-book__front { transform: rotateY(-34deg); }
+.pds-kids-studio__book .pds-kids-book--settings .pds-kids-book__page[data-page='3'] { transform: rotateY(-12deg); }
+.pds-kids-studio__book .pds-kids-book--settings .pds-kids-book__page[data-page='2'] { transform: rotateY(-6deg); }
