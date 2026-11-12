@@ -168,13 +168,13 @@ export default function PrototypeFeedComposePrompt({
               aria-label="Write a note"
               onClick={() => window.dispatchEvent(new Event('prototypeShortcutNewNote'))}
             >
-              <Icon name="pen-to-square" size={14} aria-hidden />
+              <Icon name="pen-to-square" size={17} aria-hidden />
               <span key={settled ? 'rest' : activeIndex} className="proto-feed-compose__label" aria-hidden>
                 <TypedLine text={label} animate={!reducedMotion && list.length > 1} caret={!settled && manualIndex === null} />
               </span>
             </button>
             {list.length > 1 && (
-              <button type="button" className="pds-feed-prompt-shuffle proto-ink-on-accent" aria-label="Try another writing idea" title="Try another writing idea" onClick={showAnotherPrompt}>
+              <button type="button" className="proto-glass-surface proto-glass-surface--control proto-glass-action pds-feed-prompt-shuffle" aria-label="Try another writing idea" title="Try another writing idea" onClick={showAnotherPrompt}>
                 <Icon name="shuffle" size={16} aria-hidden />
               </button>
             )}

@@ -152,9 +152,10 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
         {!liveEmpty && (!live || !isFamily) && renderEdge(book, chapter, translation, 'behind', onNavigate)}
         <article className="pds-reader__column" aria-label={chapterTitle}>
           {liveEmpty ? <p className="pds-caption">Chapters your parent shares will show up here.</p> : <>
-          {familyReading && <p className="pds-family-reader__shared-label pds-caption">Shared by your parent</p>}
           <div className={`pds-reader__chapter-heading${isFamily ? ' pds-family-reader__heading' : ''}`}>
-            <h1 className="pds-reader-chapter-title pds-reader__chapter-picker">
+            <div className="pds-family-reader__title-stack">
+            {familyReading && <p className="pds-family-reader__shared-label pds-caption"><Icon name="user-group" size={11} aria-hidden /> Shared by your parent</p>}
+            <h1 className={`pds-reader-chapter-title pds-reader__chapter-picker${familyReading && live && live.readings.length === 1 ? ' pds-reader__chapter-picker--static' : ''}`}>
               {familyReading && live ? live.readings.length === 1 ? chapterTitle : <ProtoSelectMenu label="Shared reading" value={familyReading.id}
                 options={live.readings.map(reading => ({
                   value: reading.id, label: `${reading.book} ${reading.chapter} · ${reading.translation}`,
@@ -165,6 +166,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
               <ProtoSelectMenu label="Chapter" value={chapter} options={chapterOptions} className="pds-reader__picker-trigger" menuClassName="pds-reader__chapter-menu" menuWidth={232} menuStyle={themeStyle} soundPreference={soundPreference} onChange={nextChapter => onNavigate(book, nextChapter)} />
               </>}
             </h1>
+            </div>
             <div className="pds-reader__chapter-controls">
               {isFamily ? (
                 <span className="scripture-pill-chrome__trans-chip" title="Translation chosen by your parent" aria-label={`${getTranslation(translation)?.name ?? translation}, chosen by your parent`}>
@@ -252,7 +254,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
               })}
             </div>
           )}
-          {live && data && <p className="pds-caption">{getTranslation(translation)?.copyright}</p>}
+          {live && data && <p className="pds-caption pds-kids-bible__copyright">{getTranslation(translation)?.copyright}</p>}
           </>}
         </article>
         {!liveEmpty && (!live || !isFamily) && renderEdge(book, chapter, translation, 'ahead', onNavigate)}

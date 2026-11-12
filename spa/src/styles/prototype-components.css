@@ -25642,7 +25642,7 @@ button.proto-feed-sheet__stat:hover {
   flex: 1;
   min-width: 0;
   min-height: 48px;
-  gap: var(--pds-space-2);
+  gap: 10px;
   box-sizing: border-box;
   margin: 0;
   padding: var(--pds-space-2) var(--pds-space-3);
@@ -25650,7 +25650,7 @@ button.proto-feed-sheet__stat:hover {
   border-radius: inherit;
   background: transparent;
   font: inherit;
-  font-size: 15px;
+  font-size: 17px;
   text-align: left;
   cursor: text;
   pointer-events: auto;
@@ -25663,21 +25663,27 @@ button.proto-feed-sheet__stat:hover {
   flex: 0 0 40px;
   width: 40px;
   height: 40px;
-  border: 0;
-  border-radius: calc(var(--pds-radius-input) + var(--pds-space-1));
-  background: var(--pds-bg-accent-button);
-  color: var(--pds-on-accent);
+  /* The glass action (`proto-glass-surface proto-glass-surface--control proto-glass-action`
+     in the markup) supplies the frost, rim, blur and hairline border; this only sizes it into
+     a round button, the same on Home and in the child notebook. */
+  padding: 0;
+  border-radius: 999px;
+  color: var(--pds-text-primary);
   cursor: pointer;
   pointer-events: auto;
+}
+/* It sits on the field, not on the wallpaper, so the docked-shell alpha (22% under a photo)
+   vanished into the grey. The floating material and the glass rim keep it a visible button. */
+.proto-glass-surface.pds-feed-prompt-shuffle {
+  background: var(--pds-glass-shell-floating);
+  box-shadow: var(--pds-glass-rim), var(--pds-paper-shadow-subtle, none);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .pds-feed-prompt-field:has(button:hover) {
     background: var(--pds-bg-input-hover);
   }
-  .pds-feed-prompt-shuffle:hover {
-    filter: brightness(1.06);
-  }
+
 }
 
 .proto-feed-compose:active {

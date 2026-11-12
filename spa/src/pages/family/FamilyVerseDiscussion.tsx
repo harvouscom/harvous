@@ -3,7 +3,7 @@ import Icon from '@/components/react/Icon';
 import type { ChildFamilyThought, ChildNotebookPreferences } from '../../../../shared/child-notebook';
 import { ChildNotebookProfileAvatar } from '../prototype/ChildNotebookAppearance';
 import ProtoLoadingDots from '../prototype/ProtoLoadingDots';
-import { ChildPrivacyPolicyLink } from './ChildPrivacyNotice';
+import { ChildPrivacyFootnote } from './ChildPrivacyNotice';
 import '../../styles/family-verse-discussion.css';
 
 type Props = {
@@ -106,12 +106,9 @@ function ReplyComposer({ onSave, hasComments, childView, privacyUrl }: {
       placeholder={hasComments ? 'Write a reply…' : 'What did you notice?'}
       value={draft} onChange={event => setDraft(event.target.value)} maxLength={childView ? 500 : 800}
       rows={2} readOnly={posting} autoFocus />
-    {childView && <div className="pds-verse-discussion__audience">
-      <p className="pds-caption">You and your parent can see this.</p>
-      <ChildPrivacyPolicyLink url={privacyUrl} />
-    </div>}
     {error && <p className="pds-caption" role="alert">{error}</p>}
     <div className="pds-verse-discussion__actions">
+      {childView && <ChildPrivacyFootnote url={privacyUrl}>You and your parent can see this.</ChildPrivacyFootnote>}
       <button type="button" className="pds-verse-discussion__text-action pds-caption" disabled={posting} onClick={closeComposer}>Cancel</button>
       <button type="submit" className="proto-settings-btn" disabled={posting || !draft.trim()}>
         {posting ? <ProtoLoadingDots label="Posting comment" /> : hasComments ? 'Post reply' : 'Post comment'}

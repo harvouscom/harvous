@@ -14,7 +14,7 @@ import { ChildNoteInfo, type ChildNoteOrganization, type ChildNotebookCatalog, t
 import ChildNotebookSearch, { type ChildSearchItem } from './ChildNotebookSearch';
 import ChildFamilySpacePreview from './ChildFamilySpacePreview';
 import ChildNotebookTextFields from '../family/ChildNotebookTextFields';
-import { ChildPrivacyPolicyLink } from '../family/ChildPrivacyNotice';
+import { ChildPrivacyFootnote, ChildPrivacyPolicyLink } from '../family/ChildPrivacyNotice';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
@@ -404,7 +404,6 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
 
           {view === 'note' && renderAttachment && <button type="button" ref={infoButtonRef} className="proto-toolbar-icon-btn" aria-label="Note info" title="Note info" aria-expanded={infoOpen} aria-controls={infoOpen ? 'child-note-info' : undefined} onClick={() => setInfoOpen(current => !current)}><Icon name="circle-info" size={17} /></button>}
           {view === 'home' && <div className="proto-feed-sheet__controls">
-            <ChildPrivacyPolicyLink url={privacyUrl} />
             <span className="pds-caption">{dayLabel}</span>
             {newerDay && <button type="button" className="proto-sidebar-back-tile proto-feed-sheet__forward" aria-label={`Forward to ${newerDay}`} title={`Forward to ${newerDay}`} onClick={() => openNotebookDay(notebookDay - 1)}>
               <Icon name="caret-right" size={16} aria-hidden />
@@ -414,7 +413,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
 
         {view === 'home' && notebookDay === 0 && <div className="pds-kids-preview__body">
           <section className="pds-kids-preview__welcome">
-            <h1 ref={headingRef} tabIndex={-1} className="pds-title-xl pds-kids-welcome-title">Welcome back, {name}.</h1>
+            <h1 ref={headingRef} tabIndex={-1} className="pds-title-xl pds-kids-welcome-title">{notes.length ? `Welcome back, ${name}.` : `Welcome, ${name}.`}</h1>
             <p className="pds-kids-welcome-copy">
               Your questions and discoveries belong here.<br />{' '}
               Where would you like to start?
@@ -456,7 +455,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               </PrototypeHomeSection>
             </>}
           </div>
-
+          <ChildPrivacyFootnote url={privacyUrl}>Your notebook is just for you and your parent.</ChildPrivacyFootnote>
         </div>}
 
         {view === 'home' && notebookDay > 0 && <div className="pds-kids-preview__body">
@@ -470,7 +469,6 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         {view === 'note' && draft && <div className="pds-kids-note-layout">
         <div className="pds-kids-preview__body pds-kids-preview__editor">
           {draft.reference && <span className="pds-caption">{[draft.reference, draft.translation, 'My Bible'].filter(Boolean).join(' · ')}</span>}
-          <ChildPrivacyPolicyLink url={privacyUrl} />
           <ChildNotebookTextFields title={draft.title} content={draft.content} titleRef={titleRef} disabled={saving} onTitleChange={title => setDraft({ ...draft, title })} onContentChange={content => setDraft({ ...draft, content })}>
           {renderAttachment && <div className="pds-kids-note-attachments" role="group" aria-label="Add to note">
             <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setAttachmentPicker({ kind: 'scripture' })}><Icon name="book-open" size={14} /> Add Scripture</button>
@@ -490,7 +488,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
           </ul>}
           {writingIdea && !draft.content && <p className="pds-caption pds-kids-note-idea">{writingIdea}</p>}
           </ChildNotebookTextFields>
-          <div className="pds-kids-preview__editor-footer"><span className="pds-caption">Adults in your notebook circle can read this note.</span><button className="proto-settings-btn pds-kids-preview__done" disabled={saving} onClick={finish}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Done</button></div>
+          <div className="pds-kids-preview__editor-footer"><ChildPrivacyFootnote url={privacyUrl}>Your parent can read this note.</ChildPrivacyFootnote><button className="proto-settings-btn pds-kids-preview__done" disabled={saving} onClick={finish}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Done</button></div>
         </div>
         {infoOpen && <ChildNoteInfo note={draft} catalog={catalog} onChange={updateOrganization} onCreate={createOrganization} onClose={() => {
           setInfoOpen(false);
@@ -535,10 +533,10 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         {showComposePrompt && <div className="pds-feed-prompt-dock pds-feed-prompt-dock--sheet" role="region" aria-label="Writing ideas">
             <div className="pds-feed-prompt-field">
               <button className="proto-feed-compose" aria-label={idea.note ? `Continue note: ${idea.note.title}` : 'Write a note with this idea'} onClick={() => openNote(idea.note, idea.text)}>
-                <Icon name="pen-to-square" size={14} />
+                <Icon name="pen-to-square" size={17} />
                 <span key={ideaIndex} className="proto-feed-compose__label" aria-hidden="true"><TypedLine text={idea.text} animate={!reducedMotion && ideaIndex > 0} caret={false} /></span>
               </button>
-              <button className="pds-feed-prompt-shuffle pds-kids-prompt__shuffle proto-ink-on-accent" aria-label="Try another writing idea" title="Try another writing idea" onClick={() => { playCue('nav.select'); setIdeaIndex(current => current + 1); }}>
+              <button className="proto-glass-surface proto-glass-surface--control proto-glass-action pds-feed-prompt-shuffle pds-kids-prompt__shuffle" aria-label="Try another writing idea" title="Try another writing idea" onClick={() => { playCue('nav.select'); setIdeaIndex(current => current + 1); }}>
                 <span key={ideaIndex} className="pds-kids-prompt__shuffle-icon"><Icon name="shuffle" size={16} /></span>
               </button>
             </div>

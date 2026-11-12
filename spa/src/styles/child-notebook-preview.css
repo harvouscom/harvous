@@ -148,12 +148,6 @@
 /* The adult Home greeting and compose field, with a separate child-friendly shuffle. */
 .pds-kids-preview__welcome .pds-kids-home-greeting { color: var(--pds-text-primary); line-height: 1.7; margin: 0 0 var(--pds-space-5); }
 .pds-kids-home-greeting .proto-home-greeting__chip { max-width: 100%; vertical-align: middle; }
-.pds-kids-prompt__shuffle {
-  --pds-accent-gradient-start: oklch(from var(--kids-cover-color) 64% calc(c * 1.4) h);
-  --pds-accent-gradient-end: oklch(from var(--kids-cover-color) 46% calc(c * 1.4) h);
-  background: linear-gradient(171deg, var(--pds-accent-gradient-start) 7%, var(--pds-accent-gradient-end) 93%);
-  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--pds-on-accent) 30%, transparent), 0 4px 10px -4px color-mix(in oklab, var(--pds-accent-gradient-end) 60%, transparent);
-}
 .pds-kids-prompt__shuffle-icon { display: inline-flex; animation: pds-kids-shuffle var(--pds-duration-home-section) var(--pds-ease-emphasized); }
 @keyframes pds-kids-shuffle { from { transform: rotate(-150deg) scale(0.8); } to { transform: rotate(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .pds-kids-prompt__shuffle-icon { animation: none; } }
@@ -772,4 +766,54 @@
   text-underline-offset: 0.2em;
 }
 .pds-kids-policy-link:hover { color: var(--pds-text-primary); }
+/* Who can see this, then the policy, as one quiet sentence. The link inherits the caption's
+   colour so it reads as part of the line, and only darkens on hover. */
+.pds-kids-privacy-footnote {
+  margin: 0;
+  color: var(--pds-text-secondary);
+}
+.pds-kids-privacy-footnote .pds-kids-policy-link {
+  color: inherit;
+  text-decoration-color: color-mix(in oklab, currentColor 45%, transparent);
+}
+.pds-kids-privacy-footnote .pds-kids-policy-link:hover {
+  color: var(--pds-text-primary);
+  text-decoration-color: currentColor;
+}
+.pds-kids-preview__body > .pds-kids-privacy-footnote {
+  padding-block-start: var(--pds-space-4);
+  border-top: 1px solid var(--pds-border-soft);
+}
 .pds-kids-policy-link:focus-visible { outline-offset: 3px; }
+/* The title is plain text when only one chapter is shared, so it doesn't need the picker's
+   -6px pull that lines a trigger's text up with the verses. */
+.pds-reader__chapter-picker.pds-reader__chapter-picker--static { margin-inline-start: 0; }
+/* The translation notice sits in the verse column, under the last verse. */
+.pds-reader__column > .pds-kids-bible__copyright {
+  margin: var(--pds-space-6) var(--pds-reader-text-inset) 0;
+}
+/* The initial or symbol on the cover fill is always white. The child build doesn't load the
+   route overrides that define `proto-ink-on-accent`, and inside the toolbar trigger
+   `.proto-toolbar-icon-btn *` would otherwise pull it to dark ink on the blue. */
+.pds-kids-avatar .pds-kids-avatar__cover,
+.pds-kids-avatar .pds-kids-avatar__cover * { color: var(--pds-on-accent) !important; }
+/* "Shared by your parent" is the title's eyebrow: a row of its own tight above the title, with
+   the translation chip centred on the title row rather than against both lines. */
+.pds-reader__chapter-heading:has(> .pds-family-reader__title-stack) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--pds-space-3);
+  row-gap: var(--pds-space-1);
+}
+.pds-family-reader__title-stack { display: contents; }
+.pds-family-reader__title-stack > .pds-family-reader__shared-label {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-1);
+  margin: 0;
+  color: var(--pds-text-secondary);
+}
+.pds-family-reader__title-stack > .pds-reader-chapter-title { grid-column: 1; margin-block: 0; }
+.pds-reader__chapter-heading:has(> .pds-family-reader__title-stack) > .pds-reader__chapter-controls { grid-column: 2; }

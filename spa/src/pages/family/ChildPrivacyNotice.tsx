@@ -2,6 +2,17 @@ export function ChildPrivacyPolicyLink({ url }: { url?: string }) {
   return url ? <a className="pds-caption pds-kids-policy-link" href={url} target="_blank" rel="noopener noreferrer">Child privacy policy</a> : null;
 }
 
+/**
+ * Who can see this, with the policy link folded into the same quiet line. Used where a child
+ * writes something, and at the foot of Home, so the link is present without standing in the
+ * notebook's header or beside a form's buttons.
+ */
+export function ChildPrivacyFootnote({ url, children }: { url?: string; children: string }) {
+  return <p className="pds-caption pds-kids-privacy-footnote">
+    {children}{url && <>{' '}<a className="pds-kids-policy-link" href={url} target="_blank" rel="noopener noreferrer">Privacy policy</a></>}
+  </p>;
+}
+
 /** Versioned alongside CHILD_NOTICE_VERSION. Changes require renewed consent, never automatic activation. */
 export default function ChildPrivacyNotice() {
   return (

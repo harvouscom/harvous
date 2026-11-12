@@ -9,7 +9,7 @@ const verses = chapters.BSB['Psalms:23'];
 const reading = { id: 'preview-psalm', book: 'Psalms', chapter: 23, translation: 'BSB' as const };
 const thoughts: ChildFamilyThought[] = [{ id: 'preview-thought', verse: 1, role: 'parent', text: 'Which words would you like to remember?' }];
 const notebook: Notebook = {
-  displayName: 'Sam', preferences: { ...defaultChildPreferences }, translations: ['BSB', 'NIV', 'NLT'], readings: [reading],
+  displayName: 'Sam', privacyUrl: '#preview-privacy-policy', preferences: { ...defaultChildPreferences }, translations: ['BSB', 'NIV', 'NLT'], readings: [reading],
   catalog: structuredClone(initialCatalog),
   notes: initialNotes.map(({ date, ...note }) => ({ ...note, updatedAt: date })),
   materials: [{ id: 'preview-reading', spaceId: 'preview-ministry', title: 'This week’s reading', content: 'What’s one kind thing you could do for someone this week?', spaceTitle: 'Kids ministry', updatedAt: null }]

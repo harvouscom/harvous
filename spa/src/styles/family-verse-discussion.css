@@ -80,12 +80,14 @@
   resize: vertical;
 }
 .pds-verse-discussion__composer p { margin: 0; }
-.pds-verse-discussion__audience,
+/* Who can see it on the left, Cancel and Post on the right — one row, so the composer ends
+   where the thread does instead of stacking a caption line above its buttons. */
 .pds-verse-discussion__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--pds-space-2) var(--pds-space-3);
 }
-.pds-verse-discussion__actions { justify-content: flex-end; }
-.pds-verse-discussion__actions > .proto-settings-btn { width: auto; min-height: 36px; }
+.pds-verse-discussion__actions > .pds-kids-privacy-footnote { flex: 1 1 14rem; }
+.pds-verse-discussion__actions > .proto-settings-btn { width: auto; min-height: 36px; padding-inline: var(--pds-space-4); box-shadow: none; }
