@@ -33,7 +33,7 @@ const groups: { id: Group; label: string; icon: ComponentProps<typeof Icon>['nam
 
 export default function ChildNotebookCoverStudio({ showVariantSwitch = false }: { showVariantSwitch?: boolean }) {
   const { name, preferences, coverColor, setCoverColor, coverPattern, setCoverPattern, coverSymbol, setCoverSymbol, coverBinding, setCoverBinding, paper, setPaper, playCue } = useChildNotebookAppearance();
-  const [variant, setVariant] = useState<CoverStudioVariant>(variantFromUrl ?? 'stickers');
+  const [variant, setVariant] = useState<CoverStudioVariant>(variantFromUrl ?? 'steps');
   const [tab, setTab] = useState<Group>('color');
   const [step, setStep] = useState(0);
   const initial = Array.from(name)[0]?.toUpperCase();
@@ -139,9 +139,18 @@ export default function ChildNotebookCoverStudio({ showVariantSwitch = false }: 
       <div className="pds-kids-studio__stage pds-kids-studio__stage--center">
         <span key={coverKey} className="pds-kids-studio__book"><ChildNotebookCover name={name} preferences={preferences} large /></span>
       </div>
-      <div className="pds-kids-studio__progress" aria-hidden="true">
-        {[...groups, { id: 'done' }].map((group, index) => <span key={group.id} data-state={index < step ? 'done' : index === step ? 'current' : undefined} />)}
-      </div>
+      {/* The progress is the way around: each step is a stop you can tap, and the one you're on
+          opens up to say its name, so you can see where you are and jump to any part. */}
+      <nav className="pds-kids-studio__progress" aria-label="Cover steps">
+        {[...groups, { id: 'done' as const, label: 'Done', icon: 'check' as const }].map((group, index) =>
+          <button key={group.id} type="button" aria-current={index === step ? 'step' : undefined}
+            aria-label={`${group.label}, step ${index + 1} of ${groups.length + 1}`}
+            data-state={index < step ? 'done' : undefined}
+            onClick={() => { if (index !== step) { playCue(index < step ? 'nav.back' : 'nav.forward'); setStep(index); } }}>
+            <Icon name={group.icon} size={15} aria-hidden />
+            {index === step && <span aria-hidden="true">{group.label}</span>}
+          </button>)}
+      </nav>
       {step < groups.length ? <fieldset className="pds-kids-studio__step">
         <legend className="pds-title">{groups[step].question}</legend>
         {options[groups[step].id]}

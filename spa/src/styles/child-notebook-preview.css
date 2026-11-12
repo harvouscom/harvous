@@ -924,10 +924,23 @@
 .pds-kids-studio__row legend > span { font: 400 13px var(--pds-font-body, inherit); color: var(--pds-text-secondary); }
 
 /* C · One at a time: one question, big options, progress dots. */
-.pds-kids-studio__progress { display: flex; justify-content: center; gap: var(--pds-space-2); }
-.pds-kids-studio__progress span { width: 8px; height: 8px; border-radius: 50%; background: var(--pds-bg-control); transition: width var(--pds-duration-press) var(--pds-ease-standard); }
-.pds-kids-studio__progress span[data-state='done'] { background: var(--kids-cover-ink); }
-.pds-kids-studio__progress span[data-state='current'] { width: 24px; border-radius: var(--pds-radius-pill); background: var(--kids-cover-ink); }
+/* The step bar: one stop per step, the current one opened out to its name. Steps behind you
+   take the cover's ink; any stop is a tap away. */
+.pds-kids-studio__progress { display: flex; justify-content: center; gap: var(--pds-space-1); width: fit-content; max-width: 100%; margin-inline: auto; padding: var(--pds-space-1); border-radius: var(--pds-radius-pill); background: var(--pds-bg-control); }
+.pds-kids-studio__progress button {
+  appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 40px; height: 40px; padding: 0 10px; border: 0; border-radius: var(--pds-radius-pill);
+  background: transparent; color: var(--pds-text-secondary); font: 600 14px var(--pds-font-body, inherit); cursor: pointer;
+  transition: background-color var(--pds-duration-press) var(--pds-ease-standard), color var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-studio__progress button[data-state='done'] { color: var(--kids-cover-ink); }
+/* Text in the page colour: the ink runs darker than the page in light mode and lighter in dark,
+   so this reads on every cover colour in both, with no per-colour exceptions. */
+.pds-kids-studio__progress button[aria-current='step'] { padding-inline: 14px; background: var(--kids-cover-ink); color: var(--pds-bg-page); }
+.pds-kids-studio__progress button[aria-current='step'] * { color: inherit !important; }
+@media (hover: hover) and (pointer: fine) {
+  .pds-kids-studio__progress button:not([aria-current='step']):hover { background: var(--pds-bg-page); }
+}
 .pds-kids-studio__step { display: grid; justify-items: center; gap: var(--pds-space-4); text-align: center; }
 .pds-kids-studio__step legend { float: left; width: 100%; margin: 0 0 var(--pds-space-4); padding: 0; text-align: center; }
 .pds-kids-studio__step--done p { margin: 0; }
