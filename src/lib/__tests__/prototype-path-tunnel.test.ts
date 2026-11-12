@@ -48,6 +48,11 @@ describe('dev tunnel hosts', () => {
     }
   });
 
+  it('puts the isolated staging parent settings at the same URL as production', () => {
+    expect(prototypeHref('settings/child-accounts', 'family-test.harvous.com')).toBe('/settings/child-accounts');
+    expect(isSiteInspiredAuthHost('family-test.harvous.com')).toBe(true);
+  });
+
   it('does not mistake a lookalike domain for a tunnel', () => {
     // Suffix match, so the boundary matters: only a subdomain *of* the provider counts.
     for (const host of [

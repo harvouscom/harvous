@@ -1,0 +1,1245 @@
+/* Child notebook paper, type, icon and list treatments shared by both entries. */
+.pds-kids-preview .pds-kids-preview__paper { min-height: 0; padding: 0; }
+.pds-kids-preview__topline { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-3); padding: var(--pds-space-5) var(--pds-space-6); border-bottom: 1px solid var(--pds-border-soft); }
+.pds-kids-preview__identity, .pds-kids-preview__quiet { display: inline-flex; align-items: center; gap: var(--pds-space-2); }
+.pds-kids-preview__identity { font-weight: 500; }
+.pds-kids-preview__quiet { border: 0; background: transparent; color: var(--pds-text-secondary); font: inherit; font-size: 13px; cursor: pointer; min-height: 44px; padding: 0; text-align: left; }
+.pds-kids-preview__body { padding: var(--pds-space-8) var(--pds-space-6) var(--pds-space-5); display: flex; flex-direction: column; gap: var(--pds-space-6); }
+.pds-kids-preview__welcome h1 { margin: 0 0 var(--pds-space-3); }
+.pds-kids-preview__welcome p { color: var(--pds-text-secondary); line-height: 1.6; margin: 0; }
+.pds-kids-preview__compose { width: 100%; display: flex; align-items: center; gap: var(--pds-space-4); text-align: left; border: 1px solid var(--pds-border-soft); border-radius: var(--pds-radius-row); padding: var(--pds-space-3) var(--pds-space-4); background: var(--pds-bg-subtle); color: var(--pds-text-primary); font: inherit; cursor: pointer; }
+.pds-kids-preview__compose-copy { display: flex; flex: 1; flex-direction: column; gap: var(--pds-space-1); }
+.pds-kids-preview__compose-arrow { flex: 0 0 auto; margin-left: auto; display: inline-flex; }
+.pds-kids-preview__compose-copy { min-width: 0; }
+.pds-kids-preview__compose strong { font-weight: 500; }
+.pds-kids-preview__compose span span { font-size: 13px; color: var(--pds-text-secondary); }
+.pds-kids-preview__compose-icon { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; border-radius: var(--pds-radius-input); background: var(--pds-bg-page); color: var(--pds-accent); }
+.pds-kids-preview__label { font-size: 12px; font-weight: 500; color: var(--pds-text-secondary); margin: 0 0 var(--pds-space-3); }
+.pds-kids-preview__privacy { border-top: 1px solid var(--pds-border-soft); padding-top: var(--pds-space-2); }
+.pds-kids-preview__privacy p { margin: var(--pds-space-2) 0; font-size: 13px; line-height: 1.6; color: var(--pds-text-secondary); }
+.pds-kids-preview__editor-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-3); border-top: 1px solid var(--pds-border-soft); padding-top: var(--pds-space-4); }
+.pds-kids-preview__editor-footer .pds-kids-preview__done { width: auto; gap: var(--pds-space-2); min-height: 44px; }
+.pds-kids-preview__reading-page { line-height: 1.8; }
+.pds-kids-preview__reading-page h1, .pds-kids-preview__reading-page h2, .pds-kids-preview__reading-page p { margin: 0; }
+.pds-kids-preview__demo { text-align: center; color: var(--pds-text-secondary); font-size: 11px; padding: var(--pds-space-4); margin: 0; }
+.pds-kids-preview__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.pds-kids-preview :is(button, input, textarea):focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 4px; }
+.pds-kids-preview .pds-kids-preview__compose:hover { background: var(--pds-bg-subtle); border-color: var(--pds-border); }
+@media (max-width: 600px) {
+  .pds-kids-preview__body { padding: var(--pds-space-6) var(--pds-space-4); gap: var(--pds-space-6); }
+  .pds-kids-preview__topline { padding: var(--pds-space-3) var(--pds-space-4); }
+  .pds-kids-preview__topline .proto-feed-sheet__controls > .pds-caption { font-size: 11px; }
+  .pds-kids-preview__welcome br { display: none; }
+}
+
+/* A small notebook cover, using the app's existing accent and paper colors. */
+.pds-kids-preview__topline[data-cover] {
+  position: relative;
+  min-height: 80px;
+  padding-top: var(--pds-space-4);
+  padding-bottom: var(--pds-space-4);
+  box-sizing: border-box;
+  background: linear-gradient(115deg, color-mix(in oklab, var(--kids-cover-color) 36%, transparent), color-mix(in oklab, var(--kids-cover-color) 12%, transparent) 60%, transparent);
+}
+.pds-kids-preview__topline[data-cover]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: var(--pds-space-6);
+  width: 15px;
+  height: 25px;
+  background: var(--kids-cover-ink);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 76%, 0 100%);
+}
+.pds-kids-preview__topline .proto-feed-sheet__controls:has(.proto-feed-sheet__forward) {
+  margin-top: var(--pds-space-2);
+}
+.pds-kids-preview__identity { gap: var(--pds-space-4); }
+.pds-kids-preview__cover-title { display: flex; flex-direction: column; gap: var(--pds-space-1); }
+.pds-kids-preview__cover-title strong { font-family: var(--pds-font-display); font-variation-settings: var(--pds-font-display-variation); font-size: 18px; font-weight: 600; }
+.pds-kids-preview__cover-title > span { font-size: 12px; font-weight: 400; color: var(--pds-text-secondary); }
+.pds-kids-preview__parent { display: inline-flex; align-items: center; gap: var(--pds-space-2); }
+@media (max-width: 600px) {
+  .pds-kids-preview__topline[data-cover] { gap: var(--pds-space-3); }
+  .pds-kids-preview__cover-title strong { font-size: 16px; }
+  .pds-kids-preview__topline[data-cover] .pds-kids-preview__parent { font-size: 11px; }
+}
+
+.pds-kids-preview__paper { --kids-cover-ink: color-mix(in oklab, var(--kids-cover-color) 65%, var(--pds-text-primary)); }
+.pds-kids-preview__customize { display: inline-flex; align-items: center; gap: var(--pds-space-2); margin-right: var(--pds-space-5); padding: var(--pds-space-2); min-height: 44px; background: transparent; border: 0; font: inherit; font-size: 12px; color: var(--pds-text-secondary); cursor: pointer; }
+.pds-kids-preview__customizer { padding: var(--pds-space-5) var(--pds-space-6); border-bottom: 1px solid var(--pds-border-soft); display: flex; flex-direction: column; gap: var(--pds-space-4); }
+.pds-kids-preview__customizer fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.pds-kids-preview__customizer legend { font-size: 13px; font-weight: 500; padding: 0; margin-bottom: var(--pds-space-3); }
+.pds-kids-preview__swatches, .pds-kids-preview__symbols { display: flex; flex-wrap: wrap; gap: var(--pds-space-2); }
+.pds-kids-preview__swatch, .pds-kids-preview__symbol { position: relative; display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer; }
+.pds-kids-preview__swatch input, .pds-kids-preview__symbol input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.pds-kids-preview__swatch > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--pds-radius-pill); background: var(--kids-swatch); color: var(--pds-text-primary); border: 1px solid var(--pds-border-soft); }
+.pds-kids-preview__swatch input:checked + span { outline: 2px solid var(--pds-text-secondary); outline-offset: 3px; }
+.pds-kids-preview__symbol > span { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--pds-border); border-radius: var(--pds-radius-input); font-size: 19px; }
+.pds-kids-preview__symbol input:checked + span { background: var(--pds-bg-subtle); border-color: var(--pds-text-secondary); }
+.pds-kids-preview :is(.pds-kids-preview__swatch, .pds-kids-preview__symbol) input:focus-visible + span { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+.pds-kids-preview__customizer-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-3); }
+@media (max-width: 600px) {
+  .pds-kids-preview__customize { margin-right: var(--pds-space-4); }
+  .pds-kids-preview__customize > span { max-width: 58px; text-align: left; }
+  .pds-kids-preview__identity { gap: var(--pds-space-3); min-width: 0; }
+  .pds-kids-preview__customizer { padding: var(--pds-space-4); }
+}
+
+/* A visual explanation of access, with labels alongside every symbol. */
+.pds-kids-circle { padding: var(--pds-space-4) 0; display: flex; flex-direction: column; gap: var(--pds-space-4); }
+.pds-kids-circle__people { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pds-space-3); }
+.pds-kids-circle__group { display: flex; flex-direction: column; align-items: center; gap: var(--pds-space-3); padding: var(--pds-space-5) var(--pds-space-3); border-radius: var(--pds-radius-card); background: var(--pds-bg-subtle); text-align: center; }
+.pds-kids-circle__group[data-access='yes'] { background: color-mix(in oklab, var(--kids-cover-color) 18%, var(--pds-bg-page)); }
+.pds-kids-circle__portraits { position: relative; display: flex; align-items: center; padding-right: var(--pds-space-2); height: 56px; }
+.pds-kids-circle__portraits > span { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--pds-radius-pill); border: 3px solid var(--pds-bg-page); background: var(--pds-bg-subtle); color: var(--pds-text-secondary); margin-right: calc(-1 * var(--pds-space-2)); font-family: var(--pds-font-display); font-size: 22px; font-weight: 600; }
+.pds-kids-circle__group[data-access='yes'] .pds-kids-circle__portraits > span { background: var(--kids-cover-ink); color: var(--pds-on-accent); }
+.pds-kids-circle__group[data-access='yes'] .pds-kids-circle__portraits > span:not(:first-child) { background: var(--pds-bg-control-strong); color: var(--pds-text-primary); }
+.pds-kids-circle__portraits > .pds-kids-circle__more { font-size: 14px; }
+.pds-kids-circle__portraits > i { position: absolute; bottom: 0; right: 0; display: grid; place-items: center; width: 23px; height: 23px; background: var(--pds-bg-page); color: var(--pds-text-secondary); border-radius: var(--pds-radius-pill); }
+.pds-kids-circle__group strong { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.pds-kids-circle__access { display: inline-flex; align-items: center; justify-content: center; gap: var(--pds-space-2); font-size: 12px; color: var(--pds-text-secondary); }
+.pds-kids-circle__tip { display: flex; align-items: center; gap: var(--pds-space-3); }
+.pds-kids-circle__tip > span { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border-radius: var(--pds-radius-input); background: var(--pds-bg-subtle); color: var(--pds-text-secondary); }
+.pds-kids-circle__tip > div { display: flex; flex-direction: column; gap: var(--pds-space-1); }
+.pds-kids-circle__tip strong { font-size: 13px; font-weight: 500; }
+.pds-kids-circle__tip div > span { font-size: 12px; color: var(--pds-text-secondary); line-height: 1.5; }
+@media (max-width: 460px) {
+  .pds-kids-circle__people { grid-template-columns: minmax(0, 1fr); }
+  .pds-kids-circle__group { padding: var(--pds-space-3); gap: var(--pds-space-2); }
+}
+
+/* The cover and paper hinge from the spine; only transforms move on interaction. */
+.pds-kids-book { flex: 0 0 44px; width: 44px; height: 48px; padding: 0; border: 0; background: transparent; perspective: 220px; overflow: visible; }
+.pds-kids-book__volume { display: block; position: relative; width: 36px; height: 45px; transform: rotate(-7deg); transform-style: flat; animation: pds-kids-book-arrive var(--pds-duration-home-section) var(--pds-ease-emphasized) backwards; transition: transform var(--pds-duration-home-row) var(--pds-ease-standard); }
+.pds-kids-book__back, .pds-kids-book__page, .pds-kids-book__front { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 2px 5px 5px 2px; transform-origin: 2px 50%; backface-visibility: hidden; transition: transform var(--pds-duration-home-row) var(--pds-ease-standard); }
+.pds-kids-book__back { z-index: 0; background: var(--kids-cover-ink); box-shadow: 1px 2px 2px var(--pds-border); transform: translateX(2px); }
+.pds-kids-book__page { inset: 2px -1px 2px 3px; background: var(--pds-on-accent); border: 0.5px solid var(--pds-border); border-radius: 1px 3px 3px 1px; }
+.pds-kids-book__page[data-page='1'] { z-index: 1; transform: translateX(1px) rotateY(-2deg); }
+.pds-kids-book__page[data-page='2'] { z-index: 2; transform: translateX(0.5px) rotateY(-5deg); }
+.pds-kids-book__page[data-page='3'] { z-index: 3; transform: rotateY(-9deg); }
+.pds-kids-book__front { z-index: 4; background: var(--kids-cover-ink); border-left: 4px solid color-mix(in oklab, var(--kids-cover-ink) 75%, var(--pds-text-primary)); color: var(--pds-on-accent); font-family: var(--pds-font-display); font-size: 21px; font-weight: 600; transform: rotateY(-20deg); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .pds-kids-book:not([data-reduce-motion], [data-reduce-motion] *) {
+    &:hover,
+    .pds-kids-preview__topline[data-cover]:hover &,
+    .proto-settings-row:is(:hover, :focus-visible) > .pds-family-notebook-row__cover & {
+      .pds-kids-book__volume { transform: translateY(-2px) rotate(-10deg); }
+      .pds-kids-book__front { transform: rotateY(-38deg); }
+      .pds-kids-book__page[data-page='3'] { transform: rotateY(-15deg); }
+    }
+  }
+}
+@keyframes pds-kids-book-arrive { from { opacity: 0; transform: translateY(4px) rotate(-12deg); } to { opacity: 1; transform: rotate(-7deg); } }
+@starting-style { .pds-kids-book__front { transform: rotateY(0deg); } }
+.pds-kids-book[data-reduce-motion] :is(.pds-kids-book__volume, .pds-kids-book__front, .pds-kids-book__page) {
+  animation: none;
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pds-kids-book__volume, .pds-kids-book__front { animation: none; }
+  .pds-kids-book__volume, .pds-kids-book__front, .pds-kids-book__page { transition: none; }
+}
+/* These glyphs extend slightly beyond their SVG viewBox (heads and church cross).
+   Keep their artwork visible inside the larger portrait circles. */
+.pds-kids-circle__portraits svg { overflow: visible; }
+.pds-kids-circle__portraits { overflow: visible; }
+
+/* The adult Home greeting and compose field, with a separate child-friendly shuffle. */
+.pds-kids-preview__welcome .pds-kids-home-greeting { color: var(--pds-text-primary); line-height: 1.7; margin: 0 0 var(--pds-space-5); }
+.pds-kids-home-greeting .proto-home-greeting__chip { max-width: 100%; vertical-align: middle; }
+.pds-kids-prompt__shuffle-icon { display: inline-flex; animation: pds-kids-shuffle var(--pds-duration-home-section) var(--pds-ease-emphasized); }
+@keyframes pds-kids-shuffle { from { transform: rotate(-150deg) scale(0.8); } to { transform: rotate(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .pds-kids-prompt__shuffle-icon { animation: none; } }
+
+.pds-kids-home-filters { width: 100%; border-radius: var(--pds-radius-pill); }
+.pds-kids-home-filters .proto-appearance-segmented__btn { border-radius: var(--pds-radius-pill); display: inline-flex; align-items: center; justify-content: center; gap: var(--pds-space-2); min-height: 44px; flex: 1; padding-inline: var(--pds-space-2); font-size: 15px; }
+.pds-kids-home-activities { display: flex; flex-direction: column; gap: var(--pds-space-6); }
+.pds-kids-review > h1, .pds-kids-review > p { margin: 0; }
+.pds-kids-review > .proto-settings-btn { align-self: flex-start; width: auto; min-height: 44px; gap: var(--pds-space-2); }
+.pds-kids-review__note { margin: 0; border-left: 3px solid var(--kids-cover-ink); padding: var(--pds-space-4) var(--pds-space-5); background: var(--pds-bg-subtle); border-radius: 0 var(--pds-radius-input) var(--pds-radius-input) 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+@media (max-width: 600px) {
+  .pds-kids-home-filters .proto-appearance-segmented__btn { font-size: 14px; gap: var(--pds-space-1); white-space: nowrap; }
+}
+/* Four labels and four icons don't fit a phone's ~310px; the words are what a child reads. */
+@media (max-width: 430px) {
+  /* `!important`: the Icon component sets its display inline. */
+  .pds-kids-home-filters .proto-appearance-segmented__btn > span:first-child { display: none !important; }
+}
+
+/* The cover sits behind the inside pages; switch surfaces without a 3D flip. */
+.pds-kids-flip-stage { position: relative; isolation: isolate; }
+.pds-kids-preview .pds-kids-flip { display: block; position: relative; background: transparent; }
+.pds-kids-flip__front, .pds-kids-flip__back { min-width: 0; background: var(--pds-bg-page); transition: opacity var(--pds-duration-sheet) var(--pds-ease-standard), transform var(--pds-duration-sheet) var(--pds-ease-emphasized), visibility 0s var(--pds-duration-sheet); }
+.pds-kids-flip__front { position: relative; opacity: 1; transform: translateX(0); }
+.pds-kids-flip__back { position: absolute; inset: 0; visibility: hidden; opacity: 0; transform: translateX(-18px); padding: var(--pds-space-6); display: flex; flex-direction: column; gap: var(--pds-space-6); }
+.pds-kids-flip[data-flipped='true'] .pds-kids-flip__front { position: absolute; inset: 0; visibility: hidden; opacity: 0; transform: translateX(18px); }
+.pds-kids-flip[data-flipped='true'] .pds-kids-flip__back { position: relative; visibility: visible; opacity: 1; transform: translateX(0); transition-delay: 0s; }
+.pds-kids-flip:not([data-flipped]) .pds-kids-flip__front { visibility: visible; transition-delay: 0s; }
+.pds-kids-studio__top { display: flex; justify-content: space-between; align-items: center; gap: var(--pds-space-3); }
+.pds-kids-studio__top .pds-kids-preview__label { margin: 0; }
+.pds-kids-studio__top .proto-settings-btn { width: auto; gap: var(--pds-space-2); font-size: 12px; min-height: 44px; }
+.pds-kids-studio__hero { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-5); padding: var(--pds-space-6) 0; }
+.pds-kids-studio__hero h1 { margin: 0 0 var(--pds-space-3); }
+.pds-kids-studio__hero p { margin: 0; line-height: 1.6; color: var(--pds-text-secondary); font-size: 14px; }
+.pds-kids-studio__sample { display: grid; place-items: center; width: 145px; height: 160px; border-radius: var(--pds-radius-card); background: radial-gradient(ellipse, color-mix(in oklab, var(--kids-cover-color) 50%, transparent), transparent 70%); perspective: 400px; }
+.pds-kids-studio__sample .pds-kids-book__volume { width: 100px; height: 132px; }
+.pds-kids-studio__sample .pds-kids-book__front { font-size: 52px; border-left-width: 7px; border-radius: 3px 9px 9px 3px; }
+.pds-kids-flip__back .pds-kids-preview__customizer { padding: 0; border: 0; gap: var(--pds-space-6); }
+.pds-kids-preview__customizer legend > span { font-weight: 400; color: var(--pds-text-secondary); margin-left: var(--pds-space-2); }
+.pds-kids-studio__finish { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-4); padding-top: var(--pds-space-5); border-top: 1px solid var(--pds-border-soft); }
+.pds-kids-studio__finish .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); }
+.pds-kids-patterns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--pds-space-3); }
+.pds-kids-pattern { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--pds-space-2); cursor: pointer; font-size: 12px; color: var(--pds-text-secondary); }
+.pds-kids-pattern input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.pds-kids-pattern > span[data-pattern] { display: block; width: 100%; height: 54px; border: 1px solid var(--pds-border); border-radius: var(--pds-radius-input); background-color: var(--kids-cover-ink); }
+.pds-kids-pattern input:checked + span { outline: 2px solid var(--pds-text-secondary); outline-offset: 3px; }
+.pds-kids-pattern input:focus-visible + span { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+.pds-kids-book__front::after { content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: 0.2; pointer-events: none; }
+.pds-kids-book__front > span { position: relative; z-index: 1; }
+[data-pattern='dots'] .pds-kids-book__front::after, [data-pattern='dots'] .pds-kids-avatar__cover::after, .pds-kids-pattern > [data-pattern='dots'] { background-image: radial-gradient(var(--pds-on-accent) 1px, transparent 1px); background-size: 7px 7px; }
+[data-pattern='stripes'] .pds-kids-book__front::after, [data-pattern='stripes'] .pds-kids-avatar__cover::after, .pds-kids-pattern > [data-pattern='stripes'] { background-image: repeating-linear-gradient(135deg, var(--pds-on-accent) 0 1px, transparent 1px 7px); }
+[data-pattern='gingham'] .pds-kids-book__front::after, [data-pattern='gingham'] .pds-kids-avatar__cover::after, .pds-kids-pattern > [data-pattern='gingham'] { background-image: repeating-linear-gradient(90deg, color-mix(in oklab, var(--pds-on-accent) 40%, transparent) 0 4px, transparent 4px 8px), repeating-linear-gradient(0deg, color-mix(in oklab, var(--pds-on-accent) 40%, transparent) 0 4px, transparent 4px 8px); }
+.pds-kids-welcome-eyebrow { display: block; font-size: 12px; color: var(--pds-text-secondary); margin-bottom: var(--pds-space-3); }
+.pds-kids-preview__welcome .pds-kids-welcome-title { margin-bottom: var(--pds-space-3); }
+.pds-kids-welcome-copy { max-width: 45ch; }
+.pds-kids-welcome-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pds-space-3); margin-top: var(--pds-space-6); }
+.pds-kids-welcome-action {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-3);
+  min-width: 0;
+  min-height: 60px;
+  padding: 14px;
+  border: 1px solid var(--pds-border-soft);
+  border-radius: var(--pds-radius-card);
+  background: linear-gradient(135deg, color-mix(in oklab, var(--kids-cover-color) 14%, var(--pds-bg-page)), var(--pds-bg-page));
+  box-shadow: var(--pds-shadow-card);
+  color: var(--pds-text-primary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--pds-duration-press), transform var(--pds-duration-press);
+}
+.pds-kids-welcome-action:hover { border-color: var(--kids-cover-ink); transform: translateY(-2px); }
+.pds-kids-welcome-action:active { transform: translateY(0); }
+.pds-kids-welcome-action__icon { flex: 0 0 32px; height: 32px; display: grid; place-items: center; border-radius: var(--pds-radius-pill); background: color-mix(in oklab, var(--kids-cover-color) 28%, var(--pds-bg-page)); color: var(--pds-text-primary); }
+.pds-kids-welcome-action__copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pds-kids-welcome-action__copy strong { font-size: 14px; font-weight: 600; }
+.pds-kids-welcome-action__copy > span { font-size: 12px; color: var(--pds-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 420px) { .pds-kids-welcome-actions { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .pds-kids-welcome-action { transition: none; } .pds-kids-welcome-action:hover { transform: none; } }
+.pds-kids-appearance-scope[data-reduce-motion] .pds-kids-welcome-action { transition: none; transform: none; }
+.pds-kids-back-button { width: auto; gap: var(--pds-space-2); min-height: 44px; font-size: 12px; }
+.pds-kids-review__hero { display: flex; flex-direction: column; align-items: flex-start; gap: var(--pds-space-3); }
+.pds-kids-review__hero h1, .pds-kids-review__hero p, .pds-kids-review__hero .pds-kids-preview__label { margin: 0; }
+.pds-kids-review__hero p { color: var(--pds-text-secondary); line-height: 1.6; }
+.pds-kids-review__art { position: relative; display: grid; place-items: center; width: 64px; height: 64px; border-radius: var(--pds-radius-card); background: color-mix(in oklab, var(--kids-cover-color) 25%, var(--pds-bg-page)); color: var(--kids-cover-ink); }
+.pds-kids-review__art > span:last-child:not(:only-child) { position: absolute; top: -4px; right: -4px; width: 23px; height: 23px; display: grid; place-items: center; border-radius: var(--pds-radius-pill); background: var(--pds-bg-page); }
+.pds-kids-review__actions { display: flex; flex-wrap: wrap; gap: var(--pds-space-3); }
+.pds-kids-review__actions .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); }
+/* This footer belongs to the main pane, outside its scrolling paper. */
+.pds-kids-preview { flex: 1; min-height: 0; }
+.pds-kids-privacy-dock { flex-shrink: 0; display: flex; justify-content: center; padding: var(--pds-space-2) var(--pds-space-4) max(var(--pds-space-2), env(safe-area-inset-bottom)); }
+.pds-kids-privacy-dock .pds-kids-preview__quiet { padding: 0 var(--pds-space-3); font-size: 12px; }
+.pds-kids-privacy-modal { --kids-cover-ink: color-mix(in oklab, var(--kids-cover-color) 65%, var(--pds-text-primary)); box-sizing: border-box; width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: var(--pds-space-6); border: 1px solid var(--pds-border-soft); border-radius: var(--pds-radius-card); background: var(--pds-bg-page); color: var(--pds-text-primary); box-shadow: var(--pds-shadow-card-elevated); font-family: var(--pds-font-body); overflow-y: auto; }
+.pds-kids-privacy-modal::backdrop { background: var(--pds-overlay-medium); }
+.pds-kids-privacy-modal__heading { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--pds-space-5); }
+.pds-kids-privacy-modal__heading > button { width: 36px; justify-content: center; }
+.pds-kids-privacy-modal h2 { margin: 0 0 var(--pds-space-2); }
+.pds-kids-privacy-modal > .proto-settings-btn { gap: var(--pds-space-2); min-height: 44px; }
+.pds-kids-privacy-modal :focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .pds-kids-flip__back { padding: var(--pds-space-4); }
+  .pds-kids-studio__top { align-items: flex-start; flex-direction: column; }
+  .pds-kids-studio__hero { gap: var(--pds-space-3); }
+  .pds-kids-studio__hero .pds-title-xl { font-size: 28px; }
+  .pds-kids-studio__sample { width: 100px; }
+  .pds-kids-studio__sample .pds-kids-book__volume { width: 65px; height: 90px; }
+  .pds-kids-studio__finish { align-items: flex-start; flex-direction: column; }
+  .pds-kids-privacy-modal { padding: var(--pds-space-5); }
+}
+@media (prefers-reduced-motion: reduce) { .pds-kids-preview .pds-kids-flip { transition: none; } }
+.pds-kids-privacy-modal { position: fixed; inset: 0; margin: auto; height: fit-content; }
+
+.pds-kids-shell__label { padding-inline: var(--pds-space-3); }
+
+/* Child identity stays in the shared toolbar's account slot. */
+.proto-toolbar-icon-btn.pds-kids-mode-trigger { display: inline-flex; align-items: center; gap: var(--pds-space-2); width: auto; max-width: none; min-height: var(--pds-toolbar-orb-size); padding: 0 var(--pds-space-3) 0 var(--pds-space-1); border-radius: var(--pds-radius-row); background: var(--pds-bg-popover-solid); cursor: pointer; }
+.pds-kids-mode-avatar { width: 22px; height: 22px; display: grid; place-items: center; background: var(--pds-bg-subtle); color: var(--pds-text-primary); border-radius: var(--pds-radius-pill); font-size: 11px; font-weight: 600; }
+.pds-kids-mode-trigger__text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.pds-kids-mode-trigger__text strong { font-size: 12px; font-weight: 600; }
+.pds-kids-mode-trigger__text > span { display: inline-flex; align-items: center; gap: var(--pds-space-1); color: var(--pds-text-secondary); font-size: 10px; }
+.pds-kids-mode-menu .proto-menu-item { gap: var(--pds-space-3); min-height: 40px; }
+.pds-kids-mode-trigger:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
+.pds-kids-parent-gate > .pds-kids-review__art { margin-bottom: var(--pds-space-5); }
+.pds-kids-parent-gate > p { font-size: 14px; line-height: 1.65; }
+
+.pds-kids-parent-gate .pds-kids-review__actions { flex-direction: column; }
+.pds-kids-parent-gate .pds-kids-review__actions .proto-settings-btn { width: 100%; }
+
+.pds-kids-parent-gate { width: min(400px, calc(100vw - 32px)); overflow-x: hidden; }
+.pds-kids-parent-gate > .pds-kids-review__art { width: 48px; height: 48px; border-radius: var(--pds-radius-input); }
+.pds-kids-parent-gate > .pds-kids-review__art svg { overflow: visible; }
+.pds-kids-parent-gate__choices { margin-top: var(--pds-space-5); text-align: start; }
+.pds-kids-parent-gate__stay { width: 100%; }
+.pds-kids-parent-gate__notice { margin: var(--pds-space-2) 0 var(--pds-space-5); font-size: 12px; overflow-wrap: anywhere; }
+.pds-kids-parent-gate .pds-kids-review__actions { gap: var(--pds-space-3); }
+.pds-kids-parent-gate .proto-settings-btn { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+
+/* FA artwork in this view can extend outside its declared viewBox. Preserve the
+   glyph's full outline; the surrounding buttons already provide safe padding. */
+.pds-kids-shell svg, .pds-kids-privacy-modal svg { overflow: visible; }
+
+.pds-kids-appearance-scope { display: contents; }
+.pds-kids-appearance-scope:not([data-canvas='device']) .proto-shell-frame { background: var(--kids-canvas); }
+.pds-kids-avatar { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto; }
+.pds-kids-avatar__cover { display: grid; place-items: center; position: relative; width: 36px; height: 36px; background: var(--kids-cover-ink); border-radius: var(--pds-radius-pill); color: var(--pds-on-accent); font: 600 19px var(--pds-font-display); }
+.pds-kids-avatar__cover::after { content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: 0.2; pointer-events: none; }
+.pds-kids-avatar__cover > span { position: relative; z-index: 1; }
+.pds-kids-avatar[data-small] { width: 22px; height: 22px; }
+.pds-kids-avatar[data-small] .pds-kids-avatar__cover { width: 22px; height: 22px; font-size: 12px; }
+.pds-kids-privacy-modal .pds-kids-circle__portraits .pds-kids-avatar { background: transparent; border: 0; margin: 0; }
+.pds-kids-privacy-modal .pds-kids-circle__portraits .pds-kids-avatar__cover { color: var(--pds-on-accent); }
+.pds-kids-appearance-settings { display: flex; flex-direction: column; gap: var(--pds-space-5); border-top: 1px solid var(--pds-border-soft); padding-top: var(--pds-space-6); }
+.pds-kids-appearance-settings h2 { margin: 0; }
+.pds-kids-appearance-settings fieldset { border: 0; min-width: 0; padding: 0; margin: 0; }
+.pds-kids-appearance-settings legend { font-size: 13px; font-weight: 500; margin-bottom: var(--pds-space-3); padding: 0; }
+.pds-kids-canvas-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--pds-space-3); }
+.pds-kids-canvas-choice { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--pds-space-2); font-size: 11px; color: var(--pds-text-secondary); cursor: pointer; }
+.pds-kids-canvas-choice input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; margin: 0; }
+.pds-kids-canvas-choice__sample { display: grid; place-items: center; width: 100%; height: 45px; border-radius: var(--pds-radius-input); border: 1px solid var(--pds-border); }
+.pds-kids-canvas-choice__sample[data-device] { background: var(--pds-bg-subtle); }
+.pds-kids-canvas-choice input:checked + span { outline: 2px solid var(--pds-text-secondary); outline-offset: 3px; }
+.pds-kids-canvas-choice input:focus-visible + span { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+.pds-kids-text-choices.proto-menu-tabs { position: static; margin: 0; }
+.pds-kids-text-choices .proto-menu-tab { min-height: 44px; display: flex; justify-content: center; align-items: center; gap: var(--pds-space-2); }
+.pds-kids-text-choices [data-active] { background: var(--pds-bg-popover-solid); }
+.pds-kids-motion-choice { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-4); cursor: pointer; }
+.pds-kids-motion-choice > span { display: flex; flex-direction: column; gap: var(--pds-space-1); }
+.pds-kids-motion-choice strong { font-size: 13px; font-weight: 500; }
+.pds-kids-motion-choice span > span { font-size: 12px; color: var(--pds-text-secondary); }
+.pds-kids-motion-choice input { width: 20px; height: 20px; accent-color: var(--pds-accent); }
+.pds-kids-appearance-scope[data-text-size='bigger'] :is(.pds-child-note__writing, .pds-kids-review__note, .pds-kids-preview__reading-page > p) { font-size: 19px; }
+.pds-kids-appearance-scope[data-reduce-motion] :is(.pds-kids-book__volume, .pds-kids-book__front, .pds-kids-prompt__shuffle-icon, .pds-kids-flip__front, .pds-kids-flip__back) { animation: none; transition: none; }
+@media (prefers-reduced-motion: reduce) { .pds-kids-flip__front, .pds-kids-flip__back { transition: none; } }
+
+/* The customization surface is the actual cover. Opening it reveals a settings page. */
+.pds-kids-flip__back[data-studio-page] { padding: 0; }
+.pds-kids-cover-surface { position: relative; isolation: isolate; padding: var(--pds-space-6); border-left: 10px solid color-mix(in oklab, var(--kids-cover-ink) 75%, var(--pds-text-primary)); border-radius: 3px 10px 10px 3px; background: var(--kids-cover-ink); color: var(--pds-on-accent); display: flex; flex-direction: column; gap: var(--pds-space-6); }
+.pds-kids-cover-surface::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; opacity: 0.1; pointer-events: none; }
+.pds-kids-cover-surface[data-pattern='dots']::before { background-image: radial-gradient(var(--pds-on-accent) 1px, transparent 1px); background-size: 10px 10px; }
+.pds-kids-cover-surface[data-pattern='stripes']::before { background-image: repeating-linear-gradient(135deg, var(--pds-on-accent) 0 1px, transparent 1px 10px); }
+.pds-kids-cover-surface[data-pattern='gingham']::before { background-image: repeating-linear-gradient(90deg, var(--pds-on-accent) 0 5px, transparent 5px 10px), repeating-linear-gradient(0deg, var(--pds-on-accent) 0 5px, transparent 5px 10px); }
+.pds-kids-cover-surface__top, .pds-kids-cover-surface__open { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-4); font-size: 12px; }
+.pds-kids-cover-surface__top .proto-settings-btn, .pds-kids-cover-surface__open .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); font-size: 12px; }
+.pds-kids-cover-surface__title { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--pds-space-3); padding: var(--pds-space-4) 0; }
+.pds-kids-cover-surface__title h1 { color: var(--pds-on-accent); margin: 0; }
+.pds-kids-cover-surface__title > span:last-child { font-size: 13px; opacity: 0.8; }
+.pds-kids-cover-surface__emblem { width: 74px; height: 74px; display: grid; place-items: center; font-family: var(--pds-font-display); font-size: 48px; font-weight: 600; color: var(--pds-on-accent); }
+.pds-kids-cover-tools { color: var(--pds-text-primary); background: var(--pds-bg-page); padding: var(--pds-space-5); border-radius: var(--pds-radius-card); box-shadow: var(--pds-shadow-card); }
+.pds-kids-cover-tools .pds-kids-preview__customizer { padding: 0; border: 0; gap: var(--pds-space-5); }
+.pds-kids-inside-settings { padding: var(--pds-space-6); display: flex; flex-direction: column; gap: var(--pds-space-6); animation: pds-kids-settings-open var(--pds-duration-home-row) var(--pds-ease-emphasized); }
+.pds-kids-inside-settings > header h1 { margin: 0 0 var(--pds-space-2); }
+.pds-kids-inside-settings .pds-kids-appearance-settings { padding-top: 0; border-top: 0; }
+.pds-kids-inside-settings .proto-appearance-carousel { margin-top: var(--pds-space-4); }
+.pds-kids-inside-settings .proto-appearance-segmented__btn { min-height: 40px; }
+.pds-kids-motion-choice input { appearance: auto; -webkit-appearance: auto; opacity: 1; flex: 0 0 20px; }
+.pds-kids-type-sample { font-size: 14px; font-weight: 500; }
+.pds-kids-type-sample[data-size='bigger'] { font-size: 19px; }
+.pds-kids-appearance-scope:not([data-canvas='device']) .proto-shell-frame { background: var(--kids-canvas); background-image: var(--kids-canvas-image); background-position: center; background-size: cover; background-repeat: no-repeat; }
+:root[data-color-scheme='dark'] .pds-kids-appearance-scope:not([data-canvas='device']) .proto-shell-frame { background-color: var(--kids-canvas); }
+@media (prefers-color-scheme: dark) { :root:not([data-color-scheme='light']) .pds-kids-appearance-scope:not([data-canvas='device']) .proto-shell-frame { background-color: var(--kids-canvas); } }
+.pds-kids-appearance-scope[data-color-scheme='dark'] .proto-shell-frame { background-color: var(--kids-canvas); }
+@keyframes pds-kids-settings-open { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
+.pds-kids-appearance-scope[data-reduce-motion] .pds-kids-inside-settings { animation: none; }
+@media (prefers-reduced-motion: reduce) { .pds-kids-inside-settings { animation: none; } }
+@media (max-width: 600px) {
+  .pds-kids-cover-surface, .pds-kids-inside-settings { padding: var(--pds-space-4); }
+  .pds-kids-cover-tools { padding: var(--pds-space-4); }
+  .pds-kids-cover-surface__open { align-items: stretch; flex-direction: column; }
+  .pds-kids-cover-surface__open .proto-settings-btn { width: 100%; }
+}
+.pds-kids-cover-surface__top .proto-settings-btn--secondary { background: var(--pds-bg-popover-solid); }
+
+.pds-kids-preview .proto-feed-stack__edge {
+  /* Leave enough paper for the hover lift while keeping the button centered on its exposed strip. */
+  height: calc(var(--proto-feed-edge-step) + var(--pds-space-1));
+  transform: scaleX(calc(1 - var(--edge-depth) * 0.028));
+}
+
+/* Every notebook page fills the height available, like Home; its body scrolls inside the paper. */
+.pds-kids-preview[data-fill] .pds-kids-flip-stage { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.pds-kids-preview[data-fill] .pds-kids-preview__paper,
+.pds-kids-preview[data-fill] .pds-kids-flip__front { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.pds-kids-preview[data-fill] .pds-kids-preview__topline { flex-shrink: 0; }
+.pds-kids-preview[data-fill] .pds-kids-preview__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* Home also keeps the writing invitation within reach as the notebook scrolls. */
+.pds-kids-preview[data-prompt-docked] { padding-bottom: 0; }
+.pds-kids-preview .pds-kids-preview__paper[data-compose-prompt] .pds-kids-preview__body {
+  padding-bottom: var(--feed-prompt-clearance);
+  scroll-padding-bottom: var(--feed-prompt-clearance);
+}
+.pds-kids-preview[data-prompt-docked] .pds-kids-preview__demo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); padding: 0; }
+
+/* Child settings share the adult modal and category panes; the live notebook stays behind it. */
+.pds-kids-settings-modal { position: fixed; inset: 0; margin: auto; padding: 0; width: min(860px, calc(100vw - 32px)); height: min(80dvh, 720px); max-height: calc(100dvh - 32px); color: var(--pds-text-primary); font-family: var(--pds-font-body); }
+.pds-kids-settings-modal:not([open]) { display: none; }
+.pds-kids-settings-modal::backdrop { background: var(--pds-overlay-heavy); }
+.pds-kids-settings-modal .proto-settings-modal__body { flex: 1; }
+.pds-kids-settings-modal .proto-settings { height: 100%; }
+.pds-kids-settings-modal .proto-settings__detail { overflow-y: auto; }
+/* Child-mode modals scroll without a visible scrollbar (wheel, touch and keys still work):
+   the dialog itself and anything inside it that overflows. */
+:is(.pds-kids-settings-modal, .pds-kids-privacy-modal), :is(.pds-kids-settings-modal, .pds-kids-privacy-modal) * { scrollbar-width: none; }
+:is(.pds-kids-settings-modal, .pds-kids-privacy-modal)::-webkit-scrollbar,
+:is(.pds-kids-settings-modal, .pds-kids-privacy-modal) *::-webkit-scrollbar { display: none; }
+.pds-kids-settings-pane { min-width: 0; }
+.pds-kids-settings-pane[data-studio-page='cover'] { padding: var(--pds-space-5); }
+.pds-kids-settings-modal svg { overflow: visible; }
+.pds-kids-settings-modal .pds-kids-inside-settings { animation: none; }
+.pds-kids-settings-modal :is(button, input):focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .pds-kids-settings-modal .pds-kids-inside-settings { padding: var(--pds-space-4); }
+  .pds-kids-settings-pane[data-studio-page='cover'] { padding: var(--pds-space-3); }
+}
+.pds-kids-settings-modal .pds-kids-cover-surface { gap: var(--pds-space-4); padding: var(--pds-space-5); }
+.pds-kids-settings-modal .pds-kids-cover-surface__title { gap: var(--pds-space-2); padding: var(--pds-space-2) 0; }
+.pds-kids-settings-modal .pds-kids-cover-surface__emblem { width: 52px; height: 52px; font-size: 40px; }
+.pds-kids-settings-modal .pds-kids-cover-surface__title h1 { font-size: 28px; }
+.pds-kids-settings-modal .pds-kids-cover-tools .pds-kids-preview__customizer { gap: var(--pds-space-4); }
+
+.pds-kids-notebook-settings__preview { display: flex; align-items: center; gap: var(--pds-space-6); padding: var(--pds-space-5); border-radius: var(--pds-radius-card); background: linear-gradient(115deg, color-mix(in oklab, var(--kids-cover-color) 24%, var(--pds-bg-page)), var(--pds-bg-page)); }
+.pds-kids-notebook-settings__preview h2 { margin: 0 0 var(--pds-space-2); }
+.pds-kids-notebook-settings__preview p { margin: 0; line-height: 1.5; }
+.pds-kids-book--settings { flex: 0 0 80px; width: 80px; height: 100px; cursor: default; }
+.pds-kids-book--settings .pds-kids-book__volume { width: 72px; height: 90px; }
+.pds-kids-book--settings .pds-kids-book__front { font-size: 40px; }
+.pds-kids-notebook-settings .pds-kids-preview__customizer { padding: 0; border: 0; gap: var(--pds-space-5); }
+.pds-kids-notebook-settings > .proto-settings__content { width: 100%; padding: 0; margin: 0; }
+@media (max-width: 420px) { .pds-kids-notebook-settings__preview { gap: var(--pds-space-4); padding: var(--pds-space-4); } }
+
+.pds-kids-settings-modal .pds-kids-notebook-settings { gap: var(--pds-space-4); }
+
+.pds-kids-day-heading h1 { margin: var(--pds-space-2) 0; }
+.pds-kids-day-heading p { margin: 0; }
+
+.pds-kids-bible[data-text-size='bigger'] {
+  --pds-reader-font-scale: 1.15;
+}
+.pds-kids-bible__toolbar {
+  display: flex;
+  justify-content: center;
+  padding: var(--pds-space-3) var(--pds-space-4) var(--pds-space-4);
+}
+.pds-kids-bible__modes,
+.pds-kids-bible__modes .proto-appearance-segmented__btn {
+  border-radius: var(--pds-radius-pill);
+}
+.pds-kids-bible__modes .proto-appearance-segmented__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  min-height: 44px;
+  padding-inline: var(--pds-space-4);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.pds-kids-bible__modes.proto-appearance-segmented {
+  width: max-content;
+  max-width: 100%;
+}
+.pds-kids-bible__bookmark {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pds-space-3);
+  margin: 0 var(--pds-reader-text-inset) var(--pds-space-6);
+  padding: var(--pds-space-3) var(--pds-space-4);
+  border: 1px solid var(--pds-border-soft);
+  border-radius: var(--pds-radius-card);
+  background: color-mix(in oklab, var(--kids-cover-color) 12%, var(--pds-bg-page));
+}
+.pds-kids-bible__bookmark > div {
+  flex: 1 1 180px;
+  display: grid;
+  gap: var(--pds-space-1);
+}
+.pds-kids-bible__bookmark .proto-settings-btn,
+.pds-kids-bible__status .proto-settings-btn {
+  width: auto;
+  min-height: 44px;
+  gap: var(--pds-space-2);
+}
+.pds-kids-bible__status {
+  margin-inline: var(--pds-reader-text-inset);
+}
+.pds-kids-bible__translation-footer {
+  margin: 0;
+  padding: var(--pds-space-2) var(--pds-space-3);
+}
+.pds-kids-bible__verse {
+  appearance: none;
+  border: 0;
+  border-radius: var(--pds-radius-format);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pds-kids-bible__verse-extra {
+  grid-column: 2;
+  margin-top: var(--pds-space-2);
+}
+/* Activity groups sit on paper, so they use the same panel material as adult Home. */
+.pds-kids-preview .proto-home-section__list {
+  background: linear-gradient(to bottom, var(--pds-paper-panel-top), var(--pds-paper-panel-bottom));
+  border: 0.5px solid var(--pds-border-control);
+  box-shadow: var(--pds-shadow-paper-panel);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.pds-kids-preview .proto-home-section__list::before,
+.pds-kids-preview .proto-home-section__list::after { content: none; }
+
+/* Cover the viewport around the inset shell without changing the parent's root theme. */
+.pds-kids-appearance-scope[data-color-scheme='dark']::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--kids-canvas) var(--kids-canvas-image) center / cover no-repeat;
+  pointer-events: none;
+}
+
+.pds-kids-home-menu {
+  display: inline-flex;
+  align-items: center;
+}
+.pds-kids-home-menu .pds-kids-home-menu__home {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+.pds-kids-home-menu .pds-kids-home-menu__trigger {
+  width: 22px;
+  min-width: 22px;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+.pds-kids-home-menu .proto-menu__popover {
+  min-width: 176px;
+}
+.pds-kids-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  pointer-events: auto;
+}
+.pds-kids-search {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(640px, calc(100dvh - 48px));
+  padding: var(--pds-space-4);
+}
+.pds-kids-search[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-3);
+  overflow: hidden;
+}
+.pds-kids-search[open] > :not(.pds-kids-search__scroll) {
+  flex-shrink: 0;
+}
+.pds-kids-search .proto-sidebar-search__field {
+  --proto-search-field-pad-x: var(--pds-space-3);
+  min-height: 44px;
+  gap: var(--pds-space-2);
+}
+.pds-kids-search .proto-sidebar-search__field input {
+  align-self: stretch;
+  font-size: 1rem;
+}
+.pds-kids-search__scopes.proto-appearance-segmented {
+  --proto-seg-thumb-radius: var(--pds-radius-pill);
+  border-radius: var(--pds-radius-pill);
+}
+.pds-kids-search__scopes .proto-appearance-segmented__btn {
+  min-height: 36px;
+  padding-inline: var(--pds-space-2);
+}
+.pds-kids-search__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--pds-space-1);
+}
+.pds-kids-search__results + .pds-kids-search__results {
+  margin-top: var(--pds-space-3);
+}
+.pds-kids-search__results .pds-section-header { margin: 0 0 var(--pds-space-1); }
+.pds-kids-search__results .proto-list-panel {
+  border: 1px solid var(--pds-border-soft);
+  border-radius: var(--pds-radius-row);
+}
+.pds-kids-search__results .proto-list-panel__row {
+  min-height: 52px;
+  gap: var(--pds-space-2);
+  padding: var(--pds-space-1) var(--pds-space-3);
+}
+.pds-kids-search__results .proto-list-panel__row-title { font-size: 1rem; line-height: 1.25; }
+.pds-kids-search__results .proto-list-panel__row-meta { font-size: 0.8125rem; line-height: 1.35; }
+.pds-kids-search__count,
+.pds-kids-search__empty {
+  margin: 0 0 var(--pds-space-3);
+  color: var(--pds-text-secondary);
+}
+.pds-kids-search__empty {
+  padding-block: var(--pds-space-4);
+  text-align: center;
+}
+.pds-kids-search mark {
+  background: color-mix(in srgb, var(--pds-accent) 21%, transparent);
+  color: var(--pds-text-primary);
+  border-radius: var(--pds-radius-menu-item);
+}
+.pds-kids-search .pds-kids-search__more {
+  width: auto;
+  min-height: 40px;
+  gap: var(--pds-space-2);
+  margin-top: var(--pds-space-2);
+}
+.pds-kids-preview[data-note-info] > .proto-feed-stack {
+  max-width: calc(640px + var(--pds-inspector-w));
+}
+.pds-kids-note-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.pds-kids-preview[data-note-info] .pds-kids-note-layout {
+  grid-template-columns: minmax(0, 1fr) min(36%, var(--pds-inspector-w));
+}
+.pds-kids-info {
+  padding: var(--pds-space-3);
+  border-inline-start: 1px solid var(--pds-border-soft);
+  max-height: calc(100dvh - 172px);
+}
+.pds-kids-info__header,
+.pds-kids-info__detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+}
+.pds-kids-info__header h2 {
+  margin: 0;
+}
+.pds-kids-info .pds-kids-info__header {
+  margin: 0 var(--pds-space-2) var(--pds-space-3);
+}
+.pds-kids-info__detail + .pds-kids-info__detail {
+  margin-top: var(--pds-space-2);
+}
+.pds-kids-info__selection {
+  margin: var(--pds-space-2) 0 0;
+  overflow-wrap: anywhere;
+}
+.pds-kids-info .proto-select-menu__trigger {
+  width: 100%;
+  justify-content: space-between;
+  min-height: 36px;
+}
+.pds-kids-info .pds-kids-info__new {
+  width: auto;
+  min-height: 32px;
+  padding: var(--pds-space-1) var(--pds-space-3);
+  gap: var(--pds-space-2);
+  margin-top: var(--pds-space-3);
+}
+.pds-kids-info__create {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-1);
+  margin-top: var(--pds-space-3);
+}
+.pds-kids-info__create input {
+  min-width: 0;
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .pds-kids-shell .proto-toolbar-center {
+    position: static;
+    transform: none;
+    max-width: none;
+    margin-inline: auto;
+  }
+  .pds-kids-preview[data-note-info] .pds-kids-note-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pds-kids-info {
+    grid-row: 1;
+    border-inline-start: 0;
+    border-bottom: 1px solid var(--pds-border-soft);
+    max-height: min(50dvh, 380px);
+  }
+}
+@media (max-width: 430px) {
+  .pds-kids-search-trigger__label { display: none; }
+}
+
+.pds-kids-note-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pds-space-2);
+}
+.pds-kids-note-attachments .proto-settings-btn {
+  width: auto;
+  min-height: 36px;
+  gap: var(--pds-space-2);
+}
+.pds-kids-note-attachments__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pds-kids-note-attachments__list li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-1);
+}
+.pds-kids-note-idea { margin: 0; }
+.pds-kids-attachment-picker > * + * {
+  margin-top: var(--pds-space-4);
+}
+.pds-kids-attachment-picker > .proto-settings-btn {
+  gap: var(--pds-space-2);
+  min-height: 44px;
+}
+.pds-kids-attachment-picker__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--pds-space-3);
+}
+.pds-kids-attachment-picker__fields label {
+  min-width: 0;
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+}
+.pds-kids-attachment-picker__fields select {
+  min-height: 44px;
+}
+.pds-kids-attachment-picker .pds-kids-review__note p {
+  margin: var(--pds-space-2) 0 0;
+}
+
+.pds-kids-feedback-settings .proto-inspector-section {
+  display: grid;
+  gap: var(--pds-space-3);
+}
+.pds-kids-feedback-settings .proto-inspector-section + .proto-inspector-section {
+  margin-top: 0;
+}
+.pds-kids-feedback-settings :is(h3, p) {
+  margin: 0;
+}
+.pds-kids-feedback-settings .proto-settings-btn {
+  justify-self: start;
+  width: auto;
+  min-height: 44px;
+  gap: var(--pds-space-2);
+}
+.pds-kids-settings-modal[data-reduce-motion] .pds-kids-book__volume {
+  animation: none;
+  transition: none;
+}
+
+.pds-kids-preview .proto-feed-compose { color: var(--pds-text-secondary); }
+.pds-kids-policy-link {
+  width: fit-content;
+  color: var(--pds-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.pds-kids-policy-link:hover { color: var(--pds-text-primary); }
+/* Who can see this, then the policy, as one quiet sentence. The link inherits the caption's
+   colour so it reads as part of the line, and only darkens on hover. */
+.pds-kids-privacy-footnote {
+  margin: 0;
+  color: var(--pds-text-secondary);
+}
+.pds-kids-privacy-footnote .pds-kids-policy-link {
+  color: inherit;
+  text-decoration-color: color-mix(in oklab, currentColor 45%, transparent);
+}
+.pds-kids-privacy-footnote .pds-kids-policy-link:hover {
+  color: var(--pds-text-primary);
+  text-decoration-color: currentColor;
+}
+.pds-kids-preview__body > .pds-kids-privacy-footnote {
+  padding-block-start: var(--pds-space-4);
+  border-top: 1px solid var(--pds-border-soft);
+}
+.pds-kids-policy-link:focus-visible { outline-offset: 3px; }
+/* The title is plain text when only one chapter is shared, so it doesn't need the picker's
+   -6px pull that lines a trigger's text up with the verses. */
+.pds-reader__chapter-picker.pds-reader__chapter-picker--static { margin-inline-start: 0; }
+/* The translation notice sits in the verse column, under the last verse. */
+.pds-reader__column > .pds-kids-bible__copyright {
+  margin: var(--pds-space-6) var(--pds-reader-text-inset) 0;
+}
+/* The initial or symbol on the cover fill is always white. The child build doesn't load the
+   route overrides that define `proto-ink-on-accent`, and inside the toolbar trigger
+   `.proto-toolbar-icon-btn *` would otherwise pull it to dark ink on the blue. */
+.pds-kids-avatar .pds-kids-avatar__cover,
+.pds-kids-avatar .pds-kids-avatar__cover * { color: var(--pds-on-accent) !important; }
+/* "Shared by your parent" is the title's eyebrow: a row of its own tight above the title, with
+   the translation chip centred on the title row rather than against both lines. */
+.pds-reader__chapter-heading:has(> .pds-family-reader__title-stack) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--pds-space-3);
+  row-gap: var(--pds-space-1);
+}
+.pds-family-reader__title-stack { display: contents; }
+.pds-family-reader__title-stack > .pds-family-reader__shared-label {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-1);
+  margin: 0;
+  color: var(--pds-text-secondary);
+}
+.pds-family-reader__title-stack > .pds-reader-chapter-title { grid-column: 1; margin-block: 0; }
+.pds-reader__chapter-heading:has(> .pds-family-reader__title-stack) > .pds-reader__chapter-controls { grid-column: 2; }
+
+/* ─── Cover studio (child Settings › My notebook) ─────────────────────────────────────────
+   The notebook is the thing being made, so it sits on a stage tinted with its own colour and
+   pops a little whenever something changes. One question at a time; see
+   ChildNotebookCoverStudio.tsx. */
+.pds-kids-studio { display: flex; flex-direction: column; gap: var(--pds-space-5); min-width: 0; }
+.pds-kids-studio fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.pds-kids-studio label { position: relative; cursor: pointer; }
+.pds-kids-studio label > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.pds-kids-studio label small { font-size: 12px; color: var(--pds-text-secondary); }
+.pds-kids-studio label > input:checked ~ small { color: var(--pds-text-primary); font-weight: 600; }
+.pds-kids-studio label > input:focus-visible + span { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
+
+/* The stage: the notebook on a soft wash of its own colour. */
+.pds-kids-studio__stage {
+  position: relative; display: flex; align-items: center; gap: var(--pds-space-6);
+  padding: var(--pds-space-6); border-radius: var(--pds-radius-card); overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 30%, color-mix(in oklab, var(--kids-cover-color) 38%, transparent) 0 28%, transparent 60%),
+    radial-gradient(circle at 92% 110%, color-mix(in oklab, var(--kids-cover-color) 24%, transparent) 0 30%, transparent 62%),
+    color-mix(in oklab, var(--kids-cover-color) 10%, var(--pds-bg-page));
+  transition: background var(--pds-duration-home-row) var(--pds-ease-standard);
+}
+.pds-kids-studio__stage--center { justify-content: center; padding-block: var(--pds-space-8, 40px); }
+.pds-kids-studio__book { display: inline-grid; flex: none; animation: pds-kids-studio-pop 380ms var(--pds-ease-emphasized); }
+.pds-kids-studio .pds-kids-book--settings { flex-basis: 112px; width: 112px; height: 136px; }
+.pds-kids-studio .pds-kids-book--settings .pds-kids-book__volume { width: 100px; height: 126px; }
+.pds-kids-studio .pds-kids-book--settings .pds-kids-book__front { font-size: 52px; }
+.pds-kids-studio .pds-kids-book--settings .pds-kids-book__front svg { width: 48px; height: 48px; }
+@keyframes pds-kids-studio-pop {
+  0% { transform: scale(0.94) rotate(-2deg); }
+  55% { transform: scale(1.05) rotate(1.5deg); }
+  100% { transform: none; }
+}
+
+/* Colours: big paint dots with a little highlight, like a blob of poster paint. */
+.pds-kids-studio__colors { display: flex; flex-wrap: wrap; gap: var(--pds-space-3); }
+.pds-kids-studio__color { display: grid; justify-items: center; gap: var(--pds-space-1); }
+.pds-kids-studio__color > span {
+  display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, color-mix(in oklab, white 55%, transparent) 0 12%, transparent 13%), var(--kids-swatch);
+  box-shadow: inset 0 -4px 0 color-mix(in oklab, var(--kids-swatch) 70%, black 12%), 0 2px 4px color-mix(in oklab, var(--pds-text-primary) 12%, transparent);
+  color: var(--pds-text-primary);
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-studio__color > input:checked + span { transform: scale(1.08); outline: 3px solid var(--pds-bg-page); box-shadow: 0 0 0 5px var(--kids-swatch), inset 0 -4px 0 color-mix(in oklab, var(--kids-swatch) 70%, black 12%); }
+
+/* Patterns: fabric swatches, each set down at a slight angle. */
+.pds-kids-studio__patterns { display: flex; flex-wrap: wrap; gap: var(--pds-space-4); }
+.pds-kids-studio__pattern { display: grid; justify-items: center; gap: var(--pds-space-2); }
+.pds-kids-studio__pattern > span[data-pattern] {
+  display: block; width: 76px; height: 56px; border-radius: 10px; background-color: var(--kids-cover-ink);
+  transform: rotate(var(--kids-tilt)); box-shadow: 0 3px 6px color-mix(in oklab, var(--pds-text-primary) 14%, transparent);
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-studio__pattern > input:checked + span { transform: rotate(0deg) scale(1.06); outline: 3px solid var(--pds-text-primary); outline-offset: 3px; }
+.pds-kids-studio__pattern > [data-pattern='dots'] { background-image: radial-gradient(var(--pds-on-accent) 1.2px, transparent 1.4px); background-size: 9px 9px; }
+.pds-kids-studio__pattern > [data-pattern='stripes'] { background-image: repeating-linear-gradient(135deg, var(--pds-on-accent) 0 2px, transparent 2px 9px); }
+.pds-kids-studio__pattern > [data-pattern='gingham'] { background-image: repeating-linear-gradient(90deg, color-mix(in oklab, var(--pds-on-accent) 40%, transparent) 0 5px, transparent 5px 10px), repeating-linear-gradient(0deg, color-mix(in oklab, var(--pds-on-accent) 40%, transparent) 0 5px, transparent 5px 10px); }
+
+/* Symbols: die-cut stickers — white border, a lifted shadow, tilted as if stuck on by hand. */
+.pds-kids-studio__stickers { display: flex; flex-wrap: wrap; gap: var(--pds-space-3); }
+.pds-kids-studio__sticker > span {
+  display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px;
+  background: color-mix(in oklab, var(--kids-cover-color) 22%, var(--pds-bg-page));
+  border: 3px solid var(--pds-bg-page);
+  box-shadow: 0 0 0 1px var(--pds-border-soft), 0 3px 6px color-mix(in oklab, var(--pds-text-primary) 14%, transparent);
+  color: var(--kids-cover-ink); font: 700 22px var(--pds-font-display);
+  transform: rotate(var(--kids-tilt));
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-studio__sticker > input:checked + span { background: var(--kids-cover-ink); color: var(--pds-on-accent); transform: rotate(0deg) scale(1.08); box-shadow: 0 0 0 2px var(--kids-cover-ink), 0 6px 12px color-mix(in oklab, var(--kids-cover-ink) 35%, transparent); }
+.pds-kids-studio__sticker > input:checked + span * { color: var(--pds-on-accent) !important; }
+@media (hover: hover) and (pointer: fine) {
+  .pds-kids-studio__sticker:hover > input:not(:checked) + span,
+  .pds-kids-studio__pattern:hover > input:not(:checked) + span { transform: rotate(0deg) translateY(-2px); }
+  .pds-kids-studio__color:hover > input:not(:checked) + span { transform: translateY(-2px); }
+}
+
+/* One at a time: one question, big options, and the step bar. */
+/* The step bar: one stop per step, the current one opened out to its name. Steps behind you
+   take the cover's ink; any stop is a tap away. */
+.pds-kids-studio__progress { display: flex; justify-content: center; gap: var(--pds-space-1); width: fit-content; max-width: 100%; margin-inline: auto; padding: var(--pds-space-1); border-radius: var(--pds-radius-pill); background: var(--pds-bg-control); }
+.pds-kids-studio__progress button {
+  appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 40px; height: 40px; padding: 0 10px; border: 0; border-radius: var(--pds-radius-pill);
+  background: transparent; color: var(--pds-text-secondary); font: 600 14px var(--pds-font-body, inherit); cursor: pointer;
+  transition: background-color var(--pds-duration-press) var(--pds-ease-standard), color var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-studio__progress button[data-state='done'] { color: var(--kids-cover-ink); }
+/* Text in the page colour: the ink runs darker than the page in light mode and lighter in dark,
+   so this reads on every cover colour in both, with no per-colour exceptions. */
+.pds-kids-studio__progress button[aria-current='step'] { padding-inline: 14px; background: var(--kids-cover-ink); color: var(--pds-bg-page); }
+.pds-kids-studio__progress button[aria-current='step'] * { color: inherit !important; }
+@media (hover: hover) and (pointer: fine) {
+  .pds-kids-studio__progress button:not([aria-current='step']):hover { background: var(--pds-bg-page); }
+}
+.pds-kids-studio__step { display: grid; justify-items: center; gap: var(--pds-space-4); text-align: center; }
+.pds-kids-studio__step legend { float: left; width: 100%; margin: 0 0 var(--pds-space-4); padding: 0; text-align: center; }
+.pds-kids-studio__step--done p { margin: 0; }
+.pds-kids-studio__step :is(.pds-kids-studio__colors, .pds-kids-studio__stickers) { justify-content: center; }
+.pds-kids-studio__step .pds-kids-studio__patterns { justify-content: center; }
+.pds-kids-studio__step-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--pds-space-2); }
+.pds-kids-studio__step-actions .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }
+.pds-kids-studio__step-actions .pds-kids-studio__surprise { margin: 0; }
+
+@media (max-width: 520px) {
+  .pds-kids-studio__stage { gap: var(--pds-space-4); padding: var(--pds-space-4); }
+  .pds-kids-studio .pds-kids-book--settings { flex-basis: 84px; width: 84px; height: 104px; }
+  .pds-kids-studio .pds-kids-book--settings .pds-kids-book__volume { width: 76px; height: 96px; }
+  .pds-kids-studio .pds-kids-book--settings .pds-kids-book__front { font-size: 40px; }
+  /* All six paints on one row at phone width. */
+  .pds-kids-studio__colors { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--pds-space-1); }
+  .pds-kids-studio__color small { font-size: 11px; }
+  .pds-kids-studio__patterns { gap: var(--pds-space-3); }
+  .pds-kids-studio__pattern > span[data-pattern] { width: 64px; height: 48px; }
+  .pds-kids-studio__colors .pds-kids-studio__color > span { width: 44px; height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pds-kids-studio__book, .pds-kids-studio * { animation: none !important; transition: none !important; }
+}
+.pds-kids-settings-modal[data-reduce-motion] .pds-kids-studio :is(.pds-kids-studio__book, *) { animation: none !important; transition: none !important; }
+
+/* ─── Binding, drawn on the notebook wherever it appears ──────────────────────────────────
+   Sizes are percentages of the cover so the same rule reads on the 36px header book and the
+   100px studio book. Classic draws nothing extra: the spine border is the binding. */
+.pds-kids-book[data-binding]:not([data-binding='classic']) .pds-kids-book__front::before {
+  content: ''; position: absolute; pointer-events: none; z-index: 2;
+}
+.pds-kids-book[data-binding='spiral'] .pds-kids-book__front { border-left-width: 2px; }
+.pds-kids-book[data-binding='spiral'] .pds-kids-book__front::before {
+  left: -12%; top: 5%; bottom: 5%; width: 24%;
+  background: radial-gradient(ellipse 46% 28% at 50% 50%, transparent 52%, oklch(0.84 0.005 260) 58% 78%, transparent 84%) 0 0 / 100% 10%;
+}
+.pds-kids-book[data-binding='stitched'] .pds-kids-book__front::before {
+  left: 12%; top: 7%; bottom: 7%; width: 0;
+  border-left: max(1px, 0.04em) dashed color-mix(in oklab, var(--pds-on-accent) 80%, transparent);
+}
+.pds-kids-book[data-binding='band'] .pds-kids-book__front::before {
+  right: 14%; top: -2%; bottom: -2%; width: 7%; min-width: 2px; border-radius: 1px;
+  background: color-mix(in oklab, var(--pds-text-primary) 78%, var(--kids-cover-ink));
+}
+
+/* ─── The paper inside: lines, dots or a grid on the notebook sheet, tinted by the cover ─── */
+/* Restated on the studio: Settings is portaled outside the appearance scope. */
+.pds-kids-appearance-scope, .pds-kids-studio { --kids-paper-line: color-mix(in oklab, var(--kids-cover-color) 30%, var(--pds-border-soft)); }
+.pds-kids-appearance-scope[data-paper='lined'] .pds-kids-preview__paper .pds-kids-preview__body,
+.pds-kids-studio__paper > [data-paper='lined'] {
+  background-image:
+    linear-gradient(90deg, transparent 10px, color-mix(in oklab, var(--pds-thread-pink) 55%, transparent) 10px 11px, transparent 11px),
+    repeating-linear-gradient(to bottom, transparent 0 27px, var(--kids-paper-line) 27px 28px);
+}
+.pds-kids-appearance-scope[data-paper='dotted'] .pds-kids-preview__paper .pds-kids-preview__body,
+.pds-kids-studio__paper > [data-paper='dotted'] {
+  background-image: radial-gradient(var(--kids-paper-line) 1.2px, transparent 1.6px);
+  background-size: 18px 18px;
+}
+.pds-kids-appearance-scope[data-paper='grid'] .pds-kids-preview__paper .pds-kids-preview__body,
+.pds-kids-studio__paper > [data-paper='grid'] {
+  background-image:
+    linear-gradient(to right, var(--kids-paper-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--kids-paper-line) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+/* Studio options for binding (little notebooks) and pages (paper slips). */
+.pds-kids-studio__bindings, .pds-kids-studio__papers { display: flex; flex-wrap: wrap; gap: var(--pds-space-4); }
+.pds-kids-studio__binding, .pds-kids-studio__paper { display: grid; justify-items: center; gap: var(--pds-space-2); }
+.pds-kids-studio__binding > span {
+  display: grid; place-items: center; width: 72px; height: 80px; border-radius: 16px;
+  background: color-mix(in oklab, var(--kids-cover-color) 14%, var(--pds-bg-page));
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-studio__binding > input:checked + span { outline: 3px solid var(--pds-text-primary); outline-offset: 2px; transform: scale(1.04); }
+.pds-kids-studio__paper > span[data-paper] {
+  display: block; width: 56px; height: 72px; border-radius: 4px; background-color: var(--pds-bg-page);
+  box-shadow: 0 0 0 1px var(--pds-border-soft), 0 3px 6px color-mix(in oklab, var(--pds-text-primary) 12%, transparent);
+  transform: rotate(var(--kids-tilt)); transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-studio__paper > input:checked + span { transform: rotate(0deg) scale(1.06); outline: 3px solid var(--pds-text-primary); outline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  .pds-kids-studio__paper:hover > input:not(:checked) + span { transform: rotate(0deg) translateY(-2px); }
+  .pds-kids-studio__binding:hover > input:not(:checked) + span { transform: translateY(-2px); }
+}
+
+/* ─── Highlighter set in the Bible reader: five marker caps, the same one again takes it off ── */
+.pds-kids-markers { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pds-space-2); color: var(--pds-text-secondary); }
+.pds-kids-marker {
+  appearance: none; display: grid; place-items: center; width: 26px; height: 26px; padding: 0;
+  border: 0; border-radius: 50%; background: var(--kids-marker); color: var(--pds-text-primary); cursor: pointer;
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard), box-shadow var(--pds-duration-press) var(--pds-ease-standard);
+}
+/* Chosen: one ring in the marker's own colour, set off by a sliver of page. No check mark, so
+   nothing has to be inked light or dark per colour; the verse itself shows the highlight too. */
+.pds-kids-marker[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--pds-bg-page), 0 0 0 4px var(--kids-marker); }
+.pds-kids-marker--clear { background: var(--pds-bg-control); }
+@media (hover: hover) and (pointer: fine) { .pds-kids-marker:hover { transform: translateY(-1px); } }
+.pds-kids-marker:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 5px; }
+.pds-kids-marker, .pds-kids-marker * { color: var(--pds-text-primary) !important; }
+/* The little notebooks in the binding choices, drawn big enough to see the rings and stitches. */
+.pds-kids-studio__binding .pds-kids-book { transform: scale(1.45); }
+.pds-kids-privacy-modal > .pds-kids-privacy-footnote { text-align: center; margin-block: var(--pds-space-1) var(--pds-space-2); }
+/* Family Bible with nothing shared yet: a centred, friendly state in the paper, tinted by the cover. */
+.pds-kids-bible__empty { padding-block: var(--pds-space-10, 40px) var(--pds-space-8, 32px); }
+.pds-kids-bible__empty-art {
+  display: grid; place-items: center; width: 56px; height: 56px; border-radius: 18px;
+  background: color-mix(in oklab, var(--kids-cover-color) 22%, var(--pds-bg-page));
+  color: var(--kids-cover-ink);
+}
+.pds-kids-bible__empty-art * { color: inherit !important; }
+.pds-kids-bible__empty .proto-editor-empty-state__leading { display: flex; justify-content: center; width: 100%; }
+/* The privacy line in search sits under the results; in Settings, at the foot of the category list. */
+.pds-kids-search > .pds-kids-privacy-footnote { padding-block-start: var(--pds-space-3); border-block-start: 1px solid var(--pds-border-soft); }
+.pds-kids-settings-modal .proto-settings__nav { display: flex; flex-direction: column; }
+.pds-kids-settings-modal .proto-settings__nav > .pds-kids-privacy-footnote { margin-block-start: auto; padding: var(--pds-space-3); }
+.pds-kids-privacy-footnote .pds-kids-policy-link { white-space: nowrap; }
+.pds-kids-privacy-footnote { line-height: 1.5; }
+/* In Settings' narrow side column the sentence wraps, so the link takes its own line with room above. */
+.pds-kids-settings-modal .proto-settings__nav > .pds-kids-privacy-footnote { display: flex; flex-direction: column; align-items: flex-start; gap: var(--pds-space-2); }
+
+/* ─── Studio: the notebook lying open on the pages step ───────────────────────────────────
+   The cover colour shows as a rim around two pages; each page carries the chosen paper. */
+.pds-kids-spread {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; width: 232px; height: 148px; padding: 6px;
+  border-radius: 8px; background: var(--kids-cover-ink);
+  box-shadow: 0 10px 22px -10px color-mix(in oklab, var(--kids-cover-ink) 70%, transparent);
+  transform: rotate(-2deg);
+}
+.pds-kids-spread__page {
+  display: block; background-color: var(--pds-bg-page);
+  box-shadow: inset 0 0 0 1px var(--pds-border-soft);
+}
+.pds-kids-spread__page:first-child { border-radius: 4px 1px 1px 4px; box-shadow: inset -10px 0 12px -10px color-mix(in oklab, var(--pds-text-primary) 18%, transparent), inset 0 0 0 1px var(--pds-border-soft); }
+.pds-kids-spread__page:last-child { border-radius: 1px 4px 4px 1px; box-shadow: inset 10px 0 12px -10px color-mix(in oklab, var(--pds-text-primary) 18%, transparent), inset 0 0 0 1px var(--pds-border-soft); }
+.pds-kids-spread__page[data-paper='lined'] {
+  background-image:
+    linear-gradient(90deg, transparent 14px, color-mix(in oklab, var(--pds-thread-pink) 55%, transparent) 14px 15px, transparent 15px),
+    repeating-linear-gradient(to bottom, transparent 0 13px, var(--kids-paper-line) 13px 14px);
+}
+/* A spiral notebook opens on its rings. */
+.pds-kids-spread[data-binding='spiral']::after {
+  content: ''; position: absolute; left: calc(50% - 7px); top: 8px; bottom: 8px; width: 14px;
+  background: radial-gradient(ellipse 46% 28% at 50% 50%, transparent 52%, oklch(0.84 0.005 260) 58% 78%, transparent 84%) 0 0 / 100% 10%;
+}
+.pds-kids-spread[data-binding='stitched']::after {
+  content: ''; position: absolute; left: 50%; top: 10px; bottom: 10px;
+  border-left: 1.5px dashed color-mix(in oklab, var(--kids-cover-ink) 70%, transparent);
+}
+
+/*
+ * Stickers: one row of eight. It sits centred when it fits and scrolls when it doesn't, at any
+ * width. A scrolling row clips on every side, so it keeps room for the chosen sticker's ring, lift
+ * and shadow. The side with more fades out and gets an arrow (see useScrollRow).
+ */
+.pds-kids-studio__scroller { position: relative; width: 100%; min-width: 0; }
+.pds-kids-studio__step .pds-kids-studio__stickers {
+  display: flex; flex-wrap: nowrap; justify-content: safe center; gap: var(--pds-space-3);
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none;
+  padding: 14px var(--pds-space-3) 20px; scroll-padding-inline: var(--pds-space-3);
+}
+.pds-kids-studio__step .pds-kids-studio__stickers::-webkit-scrollbar { display: none; }
+.pds-kids-studio__step .pds-kids-studio__sticker { flex: none; scroll-snap-align: start; }
+.pds-kids-studio__scroller[data-more-end]:not([data-more-start]) .pds-kids-studio__stickers { -webkit-mask-image: linear-gradient(90deg, #000 80%, transparent); mask-image: linear-gradient(90deg, #000 80%, transparent); }
+.pds-kids-studio__scroller[data-more-start]:not([data-more-end]) .pds-kids-studio__stickers { -webkit-mask-image: linear-gradient(270deg, #000 80%, transparent); mask-image: linear-gradient(270deg, #000 80%, transparent); }
+.pds-kids-studio__scroller[data-more-start][data-more-end] .pds-kids-studio__stickers { -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); }
+.pds-kids-studio__scroll-btn {
+  position: absolute; top: calc(50% - 3px); z-index: 2; translate: 0 -50%;
+  display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--pds-bg-page); color: var(--pds-text-primary); cursor: pointer;
+  box-shadow: 0 0 0 1px var(--pds-border-soft), 0 3px 8px color-mix(in oklab, var(--pds-text-primary) 16%, transparent);
+}
+.pds-kids-studio__scroll-btn * { color: inherit !important; }
+.pds-kids-studio__scroll-btn[data-side='start'] { left: 0; }
+.pds-kids-studio__scroll-btn[data-side='start'] svg { rotate: 90deg; }
+.pds-kids-studio__scroll-btn[data-side='end'] { right: 0; }
+.pds-kids-studio__scroll-btn[data-side='end'] svg { rotate: -90deg; }
+.pds-kids-studio__scroll-btn:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .pds-kids-studio__scroll-btn:hover { background: var(--pds-bg-subtle); } }
+
+/* ─── Child Settings as a bottom sheet, like adult Settings below 899px ───────────────────
+   Same geometry as the shared drawer shell (frame inset, frame radius, shadow, room above the
+   home indicator) and the same header: back caret · title · close. It opens on the category
+   list; picking one shows that category alone. */
+.pds-kids-settings-modal[data-sheet] {
+  inset: auto calc(var(--pds-shell-frame-inset, 8px) + env(safe-area-inset-right, 0px)) calc(var(--pds-shell-frame-inset, 8px) + env(safe-area-inset-bottom, 0px)) calc(var(--pds-shell-frame-inset, 8px) + env(safe-area-inset-left, 0px));
+  margin: 0; width: auto; max-width: none;
+  height: auto; min-height: min(60dvh, 520px);
+  max-height: min(92dvh, 820px, calc(100dvh - 2 * var(--pds-shell-frame-inset, 8px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px));
+  border-radius: var(--pds-shell-frame-radius, 24px);
+  box-shadow: var(--pds-shadow-shell, none), 0 22px 48px -18px rgba(20, 18, 12, 0.35);
+}
+.pds-kids-settings-modal[data-sheet][open] { animation: pds-kids-sheet-up 320ms var(--pds-ease-emphasized, ease-out); }
+@keyframes pds-kids-sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.pds-kids-settings-modal[data-sheet][data-reduce-motion][open] { animation: none; }
+@media (prefers-reduced-motion: reduce) { .pds-kids-settings-modal[data-sheet][open] { animation: none; } }
+
+.pds-kids-settings-modal[data-sheet] .proto-settings-modal__header {
+  display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; gap: 8px;
+  padding: 12px 12px 10px; border-bottom: 0.5px solid var(--pds-border);
+}
+.pds-kids-sheet__header-left { display: flex; align-items: center; }
+.pds-kids-settings-modal[data-sheet] .proto-settings-modal__title {
+  margin: 0; font: 500 1.05rem/1.25 var(--pds-font-display); text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pds-kids-settings-modal[data-sheet] .proto-settings-modal__close { justify-self: end; }
+.pds-kids-settings-modal[data-sheet] .proto-settings { display: flex; flex-direction: column; height: 100%; }
+
+/* The list: categories as full-width rows with a chevron, the privacy line at the foot. */
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__detail { display: none; }
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav { box-sizing: border-box; width: 100%; flex: 1; padding: var(--pds-space-3); border: 0; }
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav-list {
+  display: flex; flex-direction: column; flex: none; gap: 0; overflow: hidden;
+  border: 0.5px solid var(--pds-border-on-paper, var(--pds-border)); border-radius: var(--pds-radius-menu, 14px);
+}
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav-item {
+  flex: none; width: 100%; min-height: 56px; margin: 0; padding: 0 var(--pds-space-4) 0 var(--pds-space-3);
+  gap: var(--pds-space-3); border-radius: 0; font-size: 16px; background: transparent;
+}
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav-item + .proto-settings__nav-item { border-top: 0.5px solid var(--pds-border-control-soft, var(--pds-border-soft)); }
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav-item[data-active='true'] { background: transparent; }
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav-icon {
+  display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--pds-radius-menu-item, 8px); background: var(--pds-bg-control);
+}
+.pds-kids-sheet__chevron { margin-inline-start: auto; color: var(--pds-text-tertiary, var(--pds-text-secondary)); }
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav > .pds-kids-privacy-footnote { padding: var(--pds-space-3); }
+
+/* One category: the list steps aside and the pane gets the whole sheet. */
+.pds-kids-settings-modal[data-sheet='pane'] .proto-settings__nav { display: none; }
+.pds-kids-settings-modal[data-sheet='pane'] .proto-settings__detail { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+/* ─── Review: the note as a page from the child's notebook ────────────────────────────────
+   One page with their cover colour on the spine; the notebook body behind it carries their paper. */
+.pds-kids-review__page {
+  --kids-paper-line: color-mix(in oklab, var(--kids-cover-color) 30%, var(--pds-border-soft));
+  position: relative; box-sizing: border-box; padding: 20px 26px 26px 34px;
+  border-left: 6px solid var(--kids-cover-ink); border-radius: 4px 14px 14px 4px;
+  background-color: var(--pds-bg-page);
+  box-shadow: 0 0 0 1px var(--pds-border-soft), 0 14px 28px -18px color-mix(in oklab, var(--pds-text-primary) 35%, transparent);
+  line-height: 28px;
+}
+.pds-kids-review__date { display: block; font-size: 13px; line-height: 28px; color: var(--pds-text-secondary); }
+.pds-kids-review__title { margin: 0; font: 600 20px/28px var(--pds-font-display); color: var(--pds-text-primary); }
+.pds-kids-review__text { margin: 0; font-size: 17px; line-height: 28px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--pds-text-primary); }
+.pds-kids-review__text--prompt { color: var(--pds-text-secondary); }
+.pds-kids-appearance-scope[data-text-size='bigger'] .pds-kids-review__text { font-size: 19px; }
+.pds-kids-review-tabs.pds-kids-home-filters { margin: 0; }
+
+/* The notebook's pages carry the chosen paper, so lined pages read as lined wherever the book
+   opens. In the studio the cover rests a little open, so the paper shows on every step. */
+.pds-kids-book[data-paper='lined'] .pds-kids-book__page {
+  background-image:
+    linear-gradient(90deg, transparent 14%, color-mix(in oklab, var(--pds-thread-pink) 55%, transparent) 14% calc(14% + 1px), transparent calc(14% + 1px)),
+    repeating-linear-gradient(to bottom, transparent 0 calc(10% - 1px), color-mix(in oklab, var(--kids-cover-color) 35%, var(--pds-border-soft)) calc(10% - 1px) 10%);
+}
+.pds-kids-studio__book .pds-kids-book--settings { perspective: 420px; }
+.pds-kids-studio__book .pds-kids-book--settings .pds-kids-book__front { transform: rotateY(-34deg); }
+.pds-kids-studio__book .pds-kids-book--settings .pds-kids-book__page[data-page='3'] { transform: rotateY(-12deg); }
+.pds-kids-studio__book .pds-kids-book--settings .pds-kids-book__page[data-page='2'] { transform: rotateY(-6deg); }
+
+/* ─── Look back dock: adult Review's dock, drawn for a kid ────────────────────────────────
+   It takes the writing prompt's slot and floats over the page (the sheet runs on underneath).
+   Big question, few words, progress as dots, a warm result line; tinted by the cover colour. */
+.pds-kids-lookback-slot { padding: 0; max-height: min(78%, 560px); display: flex; }
+.pds-kids-lookback-dock { display: flex; flex-direction: column; width: 100%; min-height: 0; }
+.pds-kids-lookback-dock__head {
+  display: flex; align-items: center; gap: var(--pds-space-3);
+  padding: var(--pds-space-2) var(--pds-space-2) var(--pds-space-2) var(--pds-space-4);
+  border-bottom: 0.5px solid var(--pds-border-soft);
+}
+.pds-kids-lookback-dock__title { display: inline-flex; align-items: center; gap: var(--pds-space-2); font: 600 15px var(--pds-font-display); color: var(--kids-cover-ink); }
+.pds-kids-lookback-dock__dots { display: inline-flex; gap: 6px; margin-inline-start: auto; }
+.pds-kids-lookback-dock__dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--pds-bg-control); transition: width var(--pds-duration-press) var(--pds-ease-standard); }
+.pds-kids-lookback-dock__dots i[data-state='done'] { background: var(--kids-cover-ink); }
+.pds-kids-lookback-dock__dots i[data-state='now'] { width: 20px; border-radius: 999px; background: color-mix(in oklab, var(--kids-cover-color) 55%, var(--pds-bg-control)); }
+.pds-kids-lookback-dock__body {
+  display: grid; gap: var(--pds-space-3); padding: var(--pds-space-4) var(--pds-space-5) var(--pds-space-5);
+  overflow-y: auto; min-height: 0; overscroll-behavior: contain;
+}
+.pds-kids-lookback-dock__body--done { justify-items: center; text-align: center; padding-block: var(--pds-space-6); }
+.pds-kids-lookback-dock__prompt { margin: 0; font: 600 21px/1.3 var(--pds-font-display); color: var(--pds-text-primary); text-wrap: balance; }
+.pds-kids-lookback-dock__sub { margin: 0; font-size: 15px; line-height: 1.5; color: var(--pds-text-secondary); }
+.pds-kids-lookback-dock__badge {
+  display: grid; place-items: center; width: 52px; height: 52px; border-radius: 18px;
+  background: color-mix(in oklab, var(--kids-cover-color) 22%, var(--pds-bg-page)); color: var(--kids-cover-ink);
+}
+.pds-kids-lookback-dock__badge * { color: inherit !important; }
+.pds-kids-lookback-dock__body--done .proto-settings-btn { width: auto; min-height: 44px; padding-inline: var(--pds-space-5); }
+
+/* The question: adult Review's stage (ask, scene, pieces, footer band), sized up for a kid. The
+   band carries the verdict once it is marked, and the answer stays where it landed above it. */
+.pds-kids-lookback-dock__stage { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.pds-kids-lookback-dock .rx-main { padding-top: var(--pds-space-4); gap: var(--pds-space-4); }
+.pds-kids-lookback-dock .rx-task { font: 600 20px/1.3 var(--pds-font-display); text-wrap: balance; }
+.pds-kids-lookback-dock .rx-main[data-bare] .rx-task { font-size: 21px; }
+.pds-kids-lookback-dock .rx-subject { font-size: 14px; }
+.pds-kids-lookback-dock .rx-scene { min-height: 0; }
+.pds-kids-lookback-dock .rx-foot { border-radius: 0; }
+.pds-kids-lookback-dock .rx-foot__actions { display: flex; flex-wrap: wrap; gap: var(--pds-space-2); }
+.pds-kids-lookback-dock .rx-foot .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }
+.pds-kids-lookback-dock__note { font-size: 14px; line-height: 1.45; color: var(--pds-text-secondary); }
+.pds-kids-lookback-dock__verdict {
+  display: inline-flex; align-items: center; gap: var(--pds-space-2);
+  font: 600 17px/1.3 var(--pds-font-display); color: var(--pds-text-primary);
+}
+.pds-kids-lookback-dock__verdict > span {
+  display: grid; place-items: center; width: 26px; height: 26px; flex: none; border-radius: 50%;
+  background: color-mix(in oklab, var(--kids-cover-color) 22%, var(--pds-bg-page)); color: var(--kids-cover-ink);
+}
+.pds-kids-lookback-dock__verdict > span * { color: inherit !important; }
+.pds-kids-lookback-dock__stage[data-result='yes'] .rx-foot { background: color-mix(in oklab, var(--kids-cover-color) 12%, var(--pds-bg-ghost)); }
+@media (max-width: 600px) {
+  .pds-kids-lookback-dock { --rx-gutter: var(--pds-space-4); }
+  .pds-kids-lookback-dock__prompt, .pds-kids-lookback-dock .rx-task { font-size: 19px; }
+}
+/* The exercise pieces (answer cards, tiles, order slots) read these; adult Review sets them on its
+   own dock, so the kids' dock states the same values. Without them a card had no edge or fill. */
+.pds-kids-lookback-dock {
+  --rx-gutter: var(--pds-space-5);
+  --rx-scene-bg: color-mix(in srgb, var(--pds-text-primary) 3.5%, transparent);
+  --rx-piece-bg: var(--pds-bg-glass-strong);
+  --rx-piece-edge: var(--pds-border-control-strong);
+  --rx-open-edge: var(--pds-border-on-paper);
+}

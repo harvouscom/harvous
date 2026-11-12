@@ -4571,10 +4571,19 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 /* Blue is for "you picked this one", not for "this is included". A selected
    translation or note is an answer to a question the user just asked, so it earns
    the accent; a feature list marking what a plan contains does not. */
-.proto-accent-check-orb--selected {
+.proto-accent-check-orb--selected,
+input[type='checkbox'].proto-checkbox--accent:checked {
   background: var(--pds-bg-accent-button);
   color: var(--pds-on-accent) !important;
+}
+
+.proto-accent-check-orb--selected,
+input[type='checkbox'].proto-checkbox--accent:checked:not(:focus-visible) {
   box-shadow: var(--pds-shadow-accent-button);
+}
+
+input[type='checkbox'].proto-checkbox--accent:checked::before {
+  background: var(--pds-on-accent);
 }
 
 .proto-accent-check-orb--selected svg,
@@ -5746,6 +5755,15 @@ html.harvous-prototype-route
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* Keep the bottom inset inside the scrollport so rows can scroll to the modal edge. */
+.proto-settings__nav--desktop {
+  padding-block-end: 0;
+}
+
+.proto-settings__nav--desktop > .proto-settings__nav-list {
+  padding-block-end: var(--pds-space-3);
 }
 
 .proto-settings__admin-card {
@@ -7395,11 +7413,17 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   Grace (ProtoSpaceLoading's default): invisible for 150ms, then in. A load that resolves
   inside the window never shows dots at all. The block keeps its place in flow from the first
   frame, so the arrival moves nothing. 150ms matches LOADER_GRACE_MS (useProtoHomeViewEnter.ts)
-  and PROTO_ROUTE_PENDING_DELAY_MS (proto-motion.ts). Reduced motion zeroes the duration, not
-  the delay — the hold is a wait, not motion.
+  and PROTO_ROUTE_PENDING_DELAY_MS (proto-motion.ts). With reduced motion, show the
+  static indicator immediately.
 */
 .proto-home-loading--grace {
   animation: proto-home-loading-grace var(--pds-duration-popover) var(--pds-ease-standard) 150ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-home-loading--grace {
+    animation-name: none;
+  }
 }
 
 @keyframes proto-home-loading-grace {
@@ -14436,6 +14460,7 @@ p.proto-teaching-plan__divider {
 }
 
 .proto-shared-space-header__title {
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -18263,6 +18288,17 @@ html.harvous-prototype-route
 .proto-select-menu__popover .proto-menu-item__label {
   flex: 1 1 0;
   min-width: 0;
+}
+
+.proto-select-menu__popover:has(> .proto-popover-shell__content > .proto-note-destination__filter) {
+  scroll-padding-block-start: var(--pds-space-12);
+}
+
+.proto-select-menu__popover > .proto-popover-shell__content > .proto-note-destination__filter {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--pds-z-sticky);
+  background: var(--pds-bg-popover-solid);
 }
 
 /* The run-length row: a week count beside the button that appends them. */
@@ -25577,45 +25613,96 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
 }
 
-/*
- * "What's on your mind?" — Home's compose prompt, docked at the foot of the paper.
- *
- * The band's card chrome (2px hairline, 18px radius, the solid popover fill every dock in the
- * shell band uses — glass reads too translucent over the feed) on the button itself, so it reads
- * as one of the band's cards rather than a field floating on nothing.
- * One line tall — it is a way in, not a panel. The slot is `pointer-events: none` so the band
- * never blocks the page; the button takes clicks back.
- */
+/* Home's writing prompt uses the child notebook's field and shuffle inside the study dock band. */
+.proto-feed-compose-dock > .study-dock-card__outer {
+  filter: none;
+}
+
+.pds-feed-prompt-dock {
+  box-sizing: border-box;
+  padding: var(--pds-space-1);
+  border: 1px solid var(--pds-border-soft);
+  border-radius: calc(var(--pds-radius-card) + var(--pds-space-1));
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-card-elevated);
+}
+
+.pds-feed-prompt-field {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-1);
+  padding-inline-end: var(--pds-space-1);
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: calc(var(--pds-radius-card) - var(--pds-space-1));
+  background: var(--pds-bg-input);
+}
+
 .proto-feed-compose {
   appearance: none;
   display: flex;
   align-items: center;
-  gap: var(--pds-space-2);
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  gap: 10px;
   box-sizing: border-box;
-  width: 100%;
   margin: 0;
-  padding: 13px 16px;
-  border: 2px solid var(--pds-border);
-  border-radius: 18px;
-  background: var(--pds-bg-popover-solid);
+  padding: var(--pds-space-2) var(--pds-space-3);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
   font: inherit;
-  font-size: 15px;
+  font-size: 17px;
   text-align: left;
   cursor: text;
   pointer-events: auto;
   transition: background-color var(--pds-duration-press) var(--pds-ease-standard);
 }
 
-/* Tints laid over the solid fill rather than replacing it, so hover and press never turn the
-   card see-through over the rows behind it. */
+.pds-feed-prompt-shuffle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  /* The glass action (`proto-glass-surface proto-glass-surface--control proto-glass-action`
+     in the markup) supplies the frost, rim, blur and hairline border; this only sizes it into
+     a round button, the same on Home and in the child notebook. */
+  padding: 0;
+  border-radius: 999px;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+  pointer-events: auto;
+}
+/* It sits on the field, not on the wallpaper, so the docked-shell alpha (22% under a photo)
+   vanished into the grey. The floating material and the glass rim keep it a visible button. */
+.proto-glass-surface.pds-feed-prompt-shuffle {
+  background: var(--pds-glass-shell-floating);
+  box-shadow: var(--pds-glass-rim), var(--pds-paper-shadow-subtle, none);
+}
+
 @media (hover: hover) and (pointer: fine) {
-  .proto-feed-compose:hover {
-    background-image: linear-gradient(var(--pds-bg-input-hover), var(--pds-bg-input-hover));
+  .pds-feed-prompt-field:has(button:hover) {
+    background: var(--pds-bg-input-hover);
   }
+
 }
 
 .proto-feed-compose:active {
-  background-image: linear-gradient(var(--pds-bg-row-selected), var(--pds-bg-row-selected));
+  background: var(--pds-bg-row-selected);
+}
+
+.pds-feed-prompt-dock :is(.proto-feed-compose, .pds-feed-prompt-shuffle):focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+.pds-feed-prompt-dock__announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 .proto-feed-compose__label {
@@ -25655,7 +25742,7 @@ button.proto-feed-sheet__stat:hover {
 /*
  * Today's passage as an epigraph (Nov 2026): the words first, in the reading face
  * (`.proto-review-dock__verse--scripture`) under a soft opening quote mark, then a signature
- * line — the reference with its translation chip, and the two buttons (`.proto-review-dock__actions`).
+ * line with the reference, translation chip, and two icon buttons.
  * No sky and no header band: the card is told apart from its neighbours by leading with
  * Scripture rather than with a title.
  */
@@ -25687,14 +25774,14 @@ button.proto-feed-sheet__stat:hover {
  */
 .proto-daily-passage__dismiss {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  inset-block-start: 10px;
+  inset-inline-end: 10px;
   border-radius: 999px;
 }
 
 .proto-daily-passage__words {
   min-width: 0;
-  padding-right: 24px;
+  padding-inline-end: 24px;
 }
 
 /*
@@ -25761,29 +25848,46 @@ html.harvous-prototype-route h3.proto-daily-passage__title {
   line-height: 1.3;
 }
 
-.proto-daily-passage__foot .proto-review-dock__actions {
-  margin: 0;
+.proto-daily-passage__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--pds-space-1);
 }
 
-/* A phone keeps more of its width for the words: a smaller hung quote, a narrower margin. */
-@media (max-width: 600px) {
+.proto-daily-passage__actions .proto-settings-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+/* Give the verse the full measure by putting the quote and dismiss control above it. */
+@media (max-width: 1024px) {
   .proto-daily-passage {
-    padding: 18px 16px 16px 40px;
+    gap: var(--pds-space-2);
+    padding: var(--pds-space-3);
   }
 
   .proto-daily-passage::before {
-    left: 12px;
-    top: 8px;
+    position: static;
+    block-size: var(--pds-space-6);
     font-size: 46px;
   }
 
-  .proto-daily-passage .proto-review-dock__verse {
-    font-size: 18px;
+  .proto-daily-passage__words {
+    padding-inline-end: 0;
   }
 
   .proto-daily-passage__dismiss {
-    top: 8px;
-    right: 8px;
+    inset-block-start: var(--pds-space-2);
+    inset-inline-end: var(--pds-space-2);
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 600px) {
+  .proto-daily-passage .proto-review-dock__verse {
+    font-size: 18px;
   }
 }
 
@@ -26788,4 +26892,29 @@ html.harvous-prototype-route h3.proto-daily-passage__title {
   ):focus-visible {
   outline: var(--focus-ring-width, 2px) solid var(--pds-accent-focus-ring);
   outline-offset: -2px;
+}
+
+/* The child notebook places the writing dock inside its paper. */
+.proto-feed-sheet[data-compose-prompt] {
+  --feed-prompt-inset: var(--pds-space-4);
+  --feed-prompt-bottom: calc(var(--feed-prompt-inset) + var(--proto-study-dock-band-height, 0px) + env(safe-area-inset-bottom));
+  --feed-prompt-clearance: calc(60px + var(--feed-prompt-bottom) + var(--pds-space-3));
+}
+
+.pds-feed-prompt-dock--sheet {
+  position: absolute;
+  inset-inline: var(--feed-prompt-inset);
+  bottom: var(--feed-prompt-bottom);
+  z-index: var(--pds-z-sticky);
+}
+
+.proto-feed-sheet[data-compose-prompt] > .proto-feed-sheet__body {
+  padding-bottom: var(--feed-prompt-clearance);
+  scroll-padding-bottom: var(--feed-prompt-clearance);
+}
+
+@media (max-width: 600px) {
+  .proto-feed-sheet[data-compose-prompt] {
+    --feed-prompt-inset: var(--pds-space-3);
+  }
 }

@@ -14,6 +14,8 @@ import {
   readSignupAttributionFromSearch,
 } from '../utils/signup-attribution';
 
+const signupAgeNotice = 'You must be 13 or older to create your own Harvous account.';
+
 /** Mirror of Astro sign-up.astro: persist ?ref= code as a cookie so
  *  ReferralCreditInit can credit the referrer after the user signs up. */
 function useReferralCookie() {
@@ -98,6 +100,7 @@ export default function SignUpPage() {
                   Make <span className="auth-page__headline-mark">your</span> study Bible.
                 </h1>
                 <div className="auth-page__form-wrapper">
+                  <p className="auth-page__legal">{signupAgeNotice}</p>
                   <HarvousAuthForm mode="signUp" />
                 </div>
               </div>
@@ -133,6 +136,7 @@ export default function SignUpPage() {
         <ClassicAuthMeshColumn />
         <div className="auth-page__form-section">
           <div className="auth-page__form-wrapper">
+            <p className="auth-page__legal">{signupAgeNotice}</p>
             <ClerkPrebuiltAuth mode="signUp" redirectRaw={redirectRaw} />
           </div>
         </div>

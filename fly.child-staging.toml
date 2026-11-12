@@ -1,0 +1,33 @@
+app = 'harvous-family-staging'
+primary_region = 'iad'
+
+[env]
+  API_PORT = '8080'
+  NODE_ENV = 'production'
+  PUBLIC_APP_ORIGIN = 'https://family-test.harvous.com'
+  CLERK_AUTHORIZED_PARTIES = 'https://family-test.harvous.com'
+  ALLOWED_ORIGINS = 'https://family-test.harvous.com,https://kids-test.harvous.com'
+  CSRF_ENFORCE = 'true'
+  HARVOUS_CHILD_ENVIRONMENT = 'staging'
+  HARVOUS_PARENT_APP_URL = 'https://family-test.harvous.com'
+  HARVOUS_CHILD_APP_URL = 'https://kids-test.harvous.com/kids.html'
+  KWS_ENVIRONMENT = 'test'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = '20s'
+    interval = '30s'
+    method = 'GET'
+    timeout = '5s'
+    path = '/api/health'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  cpus = 1
+  memory = '1gb'

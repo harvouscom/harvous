@@ -67,6 +67,24 @@ describe('initPostHog', () => {
     expect(window.posthog).toBeTruthy();
   });
 
+  it('excludes notebook routes and child identifiers from outgoing analytics', async () => {
+    const originalUrl = window.location.href;
+    try {
+      const { initPostHog } = await freshModule();
+      await initPostHog();
+      const beforeSend = init.mock.calls[0][1].before_send;
+      const adultEvent = { event: '$pageview', properties: { $current_url: '/settings/appearance' } };
+      window.history.replaceState(null, '', '/settings/family');
+      expect(beforeSend(adultEvent)).toBeNull();
+      window.history.replaceState(null, '', '/settings/appearance');
+      expect(beforeSend(adultEvent)).toBe(adultEvent);
+      expect(beforeSend({ ...adultEvent, properties: { $referrer: '/prototype/settings/child-accounts' } })).toBeNull();
+      expect(beforeSend({ ...adultEvent, properties: { $set_once: { $initial_current_url: '?child=child_11111111-2222-3333-4444-555555555555' } } })).toBeNull();
+    } finally {
+      window.history.replaceState(null, '', originalUrl);
+    }
+  });
+
   it('initialises once across two callers', async () => {
     /*
      * The observable contract — PostHogBridge and PostHogInit both call this on

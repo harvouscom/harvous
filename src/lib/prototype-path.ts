@@ -1,6 +1,6 @@
 import { isStatusHost } from './status-page-host';
 
-const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com', 'localhost']);
+const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com', 'family-test.harvous.com', 'localhost']);
 
 /**
  * Development tunnels, treated as dedicated hosts.

@@ -8,6 +8,8 @@ import React from 'react';
 import { safeRenderHtml } from '@/utils/content-renderer';
 
 // Font Awesome SVGs (space dropdown and shared UI) - add fill="currentColor" for color inheritance
+import houseSvg from '@fortawesome/fontawesome-free/svgs/solid/house.svg?raw';
+import crossSvg from '@fortawesome/fontawesome-free/svgs/solid/cross.svg?raw';
 import checkSvg from '@fortawesome/fontawesome-free/svgs/solid/check.svg?raw';
 import xmarkSvg from '@fortawesome/fontawesome-free/svgs/solid/xmark.svg?raw';
 import plusSvg from '@fortawesome/fontawesome-free/svgs/solid/plus.svg?raw';
@@ -49,6 +51,7 @@ import arrowLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-left.sv
 import arrowRightSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-right.svg?raw';
 import folderSvg from '@fortawesome/fontawesome-free/svgs/solid/folder.svg?raw';
 import fileLinesSvg from '@fortawesome/fontawesome-free/svgs/solid/file-lines.svg?raw';
+import downloadSvg from '@fortawesome/fontawesome-free/svgs/solid/download.svg?raw';
 import noteStickySvg from '@fortawesome/fontawesome-free/svgs/solid/note-sticky.svg?raw';
 import bookSvg from '@fortawesome/fontawesome-free/svgs/solid/book.svg?raw';
 import paintbrushSvg from '@fortawesome/fontawesome-free/svgs/solid/paintbrush.svg?raw';
@@ -167,6 +170,8 @@ function svgRootCurrentColor(svg: string): string {
 
 // SVG icons with fill="currentColor" to inherit CSS color
 const icons = {
+  house: svgRootCurrentColor(houseSvg),
+  cross: svgRootCurrentColor(crossSvg),
   // Toolbar icons
   plus: withCurrentColor(plusSvg),
   'arrow-rotate-left': withCurrentColor(arrowRotateLeftSvg),
@@ -274,6 +279,7 @@ const icons = {
   'arrow-right-arrow-left': withCurrentColor(arrowRightArrowLeftSvg),
   folder: withCurrentColor(folderSvg),
   'file-lines': withCurrentColor(fileLinesSvg),
+  download: withCurrentColor(downloadSvg),
   book: withCurrentColor(bookSvg),
   paintbrush: withCurrentColor(paintbrushSvg),
   'circle-user': svgRootCurrentColor(circleUserSvg),

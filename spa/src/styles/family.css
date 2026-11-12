@@ -1,0 +1,317 @@
+.pds-family-stack { display: flex; flex-direction: column; gap: var(--pds-space-4); }
+.pds-family-choice { display: flex; align-items: flex-start; gap: var(--pds-space-3); }
+.pds-family-choice input { flex-shrink: 0; accent-color: var(--pds-accent); }
+.pds-family-notice { padding: var(--pds-space-4); border: 1px solid var(--pds-border); border-radius: var(--pds-radius-card); }
+.pds-family-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+.pds-family-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pds-space-2);
+  margin-block-end: var(--pds-space-4);
+}
+.pds-family-breadcrumb a {
+  color: var(--pds-text-secondary);
+  text-decoration: none;
+  transition: color var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-family-breadcrumb a:hover { color: var(--pds-text-primary); }
+.pds-family-breadcrumb a:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
+}
+.proto-settings-list-row__leading.pds-family-notebook-row__cover { height: 48px; }
+.pds-family-signup {
+  padding: 0 var(--pds-space-3) var(--pds-space-3);
+}
+.pds-family-signup p { margin: 0 0 var(--pds-space-2); }
+.pds-family-management__identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--pds-space-3);
+  margin-block-end: var(--pds-space-5);
+}
+.pds-family-management__identity h2,
+.pds-family-management__identity p { margin: 0; overflow-wrap: anywhere; }
+.pds-family-management__identity p { margin-block-start: var(--pds-space-1); }
+.pds-family-management__identity > .pds-kids-book { cursor: default; }
+.pds-family-management__title { display: flex; align-items: center; gap: var(--pds-space-1); min-width: 0; }
+.pds-family-management__title > .proto-toolbar-icon-btn { flex: none; color: var(--pds-text-secondary); }
+.pds-family-rename { display: grid; gap: var(--pds-space-2); min-width: 0; }
+.pds-family-rename > label { color: var(--pds-text-secondary); }
+.pds-family-rename__actions { display: flex; gap: var(--pds-space-2); }
+.pds-family-rename__actions > .proto-settings-btn { width: auto; min-height: 36px; padding-inline: var(--pds-space-4); gap: var(--pds-space-2); }
+.pds-family-management__inline {
+  display: grid;
+  gap: var(--pds-space-2);
+  margin: 0;
+  padding: var(--pds-space-3);
+  border-block-start: 1px solid var(--pds-border-control-soft);
+}
+.pds-family-management__inline > p { margin: 0; }
+.pds-family-management__link-help.pds-caption { line-height: 1.55; }
+.pds-family-management__message { margin: 0 0 var(--pds-space-3); color: var(--pds-text-secondary); }
+.pds-family-management__error { margin: 0 0 var(--pds-space-3); color: var(--pds-destructive); }
+.pds-family-verification__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-2);
+}
+.pds-family-verification__actions > .proto-settings-btn {
+  width: auto;
+  min-height: var(--pds-space-10);
+  gap: var(--pds-space-2);
+}
+/* Section labels over a settings group, at caption weight. `!important` only because a legacy
+   global `h1–h6 { font-weight: 700 !important }` leaves no other way. */
+.pds-family-enrollment-label { margin: 0 0 var(--pds-space-2); font-weight: 500 !important; }
+/* What Kids Web Services receives, as three small labels rather than a sentence to parse. */
+.pds-family-verification__shared {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-2);
+  margin: var(--pds-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.pds-family-verification__shared li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-control);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+.pds-family-privacy__disclosure,
+.proto-settings__content a.pds-family-privacy__action {
+  border-block-start: 1px solid var(--pds-border-control-soft);
+}
+.pds-family-privacy__action {
+  list-style: none;
+  text-decoration: none;
+}
+.pds-family-privacy__disclosure > summary::-webkit-details-marker { display: none; }
+.pds-family-privacy__action:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: -2px;
+}
+.pds-family-privacy__action > svg { color: var(--pds-text-tertiary); }
+.pds-family-privacy__disclosure[open] > summary svg { transform: rotate(180deg); }
+.pds-family-privacy__disclosure > .pds-family-privacy-notice {
+  padding: var(--pds-space-2) var(--pds-space-3) var(--pds-space-4);
+}
+.pds-family-privacy-notice {
+  display: grid;
+  gap: var(--pds-space-3);
+}
+.pds-family-privacy-notice section + section {
+  padding-block-start: var(--pds-space-3);
+  border-block-start: 1px solid var(--pds-border-control-soft);
+}
+.pds-family-privacy-notice h4 { margin: 0; }
+.pds-family-privacy-notice p {
+  margin: var(--pds-space-2) 0 0;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.pds-family-consent .pds-family-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--pds-space-2);
+  color: var(--pds-text-primary);
+  line-height: 1.6;
+  cursor: pointer;
+}
+.pds-family-consent .pds-family-choice > input[type='checkbox'] {
+  margin-block-start: 0.2em;
+}
+.pds-family-consent .pds-family-choice > input[type='checkbox']:not(:checked) {
+  border-color: var(--pds-text-tertiary);
+}
+.pds-family-consent__form {
+  margin-block-start: var(--pds-space-4);
+  padding-block-start: var(--pds-space-4);
+  border-block-start: 1px solid var(--pds-border-control-soft);
+}
+.pds-family-consent__name > .pds-caption {
+  display: block;
+  margin-block-start: var(--pds-space-1);
+}
+.pds-family-consent__form > .proto-settings-btn {
+  align-self: start;
+  width: auto;
+  min-height: var(--pds-space-10);
+  gap: var(--pds-space-2);
+}
+.pds-child-app {
+  box-sizing: border-box;
+  max-width: 640px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: var(--pds-space-6);
+  background: var(--pds-bg-page);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  box-shadow: var(--pds-paper-shadow-subtle);
+}
+body:has(.pds-child-app) { margin: 0; background: var(--pds-canvas-default); }
+.pds-child-app :is(h1, h2, p) { margin: 0; }
+.pds-child-button { min-height: 44px; padding: var(--pds-space-3) var(--pds-space-4); border-radius: var(--pds-radius-button); border: 1px solid var(--pds-border); background: var(--pds-bg-popover-solid); color: var(--pds-text-primary); font: inherit; cursor: pointer; text-align: left; }
+.pds-child-button:disabled { opacity: 0.5; cursor: default; }
+.pds-child-app :focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
+
+.pds-child-button[data-primary] { background: var(--pds-bg-accent-button); color: var(--pds-on-accent); border-color: var(--pds-accent); }
+
+.pds-family-stack { min-width: 0; overflow-wrap: anywhere; }
+
+.pds-child-note__title, .pds-child-note__writing { box-sizing: border-box; width: 100%; background: transparent; border: 0; color: var(--pds-text-primary); padding: 0; border-radius: 0; }
+.pds-child-note__title::placeholder, .pds-child-note__writing::placeholder { color: var(--pds-text-tertiary); }
+.pds-child-note__writing { min-height: 300px; resize: vertical; font: inherit; line-height: 1.8; }
+
+.pds-family-bible-share {
+  gap: var(--pds-space-3);
+  padding: var(--pds-space-3);
+}
+.pds-family-bible-share h3 { margin: 0; }
+.pds-family-bible-share > .proto-settings-btn {
+  align-self: start;
+  width: auto;
+  gap: var(--pds-space-2);
+}
+.pds-family-bible-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--pds-space-2);
+}
+.pds-family-bible-picker:has(> :nth-child(3)) {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+.pds-family-bible-picker > div {
+  display: grid;
+  gap: var(--pds-space-1);
+  min-width: 0;
+}
+.pds-family-shared-chapter {
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--pds-space-3);
+}
+.pds-family-shared-chapter > .proto-settings-row { flex: 1; min-width: 0; }
+.pds-family-shared-chapter > .proto-settings-btn {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+.pds-family-reader__context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+  margin-block-end: var(--pds-space-5);
+  padding-inline: var(--pds-reader-text-inset);
+}
+
+.pds-family-reader__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-3);
+  min-width: 0;
+}
+.pds-family-reader__identity p { margin: 0; overflow-wrap: anywhere; }
+.pds-family-reader__context > .proto-toolbar-icon-btn { flex: none; }
+.pds-family-reader .pds-reader__verse { text-align: start; }
+
+.pds-reader__chapter-heading.pds-family-reader__heading {
+  flex-direction: row;
+  align-items: center;
+}
+
+.pds-family-reader__shared-label {
+  margin: 0 var(--pds-reader-text-inset) var(--pds-space-2);
+}
+
+@media (max-width: 375px) {
+  .pds-family-bible-picker:has(> :nth-child(3)) {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+  .pds-family-bible-picker > :nth-child(3) { grid-column: 1 / -1; }
+}
+.pds-kids-status { padding-inline: var(--pds-space-6); }
+
+/*
+ * Child notebook setup: a short welcome, then the whole journey as a timeline. Every step says
+ * what it's for; the current one holds its action. Colour comes only from the accent marker on
+ * the current step (the gradient, white ink), done steps take plain ink, later steps stay quiet.
+ */
+.pds-family-setup { display: grid; gap: var(--pds-space-6); min-width: 0; }
+.pds-family-setup > * { min-width: 0; }
+.pds-family-setup__hero > div { flex: 1 1 auto; min-width: 0; }
+.pds-family-setup__hero {
+  display: flex; align-items: center; gap: var(--pds-space-5);
+  padding: var(--pds-space-5); border-radius: var(--pds-radius-card);
+  background: linear-gradient(115deg, color-mix(in oklab, var(--pds-thread-blue) 16%, var(--pds-bg-page)), var(--pds-bg-page) 75%);
+}
+.pds-family-setup__hero h2, .pds-family-setup__hero p { margin: 0; }
+.pds-family-setup__hero h2 { margin-block-end: var(--pds-space-2); }
+.pds-family-setup__hero p { color: var(--pds-text-secondary); line-height: 1.5; }
+.pds-family-setup__art { flex: none; display: grid; place-items: center; }
+.pds-family-setup__art .pds-kids-book--settings { cursor: default; }
+
+.pds-family-setup__steps { display: grid; margin: 0; padding: 0; list-style: none; }
+.pds-family-setup__steps > li {
+  position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--pds-space-4);
+  padding-block-end: var(--pds-space-6);
+}
+.pds-family-setup__steps > li:last-child { padding-block-end: 0; }
+/* The rail joining one marker to the next. */
+.pds-family-setup__steps > li:not(:last-child)::before {
+  content: ''; position: absolute; left: 13px; top: 32px; bottom: 4px; width: 2px; border-radius: 1px;
+  background: var(--pds-border-soft);
+}
+.pds-family-setup__steps > li[data-state='done']:not(:last-child)::before { background: var(--pds-text-primary); }
+.pds-family-setup__marker {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--pds-bg-control); color: var(--pds-text-secondary); font-size: 13px; font-weight: 600;
+}
+.pds-family-setup__steps > li[data-state='current'] .pds-family-setup__marker { background: var(--pds-bg-accent-button); color: var(--pds-on-accent); }
+.pds-family-setup__steps > li[data-state='done'] .pds-family-setup__marker { background: var(--pds-text-primary); color: var(--pds-bg-page); }
+.pds-family-setup__marker * { color: inherit !important; }
+.pds-family-setup__step { display: grid; gap: var(--pds-space-1); min-width: 0; padding-block-start: 3px; }
+.pds-family-setup__step > h3, .pds-family-setup__step > p { margin: 0; }
+.pds-family-setup__step > p { color: var(--pds-text-secondary); line-height: 1.5; }
+.pds-family-setup__steps > li[data-state='later'] .pds-family-setup__step > h3 { color: var(--pds-text-secondary); }
+.pds-family-setup__body { display: grid; gap: var(--pds-space-4); margin-block-start: var(--pds-space-3); }
+.pds-family-setup__body > .pds-family-verification__shared { margin: 0; }
+
+.pds-family-setup__fineprint { margin: 0; padding-block-start: var(--pds-space-4); border-block-start: 1px solid var(--pds-border-soft); color: var(--pds-text-secondary); }
+.pds-family-setup__fineprint .pds-kids-policy-link { color: inherit; text-decoration-color: color-mix(in oklab, currentColor 45%, transparent); }
+.pds-family-setup__fineprint .pds-kids-policy-link:hover { color: var(--pds-text-primary); }
+@media (max-width: 480px) {
+  .pds-family-setup__hero { flex-direction: column; align-items: flex-start; }
+  .pds-family-setup__steps > li { gap: var(--pds-space-3); }
+}
+
+/* A notebook agreed under an older notice: one card, ahead of everything else on its page. */
+.pds-family-renewal {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--pds-space-3);
+  margin-block-end: var(--pds-space-5); padding: var(--pds-space-4) var(--pds-space-5);
+  border: 1px solid var(--pds-border-soft); border-radius: var(--pds-radius-card); background: var(--pds-bg-page);
+  box-shadow: var(--pds-paper-shadow-subtle, none);
+}
+.pds-family-renewal__icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--pds-radius-menu-item); background: var(--pds-bg-control); color: var(--pds-text-primary); }
+.pds-family-renewal__body { display: grid; gap: var(--pds-space-3); min-width: 0; }
+.pds-family-renewal__body h3, .pds-family-renewal__body > p { margin: 0; }
+.pds-family-renewal__body > p { color: var(--pds-text-secondary); line-height: 1.5; }
+.pds-family-renewal__notice { border: 0; }
+.pds-family-renewal__notice > summary { display: inline-flex; align-items: center; gap: var(--pds-space-2); cursor: pointer; list-style: none; }
+.pds-family-renewal__notice > summary::-webkit-details-marker { display: none; }
+.pds-family-renewal__notice[open] > summary svg { transform: rotate(180deg); }
+.pds-family-renewal__body > .proto-settings-btn { justify-self: start; width: auto; min-height: 40px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }
+.pds-family-renewal .pds-family-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--pds-space-2); line-height: 1.6; cursor: pointer; }
+.pds-family-renewal .pds-family-choice > input[type='checkbox'] { margin-block-start: 0.2em; }
+.pds-family-renewal .pds-family-choice > input[type='checkbox']:not(:checked) { border-color: var(--pds-text-tertiary); }

@@ -17,9 +17,43 @@ export interface TranslationInfo {
    * Daniel 13–14, Esther 10:4–16:24 and the Prayer of Azariah. See `src/data/deuterocanon-chapters.json`.
    */
   deuterocanon?: boolean;
+  childNotebookOnly?: boolean;
 }
 
 export const TRANSLATIONS: Record<string, TranslationInfo> = {
+  ERV: {
+    id: 'ERV',
+    name: 'Easy-to-Read Version',
+    abbreviation: 'ERV',
+    publisher: 'Bible League International',
+    copyright: 'Easy-to-Read Version © Bible League International. All rights reserved.',
+    website: 'https://www.bibleleague.org/bible-translation/',
+    isPublicDomain: false,
+    sortOrder: 15,
+    childNotebookOnly: true,
+  },
+  CEV: {
+    id: 'CEV',
+    name: 'Contemporary English Version',
+    abbreviation: 'CEV',
+    publisher: 'American Bible Society',
+    copyright: 'Contemporary English Version © American Bible Society. All rights reserved.',
+    website: 'https://cev.bible/',
+    isPublicDomain: false,
+    sortOrder: 16,
+    childNotebookOnly: true,
+  },
+  NLV: {
+    id: 'NLV',
+    name: 'New Life Version',
+    abbreviation: 'NLV',
+    publisher: 'Barbour Publishing',
+    copyright: 'New Life Version © 1969, 2003 by Barbour Publishing, Inc. All rights reserved.',
+    website: 'https://www.barbourbooks.com/bibles/new-life-version/',
+    isPublicDomain: false,
+    sortOrder: 17,
+    childNotebookOnly: true,
+  },
   KJV: {
     id: 'KJV',
     name: 'King James Version',
@@ -191,6 +225,7 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
 
 /** Ordered list of translation IDs for UI dropdowns */
 export const TRANSLATION_ORDER = Object.values(TRANSLATIONS)
+  .filter(translation => !translation.childNotebookOnly)
   .sort((a, b) => a.sortOrder - b.sortOrder)
   .map((t) => t.id);
 

@@ -68,7 +68,7 @@ function prefersReducedMotion(): boolean {
  * takes it away once the line is written — the settled line keeps no cursor, because a caret
  * blinking for the rest of a visit is motion that never stops.
  */
-function TypedLine({
+export function TypedLine({
   text,
   animate,
   caret,
@@ -114,6 +114,7 @@ export default function PrototypeFeedComposePrompt({
   prompts: readonly string[];
 }) {
   const [step, setStep] = useState(0);
+  const [manualIndex, setManualIndex] = useState<number | null>(null);
   /*
    * Follow the list until the first rotation, then hold it. The page's data lands over the first
    * second or two, so the opening line may sharpen once ("What are you studying today?" becoming
@@ -121,10 +122,11 @@ export default function PrototypeFeedComposePrompt({
    */
   const [lines, setLines] = useState(prompts);
   useEffect(() => {
-    if (step === 0) setLines(prompts);
-  }, [prompts, step]);
+    if (step === 0 && manualIndex === null) setLines(prompts);
+  }, [prompts, step, manualIndex]);
   const list = lines.length > 0 ? lines : FEED_COMPOSE_FILLERS;
-  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [reducedMotion] = useState(prefersReducedMotion);
 
   /*
@@ -143,46 +145,56 @@ export default function PrototypeFeedComposePrompt({
 
   const passDone = step >= list.length;
   useEffect(() => {
-    if (paused || !pageVisible || passDone || reducedMotion || list.length < 2) return undefined;
+    if (hovered || focused || !pageVisible || passDone || reducedMotion || manualIndex !== null || list.length < 2) return undefined;
     const timer = window.setTimeout(() => setStep((s) => s + 1), ROTATE_MS);
     return () => window.clearTimeout(timer);
-  }, [paused, pageVisible, passDone, reducedMotion, list.length, step]);
+  }, [hovered, focused, pageVisible, passDone, reducedMotion, manualIndex, list.length, step]);
 
   // A full pass ends on the anchor line, not back on the most specific one: "Still in Romans 8?"
   // was right for the moment it arrived, not for the rest of the visit.
-  const activeIndex = step % list.length;
-  const label = passDone ? ANCHOR_LINE : list[activeIndex];
+  const activeIndex = (manualIndex ?? step) % list.length;
+  const settled = passDone && manualIndex === null;
+  const label = settled ? ANCHOR_LINE : list[activeIndex];
+
+  function showAnotherPrompt() {
+    const next = settled ? 0 : (activeIndex + 1) % list.length;
+    setManualIndex(list[next] === label ? (next + 1) % list.length : next);
+  }
 
   return (
     <div className="study-dock-card proto-feed-compose-dock">
       <div className="study-dock-card__outer">
-        <button
-          type="button"
-          className="proto-feed-compose"
-          /* A fixed name: a screen reader should not re-announce each rotating line. */
-          aria-label="Write a note"
-          onClick={() =>
-            window.dispatchEvent(
-              new CustomEvent('prototypeShortcutNewNote', { detail: composeDetailForPrompt(label) }),
-            )
-          }
-          onMouseEnter={() => setPaused(true)}
-          onMouseLeave={() => setPaused(false)}
-          onFocus={() => setPaused(true)}
-          onBlur={() => setPaused(false)}
+        <div
+          className="pds-feed-prompt-dock"
+          role="region"
+          aria-label="Writing ideas"
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onFocus={() => setFocused(true)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+          }}
         >
-          <Icon name="pen-to-square" size={14} aria-hidden />
-          {/* Keyed so each new line mounts and types from nothing — including the settle onto the
-              anchor line, a distinct key from every rotation index so it always plays. A single line
-              never rotates, so it is simply shown. */}
-          <span key={passDone ? 'rest' : activeIndex} className="proto-feed-compose__label">
-            <TypedLine
-              text={label}
-              animate={!reducedMotion && list.length > 1}
-              caret={!passDone}
-            />
-          </span>
-        </button>
+          <div className="pds-feed-prompt-field">
+            <button
+              type="button"
+              className="proto-feed-compose"
+              aria-label="Write a note"
+              onClick={() => window.dispatchEvent(new CustomEvent('prototypeShortcutNewNote', { detail: composeDetailForPrompt(label) }))}
+            >
+              <Icon name="pen-to-square" size={17} aria-hidden />
+              <span key={settled ? 'rest' : activeIndex} className="proto-feed-compose__label" aria-hidden>
+                <TypedLine text={label} animate={!reducedMotion && list.length > 1} caret={!settled && manualIndex === null} />
+              </span>
+            </button>
+            {list.length > 1 && (
+              <button type="button" className="proto-glass-surface proto-glass-surface--control proto-glass-action pds-feed-prompt-shuffle" aria-label="Try another writing idea" title="Try another writing idea" onClick={showAnotherPrompt}>
+                <Icon name="shuffle" size={16} aria-hidden />
+              </button>
+            )}
+          </div>
+          <span className="pds-feed-prompt-dock__announcement" role="status">{manualIndex === null ? '' : label}</span>
+        </div>
       </div>
     </div>
   );

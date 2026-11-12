@@ -26,6 +26,7 @@ import {
   type FamilyRole,
 } from '@/lib/family-roles';
 import { APIError } from '../../../lib/api';
+import { useChildAccountsStatus } from '../../family/useChildAccountsStatus';
 import {
   useChangeFamilyRole,
   useCreateFamily,
@@ -58,8 +59,73 @@ import {
   SettingsShell,
   SettingsSubScreen,
 } from './SettingsShell';
+import ProtoLoadingDots from '../ProtoLoadingDots';
+import ProtoSpaceLoading from '../ProtoSpaceLoading';
+import ChildNotebookSettingsRow from './ChildNotebookSettingsRow';
+import '../../../styles/family.css';
 
 export type InFamily = Extract<FamilyResponse, { me: unknown }>;
+
+function ChildAccountsRow() {
+  const { data } = useChildAccountsStatus();
+  const navigate = useNavigate();
+  const [ageChoice, setAgeChoice] = useState<'choose' | 'teen' | null>(null);
+  if (!data?.available && !data?.children.length) return null;
+  const verified = data.verifications.some((verification) => verification.status === 'verified');
+  const inProgress = !data.requiresPlus && (verified || data.verifications.some((verification) => verification.status === 'pending'));
+  const hasNotebooks = data.children.length > 0;
+  const to = prototypeHref('settings/child-accounts');
+  const openSetup = () => void navigate({ to, search: { setup: true } });
+  const openUpgrade = () => void navigate({ to: '/upgrade' });
+
+  return (
+    <section aria-label="Child notebooks">
+      <SectionLabel>Child notebooks</SectionLabel>
+      <SettingsGroup>
+        {hasNotebooks ? data.children.map((child) => (
+          <ChildNotebookSettingsRow key={child.id} child={child}
+            onClick={() => void navigate({ to, search: { child: child.id } })} />
+        )) : (
+          <SettingsRow label="Choose an account" leadingIcon={inProgress ? 'circle-check' : 'circle-user'}
+            sublabel={inProgress ? 'Parent-managed notebook' : 'Under 13 or 13 and older'}
+            expanded={!!ageChoice}
+            onClick={() => setAgeChoice(ageChoice ? null : 'choose')} />
+        )}
+        {data.available && hasNotebooks && !inProgress && (
+          <SettingsRow label="Add another notebook" leadingIcon="plus" expanded={!!ageChoice}
+            onClick={() => setAgeChoice(ageChoice ? null : 'choose')} />
+        )}
+        {data.available && ageChoice && (
+          <>
+            <SettingsRow label="Under 13" sublabel={data.requiresPlus ? 'Parent-managed notebooks are included with Harvous Plus' : 'Set up a parent-managed notebook for a child in the United States'}
+              leadingIcon="book-open" onClick={data.requiresPlus ? openUpgrade : openSetup} />
+            <SettingsRow label="13 and older" sublabel="Sign up for a standard Harvous account"
+              leadingIcon="circle-user" expanded={ageChoice === 'teen'}
+              onClick={() => setAgeChoice(ageChoice === 'teen' ? 'choose' : 'teen')} />
+            {ageChoice === 'teen' && (
+              <div className="pds-family-signup">
+                <p className="pds-caption">Share this link so they can sign up with their own email on their device or in a separate browser profile.</p>
+                <SettingsCopyRow value={new URL('/sign-up', window.location.origin).href} copyLabel="Copy signup link" />
+              </div>
+            )}
+          </>
+        )}
+        {data.available && (inProgress || !hasNotebooks) && (
+          data.requiresPlus ? <SettingsRow label="Set up the notebook" sublabel="Included with Harvous Plus"
+            leadingIcon="lock" onClick={openUpgrade} /> : (
+            <SettingsRow label={inProgress ? 'Continue notebook setup' : 'Set up the notebook'} leadingIcon="list-check"
+              sublabel={inProgress ? (verified ? 'In progress · Review privacy' : 'In progress · Verify adult') : 'Verify an adult, review privacy, and give permission'}
+              trailing={inProgress ? 'chevron' : 'none'} onClick={inProgress ? openSetup : undefined} />
+          )
+        )}
+        {!hasNotebooks && (
+          <SettingsRow label="Open the notebook" sublabel="Use this device or create a sign-in link after setup"
+            leadingIcon="book-open" trailing="none" />
+        )}
+      </SettingsGroup>
+    </section>
+  );
+}
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
@@ -206,6 +272,7 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
    */
   return (
     <SettingsShell>
+      <ChildAccountsRow />
       <SettingsGroup>
         <div className="proto-lock-pin-settings__body">
           <div className="proto-lock-pin-settings__hero">
@@ -231,7 +298,7 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
                 disabled={create.isPending || name.trim().length === 0}
                 onClick={() => void start()}
               >
-                {create.isPending ? 'Starting…' : 'Start a family'}
+                {create.isPending && <ProtoLoadingDots />} Start a family
               </button>
             </>
           ) : (
@@ -261,14 +328,14 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
         />
         <SettingsRow
           leadingIcon="chart-simple"
-          label="Parents see progress, never notes"
-          sublabel="Chapters read, books, notes written. Your child sees the same."
+          label="Teen family members share progress"
+          sublabel="Parents can see reading and writing progress. In a Child Notebook, the managing parent can also read the notes."
           trailing="none"
         />
         <SettingsRow
           leadingIcon="person"
-          label="For ages 13 and up"
-          sublabel="A child can ask to become an adult member, and can always leave."
+          label="Family memberships are for ages 13 and up"
+          sublabel="A teen family member can ask to become an adult member or leave the family."
           trailing="none"
         />
       </SettingsGroup>
@@ -364,7 +431,7 @@ function NewInviteScreen({ onDone }: { onDone: () => void }) {
         disabled={create.isPending}
         onClick={() => void make()}
       >
-        {create.isPending ? 'Making a link…' : 'Make invite link'}
+        {create.isPending && <ProtoLoadingDots />} Make invite link
       </button>
     </SettingsSubScreen>
   );
@@ -584,7 +651,7 @@ function ChildRequestCard({ request, frozen }: { request: FamilyRoleRequest | nu
                 )
               }
             >
-              {escalate.isPending ? 'Sending…' : 'Ask Harvous to review'}
+              {escalate.isPending && <ProtoLoadingDots />} Ask Harvous to review
             </button>
             <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setConfirming(null)}>
               Cancel
@@ -779,6 +846,7 @@ export function FamilyView({ data }: { data: InFamily }) {
         ) : null}
       </SettingsGroup>
 
+      <ChildAccountsRow />
       <SectionLabel>{`People · ${family.members.length} of ${maxMembers}`}</SectionLabel>
       <SettingsGroup>
         {family.members.map((member) => (
@@ -839,9 +907,11 @@ export function FamilyView({ data }: { data: InFamily }) {
           <SectionLabel>What your parents can see · last 30 days</SectionLabel>
           {myEntry ? (
             <ProgressCard entry={myEntry} member={family.members.find((m) => m.isMe)} />
+          ) : progress.isLoading ? (
+            <ProtoSpaceLoading label="Loading your family progress" />
           ) : (
             <SettingsGroup>
-              <SettingsRow label={progress.isLoading ? 'Loading…' : 'Nothing to show yet'} trailing="none" />
+              <SettingsRow label="Nothing to show yet" trailing="none" />
             </SettingsGroup>
           )}
           <Footnote>They can never see your notes, highlights, searches, or Review.</Footnote>
@@ -900,7 +970,7 @@ export function FamilyView({ data }: { data: InFamily }) {
 
 export default function PrototypeFamilyPage() {
   const { data, isLoading, isError } = useFamily();
-  if (isLoading) return <SettingsShell>{null}</SettingsShell>;
+  if (isLoading) return <SettingsShell><ProtoSpaceLoading label="Loading your family" /></SettingsShell>;
   if (isError || !data) {
     return (
       <SettingsShell>

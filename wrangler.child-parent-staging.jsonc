@@ -1,0 +1,18 @@
+// The parent frontend for the isolated child-enrollment staging environment.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "harvous-family-parent-staging",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": false },
+  "assets": {
+    "directory": "./dist-child-staging",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/assets/*", "/prototype/*", "/shared/note/*", "/shared/thread/*"]
+  },
+  "vars": { "API_ORIGIN": "https://harvous-family-staging.fly.dev" },
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "family-test.harvous.com", "custom_domain": true }]
+}

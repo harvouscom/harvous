@@ -84,10 +84,12 @@ export function SettingsSubScreen({
   title,
   onBack,
   children,
+  backLabel = 'Back to account',
 }: {
   title: string;
   onBack: () => void;
   children: ReactNode;
+  backLabel?: string;
 }) {
   return (
     <div style={{ maxWidth: 480, width: '100%', margin: '0 auto', padding: '16px 20px 64px' }}>
@@ -96,7 +98,7 @@ export function SettingsSubScreen({
           type="button"
           onClick={onBack}
           className="proto-toolbar-icon-btn"
-          aria-label="Back to account"
+          aria-label={backLabel}
           style={{ marginLeft: -6 }}
         >
           <Icon name="caret-left" size={18} />
@@ -120,6 +122,7 @@ export function SettingsRow({
   onClick,
   destructive = false,
   disabled = false,
+  expanded,
   trailing = 'chevron',
 }: {
   label: string;
@@ -146,6 +149,8 @@ export function SettingsRow({
   onClick?: () => void;
   destructive?: boolean;
   disabled?: boolean;
+  /** Present when the row opens inline content. */
+  expanded?: boolean;
   trailing?: 'chevron' | 'none';
 }) {
   const interactive = typeof onClick === 'function' && !disabled;
@@ -206,7 +211,7 @@ export function SettingsRow({
         ) : null}
         {trailing === 'chevron' ? (
           <span style={{ display: 'flex', color: 'var(--pds-text-tertiary)' }} aria-hidden>
-            <Icon name="caret-right" size={12} />
+            <Icon name={expanded ? 'caret-down' : 'caret-right'} size={12} />
           </span>
         ) : null}
       </span>
@@ -222,7 +227,7 @@ export function SettingsRow({
   }
 
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className={className}>
+    <button type="button" onClick={onClick} disabled={disabled} aria-expanded={expanded} className={className}>
       {body}
     </button>
   );

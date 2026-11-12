@@ -1,3 +1,5 @@
+import { beginFamilyParentDeletion } from '../family/service';
+import { HTTPException } from 'hono/http-exception';
 /**
  * User + Profile routes — Hono port of src/pages/api/user/*.ts and src/pages/api/profile/*.ts
  *
@@ -349,6 +351,7 @@ app.delete('/api/user/clear-data', requireAuth, async (c) => {
 app.delete('/api/user/delete-account', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
+    await beginFamilyParentDeletion(auth.userId);
 
     /*
      * Everything the account owns — here, in the backups, and at Polar, Audienceful and PostHog
@@ -393,6 +396,7 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
 
     return c.json({ success: true, message: 'Account and all data deleted' });
   } catch (error: any) {
+    if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);
     console.error('Delete account error:', error);
     return c.json({ error: error.message || 'Failed to delete account' }, 500);
   }

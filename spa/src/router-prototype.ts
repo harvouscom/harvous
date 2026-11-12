@@ -161,6 +161,12 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadPage')),
   });
 
+  const prototypeFamilyBibleRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'read/family/$childId/$readingId',
+    component: lazyRouteComponent(() => import('./pages/family/ParentFamilyBiblePage')),
+  });
+
   const prototypeReadTodayRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'read/today',
@@ -307,6 +313,16 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeConnectorPage')),
   });
 
+  const prototypeSettingsChildAccountsRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'child-accounts',
+    validateSearch: (search: Record<string, unknown>): { child?: string; setup?: boolean } => ({
+      ...(typeof search.child === 'string' ? { child: search.child } : {}),
+      ...(search.setup === true ? { setup: true } : {}),
+    }),
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeChildAccountsPage')),
+  });
+
   const prototypeSettingsDataRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'data',
@@ -406,7 +422,16 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
       })
     : null;
 
+  const childNotebookPreviewRoute = import.meta.env.DEV
+    ? createRoute({
+        getParentRoute: () => simplifiedPrototypeRoute,
+        path: '__dev/child-notebook',
+        component: lazyRouteComponent(() => import('./pages/prototype/PrototypeChildNotebookPreview')),
+      })
+    : null;
+
   return simplifiedPrototypeRoute.addChildren([
+    ...(childNotebookPreviewRoute ? [childNotebookPreviewRoute] : []),
     prototypeLegacySpaceNoteRedirectRoute,
     prototypeLegacySpaceRedirectRoute,
     prototypeNoteNestedRoute,
@@ -426,6 +451,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
     prototypeAdminFamilyRoute,
     ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
     prototypeReadTodayRoute,
+    prototypeFamilyBibleRoute,
     prototypeReadRoute,
     prototypeReviewSessionRoute,
     prototypeReviewRoute,
@@ -448,6 +474,7 @@ export function buildPrototypeRouteBranch(rootRoute: AnyRoute) {
       prototypeSettingsAddonsRoute,
       prototypeSettingsConnectorRoute,
       prototypeSettingsDataRoute,
+      prototypeSettingsChildAccountsRoute,
       prototypeSettingsSupportRoute,
       prototypeSettingsKeyboardShortcutsRoute,
     ]),

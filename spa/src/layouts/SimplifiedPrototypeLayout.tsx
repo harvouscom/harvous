@@ -1,3 +1,4 @@
+import Icon from '@/components/react/Icon';
 import { rememberIfNotificationTap } from '../lib/notification-navigation';
 import DevModeBadge from '../components/DevModeBadge';
 import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
@@ -248,7 +249,20 @@ async function syncAccountTimeZone(storedTimeZone: string | null): Promise<void>
   }
 }
 
+const ChildNotebookPreviewShell = lazy(() => import('../pages/prototype/ChildNotebookShell')
+  .then((module) => ({ default: module.ChildNotebookPreviewShell })));
+
 export default function SimplifiedPrototypeLayout() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // Fixture-only: keep the real shell furniture without mounting adult actions or shortcuts.
+  // The production child entry and server authorization remain separate from this preview.
+  if (import.meta.env.DEV && /\/__dev\/child-notebook\/?$/.test(pathname)) {
+    return <Suspense fallback={null}><ChildNotebookPreviewShell><Outlet /></ChildNotebookPreviewShell></Suspense>;
+  }
+  return <AdultPrototypeLayout />;
+}
+
+function AdultPrototypeLayout() {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const identity = useHarvousIdentity();
   const authReady = useAuthReady();

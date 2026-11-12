@@ -6,7 +6,7 @@
  * the rest of the visit. It settles on a plain, generic line instead (`FEED_COMPOSE_FILLERS[0]`).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { FEED_COMPOSE_FILLERS } from '../feed-compose-prompts';
 
 const PrototypeFeedComposePrompt = (await import('../PrototypeFeedComposePrompt')).default;
@@ -95,5 +95,28 @@ describe('the compose prompt rotation', () => {
     for (let i = 0; i < prompts.length + 4; i++) tick();
     finishTyping();
     expect(screen.getByText(FEED_COMPOSE_FILLERS[0])).toBeTruthy();
+  });
+
+  it('cycles prompts on demand after settling without opening a note', () => {
+    const prompts = [FEED_COMPOSE_FILLERS[0], 'Still in Romans 8?'];
+    render(<PrototypeFeedComposePrompt prompts={prompts} />);
+    for (let i = 0; i < prompts.length + 1; i++) tick();
+    finishTyping();
+
+    const compose = vi.fn();
+    window.addEventListener('prototypeShortcutNewNote', compose, { once: true });
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Try another writing idea' }));
+      expect(screen.getByRole('status')).toHaveTextContent(prompts[1]);
+      tick();
+      finishTyping();
+      const write = screen.getByRole('button', { name: 'Write a note' });
+      expect(within(write).getByText(prompts[1])).toBeTruthy();
+      expect(compose).not.toHaveBeenCalled();
+      fireEvent.click(write);
+      expect(compose).toHaveBeenCalledOnce();
+    } finally {
+      window.removeEventListener('prototypeShortcutNewNote', compose);
+    }
   });
 });

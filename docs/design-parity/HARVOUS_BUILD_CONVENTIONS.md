@@ -143,6 +143,7 @@ Full inventory and variant matrix: [`HARVOUS_DESIGN_SYSTEM.md`](./HARVOUS_DESIGN
 | Confirm | system alert/sheet | `ProtoConfirmDialog` |
 
 ### Web (`spa/src/pages/prototype/`)
+- **Primary action buttons:** reuse `.proto-settings-btn` (or an established compact primary variant). It supplies `--pds-bg-accent-button`, its shadow, and the white text/icon overrides required inside the app shell. Do not create a primary action with a flat `--pds-accent` background; override only layout such as width and spacing.
 - **Popovers/menus:** wrap content in the visual-only `ProtoPopoverShell`, and drive open/close with the **`usePopoverDismiss`** hook (`spa/src/hooks/usePopoverDismiss.ts`) — it owns the `open` state, `rootRef`, outside-click, and Escape. (See `ListViewMenu`, `PrototypeNoteMoreMenu`, `AccountMenu`.) Do **not** re-hand-roll the `mousedown`/`keydown` effect.
 - **Destructive confirm:** `ProtoConfirmDialog` — anchored floater (scripture-pill delete parity); callers must pass `anchorRect` from the delete trigger’s `getBoundingClientRect()`.
 - **Editor bottom chrome:** portal into the shell-provided hosts (`formatToolbarHostEl`, `studyDockCarouselHostEl`, `referenceChromeHostEl`) from `proto-shell-context`; add a new mode to `PrototypeEditorChromeMode` rather than a new bar.

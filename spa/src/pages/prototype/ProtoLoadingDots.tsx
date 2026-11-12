@@ -25,7 +25,7 @@ export default function ProtoLoadingDots({ label }: { label?: string }) {
 
   return (
     <span role="status" aria-live="polite">
-      <span className="sr-only">{label}</span>
+      <span className="load-more-indicator__label">{label}</span>
       {dots}
     </span>
   );

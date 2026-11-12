@@ -110,6 +110,14 @@ function parseBearerSecret(authorizationHeader: string | undefined): string | nu
 }
 
 export async function clerkAuth(c: Context, next: Next) {
+  // Child tokens are scoped to the isolated family API. Never fall back to an adult
+  // cookie on the same request, and never pass child traffic to Clerk.
+  if (c.req.path.startsWith('/api/child-accounts/child/') ||
+      /^Bearer hvkid_/i.test(c.req.header('Authorization') ?? '')) {
+    c.set('auth', NULL_AUTH);
+    return next();
+  }
+
   const sessionToken = getSessionToken(c.req.header('Cookie'));
   const authHeader = c.req.header('Authorization') ?? c.req.header('authorization');
   const bearerSecret = parseBearerSecret(authHeader);
@@ -117,7 +125,7 @@ export async function clerkAuth(c: Context, next: Next) {
   // VOTD cron (and similar): Bearer value is a shared secret, not a Clerk JWT — do not verifyToken.
   const votdCronSecret = process.env.VOTD_CRON_SECRET?.trim();
   const pushReminderCronSecret = process.env.PUSH_REMINDER_CRON_SECRET?.trim();
-  const cronSecrets = [votdCronSecret, pushReminderCronSecret].filter(
+  const cronSecrets = [votdCronSecret, pushReminderCronSecret, process.env.FAMILY_RETENTION_CRON_SECRET?.trim()].filter(
     (secret): secret is string => Boolean(secret),
   );
   if (bearerSecret && cronSecrets.includes(bearerSecret)) {
@@ -126,7 +134,8 @@ export async function clerkAuth(c: Context, next: Next) {
     return next();
   }
 
-  const token = sessionToken || bearerSecret;
+  // Child account management requires an explicit parent session token.
+  const token = c.req.path.startsWith('/api/child-accounts/') ? bearerSecret : sessionToken || bearerSecret;
 
   if (!token) {
     c.set('auth', NULL_AUTH);

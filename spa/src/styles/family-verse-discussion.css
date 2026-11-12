@@ -1,0 +1,93 @@
+.pds-verse-discussion {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.pds-verse-discussion__text-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  min-height: 36px;
+  padding: 0 var(--pds-space-2);
+  border: 0;
+  border-radius: var(--pds-radius-format);
+  background: transparent;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.pds-verse-discussion__text-action:hover,
+.pds-verse-discussion__text-action[aria-expanded='true'] {
+  color: var(--pds-text-primary);
+}
+
+.pds-verse-discussion__text-action:hover:not(:disabled) { background: var(--pds-bg-subtle); }
+.pds-verse-discussion__text-action[aria-expanded='true'] .pds-verse-discussion__chevron { transform: rotate(180deg); }
+.pds-verse-discussion > .pds-verse-discussion__text-action { margin-inline-start: calc(-1 * var(--pds-space-2)); }
+
+.pds-verse-discussion__thread {
+  display: grid;
+  justify-items: start;
+  gap: var(--pds-space-2);
+  margin-block: 0 var(--pds-space-4);
+  padding-inline-start: var(--pds-space-4);
+  border-inline-start: 2px solid var(--pds-border-control);
+}
+
+.pds-verse-discussion__comments {
+  display: grid;
+  gap: var(--pds-space-3);
+  list-style: none;
+  margin: 0;
+  padding: var(--pds-space-1) 0;
+}
+
+.pds-verse-discussion__comments li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--pds-space-2);
+}
+
+.pds-verse-discussion__avatar {
+  display: grid;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+}
+
+.pds-verse-discussion__comments strong { color: var(--pds-text-secondary); }
+.pds-verse-discussion__comments p {
+  margin: var(--pds-space-1) 0 0;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.pds-verse-discussion__composer {
+  display: grid;
+  justify-self: stretch;
+  gap: var(--pds-space-2);
+  min-width: 0;
+}
+.pds-verse-discussion__composer textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+}
+.pds-verse-discussion__composer p { margin: 0; }
+/* Who can see it on the left, Cancel and Post on the right — one row, so the composer ends
+   where the thread does instead of stacking a caption line above its buttons. */
+.pds-verse-discussion__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--pds-space-2) var(--pds-space-3);
+}
+.pds-verse-discussion__actions > .pds-kids-privacy-footnote { flex: 1 1 14rem; }
+.pds-verse-discussion__actions > .proto-settings-btn { width: auto; min-height: 36px; padding-inline: var(--pds-space-4); box-shadow: none; }

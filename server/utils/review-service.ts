@@ -208,6 +208,22 @@ import { fetchVerseText } from './fetch-verse-text';
 import { getUserDefaultTranslation } from './votd-user-translation';
 import { recordNoteRecallEngaged } from './note-recall-state';
 import { countableUserNotesWhere } from './purge-onboarding-content';
+import { CHILD_ACCOUNT_ID_PREFIX } from '../family/identity';
+
+/**
+ * Which of the reader's own notes review may draw on. Every caller already limits to
+ * `Notes.userId = userId`; the child-account exclusion inside `countableUserNotesWhere` is there to
+ * keep children out of adult pools and analytics, so a child reviewing their own notebook (the
+ * child Look back) is the one reader it must not hide notes from.
+ */
+function ownNotesWhere(userId: string) {
+  return isChildReader(userId) ? undefined : countableUserNotesWhere();
+}
+
+/** A child's Look back: the same engine, with the two typing-only asks taken out (see below). */
+function isChildReader(userId: string) {
+  return userId.startsWith(CHILD_ACCOUNT_ID_PREFIX);
+}
 import {
   chapterTouch,
   noteTouch,
@@ -452,7 +468,7 @@ async function loadNoteLabelPoolUncached(
   const rows = await db
     .select({ id: Notes.id, title: Notes.title, createdAt: Notes.createdAt })
     .from(Notes)
-    .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), countableUserNotesWhere()))
+    .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), ownNotesWhere(userId)))
     .orderBy(desc(Notes.updatedAt))
     .limit(NOTE_OPTION_POOL_LIMIT);
 
@@ -691,7 +707,7 @@ async function loadNoteNeighbourIds(
     db
       .select({ id: Notes.linkedFromNoteId, other: Notes.id })
       .from(Notes)
-      .where(and(eq(Notes.userId, userId), inArray(Notes.linkedFromNoteId, ids), countableUserNotesWhere())),
+      .where(and(eq(Notes.userId, userId), inArray(Notes.linkedFromNoteId, ids), ownNotesWhere(userId))),
   ]);
   const wanted = new Set(ids);
   const add = (a: string | null, b: string | null) => {
@@ -1387,6 +1403,7 @@ export async function buildReviewItemViews(
 
 /** What a reader with no stored preferences, or an unreadable one, resolves with. */
 const NO_RUNG_PREFERENCES: RungPreferences = { skip: new Set(), prefer: new Set() };
+const CHILD_RUNG_PREFERENCES: RungPreferences = { skip: new Set(['verse.initials']), prefer: new Set() };
 
 /**
  * The reader's exercise preferences, memoised with the material.
@@ -1399,6 +1416,12 @@ const NO_RUNG_PREFERENCES: RungPreferences = { skip: new Set(), prefer: new Set(
  * preference is honoured on the very next read.
  */
 async function loadPreferredEmphasis(userId: string): Promise<RungPreferences> {
+  /*
+   * A child has no exercise settings. Their step 1 is the word-bank blanks rather than typing a
+   * verse back from its first letters — a walk past `verse.initials` exactly as a reader's Less
+   * would be, so the ladder, its schedule and its floor are unchanged.
+   */
+  if (isChildReader(userId)) return CHILD_RUNG_PREFERENCES;
   return memoisedMaterial(`${userId}:emphasis`, async () => {
     try {
       const [row] = await db
@@ -2751,7 +2774,7 @@ async function loadNoteIdsCitingPassage(
           ),
         ),
         ne(Notes.noteType, 'scripture'),
-        countableUserNotesWhere(),
+        ownNotesWhere(userId),
       ),
     );
   return owned.map((row) => row.id);
@@ -3408,7 +3431,7 @@ async function loadCitedVerseNumbersInChapter(
             eq(Notes.userId, userId),
             inArray(Notes.id, ids),
             ne(Notes.noteType, 'scripture'),
-            countableUserNotesWhere(),
+            ownNotesWhere(userId),
           ),
         ),
       db
@@ -3420,7 +3443,7 @@ async function loadCitedVerseNumbersInChapter(
             inArray(NoteScriptureReferences.scriptureNoteId, ids),
             eq(Notes.userId, userId),
             ne(Notes.noteType, 'scripture'),
-            countableUserNotesWhere(),
+            ownNotesWhere(userId),
           ),
         ),
     ]);
@@ -4376,7 +4399,12 @@ export async function buildReviewReveal(
             mode: built.mode,
             ...(built.mode !== 'reference' && built.hiddenWords > 0 ? { words: built.hiddenWords } : {}),
           };
-          payload.verseText = null;
+          /*
+           * A child says the verse aloud rather than typing it, then looks and says how it went
+           * (Look back's one self-rated card), so theirs keeps the verse to show after trying.
+           * Nothing is graded against it.
+           */
+          if (!isChildReader(userId)) payload.verseText = null;
         }
         if (rung.key === 'verse.initials') {
           const exercise = buildVerseInitials(text, seed, verseInitialsShare(tier));
@@ -4393,7 +4421,8 @@ export async function buildReviewReveal(
         }
         if (rung.key === 'verse.keywords') {
           payload.keywords = buildVerseKeywords(text, verseKeywordsCount(tier));
-          if (payload.keywords) payload.verseText = null;
+          // As recall above: a child names the words aloud, then checks them against the verse.
+          if (payload.keywords && !isChildReader(userId)) payload.verseText = null;
         }
         if (rung.key === 'verse.before') {
           const exercise = await buildVerseBeforeFor(item, text, seed, translation, material.engagedNumbers);
@@ -4436,7 +4465,8 @@ export async function buildReviewReveal(
            * cached; a failed one just leaves the verse's own words to fall back on.
            */
           let bank: string[] | undefined;
-          if (spec.wordBank && cloze.blanks.length > 0 && item.scriptureReference) {
+          // A child places words at every tier; the gaps still grow with the tier.
+          if ((spec.wordBank || isChildReader(userId)) && cloze.blanks.length > 0 && item.scriptureReference) {
             const nearby = await Promise.all(
               neighbourVerseAddresses(item.scriptureReference, CLOZE_BANK_NEIGHBOURS).map((address) =>
                 fetchVerseText(formatVerseAddress(address), translation).catch(() => null),

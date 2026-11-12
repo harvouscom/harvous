@@ -2,7 +2,8 @@
  * Analytics aggregator — Drizzle port of src/utils/analytics-aggregator.ts
  */
 
-import { db, ScriptureMetadata, NoteTags, Tags, MonthlyAnalytics, eq, and, sql, gte, lt } from '../db';
+import { db, Notes, ScriptureMetadata, NoteTags, Tags, MonthlyAnalytics, eq, and, or, isNull, sql, gte, lt } from '../db';
+import { notChildAccount } from '../family/identity';
 import { nowISO } from '../db/dates';
 import { adminCalendarMonthRange } from './admin-calendar-range';
 import { getUtcMonthKey } from '@/utils/season-helpers';
@@ -27,7 +28,11 @@ export async function aggregateMonthlyAnalytics(month: string): Promise<void> {
           count: sql<number>`COUNT(*)`.as('count'),
         })
         .from(ScriptureMetadata)
-        .where(and(gte(ScriptureMetadata.createdAt, monthStart), lt(ScriptureMetadata.createdAt, monthEnd)))
+        .leftJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+        .where(and(
+          gte(ScriptureMetadata.createdAt, monthStart), lt(ScriptureMetadata.createdAt, monthEnd),
+          or(isNull(Notes.userId), notChildAccount(Notes.userId)),
+        ))
         .groupBy(ScriptureMetadata.book),
       db
         .select({
@@ -36,7 +41,11 @@ export async function aggregateMonthlyAnalytics(month: string): Promise<void> {
         })
         .from(NoteTags)
         .innerJoin(Tags, eq(NoteTags.tagId, Tags.id))
-        .where(and(gte(NoteTags.createdAt, monthStart), lt(NoteTags.createdAt, monthEnd)))
+        .leftJoin(Notes, eq(NoteTags.noteId, Notes.id))
+        .where(and(
+          gte(NoteTags.createdAt, monthStart), lt(NoteTags.createdAt, monthEnd),
+          or(isNull(Notes.userId), notChildAccount(Notes.userId)), notChildAccount(Tags.userId),
+        ))
         .groupBy(Tags.name),
     ]);
 

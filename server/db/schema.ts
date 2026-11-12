@@ -5,8 +5,10 @@
  * returns native JS Date objects. JSON.stringify auto-converts them to ISO strings.
  */
 
-import { pgTable, text, integer, real, boolean, timestamp, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, real, boolean, jsonb, timestamp, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+
+import type { ChildBibleTranslation, ChildNotebookPreferences } from '../../shared/child-notebook';
 
 // Helper for date columns — Postgres TIMESTAMPTZ, returned as JS Date objects
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
@@ -3868,3 +3870,108 @@ export const DiscoverInstalls = pgTable(
     index('DiscoverInstalls_userId_createdAtIndex').on(table.userId, table.createdAt),
   ],
 );
+
+// Parent-managed children use opaque first-party sessions, never an adult Clerk identity.
+// Verification contains only adult information until explicit, verified consent is given.
+export const FamilyVerifications = pgTable('FamilyVerifications', {
+  id: text('id').primaryKey(),
+  parentUserId: text('parentUserId').notNull(),
+  parentEmailHash: text('parentEmailHash').notNull(),
+  status: text('status').notNull().default('pending'),
+  transactionId: text('transactionId'),
+  environment: text('environment').notNull(),
+  location: text('location').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  expiresAt: ts('expiresAt').notNull(),
+  verifiedAt: ts('verifiedAt')
+}, (t) => [index('FamilyVerifications_parentIndex').on(t.parentUserId)]);
+
+export const FamilyChildren = pgTable('FamilyChildren', {
+  id: text('id').primaryKey(),
+  parentUserId: text('parentUserId').notNull(),
+  displayName: text('displayName').notNull(),
+  ageBand: text('ageBand').notNull(),
+  homeSpaceId: text('homeSpaceId').notNull(),
+  verificationId: text('verificationId').notNull().references(() => FamilyVerifications.id),
+  noticeVersion: text('noticeVersion').notNull(),
+  consentedAt: ts('consentedAt').notNull(),
+  status: text('status').notNull().default('active'),
+  revokedAt: ts('revokedAt'),
+  createdAt: ts('createdAt').notNull(),
+  lastActiveAt: ts('lastActiveAt').notNull(),
+  notebookPreferences: jsonb('notebookPreferences').$type<ChildNotebookPreferences>(),
+  bibleTranslations: text('bibleTranslations').array().$type<ChildBibleTranslation[]>().notNull().default(sql`ARRAY['BSB']::text[]`)
+}, (t) => [index('FamilyChildren_parentIndex').on(t.parentUserId)]);
+
+export const FamilyChildSessions = pgTable('FamilyChildSessions', {
+  tokenHash: text('tokenHash').primaryKey(),
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  expiresAt: ts('expiresAt').notNull()
+}, (t) => [index('FamilyChildSessions_childIndex').on(t.childId)]);
+
+export const FamilySpaceApprovals = pgTable('FamilySpaceApprovals', {
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  spaceId: text('spaceId').notNull().references(() => Spaces.id, { onDelete: 'cascade' }),
+  approvedAt: ts('approvedAt').notNull()
+}, (t) => [primaryKey({ columns: [t.childId, t.spaceId] })]);
+
+
+export const FamilyChildBibleReadings = pgTable('FamilyChildBibleReadings', {
+  id: text('id').primaryKey(),
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  translation: text('translation').$type<ChildBibleTranslation>().notNull(),
+  sharedAt: ts('sharedAt').notNull()
+}, (t) => [uniqueIndex('FamilyChildBibleReadings_passage').on(t.childId, t.book, t.chapter, t.translation)]);
+
+export const FamilyChildBibleThoughts = pgTable('FamilyChildBibleThoughts', {
+  id: text('id').primaryKey(),
+  readingId: text('readingId').notNull().references(() => FamilyChildBibleReadings.id, { onDelete: 'cascade' }),
+  verse: integer('verse').notNull(),
+  role: text('role').$type<'child' | 'parent'>().notNull(),
+  text: text('text').notNull(),
+  createdAt: ts('createdAt').notNull()
+}, (t) => [index('FamilyChildBibleThoughts_readingIndex').on(t.readingId)]);
+
+/** A sticker a child put beside a verse in My Bible. Child-only; exported to the parent; cascades with the child. */
+export const FamilyChildVerseStickers = pgTable('FamilyChildVerseStickers', {
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  verse: integer('verse').notNull(),
+  sticker: text('sticker').notNull(),
+  createdAt: ts('createdAt').notNull()
+}, (t) => [primaryKey({ columns: [t.childId, t.book, t.chapter, t.verse] })]);
+
+/** A highlight a child put on a verse in My Bible. Child-only; exported to the parent; cascades with the child. */
+export const FamilyChildVerseHighlights = pgTable('FamilyChildVerseHighlights', {
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  verse: integer('verse').notNull(),
+  color: text('color').notNull(),
+  createdAt: ts('createdAt').notNull()
+}, (t) => [primaryKey({ columns: [t.childId, t.book, t.chapter, t.verse] })]);
+
+/**
+ * Every time a parent agreed to the child privacy notice: once at creation, again at each renewal.
+ * FamilyChildren keeps only the current agreement (it gates access); this keeps the history.
+ * Cascades with the child, like the rest of the notebook's records.
+ */
+export const FamilyChildConsents = pgTable('FamilyChildConsents', {
+  id: text('id').primaryKey(),
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  parentUserId: text('parentUserId').notNull(),
+  noticeVersion: text('noticeVersion').notNull(),
+  consentedAt: ts('consentedAt').notNull(),
+  kind: text('kind').notNull()
+}, (t) => [index('FamilyChildConsents_childIndex').on(t.childId)]);
+
+export const ChildNoteResources = pgTable('ChildNoteResources', {
+  noteId: text('noteId').notNull().references(() => Notes.id, { onDelete: 'cascade' }),
+  spaceId: text('spaceId').notNull().references(() => Spaces.id, { onDelete: 'cascade' }),
+  resourceNoteId: text('resourceNoteId').notNull().references(() => Notes.id, { onDelete: 'cascade' })
+}, table => [primaryKey({ columns: [table.noteId, table.spaceId, table.resourceNoteId] })]);

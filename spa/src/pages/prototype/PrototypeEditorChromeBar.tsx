@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { observeStudyDockBandHeight } from '@/utils/study-dock-layout';
-import PrototypeReviewDock from './PrototypeReviewDock';
+
+const PrototypeReviewDock = lazy(() => import('./PrototypeReviewDock'));
 
 /**
  * Shell-level editor chrome — a single full-width bar (grid row 3) that spans the
@@ -59,7 +60,9 @@ export default function PrototypeEditorChromeBar({
         {/* Before the carousel, so on a note the question sits above the note's own docks
             rather than being pushed off the end of a row it does not belong to. */}
         <div className="proto-shell__study-dock-layer__slot proto-shell__study-dock-layer__slot--review">
-          <PrototypeReviewDock />
+          <Suspense fallback={null}>
+            <PrototypeReviewDock />
+          </Suspense>
         </div>
         <div ref={setStudyDockCarouselHostEl} className="proto-shell__study-dock-layer__slot" />
         {/* Home's compose prompt, portalled in by the feed. Last, and only while every slot
