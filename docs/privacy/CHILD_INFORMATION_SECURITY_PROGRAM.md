@@ -67,9 +67,9 @@ they're added in section 3 before their access starts.
   proof.
 - **No content in logs.** Family routes don't log webhook bodies, email addresses, note text or
   credentials.
-- **No tracking.** No session recording, autocapture or optional analytics on child pages. *Open
-  item:* Cloudflare Web Analytics is currently injected on the child sites and must be turned off
-  (see the review).
+- **No tracking.** No session recording, autocapture or optional analytics on child pages.
+  Cloudflare Web Analytics is in manual-snippet mode, so nothing is injected on the child hosts.
+  It must never be switched back to automatic injection.
 - **Deletion.**
   - Withdrawal deletes after 30 days.
   - An unused notebook is deleted after one year, by a daily scheduled job.

@@ -38,7 +38,7 @@ conclusions and answer the questions at the end before real children's informati
 | **Written information security program** | §312.8(b) | **Missing.** Drafted alongside this review |
 | **Written assurances from providers** | §312.8(c) | **Not on file** |
 | **Written data retention policy** | §312.10 | Partly done. Needs backup and log periods plus a "business need" for each item |
-| **Analytics on the child site** | the notice's own promise | **Broken today.** Cloudflare Web Analytics is injected |
+| Analytics on the child site | the notice's own promise | **Fixed 12 Nov 2026.** Cloudflare Web Analytics switched to manual snippet; beacon gone |
 
 ## Iowa: the Consumer Data Protection Act doesn't apply
 
@@ -182,7 +182,7 @@ Harvous code.
 The notice promises "no ... optional analytics" for child accounts. `docs/CHILD_ACCOUNTS.md` says
 "Do not enable Cloudflare Web Analytics or other tracking injection on this origin."
 
-**Fix before launch,** in Cloudflare → Web Analytics → the harvous.com site: turn off automatic
+**Fixed, 12 November 2026.** On the free plan, Web Analytics can't exclude a single host, so the harvous.com site was switched to "Enable with JS Snippet installation". Cloudflare now injects nothing on any harvous.com host. The marketing site gets the snippet by hand, in its own PR. Within a minute the beacon was gone from kids-test, family-test (including `/settings/child-accounts`) and app.harvous.com. The original instruction was: in Cloudflare → Web Analytics → the harvous.com site: turn off automatic
 injection, or add a rule excluding `kids.harvous.com` and `kids-test.harvous.com`. Also exclude
 `app.harvous.com/settings/child-accounts`. That page's URL carries a child's notebook id, and the
 beacon reports page URLs. Then fetch each page again and confirm the beacon is gone.
@@ -225,7 +225,7 @@ from following the rule, not from the LLC. Ask the lawyer about insurance (quest
 
 ## Before launch, in order
 
-1. Fix the Cloudflare Web Analytics injection, then confirm the beacon is gone.
+1. ~~Fix the Cloudflare Web Analytics injection.~~ Done 12 Nov 2026.
 2. Adopt the security program: fill it in, sign and date it.
 3. Collect DPAs from Supabase, Fly, Cloudflare, Clerk and Epic; note backup and log retention.
 4. Fill #72's placeholders, add the retention table and the (d)(3) sentence; add the "nothing
