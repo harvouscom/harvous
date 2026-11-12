@@ -389,11 +389,7 @@
 /* Adult sheets' footer band (hairline, ghost fill), pinned under the pane so Done never needs a scroll. */
 .pds-kids-settings-footer { flex-shrink: 0; padding: 10px var(--pds-space-5) 14px; border-top: 0.5px solid var(--pds-border-control); background: var(--pds-bg-ghost); }
 .pds-kids-settings-footer .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }
-/* Child-mode modals scroll without a visible scrollbar (wheel, touch and keys still work):
-   the dialog itself and anything inside it that overflows. */
-:is(.pds-kids-settings-modal, .pds-kids-privacy-modal), :is(.pds-kids-settings-modal, .pds-kids-privacy-modal) * { scrollbar-width: none; }
-:is(.pds-kids-settings-modal, .pds-kids-privacy-modal)::-webkit-scrollbar,
-:is(.pds-kids-settings-modal, .pds-kids-privacy-modal) *::-webkit-scrollbar { display: none; }
+/* Scrollbars are hidden page-wide in the kids bundle by kids-entry.css, as adult's global.css does. */
 .pds-kids-settings-pane { min-width: 0; }
 .pds-kids-settings-pane[data-studio-page='cover'] { padding: var(--pds-space-5); }
 .pds-kids-settings-modal svg { overflow: visible; }
