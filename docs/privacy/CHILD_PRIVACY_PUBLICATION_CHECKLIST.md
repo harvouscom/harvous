@@ -21,4 +21,4 @@ Before publishing that policy, supply and verify:
 
 Do not claim “COPPA certified” because Harvous uses KWS. Do not enable real child enrollment until the actual product and operational practices have been reviewed.
 
-Notice version `2026-11-12.1` lists My Bible highlights, verse stickers, and Look back progress (what comes back, when, and how each answer went), so the notice matches the product before any production enrollment. Staging notebooks agreed under `2026-11-11.2` pause until renewed. Counsel should still review the wording.
+Notice version `2026-11-12.2` names Clerk, which handles the parent's sign-in (the child gets no Clerk account), so the notice names every provider the published policy does. Version `2026-11-12.1` added My Bible highlights, verse stickers, and Look back progress (what comes back, when, and how each answer went). Staging notebooks agreed under an older version pause until renewed. Counsel should still review the wording.
