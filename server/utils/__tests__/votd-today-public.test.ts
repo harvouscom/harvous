@@ -243,3 +243,40 @@ describe('votdTodayPublicHandler for a Catholic reader', () => {
     expect(result.readings).toBeUndefined();
   });
 });
+
+describe('votdTodayPublicHandler caching', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFirst.mockImplementation((rows: unknown) => (Array.isArray(rows) ? rows[0] : undefined));
+    mockGetAuth.mockReturnValue({ userId: null });
+    mockGetUserTradition.mockReturnValue('protestant');
+  });
+
+  function cacheControl(ctx: Context): string {
+    const set = (ctx.res.headers.set as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    return set.filter(([name]) => name === 'Cache-Control').at(-1)?.[1] as string;
+  }
+
+  it('never caches past the reader’s midnight', async () => {
+    nowIso = '2026-11-12T04:50:00.000Z'; // 11:50pm in New York
+    mockExactVotdRow({ reference: 'Ephesians 2:10', translation: 'NET' });
+    const ctx = makeContext({ tz: 'America/New_York' });
+    await votdTodayPublicHandler(ctx);
+    expect(cacheControl(ctx)).toBe('public, max-age=600');
+  });
+
+  it('caches a stand-in for a minute, not an hour', async () => {
+    nowIso = '2026-11-12T05:30:00.000Z'; // 12:30am in New York, today not yet published
+    mockExactVotdRow(null);
+    mockLimit.mockResolvedValueOnce([
+      { reference: 'John 8:12', translation: 'NET', featuredItemId: 'votd_fi_y', publishedDate: '2026-11-11' },
+    ]);
+    mockSelect.mockReturnValueOnce({
+      from: () => ({ where: () => ({ orderBy: () => ({ limit: mockLimit }) }) }),
+    });
+    const ctx = makeContext({ tz: 'America/New_York' });
+    const result = await votdTodayPublicHandler(ctx);
+    expect(result).toEqual({ reference: 'John 8:12', translation: 'NET' });
+    expect(cacheControl(ctx)).toBe('public, max-age=60');
+  });
+});
