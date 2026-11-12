@@ -93,6 +93,15 @@ function attachmentKey(attachment: ChildNoteAttachment) {
 
 
 
+/** When Look back next has something: "later today", "tomorrow", or the weekday. */
+function lookBackReadyTitle(nextDueAt: string, now = new Date()) {
+  const due = new Date(nextDueAt);
+  const days = Math.round((new Date(due).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / 86_400_000);
+  if (days <= 0) return 'Ready again later today';
+  if (days === 1) return 'Ready again tomorrow';
+  return `Ready again on ${due.toLocaleDateString(undefined, { weekday: 'long' })}`;
+}
+
 export default function ChildNotebookView({ preview = false, privacyUrl, initial, renderBible, renderAttachment, renderSearch, onSaveNote, onReadResource, onSavePreferences, onFamilyReading, onParentSignIn, onEndSession, lookBack }: Props) {
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -167,6 +176,13 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
     void lookBack.load().then(sitting => { if (current) setLookBackSitting(sitting); }).catch(() => {});
     return () => { current = false; };
   }, [lookBack, lookBackRevision]);
+  /* Back on Home from the Bible or a note: what they just marked or wrote may be new to Look back,
+     so today's sitting is read again here — still ahead of the dock, never on tapping it. */
+  const lastView = useRef(view);
+  useEffect(() => {
+    if (view === 'home' && lastView.current !== 'home') setLookBackRevision(value => value + 1);
+    lastView.current = view;
+  }, [view]);
   const [ideaIndex, setIdeaIndex] = useState(0);
   const [systemReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const reducedMotion = systemReducedMotion || appearance.reduceMotion;
@@ -468,7 +484,11 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               {lookBackSitting?.items.length
                 ? <PrototypeHomeRow icon="rotate-left" title={lookBackSitting.items[0].kind === 'note' ? lookBackSitting.items[0].noteTitle ?? 'One of your notes' : lookBackSitting.items[0].scriptureReference ?? 'A verse you marked'}
                     meta={['A few things from your notebook', 'Take your time']} onClick={() => { playCue('nav.open'); setLookBackOpen(true); }} />
-                : <PrototypeHomeRow icon="pen-to-square" title="Keep something to come back to" meta={['Write a note or highlight a verse, then look back here']} onClick={() => openNote()} />}
+                : lookBackSitting?.nextDueAt
+                  /* Something is kept, just not due: a new item waits a day before it is first asked,
+                     as in adult Review. Say when, rather than asking them to keep something. */
+                  ? <PrototypeHomeRow icon="rotate-left" title={lookBackReadyTitle(lookBackSitting.nextDueAt)} meta={['What you marked comes back when it’s time to look again']} chevron={false} onClick={() => setView('bible')} />
+                  : <PrototypeHomeRow icon="pen-to-square" title="Keep something to come back to" meta={['Write a note or highlight a verse, then look back here']} onClick={() => openNote()} />}
             </PrototypeHomeSection>}
             {(homeFilter === 'all' || homeFilter === 'ideas') && <>
               <PrototypeHomeSection title="Shared with you">

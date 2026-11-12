@@ -92,5 +92,10 @@ export async function runFamilySchema(argv: string[], env = process.env) {
   finally { await client.end(); }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  runFamilySchema(process.argv.slice(2)).catch(() => { console.error('Family schema change failed.'); process.exitCode = 1; });
+  runFamilySchema(process.argv.slice(2)).catch((error: { code?: string; message?: string }) => {
+    // The reason, never the connection string: a URL in a message is cut before it is printed.
+    const reason = String(error?.message ?? '').replace(/postgres(ql)?:\/\/\S+/gi, '[database url]');
+    console.error(`Family schema change failed${error?.code ? ` (${error.code})` : ''}: ${reason}`);
+    process.exitCode = 1;
+  });
 }
