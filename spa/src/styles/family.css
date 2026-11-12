@@ -75,6 +75,7 @@
   border-radius: var(--pds-radius-pill);
   background: var(--pds-bg-control);
   font-size: 13px;
+  font-weight: 500;
   color: var(--pds-text-primary);
 }
 .pds-family-privacy__disclosure,
