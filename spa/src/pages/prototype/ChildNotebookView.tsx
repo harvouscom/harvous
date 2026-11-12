@@ -621,14 +621,13 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               <fieldset><legend>Appearance</legend><div className="proto-appearance-segmented" role="group" aria-label="Color scheme">{(['system', 'light', 'dark'] as const).map(mode => <button key={mode} className="proto-appearance-segmented__btn" data-active={appearance.scheme === mode ? 'true' : undefined} aria-pressed={appearance.scheme === mode} onClick={() => setAppearance(current => ({ ...current, scheme: mode }))}>{mode === 'system' ? 'Auto' : mode === 'light' ? 'Light' : 'Dark'}</button>)}</div></fieldset>
               <fieldset><legend>Background imagery</legend>
                 <div className="proto-appearance-carousel" role="listbox" aria-label={`${resolvedScheme} notebook background`}>
-                  <AppearancePreviewTile label="App background" selected={!activeCanvas.startsWith('image:')} canvasColor="var(--pds-canvas-default)" onClick={() => pickCanvas('device')} />
+                  <AppearancePreviewTile label="Paper" selected={!activeCanvas.startsWith('image:')} canvasColor="var(--pds-canvas-default)" onClick={() => pickCanvas('device')} />
                   {childImageChoices.filter(choice => choice.mode === resolvedScheme).map(choice => <AppearancePreviewTile key={choice.id} label={choice.label} selected={activeCanvas === `image:${choice.id}`} canvasImageUrl={childImageUrl(choice)} glassMode="image" onClick={() => pickCanvas(`image:${choice.id}`)} />)}
                 </div>
               </fieldset>
               <fieldset><legend>Reading & writing text</legend><div className="proto-menu-tabs pds-kids-text-choices" role="group" aria-label="Reading text size">{(['standard', 'bigger'] as const).map(size => <button key={size} className="proto-menu-tab" aria-pressed={appearance.textSize === size} data-active={appearance.textSize === size ? 'true' : undefined} onClick={() => setAppearance(current => ({ ...current, textSize: size }))}><span aria-hidden="true" className="pds-kids-type-sample" data-size={size}>Aa</span>{size === 'standard' ? 'Just right' : 'A little bigger'}</button>)}</div></fieldset>
               <p className="pds-caption">These settings are just for your notebook.</p>
             </section>
-            <div className="pds-kids-studio__finish"><button className="proto-settings-btn" disabled={saving} onClick={() => void closeSettings()}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Done</button></div>
           </div> : <div className="pds-kids-inside-settings pds-kids-feedback-settings">
             <section className="proto-inspector-section">
               <h3 className="pds-list-title">Sound effects</h3>
@@ -651,7 +650,10 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               }} /></label>
             </section>
           </div>}
-        </section></div>
+        </section>
+        {/* One footer for every page, pinned under the scrolling pane like adult sheets' footer band, so Done is
+            always in view without scrolling. Settings save as they change; Done just closes. */}
+        <div className="pds-kids-settings-footer proto-sheet-footer--stacked"><button className="proto-settings-btn" disabled={saving} onClick={() => void closeSettings()}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Done</button></div></div>
       </div></div>
     </dialog>, document.body)}
 
