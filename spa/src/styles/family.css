@@ -310,3 +310,6 @@ body:has(.pds-child-app) { margin: 0; background: var(--pds-canvas-default); }
 .pds-family-renewal__notice > summary::-webkit-details-marker { display: none; }
 .pds-family-renewal__notice[open] > summary svg { transform: rotate(180deg); }
 .pds-family-renewal__body > .proto-settings-btn { justify-self: start; width: auto; min-height: 40px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }
+.pds-family-renewal .pds-family-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--pds-space-2); line-height: 1.6; cursor: pointer; }
+.pds-family-renewal .pds-family-choice > input[type='checkbox'] { margin-block-start: 0.2em; }
+.pds-family-renewal .pds-family-choice > input[type='checkbox']:not(:checked) { border-color: var(--pds-text-tertiary); }
