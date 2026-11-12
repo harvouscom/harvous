@@ -5556,6 +5556,10 @@ html.harvous-prototype-route
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Room between an icon and its label, for every caller rather than a typed `&nbsp;` in one
+     of them (a nbsp read ~4px, so the icon sat on the word). The Resources "Read on" button
+     had none at all; the church join row sets its own 6px. */
+  gap: var(--pds-space-2);
   width: 100%;
   border: 0;
   border-radius: 999px;
@@ -24569,8 +24573,8 @@ button.proto-feed-sheet__stat:hover {
   padding-bottom: var(--pds-space-2);
 }
 
-/* Type comes from `.proto-home-greeting`, which this element also carries. Only the measure
-   is ours: the greeting runs the width of a sidebar, and this one has a whole sheet. */
+/* Type and layout come from `.proto-home-greeting--week`, the signed-in Home's greeting block,
+   which this element also carries. Only the measure is ours. */
 .proto-guest-home__lead {
   max-width: 46ch;
 }
@@ -24597,16 +24601,6 @@ button.proto-feed-sheet__stat:hover {
   padding-inline: var(--pds-space-5);
 }
 
-.proto-guest-home__sheet .proto-feed-sheet__head {
-  padding-inline: var(--pds-space-5);
-  /*
-   * And the heading belongs to the paragraph under it. 16px is right on the feed, where the
-   * head is a date over a stack of unrelated sections; here the next line finishes the
-   * heading's thought, and at that distance the two read as separate announcements. The
-   * paragraph brings 6px of its own, so this is the half that is ours to give back.
-   */
-  padding-bottom: var(--pds-space-2);
-}
 
 /*
   The read-first invitation, shown only until this browser holds something.
