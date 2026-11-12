@@ -831,21 +831,15 @@
 
 /* ─── Cover studio (child Settings › My notebook) ─────────────────────────────────────────
    The notebook is the thing being made, so it sits on a stage tinted with its own colour and
-   pops a little whenever something changes. Three layouts share these pieces; see
+   pops a little whenever something changes. One question at a time; see
    ChildNotebookCoverStudio.tsx. */
 .pds-kids-studio { display: flex; flex-direction: column; gap: var(--pds-space-5); min-width: 0; }
 .pds-kids-studio fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
-.pds-kids-studio__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .pds-kids-studio label { position: relative; cursor: pointer; }
 .pds-kids-studio label > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
 .pds-kids-studio label small { font-size: 12px; color: var(--pds-text-secondary); }
 .pds-kids-studio label > input:checked ~ small { color: var(--pds-text-primary); font-weight: 600; }
 .pds-kids-studio label > input:focus-visible + span { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
-
-/* Preview-only switch between the three layouts under review. */
-.pds-kids-studio__variants { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pds-space-2); padding: var(--pds-space-2); border: 1px dashed var(--pds-border); border-radius: var(--pds-radius-input); }
-.pds-kids-studio__variants button { appearance: none; border: 0; border-radius: var(--pds-radius-pill); padding: 6px 12px; background: transparent; font: inherit; font-size: 12px; color: var(--pds-text-secondary); cursor: pointer; }
-.pds-kids-studio__variants button[aria-pressed='true'] { background: var(--pds-bg-control); color: var(--pds-text-primary); font-weight: 600; }
 
 /* The stage: the notebook on a soft wash of its own colour. */
 .pds-kids-studio__stage {
@@ -858,10 +852,6 @@
   transition: background var(--pds-duration-home-row) var(--pds-ease-standard);
 }
 .pds-kids-studio__stage--center { justify-content: center; padding-block: var(--pds-space-8, 40px); }
-.pds-kids-studio__stage-copy { display: grid; justify-items: start; gap: var(--pds-space-2); min-width: 0; }
-.pds-kids-studio__stage-copy h2, .pds-kids-studio__stage-copy p { margin: 0; }
-.pds-kids-studio__stage-copy p { line-height: 1.5; }
-.pds-kids-studio__surprise { width: auto; min-height: 40px; gap: var(--pds-space-2); margin-top: var(--pds-space-2); }
 .pds-kids-studio__book { display: inline-grid; flex: none; animation: pds-kids-studio-pop 380ms var(--pds-ease-emphasized); }
 .pds-kids-studio .pds-kids-book--settings { flex-basis: 112px; width: 112px; height: 136px; }
 .pds-kids-studio .pds-kids-book--settings .pds-kids-book__volume { width: 100px; height: 126px; }
@@ -883,7 +873,6 @@
   color: var(--pds-text-primary);
   transition: transform var(--pds-duration-press) var(--pds-ease-standard);
 }
-.pds-kids-studio__colors[data-size='paint'] .pds-kids-studio__color > span { width: 56px; height: 56px; }
 .pds-kids-studio__color > input:checked + span { transform: scale(1.08); outline: 3px solid var(--pds-bg-page); box-shadow: 0 0 0 5px var(--kids-swatch), inset 0 -4px 0 color-mix(in oklab, var(--kids-swatch) 70%, black 12%); }
 
 /* Patterns: fabric swatches, each set down at a slight angle. */
@@ -918,17 +907,7 @@
   .pds-kids-studio__color:hover > input:not(:checked) + span { transform: translateY(-2px); }
 }
 
-/* A · Tool tray: three chunky tool tabs over one tray of big options. */
-.pds-kids-studio__tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--pds-space-2); padding: var(--pds-space-1); border-radius: var(--pds-radius-pill); background: var(--pds-bg-control); }
-.pds-kids-studio__tabs button { appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: var(--pds-space-2); min-height: 48px; border: 0; border-radius: var(--pds-radius-pill); background: transparent; font: inherit; font-size: 15px; font-weight: 500; color: var(--pds-text-secondary); cursor: pointer; }
-.pds-kids-studio__tabs button[aria-pressed='true'] { background: var(--pds-bg-page); color: var(--pds-text-primary); font-weight: 600; box-shadow: 0 1px 3px color-mix(in oklab, var(--pds-text-primary) 12%, transparent); }
-.pds-kids-studio fieldset.pds-kids-studio__tray { min-height: 104px; padding: var(--pds-space-5); border-radius: var(--pds-radius-card); background: var(--pds-bg-subtle); }
-
-/* B · Sticker sheet: three playful rows, no numbered steps. */
-.pds-kids-studio__row legend { display: flex; align-items: center; gap: var(--pds-space-2); margin-bottom: var(--pds-space-3); padding: 0; font: 600 16px var(--pds-font-display); }
-.pds-kids-studio__row legend > span { font: 400 13px var(--pds-font-body, inherit); color: var(--pds-text-secondary); }
-
-/* C · One at a time: one question, big options, progress dots. */
+/* One at a time: one question, big options, and the step bar. */
 /* The step bar: one stop per step, the current one opened out to its name. Steps behind you
    take the cover's ink; any stop is a tap away. */
 .pds-kids-studio__progress { display: flex; justify-content: center; gap: var(--pds-space-1); width: fit-content; max-width: 100%; margin-inline: auto; padding: var(--pds-space-1); border-radius: var(--pds-radius-pill); background: var(--pds-bg-control); }
@@ -960,14 +939,12 @@
   .pds-kids-studio .pds-kids-book--settings { flex-basis: 84px; width: 84px; height: 104px; }
   .pds-kids-studio .pds-kids-book--settings .pds-kids-book__volume { width: 76px; height: 96px; }
   .pds-kids-studio .pds-kids-book--settings .pds-kids-book__front { font-size: 40px; }
-  .pds-kids-studio__tabs button { font-size: 14px; }
   /* All six paints on one row at phone width. */
   .pds-kids-studio__colors { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--pds-space-1); }
   .pds-kids-studio__color small { font-size: 11px; }
   .pds-kids-studio__patterns { gap: var(--pds-space-3); }
   .pds-kids-studio__pattern > span[data-pattern] { width: 64px; height: 48px; }
-  .pds-kids-studio__colors .pds-kids-studio__color > span,
-  .pds-kids-studio__colors[data-size='paint'] .pds-kids-studio__color > span { width: 44px; height: 44px; }
+  .pds-kids-studio__colors .pds-kids-studio__color > span { width: 44px; height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pds-kids-studio__book, .pds-kids-studio * { animation: none !important; transition: none !important; }

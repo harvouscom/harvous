@@ -584,7 +584,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         </div></nav>
         <div className="proto-settings__detail"><section id="notebook-customize" ref={settingsPaneRef} tabIndex={-1} aria-label={settingsPanes.find(pane => pane.id === studioPage)?.title} className="pds-kids-settings-pane" data-studio-page={studioPage}>
           {studioPage === 'settings' ? <div className="pds-kids-inside-settings pds-kids-notebook-settings" data-pattern={coverPattern}>
-            <ChildNotebookCoverStudio showVariantSwitch={preview} />
+            <ChildNotebookCoverStudio />
             <div className="proto-settings__content"><SettingsGroup>
               <SettingsRow label="Who can see my notebook?" leadingIcon="user-shield" onClick={() => setPrivacy(true)} />
               <SettingsRow label="Export my notebook" sublabel="Ask a parent to download a copy" leadingIcon="download" onClick={() => { setParentError(''); playCue('nav.open'); setParentGate('export'); }} />
