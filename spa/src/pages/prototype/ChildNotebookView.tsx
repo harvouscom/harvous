@@ -14,7 +14,7 @@ import { ChildNoteInfo, type ChildNoteOrganization, type ChildNotebookCatalog, t
 import ChildNotebookSearch, { type ChildSearchItem } from './ChildNotebookSearch';
 import ChildFamilySpacePreview from './ChildFamilySpacePreview';
 import ChildNotebookTextFields from '../family/ChildNotebookTextFields';
-import { ChildPrivacyFootnote, ChildPrivacyPolicyLink } from '../family/ChildPrivacyNotice';
+import { ChildPrivacyFootnote } from '../family/ChildPrivacyNotice';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
@@ -576,7 +576,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
     })}
 
     {createPortal(<dialog ref={settingsDialogRef} className="proto-settings-modal pds-kids-settings-modal proto-theme" data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby="kids-settings-title" style={themeStyle} onCancel={event => { event.preventDefault(); void closeSettings(); }} onClose={() => setCustomizing(false)} onClick={event => { if (event.target === event.currentTarget) { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) void closeSettings(); } }}>
-      <header className="proto-settings-modal__header"><h2 id="kids-settings-title" className="proto-settings-modal__title">Settings</h2><ChildPrivacyPolicyLink url={privacyUrl} /><button className="proto-toolbar-icon-btn proto-settings-modal__close" aria-label="Close settings" disabled={saving} onClick={() => void closeSettings()}>{saving ? <ProtoLoadingDots /> : <Icon name="xmark" size={18} />}</button></header>
+      <header className="proto-settings-modal__header"><h2 id="kids-settings-title" className="proto-settings-modal__title">Settings</h2><button className="proto-toolbar-icon-btn proto-settings-modal__close" aria-label="Close settings" disabled={saving} onClick={() => void closeSettings()}>{saving ? <ProtoLoadingDots /> : <Icon name="xmark" size={18} />}</button></header>
       {customizing && saveError && <p className="pds-caption pds-kids-status" role="alert">{saveError}</p>}
       <div className="proto-settings-modal__body"><div className="proto-settings">
         <nav className="proto-settings__nav" aria-label="Settings categories"><div className="proto-settings__nav-list">
@@ -660,6 +660,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               <div className="pds-kids-circle__tip"><span aria-hidden="true"><Icon name="book-open" size={18} /></span><div><strong>Reading, chosen together</strong><span>A parent or guardian picks the ministry reading you see.</span></div></div>
               <div className="pds-kids-circle__tip"><span aria-hidden="true"><Icon name="lock" size={17} /></span><div><strong>Keep personal details off the page</strong><span>No addresses, phone numbers, or other people’s private details.</span></div></div>
             </div>
+      <ChildPrivacyFootnote url={privacyUrl}>For grown-ups, the full details are in our</ChildPrivacyFootnote>
       <button className="proto-settings-btn" onClick={() => setPrivacy(false)}><Icon name="check" size={12} /> Got it</button>
     </dialog>, document.body)}
   </PrototypeMainPaneShell>;

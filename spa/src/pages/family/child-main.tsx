@@ -13,7 +13,7 @@ import { ChildNotebookAppearanceProvider, useChildNotebookAppearance } from '../
 import ChildNotebookBibleReader from '../prototype/ChildNotebookBibleReader';
 import ProtoSpaceLoading from '../prototype/ProtoSpaceLoading';
 import ChildNotebookSearchPanel from './ChildNotebookSearchPanel';
-import { ChildPrivacyPolicyLink } from './ChildPrivacyNotice';
+import { ChildPrivacyFootnote } from './ChildPrivacyNotice';
 import '../../styles/prototype-components.css';
 import '../../styles/prototype-tokens.css';
 import '../../styles/prototype-shell.css';
@@ -127,7 +127,7 @@ function SessionNotebook({ notebook, privacyUrl, request, onEnd, onRefresh, revi
           </div>;
         }} />}
       renderAttachment={props => <ChildNoteAttachmentPicker {...props} translations={notebook.translations} useChapter={useChildChapter} />}
-      renderSearch={({ onClose, onOpenNote, onOpenBible, onOpenResource }) => <ChildNotebookSearchPanel search={search} onClose={onClose} privacyUrl={privacyUrl}
+      renderSearch={({ onClose, onOpenNote, onOpenBible, onOpenResource }) => <ChildNotebookSearchPanel search={search} onClose={onClose}
         onOpen={async item => {
           if (item.kind === 'note') return onOpenNote(viewNote((await request<{ note: ChildNote }>(`notes/${encodeURIComponent(item.id)}`)).note));
           if (item.kind === 'reading') return onOpenBible(item.id);
@@ -223,7 +223,7 @@ function ChildNotebook() {
     {status === 'opening' && <ProtoSpaceLoading label="Opening your notebook" />}
     {status === 'ended' && <p role="status">All done. Ask your parent for a link next time.</p>}
     {error && <p role="alert">{error}</p>}
-    <ChildPrivacyPolicyLink url={privacyUrl} />
+    <ChildPrivacyFootnote url={privacyUrl}>A notebook is just for a child and their parent.</ChildPrivacyFootnote>
   </main>;
   return <ChildNotebookAppearanceProvider name={notebook.displayName} initial={notebook.preferences}>
     <SessionNotebook notebook={notebook} privacyUrl={notebook.privacyUrl ?? privacyUrl} request={childRequest} revision={revision} onRefresh={applyLocalChange}

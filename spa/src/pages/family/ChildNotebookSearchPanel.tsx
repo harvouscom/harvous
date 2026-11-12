@@ -7,15 +7,13 @@ import ProtoSpaceLoading from '../prototype/ProtoSpaceLoading';
 import PrototypeHomeRow from '../prototype/PrototypeHomeRow';
 import Icon from '@/components/react/Icon';
 import type { ChildSearchResult, ChildSearchScope } from './types';
-import { ChildPrivacyPolicyLink } from './ChildPrivacyNotice';
 
 type Search = (query: string, scope: ChildSearchScope, offset: number) => Promise<{ results: ChildSearchResult[]; total: number }>;
 const scopes = [['all', 'All'], ['notebook', 'My notebook'], ['family', 'Family Space']] as const;
 const icons = { note: 'note-sticky', reading: 'book-open', material: 'file-lines' } as const;
 
-export default function ChildNotebookSearchPanel({ search, onOpen, onClose, privacyUrl }: {
+export default function ChildNotebookSearchPanel({ search, onOpen, onClose }: {
   search: Search; onOpen: (item: ChildSearchResult) => Promise<boolean>; onClose: () => void;
-  privacyUrl?: string;
 }) {
   const { themeStyle } = useChildNotebookAppearance();
   const [query, setQuery] = useState('');
@@ -59,7 +57,6 @@ export default function ChildNotebookSearchPanel({ search, onOpen, onClose, priv
       placeholder="Search notes and family readings…" onKeyDown={event => {
         if (event.key === 'Enter' && !event.nativeEvent.isComposing && items[0]) { event.preventDefault(); void open(items[0]); }
       }} />
-    <ChildPrivacyPolicyLink url={privacyUrl} />
     <div className="proto-appearance-segmented pds-kids-search__scopes" role="group" aria-label="Search in">
       {scopes.map(([id, label]) => <button key={id} type="button" className="proto-appearance-segmented__btn" aria-pressed={scope === id}
         data-active={scope === id ? 'true' : undefined} onClick={() => { if (scope !== id) { reset(); setScope(id); } }}>{label}</button>)}

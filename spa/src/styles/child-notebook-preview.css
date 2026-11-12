@@ -1033,3 +1033,4 @@
 .pds-kids-marker, .pds-kids-marker * { color: var(--pds-text-primary) !important; }
 /* The little notebooks in the binding choices, drawn big enough to see the rings and stitches. */
 .pds-kids-studio__binding .pds-kids-book { transform: scale(1.45); }
+.pds-kids-privacy-modal > .pds-kids-privacy-footnote { text-align: center; margin-block: var(--pds-space-1) var(--pds-space-2); }
