@@ -313,11 +313,6 @@
 .pds-kids-text-choices.proto-menu-tabs { position: static; margin: 0; }
 .pds-kids-text-choices .proto-menu-tab { min-height: 44px; display: flex; justify-content: center; align-items: center; gap: var(--pds-space-2); }
 .pds-kids-text-choices [data-active] { background: var(--pds-bg-popover-solid); }
-.pds-kids-motion-choice { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-4); cursor: pointer; }
-.pds-kids-motion-choice > span { display: flex; flex-direction: column; gap: var(--pds-space-1); }
-.pds-kids-motion-choice strong { font-size: 13px; font-weight: 500; }
-.pds-kids-motion-choice span > span { font-size: 12px; color: var(--pds-text-secondary); }
-.pds-kids-motion-choice input { width: 20px; height: 20px; accent-color: var(--pds-accent); }
 .pds-kids-appearance-scope[data-text-size='bigger'] :is(.pds-child-note__writing, .pds-kids-review__note, .pds-kids-preview__reading-page > p) { font-size: 19px; }
 .pds-kids-appearance-scope[data-reduce-motion] :is(.pds-kids-book__volume, .pds-kids-book__front, .pds-kids-prompt__shuffle-icon, .pds-kids-flip__front, .pds-kids-flip__back) { animation: none; transition: none; }
 @media (prefers-reduced-motion: reduce) { .pds-kids-flip__front, .pds-kids-flip__back { transition: none; } }
@@ -342,7 +337,6 @@
 .pds-kids-inside-settings .pds-kids-appearance-settings { padding-top: 0; border-top: 0; }
 .pds-kids-inside-settings .proto-appearance-carousel { margin-top: var(--pds-space-4); }
 .pds-kids-inside-settings .proto-appearance-segmented__btn { min-height: 40px; }
-.pds-kids-motion-choice input { appearance: auto; -webkit-appearance: auto; opacity: 1; flex: 0 0 20px; }
 .pds-kids-type-sample { font-size: 14px; font-weight: 500; }
 .pds-kids-type-sample[data-size='bigger'] { font-size: 19px; }
 .pds-kids-appearance-scope:not([data-canvas='device']) .proto-shell-frame { background: var(--kids-canvas); background-image: var(--kids-canvas-image); background-position: center; background-size: cover; background-repeat: no-repeat; }
@@ -740,22 +734,6 @@
   margin: var(--pds-space-2) 0 0;
 }
 
-.pds-kids-feedback-settings .proto-inspector-section {
-  display: grid;
-  gap: var(--pds-space-3);
-}
-.pds-kids-feedback-settings .proto-inspector-section + .proto-inspector-section {
-  margin-top: 0;
-}
-.pds-kids-feedback-settings :is(h3, p) {
-  margin: 0;
-}
-.pds-kids-feedback-settings .proto-settings-btn {
-  justify-self: start;
-  width: auto;
-  min-height: 44px;
-  gap: var(--pds-space-2);
-}
 .pds-kids-settings-modal[data-reduce-motion] .pds-kids-book__volume {
   animation: none;
   transition: none;

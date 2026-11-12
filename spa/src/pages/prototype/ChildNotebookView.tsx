@@ -4,9 +4,10 @@ import { useEffect, useRef, useState, type CSSProperties, type ComponentProps, t
 import { createPortal } from 'react-dom';
 import ProtoLoadingDots from './ProtoLoadingDots';
 import Icon from '@/components/react/Icon';
-import { SOUND_PREFERENCES } from '@/utils/sound-prefs';
+import { SOUND_PREFERENCES, type SoundPreference } from '@/utils/sound-prefs';
 import { playSound, warmSounds } from '@/utils/sounds';
-import { SettingsGroup, SettingsRow } from './settings/SettingsShell';
+import { SettingsGroup, SettingsRow, SettingsToggleRow } from './settings/SettingsShell';
+import ProtoSelectMenu from './ProtoSelectMenu';
 import type { ChildBibleMode, ChildBiblePassage, ChildReaderProps } from './ChildNotebookBibleReader';
 import type ChildNoteAttachmentPicker from './ChildNoteAttachmentPicker';
 import type { ChildNoteAttachment, ChildFamilyResource } from './ChildNoteAttachmentPicker';
@@ -629,26 +630,35 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               <p className="pds-caption">These settings are just for your notebook.</p>
             </section>
           </div> : <div className="pds-kids-inside-settings pds-kids-feedback-settings">
-            <section className="proto-inspector-section">
-              <h3 className="pds-list-title">Sound effects</h3>
-              <div className="proto-appearance-segmented" role="group" aria-label="Sound effects">
-                {SOUND_PREFERENCES.map(option => (
-                  <button key={option.id} type="button" className="proto-appearance-segmented__btn" aria-pressed={soundPreference === option.id} data-active={soundPreference === option.id ? 'true' : undefined} onClick={() => {
-                    setSoundPreference(option.id);
-                    if (option.id !== 'off') warmSounds({ force: true });
-                    if (option.id === 'everywhere') playSound('nav.select', { preference: option.id });
-                  }}>{option.label}</button>
-                ))}
-              </div>
-              <p className="pds-caption">{SOUND_PREFERENCES.find(option => option.id === soundPreference)?.description}</p>
-              <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => playSound('organize.filed', { force: true, preference: soundPreference })}><Icon name="volume-low" size={14} /> Hear a sound</button>
-            </section>
-            <section className="proto-inspector-section">
-              <label className="pds-kids-motion-choice"><span><strong>Reduce motion</strong><span>Less wiggle when you move around.</span></span><input type="checkbox" checked={appearance.reduceMotion} onChange={event => {
-                playCue('nav.toggle');
-                setAppearance(current => ({ ...current, reduceMotion: event.target.checked }));
-              }} /></label>
-            </section>
+            {/* Adult Settings › Sounds, the same pieces: a row with the choice menu, a "Hear it" row, and
+                a switch row for motion. Kid words where adult's are a grown-up's. */}
+            <div className="proto-settings__content">
+              <SettingsGroup>
+                <div className="proto-note-row proto-note-row--static">
+                  <span className="proto-settings-list-row__main">
+                    <span className="pds-list-title" style={{ color: 'var(--pds-text-primary)' }}>Sounds</span>
+                    <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>{SOUND_PREFERENCES.find(option => option.id === soundPreference)?.description}</span>
+                  </span>
+                  <span className="proto-settings-list-row__trailing">
+                    <ProtoSelectMenu<SoundPreference> label="When to play sounds" value={soundPreference} menuWidth={180}
+                      options={SOUND_PREFERENCES.map(option => ({ value: option.id, label: option.label }))}
+                      onChange={next => {
+                        setSoundPreference(next);
+                        if (next !== 'off') warmSounds({ force: true });
+                        if (next === 'everywhere') playSound('nav.select', { preference: next });
+                      }} />
+                  </span>
+                </div>
+              </SettingsGroup>
+              <SettingsGroup>
+                <SettingsRow label="Hear it" sublabel="What a sound in your notebook is like." leadingIcon="volume-low" trailing="none"
+                  onClick={() => playSound('organize.filed', { force: true, preference: soundPreference })} />
+              </SettingsGroup>
+              <SettingsGroup>
+                <SettingsToggleRow label="Reduce motion" sublabel="Less wiggle when you move around." checked={appearance.reduceMotion}
+                  onChange={next => { playCue('nav.toggle'); setAppearance(current => ({ ...current, reduceMotion: next })); }} />
+              </SettingsGroup>
+            </div>
           </div>}
         </section>
         {/* One footer for every page, pinned under the scrolling pane like adult sheets' footer band, so Done is
