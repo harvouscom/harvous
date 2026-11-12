@@ -36,7 +36,7 @@ export function VerseStickerPicker({ current, reference, onPick, onClose }: {
       </button>)}
     </div>
     {current && <button type="button" className="proto-settings-btn proto-settings-btn--secondary pds-kids-verse-stickers__remove" onClick={() => onPick(null)}>
-      <Icon name="xmark" size={13} aria-hidden /> Take it off
+      <Icon name="xmark" size={13} aria-hidden /> Remove sticker
     </button>}
   </div>;
 }

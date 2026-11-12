@@ -161,7 +161,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
     setStickerError(null);
     stickerButtonRef.current?.focus();
     playCue(sticker ? 'highlight.created' : 'nav.toggle');
-    setAnnouncement(sticker ? `${verseStickerLabel(sticker)} sticker added to ${where}.` : `Sticker taken off ${where}.`);
+    setAnnouncement(sticker ? `${verseStickerLabel(sticker)} sticker added to ${where}.` : `Sticker removed from ${where}.`);
     if (!live?.saveSticker) return;
     try {
       await live.saveSticker(book, chapter, verse, sticker);
@@ -317,7 +317,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                         </button>
                         <button type="button" ref={stickerButtonRef} className="proto-settings-btn proto-settings-btn--secondary" aria-expanded={stickerPicker === stickerSlot}
                           onClick={() => { playCue('nav.toggle'); setStickerError(null); setStickerPicker(stickerPicker === stickerSlot ? null : stickerSlot); }}>
-                          <Icon name="star" size={14} /> {sticker ? 'Change sticker' : 'Sticker'}
+                          <Icon name="star" size={14} /> {sticker ? 'Change sticker' : 'Add a sticker'}
                         </button>
                       </div>
                     )}
