@@ -4,37 +4,26 @@
   parent verification email. KWS requires exactly 720 x 250 px, JPG or PNG.
   Re-render: node docs/brand/kws/render.mjs (see docs/KWS_BRANDING.md).
 
-  The accent gradient (--pds-bg-accent-button: 171deg, #2bb5ff 7%, #006eff 93%) edge to edge,
-  with the Harvous mark (public/harvous-logo.svg) and the name in white Google Sans Flex 600.
+  The app icon (the accent gradient with the white mark) alone on the site paper (#f7f6f3, the
+  sign-in page's --site-paper). No wordmark: the email already names Harvous.
 -->
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-  @font-face {
-    font-family: "Google Sans Flex";
-    src: url("../../../public/fonts/google-sans-flex/GoogleSansFlex-opsz-wght-ROND.woff2") format("woff2-variations");
-    font-weight: 1 1000;
-  }
   html, body { margin: 0; }
   body {
     width: 720px; height: 250px; overflow: hidden;
     display: grid; place-items: center;
-    background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
-    color: #ffffff;
-    font-family: "Google Sans Flex", sans-serif;
+    background: #f7f6f3;
   }
-  .row { display: flex; align-items: center; gap: 20px; }
-  .glyph { display: block; width: auto; height: 56px; }
-  .name { font-weight: 600; font-size: 52px; line-height: 1; letter-spacing: -0.025em; }
+  img {
+    display: block; width: 128px; height: 128px; border-radius: 29px;
+    box-shadow: 0 1px 2px rgba(20, 18, 12, 0.08), 0 14px 32px -12px rgba(0, 80, 200, 0.35);
+  }
 </style>
 </head>
 <body>
-  <div class="row">
-    <svg class="glyph" viewBox="0 0 45 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path fill="currentColor" d="M44.8037 63.9941H0.0078125V0H44.8037V63.9941ZM34.5645 31.168C25.6988 34.2637 18.5024 41.2949 15.3711 50.543L14.2842 53.752H34.5645V31.168ZM10.2471 37.8643C15.8921 29.2487 24.5827 23.0353 34.5645 20.4824V10.2393H10.2471V37.8643Z"/>
-    </svg>
-    <span class="name">Harvous</span>
-  </div>
+  <img src="../../../public/images/icons/icon-512.png" alt="">
 </body>
 </html>
