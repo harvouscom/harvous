@@ -19,7 +19,8 @@ const notebook: Notebook = {
   notes: initialNotes.map(({ date, ...note }) => ({ ...note, updatedAt: date })),
   materials: [{ id: 'preview-reading', spaceId: 'preview-ministry', title: 'This week’s reading', content: 'What’s one kind thing you could do for someone this week?', spaceTitle: 'Kids ministry', updatedAt: null }]
 };
-// A sample Look back sitting: one choice, one note to think back on, one verse to put in order.
+// A sample Look back sitting: one choice, one note's passage, one verse to put in order — the
+// shapes the server sends a child (a note is always asked what goes with it, never self-rated).
 // Marked here the way the server marks it, so the dock can be tried without an account.
 const lookBackItem = (id: string, kind: 'verse' | 'note', prompt: string, extra: Partial<ReviewItemView>): ReviewItemView => ({
   id, kind, prompt, task: prompt, exercise: null, framing: null, promptKey: `${kind}.preview`, recallState: 'new', status: 'active',
@@ -28,13 +29,14 @@ const lookBackItem = (id: string, kind: 'verse' | 'note', prompt: string, extra:
   sourceLabel: null, sourceAt: null, cue: null, translation: 'BSB', ...extra,
 });
 const lookBackItems = [
-  lookBackItem('lb-verse', 'verse', 'Which words finish this verse?', { scriptureReference: 'Psalms 23:1' }),
-  lookBackItem('lb-note', 'note', 'What did you notice in this note?', { noteTitle: 'A little kindness', noteId: 'sample-3' }),
-  lookBackItem('lb-order', 'verse', 'Put the verse back in order', { scriptureReference: 'John 1:5' }),
+  lookBackItem('lb-verse', 'verse', 'Pick the verse that follows Psalms 23:1.', { scriptureReference: 'Psalms 23:1', promptKey: 'verse.next' }),
+  lookBackItem('lb-note', 'note', 'Pick a passage you cited in “A little kindness”.', { noteTitle: 'A little kindness', noteId: 'sample-3', promptKey: 'note.passage' }),
+  lookBackItem('lb-order', 'verse', 'Put John 1:5 back in order.', { scriptureReference: 'John 1:5', promptKey: 'verse.sequence' }),
 ];
-const lookBackAnswers: Record<string, unknown> = { 'lb-verse': 'I shall not want.', 'lb-order': [0, 1, 2] };
+const lookBackAnswers: Record<string, unknown> = { 'lb-verse': 'He makes me lie down in green pastures;', 'lb-note': 'Ephesians 4:32', 'lb-order': [0, 1, 2] };
 const lookBackReveals = {
-  'lb-verse': { choice: { options: ['I shall not want.', 'I will fear no evil.', 'He restores my soul.'], opening: false }, verseText: 'The LORD is my shepherd; I shall not want.' },
+  'lb-verse': { next: { options: ['He makes me lie down in green pastures;', 'Even though I walk through the valley', 'Surely goodness and mercy will follow me'] }, verseText: 'The LORD is my shepherd; I shall not want.' },
+  'lb-note': { noteChoice: { fragment: null, options: ['Psalms 23:1', 'Ephesians 4:32', 'John 1:5'] } },
   'lb-order': { sequence: { phrases: ['The Light shines in the darkness,', 'and the darkness', 'has not overcome it.'] }, verseText: 'The Light shines in the darkness, and the darkness has not overcome it.' },
 };
 let lookBackAttempts: Record<string, number> = {};
