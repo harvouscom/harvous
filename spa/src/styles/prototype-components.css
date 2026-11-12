@@ -11688,12 +11688,19 @@ html.harvous-prototype-route
      centre otherwise, which is what the auth and public shells get. */
   left: var(--proto-toast-center, 50%);
   transform: translateX(-50%);
-  /* Lifted clear of the study dock band. These two are the only bottom-anchored things
-     outside the band — fixed to the body rather than living in it — so the reserve the
-     scrollers take does not move them, and an open dock would sit on top of them. */
+  /* Stands on the frame's floor like the rest of the bottom chrome; with a dock up it rises
+     just clear of the card instead of by a whole band on top of that.
+     The band height is measured from the frame floor, and already carries the card's 16px
+     top padding and (on a phone) the home-indicator clearance. So the toast needs no inset,
+     safe-area or gap of its own above it: 4px less than the band is a 12px gap over the
+     card's shadow edge. Adding the usual 16px + safe-area on top, as this once did, parked
+     it ~30px above that and left it floating mid-page over the content. No dock (the band
+     var is unset): the usual 16px + safe-area above the frame inset.
+     Fixed to the body, so the dock does not reserve room for it; an open dock would sit on
+     top of it otherwise. */
   bottom: calc(
-    var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom) +
-      var(--proto-study-dock-band-height, 0px)
+    var(--pds-shell-frame-inset, 14px) +
+      max(16px + env(safe-area-inset-bottom), var(--proto-study-dock-band-height, 0px) - 4px)
   );
   z-index: 1000021;
   display: inline-flex;
