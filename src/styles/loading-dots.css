@@ -18,6 +18,13 @@
   animation: load-more-pulse 1.5s var(--pds-ease-standard, cubic-bezier(0.32, 0.72, 0.24, 1)) infinite;
 }
 
+/* Inside a button the dots take the button's own text colour, as the note above intends: white
+   on a filled primary, ink on a secondary. The container's grey is for dots standing alone, and
+   on a button it drew grey dots on blue. */
+button .load-more-indicator {
+  color: inherit;
+}
+
 /* A shorter step than the old 0.2s. The three dots are 4px apart, so a long gap reads as
    three things blinking in turn rather than as one movement passing along them. */
 .load-more-indicator__dot:nth-child(1) {
