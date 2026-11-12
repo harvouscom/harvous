@@ -14,3 +14,13 @@
 *::-webkit-scrollbar {
   display: none;
 }
+
+/*
+ * Type in form controls: buttons, inputs and selects take the page's face instead of the
+ * browser's (Arial in Chrome). Adult gets this from prototype-route-overrides-1.css, which the
+ * kids bundle doesn't load; without it a control with no font of its own, like the Light / Dark
+ * switch in Settings, drew in Arial. A component that sets its own font still wins.
+ */
+button, input, select, textarea {
+  font-family: inherit;
+}
