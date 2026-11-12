@@ -41,15 +41,15 @@ Once a product's branding is edited and published, it stops following the organi
 ## Proposed values
 
 Harvous's accent is a gradient, and KWS takes one flat hex for a button it draws itself. So the
-gradient goes in the banner, through the app icon, and the button uses the flat accent that was
-tuned to sit beside the gradient.
+gradient fills the banner, with white on it, and the button uses the flat accent that was tuned
+to sit beside the gradient.
 
 | Field | Value | Why |
 |---|---|---|
 | Brand name | `Harvous` | The name parents already signed up with |
 | Privacy policy URL | The same URL as `HARVOUS_CHILD_PRIVACY_URL` in that environment | The parent notice and KWS must point at one reviewed policy. `https://harvous.com/privacy/` is live but has no children's section yet, so production waits for the published child policy (`docs/privacy/CHILD_PRIVACY_PUBLICATION_CHECKLIST.md`) |
 | Support / FAQ URL | `https://harvous.com/support/` | Public and live. `app.harvous.com/settings/support` needs sign-in, which a KWS reviewer can't do |
-| Banner image | [`docs/brand/kws/kws-banner-720x250.png`](brand/kws/kws-banner-720x250.png) | The sign-in page's letter on the site paper (`#f7f6f3`), Google Sans Flex 600 ink, the app icon (gradient with white on it), and the marker on "your" |
+| Banner image | [`docs/brand/kws/kws-banner-720x250.png`](brand/kws/kws-banner-720x250.png) | The accent gradient edge to edge (`171deg, #2bb5ff 7%, #006eff 93%`) with the Harvous mark and name in white Google Sans Flex 600. No caption: the email already says what it is for |
 | App icon | `public/images/icons/icon-512.png` | 512 × 512 PNG, the gradient icon. Unused by Parent Verification, but this fills the field |
 | Accent colour | `#3869E6` | The brand's flat accent (`--pds-accent`, `--site-accent`, native `Color(0.22, 0.41, 0.90)`). White text on it is 4.85:1, which passes AA. The gradient's end colour `#006EFF` is 4.49:1, just under AA for button-size text |
 | Redirect URL (Test) | `https://family-test.harvous.com/settings/child-accounts` | Brings the parent back to Harvous instead of KWS's generic success screen |

@@ -4,9 +4,8 @@
   parent verification email. KWS requires exactly 720 x 250 px, JPG or PNG.
   Re-render: node docs/brand/kws/render.mjs (see docs/KWS_BRANDING.md).
 
-  The look is the sign-in page's "letter": the site paper, a white letter on two leaves, Google
-  Sans Flex 600 ink, and the marker swipe on "your" (src/styles/auth-page-site.css). The blue is
-  the app icon, which is the accent gradient with white on it.
+  The accent gradient (--pds-bg-accent-button: 171deg, #2bb5ff 7%, #006eff 93%) edge to edge,
+  with the Harvous mark (public/harvous-logo.svg) and the name in white Google Sans Flex 600.
 -->
 <html>
 <head>
@@ -17,66 +16,25 @@
     src: url("../../../public/fonts/google-sans-flex/GoogleSansFlex-opsz-wght-ROND.woff2") format("woff2-variations");
     font-weight: 1 1000;
   }
-  :root {
-    --site-paper: #f7f6f3;
-    --site-ink: #1a1916;
-    --site-ink-soft: #5a584f;
-    --site-rule: #e7e4dc;
-    --site-card: #ffffff;
-    --site-highlight: #ffe8a8;
-  }
   html, body { margin: 0; }
   body {
     width: 720px; height: 250px; overflow: hidden;
     display: grid; place-items: center;
-    background: var(--site-paper);
+    background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
+    color: #ffffff;
     font-family: "Google Sans Flex", sans-serif;
   }
-  .stack { position: relative; width: 560px; padding: 0; }
-  .leaf {
-    position: absolute; inset: 0;
-    background: #fcfbf7; border: 0.5px solid var(--site-rule);
-    box-shadow: 0 8px 24px -12px rgba(20, 18, 12, 0.1);
-  }
-  .leaf--back { transform: rotate(1.6deg) translate(4px, -3px); }
-  .leaf--mid { transform: rotate(-1.8deg) translate(-4px, 3px); }
-  .letter {
-    position: relative;
-    display: flex; align-items: center; gap: 24px;
-    height: 162px; box-sizing: border-box; padding: 0 36px;
-    background-color: var(--site-card);
-    background-image:
-      radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
-      radial-gradient(rgba(20, 18, 12, 0.018) 1px, transparent 1px);
-    background-size: 28px 28px, 17px 17px;
-    background-position: 0 0, 9px 9px;
-    border: 0.5px solid var(--site-rule);
-    box-shadow: 0 2px 6px rgba(20, 18, 12, 0.04), 0 20px 50px -20px rgba(20, 18, 12, 0.16);
-  }
-  .icon { width: 84px; height: 84px; border-radius: 20px; flex: none; display: block; }
-  .words { display: grid; gap: 6px; }
-  .name {
-    margin: 0; font-weight: 600; font-size: 40px; line-height: 1.05;
-    letter-spacing: -0.02em; color: var(--site-ink);
-  }
-  .line { margin: 0; font-weight: 500; font-size: 21px; line-height: 1.3; color: var(--site-ink-soft); }
-  .mark {
-    background: linear-gradient(180deg, transparent 55%, var(--site-highlight) 55%);
-    padding: 0 0.08em; border-radius: 2px; color: var(--site-ink);
-  }
+  .row { display: flex; align-items: center; gap: 20px; }
+  .glyph { display: block; width: auto; height: 56px; }
+  .name { font-weight: 600; font-size: 52px; line-height: 1; letter-spacing: -0.025em; }
 </style>
 </head>
 <body>
-  <div class="stack">
-    <div class="leaf leaf--back"></div>
-    <div class="leaf leaf--mid"></div>
-    <div class="letter">
-      <img class="icon" src="../../../public/images/icons/icon-512.png" alt="">
-      <div class="words">
-        <p class="name">Harvous</p>
-        <p class="line">Setting up <span class="mark">your</span> child’s notebook</p>
-      </div>
-    </div>
+  <div class="row">
+    <svg class="glyph" viewBox="0 0 45 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path fill="currentColor" d="M44.8037 63.9941H0.0078125V0H44.8037V63.9941ZM34.5645 31.168C25.6988 34.2637 18.5024 41.2949 15.3711 50.543L14.2842 53.752H34.5645V31.168ZM10.2471 37.8643C15.8921 29.2487 24.5827 23.0353 34.5645 20.4824V10.2393H10.2471V37.8643Z"/>
+    </svg>
+    <span class="name">Harvous</span>
   </div>
 </body>
 </html>
