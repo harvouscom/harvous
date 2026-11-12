@@ -1047,3 +1047,46 @@
 .pds-kids-privacy-footnote { line-height: 1.5; }
 /* In Settings' narrow side column the sentence wraps, so the link takes its own line with room above. */
 .pds-kids-settings-modal .proto-settings__nav > .pds-kids-privacy-footnote { display: flex; flex-direction: column; align-items: flex-start; gap: var(--pds-space-2); }
+
+/* ─── Studio: the notebook lying open on the pages step ───────────────────────────────────
+   The cover colour shows as a rim around two pages; each page carries the chosen paper. */
+.pds-kids-spread {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; width: 232px; height: 148px; padding: 6px;
+  border-radius: 8px; background: var(--kids-cover-ink);
+  box-shadow: 0 10px 22px -10px color-mix(in oklab, var(--kids-cover-ink) 70%, transparent);
+  transform: rotate(-2deg);
+}
+.pds-kids-spread__page {
+  display: block; background-color: var(--pds-bg-page);
+  box-shadow: inset 0 0 0 1px var(--pds-border-soft);
+}
+.pds-kids-spread__page:first-child { border-radius: 4px 1px 1px 4px; box-shadow: inset -10px 0 12px -10px color-mix(in oklab, var(--pds-text-primary) 18%, transparent), inset 0 0 0 1px var(--pds-border-soft); }
+.pds-kids-spread__page:last-child { border-radius: 1px 4px 4px 1px; box-shadow: inset 10px 0 12px -10px color-mix(in oklab, var(--pds-text-primary) 18%, transparent), inset 0 0 0 1px var(--pds-border-soft); }
+.pds-kids-spread__page[data-paper='lined'] {
+  background-image:
+    linear-gradient(90deg, transparent 14px, color-mix(in oklab, var(--pds-thread-pink) 55%, transparent) 14px 15px, transparent 15px),
+    repeating-linear-gradient(to bottom, transparent 0 13px, var(--kids-paper-line) 13px 14px);
+}
+/* A spiral notebook opens on its rings. */
+.pds-kids-spread[data-binding='spiral']::after {
+  content: ''; position: absolute; left: calc(50% - 7px); top: 8px; bottom: 8px; width: 14px;
+  background: radial-gradient(ellipse 46% 28% at 50% 50%, transparent 52%, oklch(0.84 0.005 260) 58% 78%, transparent 84%) 0 0 / 100% 10%;
+}
+.pds-kids-spread[data-binding='stitched']::after {
+  content: ''; position: absolute; left: 50%; top: 10px; bottom: 10px;
+  border-left: 1.5px dashed color-mix(in oklab, var(--kids-cover-ink) 70%, transparent);
+}
+
+/* Stickers: one full row of eight; on a phone, one row you swipe along. */
+.pds-kids-studio__stickers { display: grid; grid-template-columns: repeat(8, auto); justify-content: center; }
+@media (max-width: 560px) {
+  .pds-kids-studio__step .pds-kids-studio__stickers {
+    display: flex; flex-wrap: nowrap; justify-content: flex-start; max-width: 100%;
+    overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none;
+    padding: var(--pds-space-2) var(--pds-space-3) var(--pds-space-3); scroll-padding-inline: var(--pds-space-3);
+    -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+  .pds-kids-studio__step .pds-kids-studio__stickers::-webkit-scrollbar { display: none; }
+  .pds-kids-studio__step .pds-kids-studio__sticker { flex: none; scroll-snap-align: start; }
+}

@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ComponentProps, type ReactElement } from 'react';
 import Icon from '@/components/react/Icon';
-import { ChildNotebookCover, coverBindings, coverColors, coverPatterns, coverSymbols, notebookPapers, useChildNotebookAppearance, type CoverSymbol } from './ChildNotebookAppearance';
+import { ChildNotebookCover, coverBindings, coverColors, coverPatterns, notebookPapers, useChildNotebookAppearance, type CoverSymbol } from './ChildNotebookAppearance';
 import ChildCoverSymbol from './ChildCoverSymbol';
 
 /**
@@ -13,6 +13,15 @@ const patternLabels: Record<typeof coverPatterns[number], string> = { plain: 'Si
 const symbolLabel = (symbol: CoverSymbol) => symbol === 'initial' ? 'My initial' : symbol.replaceAll('-', ' ');
 const bindingLabels: Record<typeof coverBindings[number], string> = { classic: 'Classic', spiral: 'Spiral', stitched: 'Stitched', band: 'Band' };
 const paperLabels: Record<typeof notebookPapers[number], string> = { plain: 'Plain', lined: 'Lined', dotted: 'Dotted', grid: 'Grid' };
+
+/*
+ * What the studio offers. The shared lists stay wider because they're what the server accepts, so a
+ * notebook saved with an older choice (a band, dotted pages, another sticker) still draws and saves.
+ * Eight stickers make one full row, and one row to swipe on a phone.
+ */
+const offeredSymbols = ['initial', 'cross', 'heart', 'star', 'rainbow', 'fish', 'dove', 'crown'] as const satisfies readonly CoverSymbol[];
+const offeredBindings = ['classic', 'spiral', 'stitched'] as const satisfies readonly (typeof coverBindings[number])[];
+const offeredPapers = ['plain', 'lined'] as const satisfies readonly (typeof notebookPapers[number])[];
 // A gentle, fixed tilt per sticker so the sheet looks hand-placed but never shuffles under a finger.
 const stickerTilt = [-6, 4, -3, 7, -5, 3, -7, 5, -2];
 
@@ -21,7 +30,7 @@ const groups: { id: Group; label: string; icon: ComponentProps<typeof Icon>['nam
   { id: 'color', label: 'Color', icon: 'paintbrush', question: 'What color should it be?' },
   { id: 'pattern', label: 'Pattern', icon: 'table-cells', question: 'Plain or patterned?' },
   { id: 'symbol', label: 'Sticker', icon: 'star', question: 'Pick a sticker for the front' },
-  { id: 'binding', label: 'Binding', icon: 'link', question: 'How is it bound?' },
+  { id: 'binding', label: 'Style', icon: 'book', question: 'What kind of notebook is it?' },
   { id: 'paper', label: 'Pages', icon: 'file-lines', question: 'What are the pages like inside?' }
 ];
 
@@ -44,8 +53,8 @@ export default function ChildNotebookCoverStudio() {
     playCue('highlight.created');
     setCoverColor(choose(coverColors, coverColor));
     setCoverPattern(choose(coverPatterns, coverPattern));
-    setCoverSymbol(choose(coverSymbols, coverSymbol));
-    setCoverBinding(choose(coverBindings, coverBinding));
+    setCoverSymbol(choose(offeredSymbols, coverSymbol));
+    setCoverBinding(choose(offeredBindings, coverBinding));
   }
 
   const colorOptions = <div className="pds-kids-studio__colors">
@@ -65,7 +74,7 @@ export default function ChildNotebookCoverStudio() {
   </div>;
 
   const symbolOptions = <div className="pds-kids-studio__stickers">
-    {coverSymbols.map((symbol, index) => <label key={symbol} className="pds-kids-studio__sticker" style={{ '--kids-tilt': `${stickerTilt[index % stickerTilt.length]}deg` } as CSSProperties}>
+    {offeredSymbols.map((symbol, index) => <label key={symbol} className="pds-kids-studio__sticker" style={{ '--kids-tilt': `${stickerTilt[index % stickerTilt.length]}deg` } as CSSProperties}>
       <input type="radio" name="notebook-symbol" aria-label={symbolLabel(symbol)} checked={coverSymbol === symbol} onChange={() => pick(() => setCoverSymbol(symbol))} />
       <span aria-hidden="true">{symbol === 'initial' ? initial : <ChildCoverSymbol symbol={symbol} size={20} />}</span>
     </label>)}
@@ -73,7 +82,7 @@ export default function ChildNotebookCoverStudio() {
 
   // Each binding is shown on a little copy of their own notebook, so the choice is the result.
   const bindingOptions = <div className="pds-kids-studio__bindings">
-    {coverBindings.map(binding => <label key={binding} className="pds-kids-studio__binding">
+    {offeredBindings.map(binding => <label key={binding} className="pds-kids-studio__binding">
       <input type="radio" name="notebook-binding" aria-label={bindingLabels[binding]} checked={coverBinding === binding} onChange={() => pick(() => setCoverBinding(binding))} />
       <span aria-hidden="true"><ChildNotebookCover name={name} preferences={{ ...preferences, coverBinding: binding }} /></span>
       <small>{bindingLabels[binding]}</small>
@@ -81,7 +90,7 @@ export default function ChildNotebookCoverStudio() {
   </div>;
 
   const paperOptions = <div className="pds-kids-studio__papers">
-    {notebookPapers.map((option, index) => <label key={option} className="pds-kids-studio__paper" style={{ '--kids-tilt': `${index % 2 ? 2 : -2}deg` } as CSSProperties}>
+    {offeredPapers.map((option, index) => <label key={option} className="pds-kids-studio__paper" style={{ '--kids-tilt': `${index % 2 ? 2 : -2}deg` } as CSSProperties}>
       <input type="radio" name="notebook-paper" aria-label={paperLabels[option]} checked={paper === option} onChange={() => pick(() => setPaper(option))} />
       <span aria-hidden="true" data-paper={option} />
       <small>{paperLabels[option]}</small>
@@ -92,7 +101,13 @@ export default function ChildNotebookCoverStudio() {
 
   return <div className="pds-kids-studio" style={{ '--kids-cover-color': coverColor.color } as CSSProperties}>
     <div className="pds-kids-studio__stage pds-kids-studio__stage--center">
-      <span key={coverKey} className="pds-kids-studio__book"><ChildNotebookCover name={name} preferences={preferences} large /></span>
+      {groups[step]?.id === 'paper'
+        // On the pages step the notebook lies open, so the choice is the paper you'll write on.
+        ? <span key={`open-${paper}`} className="pds-kids-studio__book pds-kids-spread" data-binding={coverBinding} aria-hidden="true">
+            <span className="pds-kids-spread__page" data-paper={paper} />
+            <span className="pds-kids-spread__page" data-paper={paper} />
+          </span>
+        : <span key={coverKey} className="pds-kids-studio__book"><ChildNotebookCover name={name} preferences={preferences} large /></span>}
     </div>
     {/* The progress is the way around: each step is a stop you can tap, and the one you're on
         opens up to say its name, so you can see where you are and jump to any part. */}
