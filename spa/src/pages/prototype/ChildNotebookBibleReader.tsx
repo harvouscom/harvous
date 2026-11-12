@@ -139,10 +139,10 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
       <div className="pds-kids-bible__toolbar">
         <div className="proto-appearance-segmented pds-kids-bible__modes" role="group" aria-label="Reading space">
           <button type="button" className="proto-appearance-segmented__btn" aria-pressed={!isFamily} data-active={!isFamily ? 'true' : undefined} onClick={() => { if (isFamily) playCue('nav.select'); onModeChange('personal'); }}>
-            <Icon name="book-open" size={14} /> My Bible
+            <Icon name="book-open" size={15} /> My Bible
           </button>
           <button type="button" className="proto-appearance-segmented__btn" aria-pressed={isFamily} data-active={isFamily ? 'true' : undefined} onClick={() => { if (!isFamily) playCue('nav.select'); onModeChange('family'); }}>
-            <Icon name="user-group" size={14} /> Family Bible
+            <Icon name="user-group" size={15} /> Family Bible
           </button>
         </div>
       </div>

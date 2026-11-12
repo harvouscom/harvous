@@ -1,5 +1,5 @@
 import { AppearancePreviewTile } from './settings/AppearancePreviewTile';
-import { ChildNotebookAvatar, ChildNotebookCover, childImageChoices, childImageUrl, coverColors, coverPatterns, coverSymbols, useChildNotebookAppearance } from './ChildNotebookAppearance';
+import { ChildNotebookAvatar, ChildNotebookCover, childImageChoices, childImageUrl, useChildNotebookAppearance } from './ChildNotebookAppearance';
 import { useEffect, useRef, useState, type CSSProperties, type ComponentProps, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import ProtoLoadingDots from './ProtoLoadingDots';
@@ -19,6 +19,7 @@ import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { TypedLine } from './PrototypeFeedComposePrompt';
+import ChildNotebookCoverStudio from './ChildNotebookCoverStudio';
 import type { ChildNotebookPreferences } from '../../../../shared/child-notebook';
 
 const familyBibleBookmark = { book: 'Psalms', chapter: 23 };
@@ -103,7 +104,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   const [parentBusy, setParentBusy] = useState(false);
   const [parentError, setParentError] = useState('');
   const parentDialogRef = useRef<HTMLDialogElement>(null);
-  const { name, preferences, coverColor, setCoverColor, coverSymbol, setCoverSymbol, coverPattern, setCoverPattern, appearance, setAppearance, resolvedScheme, themeStyle, soundPreference, setSoundPreference, playCue } = useChildNotebookAppearance();
+  const { name, preferences, coverColor, coverPattern, appearance, setAppearance, resolvedScheme, themeStyle, soundPreference, setSoundPreference, playCue } = useChildNotebookAppearance();
   const settingsPaneRef = useRef<HTMLElement>(null);
   const privacyDialogRef = useRef<HTMLDialogElement>(null);
   const previousCustomizing = useRef(false);
@@ -435,7 +436,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               { id: 'continue', label: 'Keep going', icon: 'arrow-right' },
               { id: 'remember', label: 'Remember', icon: 'rotate-left' },
               { id: 'ideas', label: 'Ideas', icon: 'wand-magic-sparkles' }
-            ] as const).map(filter => <button key={filter.id} className="proto-appearance-segmented__btn" data-active={homeFilter === filter.id ? 'true' : undefined} aria-pressed={homeFilter === filter.id} aria-controls="kids-home-activities" onClick={() => setHomeFilter(filter.id)}><Icon name={filter.icon} size={12} />{filter.label}</button>)}
+            ] as const).map(filter => <button key={filter.id} className="proto-appearance-segmented__btn" data-active={homeFilter === filter.id ? 'true' : undefined} aria-pressed={homeFilter === filter.id} aria-controls="kids-home-activities" onClick={() => setHomeFilter(filter.id)}><Icon name={filter.icon} size={15} />{filter.label}</button>)}
           </div>
           <div id="kids-home-activities" className="pds-kids-home-activities">
             {(homeFilter === 'all' || homeFilter === 'continue') && <PrototypeHomeSection title="Keep going">
@@ -583,30 +584,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         </div></nav>
         <div className="proto-settings__detail"><section id="notebook-customize" ref={settingsPaneRef} tabIndex={-1} aria-label={settingsPanes.find(pane => pane.id === studioPage)?.title} className="pds-kids-settings-pane" data-studio-page={studioPage}>
           {studioPage === 'settings' ? <div className="pds-kids-inside-settings pds-kids-notebook-settings" data-pattern={coverPattern}>
-            <div className="pds-kids-notebook-settings__preview">
-              <ChildNotebookCover name={name} preferences={preferences} large />
-              <div><h2 className="pds-title">{name}’s notebook</h2><p className="pds-caption">Make it yours. Try a color, pattern, and symbol.</p></div>
-            </div>
-          <div className="pds-kids-preview__customizer">
-            <fieldset><legend>01 · Pick a color <span>{coverColor.label}</span></legend><div className="pds-kids-preview__swatches">
-              {coverColors.map(color => <label key={color.id} className="pds-kids-preview__swatch" style={{ '--kids-swatch': color.color } as CSSProperties}>
-                <input type="radio" name="notebook-color" value={color.id} aria-label={color.label} checked={coverColor.id === color.id} onChange={() => setCoverColor(color)} />
-                <span aria-hidden="true">{coverColor.id === color.id && <Icon name="check" size={13} />}</span>
-              </label>)}
-            </div></fieldset>
-            <fieldset><legend>02 · Add a pattern</legend><div className="pds-kids-patterns">
-              {coverPatterns.map(pattern => <label key={pattern} className="pds-kids-pattern">
-                <input type="radio" name="notebook-pattern" aria-label={pattern} checked={coverPattern === pattern} onChange={() => setCoverPattern(pattern)} />
-                <span aria-hidden="true" data-pattern={pattern} /><span>{pattern === 'plain' ? 'Simple' : pattern === 'dots' ? 'Dots' : pattern === 'stripes' ? 'Stripes' : 'Checks'}</span>
-              </label>)}
-            </div></fieldset>
-            <fieldset><legend>03 · Choose your little symbol</legend><div className="pds-kids-preview__symbols">
-              {coverSymbols.map(symbol => <label key={symbol} className="pds-kids-preview__symbol">
-                <input type="radio" name="notebook-symbol" aria-label={symbol === 'initial' ? 'My initial' : symbol.replaceAll('-', ' ')} checked={coverSymbol === symbol} onChange={() => setCoverSymbol(symbol)} />
-                <span aria-hidden="true">{symbol === 'initial' ? Array.from(name)[0]?.toUpperCase() : <Icon name={symbol} size={17} />}</span>
-              </label>)}
-            </div></fieldset>
-          </div>
+            <ChildNotebookCoverStudio showVariantSwitch={preview} />
             <div className="proto-settings__content"><SettingsGroup>
               <SettingsRow label="Who can see my notebook?" leadingIcon="user-shield" onClick={() => setPrivacy(true)} />
               <SettingsRow label="Export my notebook" sublabel="Ask a parent to download a copy" leadingIcon="download" onClick={() => { setParentError(''); playCue('nav.open'); setParentGate('export'); }} />
