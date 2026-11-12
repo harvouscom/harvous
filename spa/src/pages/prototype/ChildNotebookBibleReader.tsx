@@ -307,9 +307,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                           {markers.map(option => <button key={option.id} type="button" className="pds-kids-marker"
                             style={{ '--kids-marker': option.token } as CSSProperties}
                             aria-label={ownColor === option.id ? `Remove ${option.label} highlight` : `Highlight ${option.label}`}
-                            aria-pressed={ownColor === option.id} onClick={() => paintHighlight(verse.number, option.id)}>
-                            {ownColor === option.id && <Icon name="check" size={11} aria-hidden />}
-                          </button>)}
+                            aria-pressed={ownColor === option.id} onClick={() => paintHighlight(verse.number, option.id)} />)}
                           {ownHighlight && <button type="button" className="pds-kids-marker pds-kids-marker--clear" aria-label="Remove highlight" onClick={() => clearHighlight(verse.number)}>
                             <Icon name="xmark" size={11} aria-hidden />
                           </button>}

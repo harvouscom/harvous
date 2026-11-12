@@ -1021,15 +1021,16 @@
 /* ─── Highlighter set in the Bible reader: five marker caps, the same one again takes it off ── */
 .pds-kids-markers { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pds-space-2); color: var(--pds-text-secondary); }
 .pds-kids-marker {
-  appearance: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
-  border: 3px solid var(--pds-bg-page); border-radius: 50%; background: var(--kids-marker);
-  box-shadow: 0 0 0 1px var(--pds-border); color: var(--pds-text-primary); cursor: pointer;
-  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+  appearance: none; display: grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: 50%; background: var(--kids-marker); color: var(--pds-text-primary); cursor: pointer;
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard), box-shadow var(--pds-duration-press) var(--pds-ease-standard);
 }
-.pds-kids-marker[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--pds-text-primary); transform: scale(1.08); }
+/* Chosen: one ring in the marker's own colour, set off by a sliver of page. No check mark, so
+   nothing has to be inked light or dark per colour; the verse itself shows the highlight too. */
+.pds-kids-marker[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--pds-bg-page), 0 0 0 4px var(--kids-marker); }
 .pds-kids-marker--clear { background: var(--pds-bg-control); }
 @media (hover: hover) and (pointer: fine) { .pds-kids-marker:hover { transform: translateY(-1px); } }
-.pds-kids-marker:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
+.pds-kids-marker:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 5px; }
 .pds-kids-marker, .pds-kids-marker * { color: var(--pds-text-primary) !important; }
 /* The little notebooks in the binding choices, drawn big enough to see the rings and stitches. */
 .pds-kids-studio__binding .pds-kids-book { transform: scale(1.45); }
