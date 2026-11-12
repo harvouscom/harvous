@@ -26,6 +26,7 @@ import '@/styles/scripture-pill-chrome.css';
 import '@/styles/study-highlight-accent-colors.css';
 import '../../styles/family.css';
 import '../../styles/child-notebook-preview.css';
+import '../../styles/kids-entry.css';
 
 export type Notebook = {
   parentSignInUrl?: string; displayName: string; notes: ChildNote[]; materials: ChildMaterial[];

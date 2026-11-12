@@ -1,0 +1,16 @@
+/*
+ * The child notebook's own page-wide resets. The kids bundle (kids.html) doesn't load the adult
+ * app's src/styles/global.css, so anything adult gets from it page-wide has to be stated here.
+ *
+ * Scrollbars: hidden everywhere, exactly as global.css does for adult. Scrolling by wheel,
+ * trackpad, touch and keys still works; on a Mac set to always show scrollbars, the paper and
+ * Settings otherwise drew a grey bar that adult never shows.
+ */
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
