@@ -1,10 +1,10 @@
 /**
- * Who can see this, with the policy link folded into the same quiet line — the one way the child
- * notebook links its privacy policy. COPPA (16 CFR 312.4(d)) wants a clearly labelled link on the
- * landing screen and next to each place a child enters information, so it appears on Home, the
- * signed-out page, the note editor and the Family Bible reply box, plus once in "Who can see my
- * notebook?". Search (queries aren't stored) and Settings (cover and look choices) don't collect
- * personal information, so they carry none. Placement is for counsel to confirm before launch.
+ * One short line about this screen, with the policy link folded in — the one way the child notebook
+ * links its privacy policy. COPPA (16 CFR 312.4(d)) wants a clearly labelled link on the landing
+ * screen and next to each place a child's information is sent, and the publication checklist names
+ * the note, search, Family Bible thought and settings controls. So it appears on Home, the
+ * signed-out page, the note editor, the Family Bible reply box, search and Settings, plus once in
+ * "Who can see my notebook?". Placement is for counsel to confirm before launch.
  */
 export function ChildPrivacyFootnote({ url, children }: { url?: string; children: string }) {
   return <p className="pds-caption pds-kids-privacy-footnote">

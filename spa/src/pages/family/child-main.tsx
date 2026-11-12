@@ -129,7 +129,7 @@ function SessionNotebook({ notebook, privacyUrl, request, onEnd, onRefresh, revi
           </div>;
         }} />}
       renderAttachment={props => <ChildNoteAttachmentPicker {...props} translations={notebook.translations} useChapter={useChildChapter} />}
-      renderSearch={({ onClose, onOpenNote, onOpenBible, onOpenResource }) => <ChildNotebookSearchPanel search={search} onClose={onClose}
+      renderSearch={({ onClose, onOpenNote, onOpenBible, onOpenResource }) => <ChildNotebookSearchPanel search={search} onClose={onClose} privacyUrl={privacyUrl}
         onOpen={async item => {
           if (item.kind === 'note') return onOpenNote(viewNote((await request<{ note: ChildNote }>(`notes/${encodeURIComponent(item.id)}`)).note));
           if (item.kind === 'reading') return onOpenBible(item.id);

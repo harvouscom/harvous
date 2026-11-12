@@ -581,7 +581,8 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       <div className="proto-settings-modal__body"><div className="proto-settings">
         <nav className="proto-settings__nav" aria-label="Settings categories"><div className="proto-settings__nav-list">
           {settingsPanes.map(pane => <button key={pane.id} className="proto-settings__nav-item" data-active={studioPage === pane.id ? 'true' : 'false'} aria-current={studioPage === pane.id ? 'page' : undefined} onClick={() => { if (studioPage !== pane.id) playCue('nav.select'); setStudioPage(pane.id); }}><span className="proto-settings__nav-icon" aria-hidden="true"><Icon name={pane.icon} size={15} /></span><span className="proto-settings__nav-title">{pane.title}</span></button>)}
-        </div></nav>
+        </div>
+        <ChildPrivacyFootnote url={privacyUrl}>Your choices are saved to your notebook.</ChildPrivacyFootnote></nav>
         <div className="proto-settings__detail"><section id="notebook-customize" ref={settingsPaneRef} tabIndex={-1} aria-label={settingsPanes.find(pane => pane.id === studioPage)?.title} className="pds-kids-settings-pane" data-studio-page={studioPage}>
           {studioPage === 'settings' ? <div className="pds-kids-inside-settings pds-kids-notebook-settings" data-pattern={coverPattern}>
             <ChildNotebookCoverStudio />

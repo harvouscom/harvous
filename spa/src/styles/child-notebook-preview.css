@@ -1039,3 +1039,8 @@
 }
 .pds-kids-bible__empty-art * { color: inherit !important; }
 .pds-kids-bible__empty .proto-editor-empty-state__leading { display: flex; justify-content: center; width: 100%; }
+/* The privacy line in search sits under the results; in Settings, at the foot of the category list. */
+.pds-kids-search > .pds-kids-privacy-footnote { padding-block-start: var(--pds-space-3); border-block-start: 1px solid var(--pds-border-soft); }
+.pds-kids-settings-modal .proto-settings__nav { display: flex; flex-direction: column; }
+.pds-kids-settings-modal .proto-settings__nav > .pds-kids-privacy-footnote { margin-block-start: auto; padding: var(--pds-space-3); }
+.pds-kids-privacy-footnote .pds-kids-policy-link { white-space: nowrap; }

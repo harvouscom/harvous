@@ -7,12 +7,14 @@ import ProtoSpaceLoading from '../prototype/ProtoSpaceLoading';
 import PrototypeHomeRow from '../prototype/PrototypeHomeRow';
 import Icon from '@/components/react/Icon';
 import type { ChildSearchResult, ChildSearchScope } from './types';
+import { ChildPrivacyFootnote } from './ChildPrivacyNotice';
 
 type Search = (query: string, scope: ChildSearchScope, offset: number) => Promise<{ results: ChildSearchResult[]; total: number }>;
 const scopes = [['all', 'All'], ['notebook', 'My notebook'], ['family', 'Family Space']] as const;
 const icons = { note: 'note-sticky', reading: 'book-open', material: 'file-lines' } as const;
 
-export default function ChildNotebookSearchPanel({ search, onOpen, onClose }: {
+export default function ChildNotebookSearchPanel({ search, onOpen, onClose, privacyUrl }: {
+  privacyUrl?: string;
   search: Search; onOpen: (item: ChildSearchResult) => Promise<boolean>; onClose: () => void;
 }) {
   const { themeStyle } = useChildNotebookAppearance();
@@ -79,5 +81,6 @@ export default function ChildNotebookSearchPanel({ search, onOpen, onClose }: {
       {items.length < total && <button type="button" className="proto-settings-btn proto-settings-btn--secondary pds-kids-search__more" disabled={pending}
         onClick={() => setOffset(items.length)}>More results</button>}
     </div>
+    <ChildPrivacyFootnote url={privacyUrl}>Search only looks in your notebook and family readings.</ChildPrivacyFootnote>
   </dialog>, document.body);
 }
