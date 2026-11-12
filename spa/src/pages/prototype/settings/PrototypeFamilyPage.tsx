@@ -277,7 +277,7 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
         <div className="proto-lock-pin-settings__body">
           <div className="proto-lock-pin-settings__hero">
             <span className="proto-lock-pin-settings__glyph" aria-hidden>
-              <Icon name="user-group" size={22} />
+              <Icon name="people-roof" size={22} />
             </span>
             <span className="proto-lock-pin-settings__hero-text">
               <span className="proto-lock-pin-settings__status">Start a family</span>
@@ -833,7 +833,7 @@ export function FamilyView({ data }: { data: InFamily }) {
         <SettingsRow
           label={family.name}
           sublabel={isParent ? 'Rename' : undefined}
-          leadingIcon="user-group"
+          leadingIcon="people-roof"
           trailing={isParent ? 'chevron' : 'none'}
           onClick={isParent ? () => setView({ kind: 'rename' }) : undefined}
         />
