@@ -410,11 +410,6 @@
 .pds-kids-settings-modal .pds-kids-inside-settings { animation: none; }
 .pds-kids-settings-modal :is(button, input):focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 3px; }
 @media (max-width: 600px) {
-  .pds-kids-settings-modal .proto-settings { display: flex; flex-direction: column; }
-  .pds-kids-settings-modal .proto-settings__nav { width: 100%; padding: var(--pds-space-2); border-right: 0; border-bottom: 1px solid var(--pds-border-soft); }
-  .pds-kids-settings-modal .proto-settings__nav-list { display: flex; overflow-x: auto; }
-  .pds-kids-settings-modal .proto-settings__nav-item { flex: 1; white-space: nowrap; justify-content: center; gap: var(--pds-space-1); padding-inline: var(--pds-space-2); }
-  .pds-kids-settings-modal .proto-settings__detail { flex: 1; }
   .pds-kids-settings-modal .pds-kids-inside-settings { padding: var(--pds-space-4); }
   .pds-kids-settings-pane[data-studio-page='cover'] { padding: var(--pds-space-3); }
 }
@@ -1107,3 +1102,55 @@
 .pds-kids-studio__scroll-btn[data-side='end'] svg { rotate: -90deg; }
 .pds-kids-studio__scroll-btn:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .pds-kids-studio__scroll-btn:hover { background: var(--pds-bg-subtle); } }
+
+/* ─── Child Settings as a bottom sheet, like adult Settings below 899px ───────────────────
+   Same geometry as the shared drawer shell (frame inset, frame radius, shadow, room above the
+   home indicator) and the same header: back caret · title · close. It opens on the category
+   list; picking one shows that category alone. */
+.pds-kids-settings-modal[data-sheet] {
+  inset: auto calc(var(--pds-shell-frame-inset, 8px) + env(safe-area-inset-right, 0px)) calc(var(--pds-shell-frame-inset, 8px) + env(safe-area-inset-bottom, 0px)) calc(var(--pds-shell-frame-inset, 8px) + env(safe-area-inset-left, 0px));
+  margin: 0; width: auto; max-width: none;
+  height: auto; min-height: min(60dvh, 520px);
+  max-height: min(92dvh, 820px, calc(100dvh - 2 * var(--pds-shell-frame-inset, 8px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px));
+  border-radius: var(--pds-shell-frame-radius, 24px);
+  box-shadow: var(--pds-shadow-shell, none), 0 22px 48px -18px rgba(20, 18, 12, 0.35);
+}
+.pds-kids-settings-modal[data-sheet][open] { animation: pds-kids-sheet-up 320ms var(--pds-ease-emphasized, ease-out); }
+@keyframes pds-kids-sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.pds-kids-settings-modal[data-sheet][data-reduce-motion][open] { animation: none; }
+@media (prefers-reduced-motion: reduce) { .pds-kids-settings-modal[data-sheet][open] { animation: none; } }
+
+.pds-kids-settings-modal[data-sheet] .proto-settings-modal__header {
+  display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; gap: 8px;
+  padding: 12px 12px 10px; border-bottom: 0.5px solid var(--pds-border);
+}
+.pds-kids-sheet__header-left { display: flex; align-items: center; }
+.pds-kids-settings-modal[data-sheet] .proto-settings-modal__title {
+  margin: 0; font: 500 1.05rem/1.25 var(--pds-font-display); text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pds-kids-settings-modal[data-sheet] .proto-settings-modal__close { justify-self: end; }
+.pds-kids-settings-modal[data-sheet] .proto-settings { display: flex; flex-direction: column; height: 100%; }
+
+/* The list: categories as full-width rows with a chevron, the privacy line at the foot. */
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__detail { display: none; }
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav { box-sizing: border-box; width: 100%; flex: 1; padding: var(--pds-space-3); border: 0; }
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav-list {
+  display: flex; flex-direction: column; flex: none; gap: 0; overflow: hidden;
+  border: 0.5px solid var(--pds-border-on-paper, var(--pds-border)); border-radius: var(--pds-radius-menu, 14px);
+}
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav-item {
+  flex: none; width: 100%; min-height: 56px; margin: 0; padding: 0 var(--pds-space-4) 0 var(--pds-space-3);
+  gap: var(--pds-space-3); border-radius: 0; font-size: 16px; background: transparent;
+}
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav-item + .proto-settings__nav-item { border-top: 0.5px solid var(--pds-border-control-soft, var(--pds-border-soft)); }
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav-item[data-active='true'] { background: transparent; }
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav-icon {
+  display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--pds-radius-menu-item, 8px); background: var(--pds-bg-control);
+}
+.pds-kids-sheet__chevron { margin-inline-start: auto; color: var(--pds-text-tertiary, var(--pds-text-secondary)); }
+.pds-kids-settings-modal[data-sheet='list'] .proto-settings__nav > .pds-kids-privacy-footnote { padding: var(--pds-space-3); }
+
+/* One category: the list steps aside and the pane gets the whole sheet. */
+.pds-kids-settings-modal[data-sheet='pane'] .proto-settings__nav { display: none; }
+.pds-kids-settings-modal[data-sheet='pane'] .proto-settings__detail { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }

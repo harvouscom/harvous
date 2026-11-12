@@ -111,6 +111,16 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
   const [customizing, setCustomizing] = useState(false);
   const [studioPage, setStudioPage] = useState<'settings' | 'appearance' | 'feedback'>('settings');
+  // Below the adult shell's breakpoint, Settings is a bottom sheet like the adult one: it opens on
+  // the list of categories, and picking one slides into it with a back caret in the header.
+  const [narrowSettings, setNarrowSettings] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 899px)').matches);
+  const [sheetPaneOpen, setSheetPaneOpen] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 899px)');
+    const update = () => setNarrowSettings(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const settingsPanes = [
     { id: 'settings', title: 'My notebook', icon: 'book-open' },
     { id: 'appearance', title: 'Appearance', icon: 'sun' },
@@ -177,7 +187,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
     if (!privacy && dialog?.open) dialog.close();
   }, [privacy]);
   useEffect(() => {
-    if (customizing) { if (!settingsDialogRef.current?.open) settingsDialogRef.current?.showModal(); settingsPaneRef.current?.focus({ preventScroll: true }); }
+    if (customizing) { if (!settingsDialogRef.current?.open) { setSheetPaneOpen(false); settingsDialogRef.current?.showModal(); } settingsPaneRef.current?.focus({ preventScroll: true }); }
     else if (settingsDialogRef.current?.open) settingsDialogRef.current.close();
     if (!customizing && previousCustomizing.current) document.getElementById('child-notebook-mode-trigger')?.focus({ preventScroll: true });
     previousCustomizing.current = customizing;
@@ -575,12 +585,16 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       }
     })}
 
-    {createPortal(<dialog ref={settingsDialogRef} className="proto-settings-modal pds-kids-settings-modal proto-theme" data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby="kids-settings-title" style={themeStyle} onCancel={event => { event.preventDefault(); void closeSettings(); }} onClose={() => setCustomizing(false)}>
-      <header className="proto-settings-modal__header"><h2 id="kids-settings-title" className="proto-settings-modal__title">Settings</h2><button className="proto-toolbar-icon-btn proto-settings-modal__close" aria-label="Close settings" disabled={saving} onClick={() => void closeSettings()}>{saving ? <ProtoLoadingDots /> : <Icon name="xmark" size={18} />}</button></header>
+    {createPortal(<dialog ref={settingsDialogRef} className="proto-settings-modal pds-kids-settings-modal proto-theme" data-sheet={narrowSettings ? (sheetPaneOpen ? 'pane' : 'list') : undefined} data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby="kids-settings-title" style={themeStyle} onCancel={event => { event.preventDefault(); void closeSettings(); }} onClose={() => setCustomizing(false)}>
+      <header className="proto-settings-modal__header">
+        {narrowSettings && <span className="pds-kids-sheet__header-left">{sheetPaneOpen && <button type="button" className="proto-toolbar-icon-btn" aria-label="Back to settings" onClick={() => { playCue('nav.back'); setSheetPaneOpen(false); }}><Icon name="caret-left" size={20} /></button>}</span>}
+        <h2 id="kids-settings-title" className="proto-settings-modal__title">{narrowSettings && sheetPaneOpen ? settingsPanes.find(pane => pane.id === studioPage)?.title : 'Settings'}</h2>
+        <button className="proto-toolbar-icon-btn proto-settings-modal__close" aria-label="Close settings" disabled={saving} onClick={() => void closeSettings()}>{saving ? <ProtoLoadingDots /> : <Icon name="xmark" size={18} />}</button>
+      </header>
       {customizing && saveError && <p className="pds-caption pds-kids-status" role="alert">{saveError}</p>}
       <div className="proto-settings-modal__body"><div className="proto-settings">
         <nav className="proto-settings__nav" aria-label="Settings categories"><div className="proto-settings__nav-list">
-          {settingsPanes.map(pane => <button key={pane.id} className="proto-settings__nav-item" data-active={studioPage === pane.id ? 'true' : 'false'} aria-current={studioPage === pane.id ? 'page' : undefined} onClick={() => { if (studioPage !== pane.id) playCue('nav.select'); setStudioPage(pane.id); }}><span className="proto-settings__nav-icon" aria-hidden="true"><Icon name={pane.icon} size={15} /></span><span className="proto-settings__nav-title">{pane.title}</span></button>)}
+          {settingsPanes.map(pane => <button key={pane.id} className="proto-settings__nav-item" data-active={studioPage === pane.id ? 'true' : 'false'} aria-current={studioPage === pane.id ? 'page' : undefined} onClick={() => { if (studioPage !== pane.id || narrowSettings) playCue('nav.select'); setStudioPage(pane.id); if (narrowSettings) setSheetPaneOpen(true); }}><span className="proto-settings__nav-icon" aria-hidden="true"><Icon name={pane.icon} size={15} /></span><span className="proto-settings__nav-title">{pane.title}</span>{narrowSettings && <Icon name="caret-right" size={12} className="pds-kids-sheet__chevron" aria-hidden />}</button>)}
         </div>
         <ChildPrivacyFootnote url={privacyUrl}>Your choices are saved to your notebook.</ChildPrivacyFootnote></nav>
         <div className="proto-settings__detail"><section id="notebook-customize" ref={settingsPaneRef} tabIndex={-1} aria-label={settingsPanes.find(pane => pane.id === studioPage)?.title} className="pds-kids-settings-pane" data-studio-page={studioPage}>
