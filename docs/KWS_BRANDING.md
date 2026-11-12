@@ -61,7 +61,10 @@ parent lands, the Child notebooks page may still say pending until they press "C
 verification status".
 
 To change the banner, edit `docs/brand/kws/banner.html` and run `node docs/brand/kws/render.mjs`.
-That needs Playwright from the repo's `node_modules`. The script always writes exactly 720 × 250.
+That needs Playwright from the repo's `node_modules`. It writes two sizes: 720 × 250, as the
+Branding docs specify, and `kws-banner-1280x720.png`, because the portal has rejected an upload
+with "The file resolution should be at least 1280 x 720 px". If the Branding page refuses one
+size, upload the other.
 
 ## Test and production
 
@@ -90,7 +93,8 @@ These need the Epic account. Nothing here has been changed by an agent.
    - Product brand name: `Harvous`
    - Product Privacy Policy: the environment's `HARVOUS_CHILD_PRIVACY_URL`
    - Support / FAQ URL: `https://harvous.com/support/`
-   - Banner image: upload `docs/brand/kws/kws-banner-720x250.png`
+   - Banner image: upload `docs/brand/kws/kws-banner-720x250.png` (or `kws-banner-1280x720.png` if
+     the page asks for at least 1280 × 720)
    - App icon: upload `public/images/icons/icon-512.png`
    - Accent color: `#3869E6`
 4. Check the live email preview on the right: the banner sits at the top, and the button is blue
