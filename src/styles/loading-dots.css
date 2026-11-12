@@ -12,8 +12,9 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background-color: var(--color-stone-grey, var(--pds-text-secondary));
-  /* Falls back for pages that load this sheet without prototype-tokens.css on :root. */
+  /* The dots take the text colour around them: grey on their own (the container's colour above),
+     white on a primary button, ink on a secondary one. A fixed grey drew grey dots on blue. */
+  background-color: currentColor;
   animation: load-more-pulse 1.5s var(--pds-ease-standard, cubic-bezier(0.32, 0.72, 0.24, 1)) infinite;
 }
 
