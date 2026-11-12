@@ -133,7 +133,7 @@ export default function PrototypeChildAccountsPage() {
           </span>
           <div>
             <h2 id="child-enrollment-title" className="pds-title">A notebook for your child</h2>
-            <p className="pds-subheadline">Their own place to write down what they read and wonder about, with you beside them. It stays between the two of you.</p>
+            <p className="pds-subheadline">Their own private place to write about what they read and wonder.</p>
           </div>
         </header>
         <ol className="pds-family-setup__steps" aria-label="Notebook setup">
