@@ -1030,3 +1030,12 @@
 /* The little notebooks in the binding choices, drawn big enough to see the rings and stitches. */
 .pds-kids-studio__binding .pds-kids-book { transform: scale(1.45); }
 .pds-kids-privacy-modal > .pds-kids-privacy-footnote { text-align: center; margin-block: var(--pds-space-1) var(--pds-space-2); }
+/* Family Bible with nothing shared yet: a centred, friendly state in the paper, tinted by the cover. */
+.pds-kids-bible__empty { padding-block: var(--pds-space-10, 40px) var(--pds-space-8, 32px); }
+.pds-kids-bible__empty-art {
+  display: grid; place-items: center; width: 56px; height: 56px; border-radius: 18px;
+  background: color-mix(in oklab, var(--kids-cover-color) 22%, var(--pds-bg-page));
+  color: var(--kids-cover-ink);
+}
+.pds-kids-bible__empty-art * { color: inherit !important; }
+.pds-kids-bible__empty .proto-editor-empty-state__leading { display: flex; justify-content: center; width: 100%; }

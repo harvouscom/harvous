@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import Icon from '@/components/react/Icon';
 import { getTranslation } from '@/data/translations';
 import { canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
@@ -225,7 +226,11 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
       }}>
         {!liveEmpty && (!live || !isFamily) && renderEdge(book, chapter, translation, 'behind', onNavigate)}
         <article className="pds-reader__column" aria-label={chapterTitle}>
-          {liveEmpty ? <p className="pds-caption">Chapters your parent shares will show up here.</p> : <>
+          {liveEmpty ? <PrototypePaneEmptyState className="pds-kids-bible__empty"
+            leading={<span className="pds-kids-bible__empty-art" aria-hidden="true"><Icon name="user-group" size={22} /></span>}
+            title="Nothing shared yet"
+            description="When your parent shares a chapter, you’ll read it here together and can talk about any verse."
+            action={{ label: 'Read in My Bible', onClick: () => { playCue('nav.select'); onModeChange('personal'); } }} /> : <>
           <div className={`pds-reader__chapter-heading${isFamily ? ' pds-family-reader__heading' : ''}`}>
             <div className="pds-family-reader__title-stack">
             {familyReading && <p className="pds-family-reader__shared-label pds-caption"><Icon name="user-group" size={11} aria-hidden /> Shared by your parent</p>}
