@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Icon from '@/components/react/Icon';
 import ProtoLoadingDots from './ProtoLoadingDots';
+import type { SoundMoment } from '@/utils/sounds';
 import { ChoiceOptions } from './review-exercises/ChoiceOptions';
 import { OrderSlots, OrderTray } from './review-exercises/OrderPieces';
 import type { ReviewItemView, ReviewRevealResponse } from '../../hooks/queries/useReview';
@@ -18,7 +19,7 @@ import '../../styles/review-exercises.css';
 export type LookBackSitting = { items: ReviewItemView[]; reveals: Record<string, ReviewRevealResponse>; nextDueAt?: string };
 export type LookBackReply = {
   correct?: boolean; finalized: boolean; attemptsLeft?: number; correctAnswer?: string;
-  truth?: { verseText: string }; next?: { label: string }; hint?: string; outcome?: string;
+  truth?: { verseText: string }; next?: { label: string; recallState?: string }; hint?: string; outcome?: string;
 };
 export type LookBackApi = {
   reveal: (id: string) => Promise<ReviewRevealResponse>;
@@ -26,6 +27,8 @@ export type LookBackApi = {
 };
 
 type Verdict = 'recalled' | 'almost' | 'revealed';
+/** Adult Review's sounds, by the verdict the card is about to say. Never a buzzer. */
+const VERDICT_SOUND: Record<Verdict, SoundMoment> = { recalled: 'review.right', almost: 'review.almost', revealed: 'review.miss' };
 const verdicts: { id: Verdict; label: string; icon: 'star' | 'circle-check' | 'rotate-left' }[] = [
   { id: 'recalled', label: 'I knew it', icon: 'star' },
   { id: 'almost', label: 'Almost', icon: 'circle-check' },
@@ -46,7 +49,8 @@ export default function ChildLookBackDock({ sitting, api, onClose, onOpenNote, p
   api: LookBackApi;
   onClose: () => void;
   onOpenNote: (noteId: string) => void;
-  playCue: (moment: 'nav.select' | 'nav.toggle' | 'highlight.created' | 'organize.filed' | 'nav.back') => void;
+  /** The child's own sound setting decides whether these play (see ChildNotebookAppearance). */
+  playCue: (moment: SoundMoment) => void;
 }) {
   const [index, setIndex] = useState(0);
   const [attempt, setAttempt] = useState(1);
@@ -67,7 +71,8 @@ export default function ChildLookBackDock({ sitting, api, onClose, onOpenNote, p
   const order = reveal?.sequence?.phrases?.length ? reveal.sequence.phrases : null;
 
   function next() {
-    playCue('nav.select');
+    // The end of a sitting is heard on the tap that reaches it, as in adult Review.
+    playCue(index + 1 >= items.length ? 'review.sittingDone' : 'nav.select');
     setIndex(index + 1); setAttempt(1); setMissed([]); setPending(null); setPlaced([]);
     setShown(false); setLookedUp(null); setResult(null); setHint(null); setError('');
   }
@@ -78,10 +83,13 @@ export default function ChildLookBackDock({ sitting, api, onClose, onOpenNote, p
     try {
       const reply = await api.answer(item.id, { attemptNumber: attempt, ...body, answer: body.answer ? { ...(body.answer as object), promptKey: item.promptKey } : undefined });
       if (!reply.finalized) {
-        playCue('nav.toggle');
+        playCue('review.tryAgain');
         setAttempt(attempt + 1); setHint(reply.hint ?? null); onMiss?.();
       } else {
-        playCue(reply.correct === false || reply.outcome === 'revealed' ? 'nav.toggle' : 'highlight.created');
+        // As adult Review: the answer that moves an item into holding gets the fuller chord instead.
+        const verdict = (reply.outcome ?? (reply.correct === false ? 'revealed' : 'recalled')) as Verdict;
+        const crossedToDurable = item.recallState !== 'durable' && reply.next?.recallState === 'durable';
+        playCue(crossedToDurable ? 'review.holding' : VERDICT_SOUND[verdict] ?? 'review.almost');
         setResult(reply);
       }
     } catch {
