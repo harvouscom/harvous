@@ -256,6 +256,24 @@ route.post(`${base}/children/:id/handoff`, requireAuth, async (c) => {
   return c.json({ token: secret, expiresInSeconds: HANDOFF_TTL_MS / 1000 });
 });
 
+// Renewing consent after the notice changes. A notebook agreed under an older notice is paused
+// (hasActiveChildConsent); this records the parent's agreement to the current one and resumes it.
+// Same confirmations as creation. Only for active notebooks: a withdrawal or revocation never
+// reactivates here. Already on the current notice is a no-op, so a double submit is harmless.
+const renewalInput = z.object({ noticeVersion: z.literal(CHILD_NOTICE_VERSION), isGuardian: z.literal(true), consent: z.literal(true) }).strict();
+route.post(`${base}/children/:id/consent`, requireAuth, async (c) => {
+  requireFamilyEnrollment(parentId(c));
+  renewalInput.parse(await c.req.json());
+  return c.json(await db.transaction(async (tx) => {
+    const child = await ownedChild(tx, parentId(c), requireParam(c, 'id'));
+    if (child.status !== 'active') throw new HTTPException(409, { message: 'Consent was withdrawn for this notebook. It can’t be resumed here.' });
+    if (child.noticeVersion === CHILD_NOTICE_VERSION) return { noticeVersion: child.noticeVersion, consentedAt: child.consentedAt };
+    const consentedAt = new Date();
+    await tx.update(FamilyChildren).set({ noticeVersion: CHILD_NOTICE_VERSION, consentedAt }).where(eq(FamilyChildren.id, child.id));
+    return { noticeVersion: CHILD_NOTICE_VERSION, consentedAt };
+  }));
+});
+
 route.delete(`${base}/children/:id/sessions`, requireAuth, async (c) => {
   await db.transaction(async (tx) => {
     const child = await ownedChild(tx, parentId(c), requireParam(c, 'id'));

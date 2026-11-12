@@ -71,6 +71,47 @@ describe('family route boundaries', () => {
     const response = await app.request('/api/child-accounts/children/child-a/name', { method: 'PUT', body: JSON.stringify({ displayName: 'Ellie' }) });
     expect(response.status).toBe(401); expect(database.transaction).not.toHaveBeenCalled();
   });
+  describe('renewing consent after the notice changes', () => {
+    const renew = (body: unknown) => app.request('/api/child-accounts/children/child-a/consent', { method: 'POST',
+      headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const current = { noticeVersion: CHILD_NOTICE_VERSION, isGuardian: true, consent: true };
+    function owned(child: Record<string, unknown>) {
+      const set = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
+      const select = vi.fn(() => ({ from: () => ({ where: () => ({ for: vi.fn().mockResolvedValue([{ id: 'child-a', ...child }]) }) }) }));
+      database.transaction.mockImplementationOnce(work => work({ select, update: vi.fn(() => ({ set })) }));
+      return set;
+    }
+    beforeEach(() => { vi.stubEnv('HARVOUS_CHILD_ACCOUNTS_ENABLED', 'true'); vi.stubEnv('HARVOUS_CHILD_RETENTION_READY', 'true'); });
+    it('records the current notice and a new consent date for a paused, active notebook', async () => {
+      const set = owned({ status: 'active', noticeVersion: '2026-11-10.1', consentedAt: new Date('2026-11-10') });
+      const response = await renew(current);
+      expect(response.status).toBe(200);
+      expect(set).toHaveBeenCalledWith({ noticeVersion: CHILD_NOTICE_VERSION, consentedAt: expect.any(Date) });
+    });
+    it('is a no-op when the notebook is already on the current notice', async () => {
+      const set = owned({ status: 'active', noticeVersion: CHILD_NOTICE_VERSION, consentedAt: new Date('2026-11-11') });
+      expect((await renew(current)).status).toBe(200);
+      expect(set).not.toHaveBeenCalled();
+    });
+    it('never resumes a notebook whose consent was withdrawn', async () => {
+      const set = owned({ status: 'revoked', noticeVersion: '2026-11-10.1', consentedAt: new Date('2026-11-10') });
+      expect((await renew(current)).status).toBe(409);
+      expect(set).not.toHaveBeenCalled();
+    });
+    it.each([
+      { ...current, noticeVersion: '2026-11-10.1' },
+      { ...current, consent: false },
+      { noticeVersion: CHILD_NOTICE_VERSION, consent: true }
+    ])('rejects %j before touching the database', async (body) => {
+      expect((await renew(body)).status).toBe(400);
+      expect(database.transaction).not.toHaveBeenCalled();
+    });
+    it('is closed while enrollment is off', async () => {
+      vi.stubEnv('HARVOUS_CHILD_ACCOUNTS_ENABLED', 'false');
+      expect((await renew(current)).status).toBe(503);
+      expect(database.transaction).not.toHaveBeenCalled();
+    });
+  });
   it('does not accept child details while enrollment is disabled', async () => {
     const response = await app.request('/api/child-accounts/children', { method: 'POST', headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' }, body: '{}' });
     expect(response.status).toBe(503); expect(database.transaction).not.toHaveBeenCalled();

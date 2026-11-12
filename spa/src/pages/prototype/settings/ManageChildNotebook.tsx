@@ -13,6 +13,8 @@ import type { ChildDetail } from '../../family/types';
 import { ChildNotebookCover } from '../ChildNotebookAppearance';
 import ProtoLoadingDots from '../ProtoLoadingDots';
 import ProtoConfirmDialog from '../ProtoConfirmDialog';
+import ChildPrivacyNotice from '../../family/ChildPrivacyNotice';
+import { CHILD_NOTICE_VERSION } from '../../../../../shared/child-notebook';
 import { SettingsCopyRow, SettingsGroup, SettingsIntro, SettingsRow, SettingsShell, SettingsSubScreen, SettingsToggleRow } from './SettingsShell';
 import '../../../styles/child-notebook-preview.css';
 
@@ -50,8 +52,11 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
   const screenRef = useRef<HTMLDivElement>(null);
   const endpoint = `/api/child-accounts/children/${encodeURIComponent(child.id)}`;
   const active = child.status === 'active';
+  // Agreed under an older privacy notice: paused until the parent reviews and agrees again.
+  const needsRenewal = active && child.noticeVersion !== CHILD_NOTICE_VERSION;
+  const [renewAccepted, setRenewAccepted] = useState(false);
   const disabled = busy || switching;
-  const canOpen = !!childAppUrl && active && !disabled;
+  const canOpen = !!childAppUrl && active && !needsRenewal && !disabled;
   const title = `${child.displayName}’s notebook`;
 
   useLayoutEffect(() => {
@@ -137,10 +142,34 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
                   <Icon name="pen" size={13} aria-hidden />
                 </button>
               </div>
-              <p className="pds-caption">{active ? 'Parent-managed notebook' : 'Consent withdrawn'}</p>
+              <p className="pds-caption">{!active ? 'Consent withdrawn' : needsRenewal ? 'Paused until you review the updated notice' : 'Parent-managed notebook'}</p>
             </div>}
           </header>
           {feedback}
+
+          {needsRenewal && <section className="pds-family-renewal" aria-labelledby="child-renewal-title">
+            <span className="pds-family-renewal__icon" aria-hidden="true"><Icon name="user-shield" size={16} /></span>
+            <div className="pds-family-renewal__body">
+              <h3 id="child-renewal-title" className="pds-list-title">We updated our child privacy notice</h3>
+              <p className="pds-subheadline">{child.displayName}’s notebook is paused until you review the changes and agree again. Their notes are safe in the meantime.</p>
+              <details className="pds-family-privacy__disclosure pds-family-renewal__notice">
+                <summary className="pds-list-title">Read the updated notice <Icon name="chevron-down" size={12} aria-hidden /></summary>
+                <ChildPrivacyNotice />
+              </details>
+              <label className="pds-family-choice pds-subheadline">
+                <input type="checkbox" className="proto-checkbox--accent" checked={renewAccepted} disabled={disabled}
+                  onChange={event => setRenewAccepted(event.target.checked)} />
+                <span>I am the parent or legal guardian. My child is under 13 and lives in the United States. I have read the updated notice and consent to the collection, use, and disclosure it describes.</span>
+              </label>
+              <button type="button" className="proto-settings-btn" disabled={disabled || !renewAccepted}
+                onClick={() => void perform(async () => {
+                  await api.post(`${endpoint}/consent`, { noticeVersion: CHILD_NOTICE_VERSION, isGuardian: true, consent: true });
+                  setRenewAccepted(false);
+                }, `${child.displayName}’s notebook is open again.`)}>
+                {busy ? <ProtoLoadingDots /> : <Icon name="check" size={13} aria-hidden />} Agree and resume notebook
+              </button>
+            </div>
+          </section>}
 
           <h3 className="pds-caption pds-family-enrollment-label">Open the notebook</h3>
           {!childAppUrl && <p className="pds-caption pds-family-management__message">Child sign-in is unavailable right now.</p>}

@@ -293,3 +293,20 @@ body:has(.pds-child-app) { margin: 0; background: var(--pds-canvas-default); }
   .pds-family-setup__hero { flex-direction: column; align-items: flex-start; }
   .pds-family-setup__steps > li { gap: var(--pds-space-3); }
 }
+
+/* A notebook agreed under an older notice: one card, ahead of everything else on its page. */
+.pds-family-renewal {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--pds-space-3);
+  margin-block-end: var(--pds-space-5); padding: var(--pds-space-4) var(--pds-space-5);
+  border: 1px solid var(--pds-border-soft); border-radius: var(--pds-radius-card); background: var(--pds-bg-page);
+  box-shadow: var(--pds-paper-shadow-subtle, none);
+}
+.pds-family-renewal__icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--pds-radius-menu-item); background: var(--pds-bg-control); color: var(--pds-text-primary); }
+.pds-family-renewal__body { display: grid; gap: var(--pds-space-3); min-width: 0; }
+.pds-family-renewal__body h3, .pds-family-renewal__body > p { margin: 0; }
+.pds-family-renewal__body > p { color: var(--pds-text-secondary); line-height: 1.5; }
+.pds-family-renewal__notice { border: 0; }
+.pds-family-renewal__notice > summary { display: inline-flex; align-items: center; gap: var(--pds-space-2); cursor: pointer; list-style: none; }
+.pds-family-renewal__notice > summary::-webkit-details-marker { display: none; }
+.pds-family-renewal__notice[open] > summary svg { transform: rotate(180deg); }
+.pds-family-renewal__body > .proto-settings-btn { justify-self: start; width: auto; min-height: 40px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }
