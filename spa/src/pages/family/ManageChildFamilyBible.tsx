@@ -6,7 +6,7 @@ import { getTranslation } from '@/data/translations';
 import ProtoConfirmDialog from '../prototype/ProtoConfirmDialog';
 import { SettingsGroup, SettingsIntro, SettingsRow, SettingsSubScreen, SettingsToggleRow } from '../prototype/settings/SettingsShell';
 import { api } from '../../lib/api';
-import { childBibleTranslationChoices, type ChildFamilyReading, type ChildPassage } from '../../../../shared/child-notebook';
+import { childBibleTranslationChoices, childBibleTranslations, familyAddableBibleTranslations, type ChildBibleTranslation, type ChildFamilyReading, type ChildPassage } from '../../../../shared/child-notebook';
 import type { ChildDetail } from './types';
 import ChildBiblePassagePicker from './ChildBiblePassagePicker';
 
@@ -27,6 +27,15 @@ export default function ManageChildFamilyBible({ detail, backLabel, onBack, feed
   const [passage, setPassage] = useState<ChildPassage>({ book: 'Psalms', chapter: 23, translation: translations[0] });
   const navigate = useNavigate();
   const [translationsOpen, setTranslationsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  // The rest of the catalog, for a family that would rather read a translation they already use.
+  const moreTranslations = familyAddableBibleTranslations.filter(translation => !translationChoices.includes(translation));
+  const youngReader = (translation: ChildBibleTranslation) => (childBibleTranslations as readonly string[]).includes(translation);
+  function toggle(translation: ChildBibleTranslation, enabled: boolean) {
+    const approved = enabled ? [...translations, translation] : translations.filter(item => item !== translation);
+    const name = getTranslation(translation)?.name ?? translation;
+    void perform(() => api.put(`${base}/translations`, { translations: approved }), enabled ? `${name} added.` : '');
+  }
   const [removal, setRemoval] = useState<{ reading: ChildFamilyReading; anchor: DOMRect } | null>(null);
   const active = child.status === 'active';
   const selectedPassage = translations.includes(passage.translation) ? passage : { ...passage, translation: translations[0] };
@@ -42,12 +51,16 @@ export default function ManageChildFamilyBible({ detail, backLabel, onBack, feed
           onClick={() => setTranslationsOpen(!translationsOpen)} />
         {translationsOpen && translationChoices.map(translation => (
           <SettingsToggleRow key={translation} label={getTranslation(translation)?.name ?? translation}
+            sublabel={youngReader(translation) ? 'Written for young readers' : undefined}
             checked={translations.includes(translation)}
             disabled={disabled || !active || (translations.length === 1 && translations.includes(translation))}
-            onChange={enabled => {
-              const approved = enabled ? [...translations, translation] : translations.filter(item => item !== translation);
-              void perform(() => api.put(`${base}/translations`, { translations: approved }), '');
-            }} />
+            onChange={enabled => toggle(translation, enabled)} />
+        ))}
+        {translationsOpen && moreTranslations.length > 0 && <SettingsRow label="More translations" leadingIcon="plus"
+          sublabel="Add one your family already reads" expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)} />}
+        {translationsOpen && moreOpen && moreTranslations.map(translation => (
+          <SettingsToggleRow key={translation} label={getTranslation(translation)?.name ?? translation}
+            checked={false} disabled={disabled || !active} onChange={enabled => { if (enabled) toggle(translation, true); }} />
         ))}
       </SettingsGroup>
       {active && <SettingsGroup>

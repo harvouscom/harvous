@@ -15,9 +15,17 @@ export const notebookPapers = ['plain', 'lined', 'dotted', 'grid'] as const;
 export const coverPatterns = ['plain', 'dots', 'stripes', 'gingham'] as const;
 export const childSchemes = ['system', 'light', 'dark'] as const;
 export const childTextSizes = ['standard', 'bigger'] as const;
+/** Written for young readers. New notebooks start with ERV; these three are offered first. */
 export const childBibleTranslations = ['ERV', 'CEV', 'NLV'] as const;
 export const legacyChildBibleTranslations = ['BSB', 'NIV', 'NLT'] as const;
-export type ChildBibleTranslation = typeof childBibleTranslations[number] | typeof legacyChildBibleTranslations[number];
+/**
+ * The rest of the Harvous catalog, which a parent may add instead ("Add translation" in Family Bible
+ * settings). The server also checks the text exists in its own database before approving one, since
+ * an environment may not carry every translation.
+ */
+export const familyAddableBibleTranslations = ['BSB', 'NIV', 'NLT', 'KJV', 'NKJV', 'ESV', 'NET', 'NASB', 'CSB', 'AMP', 'MSG', 'NABRE', 'DRB', 'RSV2CE', 'NRSVCE'] as const;
+export type ChildBibleTranslation = typeof childBibleTranslations[number] | typeof familyAddableBibleTranslations[number];
+export const allChildBibleTranslations = [...childBibleTranslations, ...familyAddableBibleTranslations] as const;
 
 export const CHILD_NOTICE_VERSION = '2026-11-11.2';
 
@@ -44,6 +52,7 @@ export const defaultChildPreferences: ChildNotebookPreferences = {
 export type ChildPassage = { book: string; chapter: number; translation: ChildBibleTranslation };
 export type ChildFamilyReading = ChildPassage & { id: string };
 
+/** What the parent's toggles list: the young-reader set, then anything already approved or shared. */
 export function childBibleTranslationChoices(approved: ChildBibleTranslation[], readings: ChildFamilyReading[]) {
   return [...new Set([...childBibleTranslations, ...approved, ...readings.map(reading => reading.translation)])];
 }

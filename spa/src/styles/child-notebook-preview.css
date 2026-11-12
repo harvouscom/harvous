@@ -268,8 +268,6 @@
 .pds-kids-privacy-modal { position: fixed; inset: 0; margin: auto; height: fit-content; }
 
 .pds-kids-shell__label { padding-inline: var(--pds-space-3); }
-.pds-kids-review-tabs.proto-menu-tabs { position: static; margin: 0; }
-.pds-kids-review-tabs .proto-menu-tab { display: inline-flex; justify-content: center; align-items: center; gap: var(--pds-space-2); min-height: 44px; }
 
 /* Child identity stays in the shared toolbar's account slot. */
 .proto-toolbar-icon-btn.pds-kids-mode-trigger { display: inline-flex; align-items: center; gap: var(--pds-space-2); width: auto; max-width: none; min-height: var(--pds-toolbar-orb-size); padding: 0 var(--pds-space-3) 0 var(--pds-space-1); border-radius: var(--pds-radius-row); background: var(--pds-bg-popover-solid); cursor: pointer; }

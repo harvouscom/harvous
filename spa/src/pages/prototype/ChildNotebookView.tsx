@@ -144,7 +144,6 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   const [announcement, setAnnouncement] = useState('');
   const [privacy, setPrivacy] = useState(false);
   const [homeFilter, setHomeFilter] = useState<'all' | 'continue' | 'remember' | 'ideas'>('all');
-  const [revealed, setRevealed] = useState(false);
   const reviewNote = notes[notes.length - 1];
   const [ideaIndex, setIdeaIndex] = useState(0);
   const [systemReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -434,7 +433,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
             {([
               { id: 'all', label: 'All', icon: 'rectangle-list' },
               { id: 'continue', label: 'Keep going', icon: 'arrow-right' },
-              { id: 'remember', label: 'Remember', icon: 'rotate-left' },
+              { id: 'remember', label: 'Look back', icon: 'rotate-left' },
               { id: 'ideas', label: 'Ideas', icon: 'wand-magic-sparkles' }
             ] as const).map(filter => <button key={filter.id} className="proto-appearance-segmented__btn" data-active={homeFilter === filter.id ? 'true' : undefined} aria-pressed={homeFilter === filter.id} aria-controls="kids-home-activities" onClick={() => setHomeFilter(filter.id)}><Icon name={filter.icon} size={15} />{filter.label}</button>)}
           </div>
@@ -443,8 +442,8 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               {notes.map(note => <PrototypeHomeRow key={note.id} icon="note-sticky" title={note.title} meta={[noteLabels(note) || 'Your notebook', note.date]} onClick={() => openNote(note)} />)}
               {!notes.length && <PrototypeHomeRow icon="pen-to-square" title="Your first note starts here" meta={['A thought, a question, anything you noticed']} onClick={() => openNote()} />}
             </PrototypeHomeSection>}
-            {(homeFilter === 'all' || homeFilter === 'remember') && <PrototypeHomeSection title="Remember a little">
-              {reviewNote ? <PrototypeHomeRow icon="rotate-left" title={reviewNote.title} meta={['What do you remember?', 'Take your time']} onClick={() => { setRevealed(false); setView('remember'); }} />
+            {(homeFilter === 'all' || homeFilter === 'remember') && <PrototypeHomeSection title="Look back">
+              {reviewNote ? <PrototypeHomeRow icon="rotate-left" title={reviewNote.title} meta={['Read it again', 'Take your time']} onClick={() => setView('remember')} />
                 : <PrototypeHomeRow icon="pen-to-square" title="Keep something to come back to" meta={['Write a note first, then revisit it here']} onClick={() => openNote()} />}
             </PrototypeHomeSection>}
             {(homeFilter === 'all' || homeFilter === 'ideas') && <>
@@ -498,26 +497,17 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         </div>}
 
         {view === 'remember' && reviewNote && <div className="pds-kids-preview__body pds-kids-review">
+          {/* Looking back, not a memory test: the note is right there to read again. */}
           <div className="pds-kids-review__hero"><span className="pds-kids-review__art" aria-hidden="true"><Icon name="rotate-left" size={28} /><span><Icon name="star" size={12} /></span></span>
             <span className="pds-kids-preview__label">A little look back</span>
-            <h1 ref={headingRef} tabIndex={-1} className="pds-title-xl">What stayed with you?</h1>
-            <p>There’s no test here. Just a chance to revisit a thought.</p>
+            <h1 ref={headingRef} tabIndex={-1} className="pds-title-xl">What do you think about it now?</h1>
+            <p>Read what you wrote before. Has anything grown or changed?</p>
           </div>
-          <div className="proto-menu-tabs pds-kids-review-tabs" role="tablist" aria-label="Revisit your note" onKeyDown={event => {
-            const next = event.key === 'ArrowRight' || event.key === 'End' ? true : event.key === 'ArrowLeft' || event.key === 'Home' ? false : null;
-            if (next === null) return;
-            event.preventDefault(); setRevealed(next);
-            event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next ? 1 : 0]?.focus();
-          }}>
-            <button id="kids-think-tab" className="proto-menu-tab" role="tab" aria-selected={!revealed} aria-controls="kids-review-panel" tabIndex={!revealed ? 0 : -1} onClick={() => setRevealed(false)}><Icon name="rotate-left" size={12} /> Think back</button>
-            <button id="kids-look-tab" className="proto-menu-tab" role="tab" aria-selected={revealed} aria-controls="kids-review-panel" tabIndex={revealed ? 0 : -1} onClick={() => setRevealed(true)}><Icon name="book-open" size={12} /> Take a look</button>
-          </div>
-          <section id="kids-review-panel" className="pds-kids-review__card" role="tabpanel" aria-labelledby={revealed ? 'kids-look-tab' : 'kids-think-tab'}><span className="pds-kids-preview__label">From your notebook · {reviewNote.date}</span><h2 className="pds-title">{reviewNote.title}</h2>
-            {revealed ? <blockquote className="pds-kids-review__note">{reviewNote.content}</blockquote> : <p>Close your eyes for a moment if you like. What do you remember about this note?</p>}
+          <section className="pds-kids-review__card" aria-label="Your note"><span className="pds-kids-preview__label">From your notebook · {reviewNote.date}</span><h2 className="pds-title">{reviewNote.title}</h2>
+            <blockquote className="pds-kids-review__note">{reviewNote.content}</blockquote>
           </section>
           <div className="pds-kids-review__actions">
-            {!revealed ? <button className="proto-settings-btn" onClick={() => setRevealed(true)}><Icon name="book-open" size={14} /> Show my note</button>
-              : <button className="proto-settings-btn" onClick={() => openNote(reviewNote)}><Icon name="pen" size={13} /> Add a thought</button>}
+            <button className="proto-settings-btn" onClick={() => openNote(reviewNote)}><Icon name="pen" size={13} /> Add a thought</button>
             <button className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setView('home')}><Icon name="arrow-left" size={12} /> Back to my notebook</button>
           </div>
           <p className="pds-caption">A little is enough. Come back whenever you like.</p>

@@ -123,14 +123,16 @@ describe('family route boundaries', () => {
     expect(response.status).toBe(503); expect(database.transaction).not.toHaveBeenCalled();
   });
   it.each([
-    { requested: ['ERV', 'CEV', 'NLV'], status: 200 },
-    { requested: ['BSB', 'ERV', 'CEV', 'NLV'], status: 200 },
-    { requested: ['NIV', 'ERV'], status: 400 },
-    { requested: ['NIV', 'ERV'], status: 200, shared: [{ translation: 'NIV' }] }
-  ])('applies child translation choices $requested to an existing notebook', async ({ requested, status, shared = [] }) => {
+    { requested: ['ERV', 'CEV', 'NLV'], status: 200, hasText: true },
+    { requested: ['BSB', 'ERV'], status: 200, hasText: true },
+    // A parent may add from the wider catalog, as long as this environment has the text.
+    { requested: ['NIV', 'ERV'], status: 200, hasText: true },
+    { requested: ['NIV', 'ERV'], status: 400, hasText: false },
+    { requested: ['ZZZ'], status: 400, hasText: true }
+  ])('applies translation choices $requested (text here: $hasText)', async ({ requested, status, hasText }) => {
     const child = { id: 'child-a', status: 'active', noticeVersion: CHILD_NOTICE_VERSION, consentedAt: new Date(), revokedAt: null, bibleTranslations: ['BSB'] };
     const select = vi.fn(() => ({ from: () => ({ where: () => ({
-      for: async () => [child], orderBy: async () => shared
+      for: async () => [child], limit: async () => hasText ? [{ verse: 1 }] : []
     }) }) }));
     const set = vi.fn(() => ({ where: async () => undefined }));
     database.transaction.mockImplementationOnce(work => work({ select, update: () => ({ set }) }));
@@ -145,6 +147,8 @@ describe('family route boundaries', () => {
     } else {
       expect(set).not.toHaveBeenCalled();
     }
+    // A request refused before the database leaves its one-shot transaction unused; don't let it leak.
+    database.transaction.mockReset();
   });
   it('keeps the original withdrawal date when a parent retries', async () => {
     const revokedAt = new Date('2026-01-01T00:00:00Z');

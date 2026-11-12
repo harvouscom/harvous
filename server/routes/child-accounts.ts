@@ -20,8 +20,8 @@ import { sponsorFeatureKeys } from '../utils/family-entitlements';
 import { CHILD_CAPABILITIES, CHILD_NOTICE_VERSION, HANDOFF_TTL_MS, VERIFICATION_TTL_MS, childSecret, emailDigest, hashSecret, hasActiveChildConsent, kwsWebhookSignatureResult } from '../family/policy';
 import { familyEnrollmentConfig, kwsConfig, requireFamilyEnrollment, sendKwsVerification } from '../family/kws';
 import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, withChildSession, type Child } from '../family/service';
-import { childBibleTranslationChoices, childBibleTranslations, childSchemes, childTextSizes, legacyChildBibleTranslations, coverBindings, coverColors, coverPatterns, coverSymbols, defaultChildPreferences, notebookPapers } from '../../shared/child-notebook';
-import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput } from '../family/bible';
+import { childBibleTranslations, childSchemes, childTextSizes, allChildBibleTranslations, coverBindings, coverColors, coverPatterns, coverSymbols, defaultChildPreferences, notebookPapers } from '../../shared/child-notebook';
+import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, hasTranslationText, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput } from '../family/bible';
 import { searchChildNotebook } from '../family/notebook-search';
 import { chapterStickers, setVerseSticker, verseStickerInput } from '../family/stickers';
 import { chapterHighlights, setVerseHighlight, verseHighlightInput } from '../family/highlights';
@@ -317,15 +317,17 @@ route.put(`${base}/children/:id/ministries`, requireAuth, async (c) => {
   return c.json({ success: true });
 });
 
-const translationsInput = z.object({ translations: z.array(translationInput).min(1).max(childBibleTranslations.length + legacyChildBibleTranslations.length) }).strict();
+const translationsInput = z.object({ translations: z.array(translationInput).min(1).max(allChildBibleTranslations.length) }).strict();
 route.put(`${base}/children/:id/bible/translations`, requireAuth, async (c) => {
   const { translations } = translationsInput.parse(await c.req.json());
   return c.json(await db.transaction(async (tx) => {
     const child = requireActiveConsent(await ownedChild(tx, parentId(c), requireParam(c, 'id')));
     const approved = [...new Set(translations)];
-    const available = childBibleTranslationChoices(child.bibleTranslations, await familyReadings(tx, child));
-    if (approved.some(translation => !available.includes(translation))) {
-      throw new HTTPException(400, { message: 'Choose from the translations available for this notebook.' });
+    // Anything newly added from the wider catalog must have text here, or the child would open a blank Bible.
+    for (const translation of approved.filter(item => !child.bibleTranslations.includes(item))) {
+      if (!await hasTranslationText(tx, translation)) {
+        throw new HTTPException(400, { message: `${translation} isn’t available for child notebooks yet.` });
+      }
     }
     await tx.update(FamilyChildren).set({ bibleTranslations: approved }).where(eq(FamilyChildren.id, child.id));
     return { translations: approved };
