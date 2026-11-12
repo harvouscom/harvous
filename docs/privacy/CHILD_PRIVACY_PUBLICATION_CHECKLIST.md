@@ -2,6 +2,8 @@
 
 The in-app direct notice is `spa/src/pages/family/ChildPrivacyNotice.tsx`, versioned by `CHILD_NOTICE_VERSION` in `shared/child-notebook.ts`. The parent app submits the version it displays and the API validates it before recording consent. `HARVOUS_CHILD_PRIVACY_URL` points to the full published policy. Enrollment requires this URL.
 
+A requirement-by-requirement review against the 2025 COPPA Rule, with the open gaps and the questions for counsel, is in [`COPPA_REVIEW_2026-11.md`](COPPA_REVIEW_2026-11.md). The written security program §312.8(b) requires is drafted in [`CHILD_INFORMATION_SECURITY_PROGRAM.md`](CHILD_INFORMATION_SECURITY_PROGRAM.md).
+
 Before publishing that policy, supply and verify:
 
 - Testament Made LLC supplied the email, mailing address, and telephone number for parent privacy inquiries. Verify that the published policy uses the supplied contact details. [COPPA notice rule](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312/section-312.4)
