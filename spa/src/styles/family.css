@@ -47,32 +47,6 @@
 .pds-family-management__link-help.pds-caption { line-height: 1.55; }
 .pds-family-management__message { margin: 0 0 var(--pds-space-3); color: var(--pds-text-secondary); }
 .pds-family-management__error { margin: 0 0 var(--pds-space-3); color: var(--pds-destructive); }
-.pds-family-verification {
-  padding: var(--pds-space-4);
-  border: 1px solid var(--pds-border);
-  border-radius: var(--pds-radius-card);
-  background: var(--pds-info-bg);
-}
-.pds-family-verification__header {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--pds-space-3);
-}
-.pds-family-verification__header > div {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.pds-family-verification__icon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: var(--pds-space-10);
-  height: var(--pds-space-10);
-  border-radius: var(--pds-radius-menu-item);
-  background: var(--pds-info-bg);
-  color: var(--pds-info);
-}
-.pds-family-verification__header p { margin-block: var(--pds-space-1) 0; }
 .pds-family-verification__actions {
   display: flex;
   flex-wrap: wrap;
@@ -83,55 +57,25 @@
   min-height: var(--pds-space-10);
   gap: var(--pds-space-2);
 }
-.pds-family-verification > p { margin: 0; }
-
-.pds-family-enrollment--verified { gap: var(--pds-space-3); }
-.pds-family-enrollment-heading {
-  display: grid;
-  gap: var(--pds-space-2);
-}
-.pds-family-enrollment--verified > .pds-family-enrollment-heading {
-  margin-block-end: var(--pds-space-2);
-}
-.pds-family-enrollment-heading h2 { margin: 0; }
 .pds-family-enrollment-label { margin: 0 0 var(--pds-space-2); }
-.pds-family-enrollment-progress {
+/* What Kids Web Services receives, as three small labels rather than a sentence to parse. */
+.pds-family-verification__shared {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--pds-space-1) var(--pds-space-2);
-  margin: 0;
+  gap: var(--pds-space-2);
+  margin: var(--pds-space-3) 0 0;
   padding: 0;
   list-style: none;
 }
-.pds-family-enrollment-progress li {
-  display: flex;
+.pds-family-verification__shared li {
+  display: inline-flex;
   align-items: center;
-  gap: var(--pds-space-1);
-  padding-block: var(--pds-space-1);
-  padding-inline: var(--pds-space-1) var(--pds-space-3);
-  border-radius: var(--pds-radius-button);
-  color: var(--pds-text-secondary);
-}
-.pds-family-enrollment-progress li[aria-current='step'] {
-  background: var(--pds-bg-input);
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-control);
+  font-size: 13px;
   color: var(--pds-text-primary);
-}
-.pds-family-enrollment-progress__marker {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: var(--pds-space-5);
-  height: var(--pds-space-5);
-  border-radius: 50%;
-  background: var(--pds-bg-input);
-}
-.pds-family-enrollment-progress li[aria-current='step'] .pds-family-enrollment-progress__marker {
-  background: var(--pds-info-bg);
-  color: var(--pds-info);
-}
-.pds-family-enrollment-progress li[data-complete] .pds-family-enrollment-progress__marker {
-  background: var(--pds-success-bg);
-  color: var(--pds-success);
 }
 .pds-family-privacy__disclosure,
 .proto-settings__content a.pds-family-privacy__action {
@@ -289,3 +233,56 @@ body:has(.pds-child-app) { margin: 0; background: var(--pds-canvas-default); }
   .pds-family-bible-picker > :nth-child(3) { grid-column: 1 / -1; }
 }
 .pds-kids-status { padding-inline: var(--pds-space-6); }
+
+/*
+ * Child notebook setup: a short welcome, then the whole journey as a timeline. Every step says
+ * what it's for; the current one holds its action. Colour comes only from the accent marker on
+ * the current step (the gradient, white ink), done steps take plain ink, later steps stay quiet.
+ */
+.pds-family-setup { display: grid; gap: var(--pds-space-6); min-width: 0; }
+.pds-family-setup > * { min-width: 0; }
+.pds-family-setup__hero > div { flex: 1 1 auto; min-width: 0; }
+.pds-family-setup__hero {
+  display: flex; align-items: center; gap: var(--pds-space-5);
+  padding: var(--pds-space-5); border-radius: var(--pds-radius-card);
+  background: linear-gradient(115deg, color-mix(in oklab, var(--pds-thread-blue) 16%, var(--pds-bg-page)), var(--pds-bg-page) 75%);
+}
+.pds-family-setup__hero h2, .pds-family-setup__hero p { margin: 0; }
+.pds-family-setup__hero h2 { margin-block-end: var(--pds-space-2); }
+.pds-family-setup__hero p { color: var(--pds-text-secondary); line-height: 1.5; }
+.pds-family-setup__art { flex: none; display: grid; place-items: center; }
+.pds-family-setup__art .pds-kids-book--settings { cursor: default; }
+
+.pds-family-setup__steps { display: grid; margin: 0; padding: 0; list-style: none; }
+.pds-family-setup__steps > li {
+  position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--pds-space-4);
+  padding-block-end: var(--pds-space-6);
+}
+.pds-family-setup__steps > li:last-child { padding-block-end: 0; }
+/* The rail joining one marker to the next. */
+.pds-family-setup__steps > li:not(:last-child)::before {
+  content: ''; position: absolute; left: 13px; top: 32px; bottom: 4px; width: 2px; border-radius: 1px;
+  background: var(--pds-border-soft);
+}
+.pds-family-setup__steps > li[data-state='done']:not(:last-child)::before { background: var(--pds-text-primary); }
+.pds-family-setup__marker {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--pds-bg-control); color: var(--pds-text-secondary); font-size: 13px; font-weight: 600;
+}
+.pds-family-setup__steps > li[data-state='current'] .pds-family-setup__marker { background: var(--pds-bg-accent-button); color: var(--pds-on-accent); }
+.pds-family-setup__steps > li[data-state='done'] .pds-family-setup__marker { background: var(--pds-text-primary); color: var(--pds-bg-page); }
+.pds-family-setup__marker * { color: inherit !important; }
+.pds-family-setup__step { display: grid; gap: var(--pds-space-1); min-width: 0; padding-block-start: 3px; }
+.pds-family-setup__step > h3, .pds-family-setup__step > p { margin: 0; }
+.pds-family-setup__step > p { color: var(--pds-text-secondary); line-height: 1.5; }
+.pds-family-setup__steps > li[data-state='later'] .pds-family-setup__step > h3 { color: var(--pds-text-secondary); }
+.pds-family-setup__body { display: grid; gap: var(--pds-space-4); margin-block-start: var(--pds-space-3); }
+.pds-family-setup__body > .pds-family-verification__shared { margin: 0; }
+
+.pds-family-setup__fineprint { margin: 0; padding-block-start: var(--pds-space-4); border-block-start: 1px solid var(--pds-border-soft); color: var(--pds-text-secondary); }
+.pds-family-setup__fineprint .pds-kids-policy-link { color: inherit; text-decoration-color: color-mix(in oklab, currentColor 45%, transparent); }
+.pds-family-setup__fineprint .pds-kids-policy-link:hover { color: var(--pds-text-primary); }
+@media (max-width: 480px) {
+  .pds-family-setup__hero { flex-direction: column; align-items: flex-start; }
+  .pds-family-setup__steps > li { gap: var(--pds-space-3); }
+}
