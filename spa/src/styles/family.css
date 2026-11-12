@@ -63,7 +63,9 @@
   min-height: var(--pds-space-10);
   gap: var(--pds-space-2);
 }
-.pds-family-enrollment-label { margin: 0 0 var(--pds-space-2); }
+/* Section labels over a settings group, at caption weight. `!important` only because a legacy
+   global `h1–h6 { font-weight: 700 !important }` leaves no other way. */
+.pds-family-enrollment-label { margin: 0 0 var(--pds-space-2); font-weight: 500 !important; }
 /* What Kids Web Services receives, as three small labels rather than a sentence to parse. */
 .pds-family-verification__shared {
   display: flex;
