@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ComponentProps, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ComponentProps, type ReactElement } from 'react';
 import Icon from '@/components/react/Icon';
 import { ChildNotebookCover, coverBindings, coverColors, coverPatterns, notebookPapers, useChildNotebookAppearance, type CoverSymbol } from './ChildNotebookAppearance';
 import ChildCoverSymbol from './ChildCoverSymbol';
@@ -34,9 +34,42 @@ const groups: { id: Group; label: string; icon: ComponentProps<typeof Icon>['nam
   { id: 'paper', label: 'Pages', icon: 'file-lines', question: 'What are the pages like inside?' }
 ];
 
+/**
+ * A row that scrolls only when it has to. Reports which ends have more, so the row can fade that
+ * side and show an arrow there — a mouse can't swipe, and a clipped sticker alone doesn't say "more".
+ */
+function useScrollRow() {
+  const node = useRef<HTMLDivElement | null>(null);
+  const [more, setMore] = useState({ start: false, end: false });
+  const measure = useCallback(() => {
+    const row = node.current;
+    if (!row) return;
+    const start = row.scrollLeft > 2;
+    const end = row.scrollLeft + row.clientWidth < row.scrollWidth - 2;
+    setMore(current => current.start === start && current.end === end ? current : { start, end });
+  }, []);
+  // A callback ref: the row only exists while its step is open, so watch it from when it mounts.
+  const cleanup = useRef<(() => void) | undefined>(undefined);
+  const ref = useCallback((row: HTMLDivElement | null) => {
+    cleanup.current?.();
+    cleanup.current = undefined;
+    node.current = row;
+    if (!row) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    row.addEventListener('scroll', measure, { passive: true });
+    cleanup.current = () => { observer.disconnect(); row.removeEventListener('scroll', measure); };
+    measure();
+  }, [measure]);
+  useEffect(() => () => cleanup.current?.(), []);
+  const nudge = (direction: 1 | -1) => node.current?.scrollBy({ left: direction * node.current.clientWidth * 0.7, behavior: 'smooth' });
+  return { ref, more, nudge };
+}
+
 export default function ChildNotebookCoverStudio() {
   const { name, preferences, coverColor, setCoverColor, coverPattern, setCoverPattern, coverSymbol, setCoverSymbol, coverBinding, setCoverBinding, paper, setPaper, playCue } = useChildNotebookAppearance();
   const [step, setStep] = useState(0);
+  const stickerRow = useScrollRow();
   const initial = Array.from(name)[0]?.toUpperCase();
   const coverKey = `${coverColor.id}-${coverPattern}-${coverSymbol}-${coverBinding}`;
 
@@ -73,11 +106,15 @@ export default function ChildNotebookCoverStudio() {
     </label>)}
   </div>;
 
-  const symbolOptions = <div className="pds-kids-studio__stickers">
+  const symbolOptions = <div className="pds-kids-studio__scroller" data-more-start={stickerRow.more.start || undefined} data-more-end={stickerRow.more.end || undefined}>
+    {stickerRow.more.start && <button type="button" className="pds-kids-studio__scroll-btn" data-side="start" aria-label="Show earlier stickers" onClick={() => stickerRow.nudge(-1)}><Icon name="chevron-down" size={12} aria-hidden /></button>}
+    <div className="pds-kids-studio__stickers" ref={stickerRow.ref}>
     {offeredSymbols.map((symbol, index) => <label key={symbol} className="pds-kids-studio__sticker" style={{ '--kids-tilt': `${stickerTilt[index % stickerTilt.length]}deg` } as CSSProperties}>
       <input type="radio" name="notebook-symbol" aria-label={symbolLabel(symbol)} checked={coverSymbol === symbol} onChange={() => pick(() => setCoverSymbol(symbol))} />
       <span aria-hidden="true">{symbol === 'initial' ? initial : <ChildCoverSymbol symbol={symbol} size={20} />}</span>
     </label>)}
+    </div>
+    {stickerRow.more.end && <button type="button" className="pds-kids-studio__scroll-btn" data-side="end" aria-label="Show more stickers" onClick={() => stickerRow.nudge(1)}><Icon name="chevron-down" size={12} aria-hidden /></button>}
   </div>;
 
   // Each binding is shown on a little copy of their own notebook, so the choice is the result.

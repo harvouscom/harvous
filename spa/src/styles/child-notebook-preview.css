@@ -1077,16 +1077,32 @@
   border-left: 1.5px dashed color-mix(in oklab, var(--kids-cover-ink) 70%, transparent);
 }
 
-/* Stickers: one full row of eight; on a phone, one row you swipe along. */
-.pds-kids-studio__stickers { display: grid; grid-template-columns: repeat(8, auto); justify-content: center; }
-@media (max-width: 560px) {
-  .pds-kids-studio__step .pds-kids-studio__stickers {
-    display: flex; flex-wrap: nowrap; justify-content: flex-start; max-width: 100%;
-    overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none;
-    padding: var(--pds-space-2) var(--pds-space-3) var(--pds-space-3); scroll-padding-inline: var(--pds-space-3);
-    -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
-    mask-image: linear-gradient(90deg, #000 85%, transparent);
-  }
-  .pds-kids-studio__step .pds-kids-studio__stickers::-webkit-scrollbar { display: none; }
-  .pds-kids-studio__step .pds-kids-studio__sticker { flex: none; scroll-snap-align: start; }
+/*
+ * Stickers: one row of eight. It sits centred when it fits and scrolls when it doesn't, at any
+ * width. A scrolling row clips on every side, so it keeps room for the chosen sticker's ring, lift
+ * and shadow. The side with more fades out and gets an arrow (see useScrollRow).
+ */
+.pds-kids-studio__scroller { position: relative; width: 100%; min-width: 0; }
+.pds-kids-studio__step .pds-kids-studio__stickers {
+  display: flex; flex-wrap: nowrap; justify-content: safe center; gap: var(--pds-space-3);
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none;
+  padding: 14px var(--pds-space-3) 20px; scroll-padding-inline: var(--pds-space-3);
 }
+.pds-kids-studio__step .pds-kids-studio__stickers::-webkit-scrollbar { display: none; }
+.pds-kids-studio__step .pds-kids-studio__sticker { flex: none; scroll-snap-align: start; }
+.pds-kids-studio__scroller[data-more-end]:not([data-more-start]) .pds-kids-studio__stickers { -webkit-mask-image: linear-gradient(90deg, #000 80%, transparent); mask-image: linear-gradient(90deg, #000 80%, transparent); }
+.pds-kids-studio__scroller[data-more-start]:not([data-more-end]) .pds-kids-studio__stickers { -webkit-mask-image: linear-gradient(270deg, #000 80%, transparent); mask-image: linear-gradient(270deg, #000 80%, transparent); }
+.pds-kids-studio__scroller[data-more-start][data-more-end] .pds-kids-studio__stickers { -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); }
+.pds-kids-studio__scroll-btn {
+  position: absolute; top: calc(50% - 3px); z-index: 2; translate: 0 -50%;
+  display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--pds-bg-page); color: var(--pds-text-primary); cursor: pointer;
+  box-shadow: 0 0 0 1px var(--pds-border-soft), 0 3px 8px color-mix(in oklab, var(--pds-text-primary) 16%, transparent);
+}
+.pds-kids-studio__scroll-btn * { color: inherit !important; }
+.pds-kids-studio__scroll-btn[data-side='start'] { left: 0; }
+.pds-kids-studio__scroll-btn[data-side='start'] svg { rotate: 90deg; }
+.pds-kids-studio__scroll-btn[data-side='end'] { right: 0; }
+.pds-kids-studio__scroll-btn[data-side='end'] svg { rotate: -90deg; }
+.pds-kids-studio__scroll-btn:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .pds-kids-studio__scroll-btn:hover { background: var(--pds-bg-subtle); } }
