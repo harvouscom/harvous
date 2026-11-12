@@ -37,7 +37,7 @@ conclusions and answer the questions at the end before real children's informati
 | No over-collection | §312.7 | Meets it |
 | **Written information security program** | §312.8(b) | **Missing.** Drafted alongside this review |
 | **Written assurances from providers** | §312.8(c) | **Not on file** |
-| **Written data retention policy** | §312.10 | Partly done. Needs backup and log periods plus a "business need" for each item |
+| **Written data retention policy** | §312.10 | Partly done. Backup and log periods now known; needs the table added to the policy |
 | Analytics on the child site | the notice's own promise | **Fixed 12 Nov 2026.** Cloudflare Web Analytics switched to manual snippet; beacon gone |
 
 ## Iowa: the Consumer Data Protection Act doesn't apply
@@ -169,8 +169,8 @@ timeframes. Proposed table to add to #72:
 | Look back progress | To choose what to show next | Spacing depends on history | With the notebook |
 | Sessions and sign-in links | To open the notebook | Only while open | Links after 5 minutes, sessions after 8 hours |
 | Verification requests | To confirm the parent is an adult | Until finished | 7 days if unfinished |
-| Database backups | Recovery | Disaster recovery | **Fill in:** Supabase plan's backup window |
-| Hosting and security logs (IP addresses) | Delivery and security | Abuse investigation | **Fill in:** Fly and Cloudflare log retention |
+| Database backups | Recovery | Disaster recovery | Daily Supabase backups, each kept 7 days. Point-in-time recovery is off. Deleted data can stay in a backup for up to about 8 days (checked 12 Nov 2026) |
+| Hosting and security logs (IP addresses) | Delivery and security | Abuse investigation | Up to 7 days. Fly log search keeps 7 days, with no log shipping configured. Cloudflare Workers Logs keep at most 7 days, and are off for the child Workers but on for the app Worker serving app.harvous.com (checked 12 Nov 2026) |
 
 ## Finding: Cloudflare Web Analytics is on the child site
 
