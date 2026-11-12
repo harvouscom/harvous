@@ -3,12 +3,14 @@ import Icon from '@/components/react/Icon';
 import { ChildNotebookAppearanceProvider } from './ChildNotebookAppearance';
 import ChildNotebookHomeMenu from './ChildNotebookHomeMenu';
 import ChildNotebookModeMenu from './ChildNotebookModeMenu';
+import { useChildBackdropDismiss } from './useChildBackdropDismiss';
 
 export function ChildNotebookPreviewShell({ children }: { children: ReactNode }) {
   return <ChildNotebookAppearanceProvider><ChildNotebookShell>{children}</ChildNotebookShell></ChildNotebookAppearanceProvider>;
 }
 
 export default function ChildNotebookShell({ children, onFinish }: { children: ReactNode; onFinish?: () => void }) {
+  useChildBackdropDismiss();
   function send(detail: string) {
     window.dispatchEvent(new CustomEvent('harvousChildNotebookPreviewAction', { detail }));
   }

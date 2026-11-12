@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import Icon from '@/components/react/Icon';
 import { getTranslation } from '@/data/translations';
@@ -143,6 +143,23 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
     setHighlights(current => ({ ...current, [`${positionKey}:${verse}`]: undefined }));
   }
 
+  // In My Bible, a press anywhere outside the open verse (its text, actions and sticker sheet)
+  // puts the options away: the margin, another part of the page, the toolbar. Pressing another
+  // verse still opens that one, since its own click runs after this.
+  const optionsOpen = !isFamily && selectedVerse !== null;
+  useEffect(() => {
+    if (!optionsOpen) return;
+    const away = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-verse-options] :is(.pds-reader-text, .pds-kids-bible__verse-extra)')) return;
+      setSelection(null);
+      setStickerPicker(null);
+      setStickerError(null);
+    };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [optionsOpen]);
+
   const stickerKey = (verse: number) => `${book}:${chapter}:${verse}`;
   function stickerAt(verse: number): VerseSticker | null {
     const key = stickerKey(verse);
@@ -280,7 +297,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                 const sticker = isFamily ? null : stickerAt(verse.number);
                 const stickerSlot = stickerKey(verse.number);
                 return (
-                  <div className="pds-reader__block" key={verse.number} data-sticker={sticker ? 'true' : undefined}>
+                  <div className="pds-reader__block" key={verse.number} data-sticker={sticker ? 'true' : undefined} data-verse-options={selected && !isFamily ? '' : undefined}>
                     {sticker && <VerseStickerMark key={sticker} sticker={sticker} verse={verse.number} chapter={chapter} fresh={freshSticker === stickerSlot} />}
                     <p className="pds-reader-text">
                       <button type="button" className="pds-reader__verse pds-kids-bible__verse" aria-pressed={isFamily ? undefined : selected} aria-expanded={isFamily ? selected : undefined} data-selected={selected && !isFamily ? 'true' : undefined} data-highlighted={ownHighlight || parentHighlight ? 'true' : undefined} data-highlight-color={ownColor ?? 'skyBlue'} onClick={toggle}>
