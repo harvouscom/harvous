@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
 import type { VotdToday } from '../../lib/votd-today';
-import { votdTodayQueryKey } from '../queries/useVotdToday';
+import { votdTodayKeyFor, votdTodayQueryKey } from '../queries/useVotdToday';
 import { featuredItemsQueryKey } from '../queries/useFeaturedItems';
 import { updateCachedProfile, type UserProfile } from '../queries/useProfile';
 import { getCachedProfileData, getEffectiveDefaultTranslation, updateCachedProfileData } from '@/utils/profile-cache';
@@ -18,6 +18,7 @@ interface UpdateTranslationResponse {
 interface UpdateTranslationContext {
   previousProfile: UserProfile | undefined;
   previousVotd: VotdToday | null | undefined;
+  votdKey: readonly unknown[];
   previousDefault: string;
 }
 
@@ -56,7 +57,8 @@ export function useUpdateTranslation() {
       await queryClient.cancelQueries({ queryKey: key });
 
       const previousProfile = queryClient.getQueryData<UserProfile>(key);
-      const previousVotd = queryClient.getQueryData<VotdToday | null>(votdTodayQueryKey);
+      const votdKey = votdTodayKeyFor();
+      const previousVotd = queryClient.getQueryData<VotdToday | null>(votdKey);
       const previousDefault =
         previousProfile?.defaultTranslation ??
         getCachedProfileData()?.defaultTranslation ??
@@ -70,7 +72,7 @@ export function useUpdateTranslation() {
         // The text is in the old translation; drop it rather than label it with the new one.
         // The card falls back to its row until the refetch in onSuccess brings the new words.
         const { textHtml: _staleText, ...rest } = previousVotd;
-        queryClient.setQueryData<VotdToday | null>(votdTodayQueryKey, {
+        queryClient.setQueryData<VotdToday | null>(votdKey, {
           ...rest,
           translation: defaultTranslation,
         });
@@ -79,13 +81,13 @@ export function useUpdateTranslation() {
       updateCachedProfile({ defaultTranslation });
       updateCachedProfileData({ defaultTranslation });
 
-      return { previousProfile, previousVotd, previousDefault } satisfies UpdateTranslationContext;
+      return { previousProfile, previousVotd, votdKey, previousDefault } satisfies UpdateTranslationContext;
     },
     onError: (_err, _defaultTranslation, context) => {
       if (!context) return;
       queryClient.setQueryData(key, context.previousProfile);
       if (context.previousVotd !== undefined) {
-        queryClient.setQueryData(votdTodayQueryKey, context.previousVotd);
+        queryClient.setQueryData(context.votdKey, context.previousVotd);
       }
       updateCachedProfile({ defaultTranslation: context.previousDefault });
       updateCachedProfileData({ defaultTranslation: context.previousDefault });

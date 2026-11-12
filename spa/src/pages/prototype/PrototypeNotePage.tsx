@@ -2017,10 +2017,22 @@ export default function PrototypeNotePage() {
   const [purposeDismissals, setPurposeDismissals] = useState(0);
   /* Shell state, epoch-gated to this compose session — see `composePurpose` on the shell. */
   const composePurpose = isDraft || composeDraftActive ? sessionComposePurpose : null;
+  /*
+    The dock prompt this note was started from, if any. Same gate as `composePurpose`, plus a
+    per-session dismissal: the prompt lives on the seed, and the seed must not be rewritten
+    mid-session (its title/body feed the editor's initial values), so dismissing records the
+    epoch instead of clearing it. A new session has a new epoch and its own seed.
+  */
+  const [promptDismissedEpoch, setPromptDismissedEpoch] = useState<number | null>(null);
+  const composePrompt =
+    (isDraft || composeDraftActive) && promptDismissedEpoch !== composeSessionEpoch
+      ? (composeSeed?.prompt ?? null)
+      : null;
   const notePurpose = useMemo(
     () =>
       notePurposeModel({
         composePurpose,
+        composePrompt,
         startedFromServiceTitle: note?.startedFromServiceTitle ?? null,
         // Which occasion the banner names — see notePurposeModel. A note born in a room
         // came from that room's "Coming up"; one in My Home came from "This Sunday".
@@ -2052,6 +2064,7 @@ export default function PrototypeNotePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       composePurpose,
+      composePrompt,
       note?.startedFromServiceTitle,
       resolvedSpaceFromNote,
       contextSpaceId,
@@ -2062,12 +2075,18 @@ export default function PrototypeNotePage() {
     ],
   );
   const handleDismissPurpose = useCallback(() => {
+    /* A prompt is session-only and never part of the note: dismissing it just hides it for this
+       session — no per-note key, which would also silence a later service banner. */
+    if (notePurpose?.kind === 'prompt') {
+      setPromptDismissedEpoch(composeSessionEpoch);
+      return;
+    }
     /* A session purpose is shell state, so clearing it *is* the dismissal; a saved
        note's is a localStorage key, and the memo above needs a reason to re-run. */
     clearComposePurpose();
     if (!isDraft) dismissPurpose(noteId);
     setPurposeDismissals((n) => n + 1);
-  }, [clearComposePurpose, isDraft, noteId]);
+  }, [clearComposePurpose, composeSessionEpoch, isDraft, notePurpose?.kind, noteId]);
 
   const audienceBarMode = useMemo(
     () =>

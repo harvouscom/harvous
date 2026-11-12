@@ -346,24 +346,20 @@
 
 .dock-accent-swatch__choice:focus-visible {
   outline: 2px solid var(--pds-accent, rgb(56, 105, 230));
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
+/* Plain colour dots: no hairline around every choice. The chosen one is ringed in its own
+   colour with a clear gap (an outline on the fill, so the gap is transparent on any popover),
+   and no check mark, so nothing has to be inked light or dark per colour. Same treatment as
+   the child notebook's highlighter. The ring element stays for markup parity but draws nothing. */
 .dock-accent-swatch__choice-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 18%, transparent);
-  pointer-events: none;
-  box-sizing: border-box;
-  transition:
-    border-color 0.12s ease,
-    border-width 0.12s ease;
+  display: none;
 }
 
-.dock-accent-swatch__choice--selected .dock-accent-swatch__choice-ring {
-  border-width: 2px;
-  border-color: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 65%, transparent);
+.dock-accent-swatch__choice--selected .dock-accent-swatch__choice-fill {
+  outline: 2px solid var(--dock-swatch);
+  outline-offset: 2px;
 }
 
 .dock-accent-swatch__choice-fill {
@@ -377,30 +373,36 @@
 
 .dock-accent-swatch__choice-fill--neutral,
 .dock-accent-swatch__trigger-fill--neutral {
-  background-color: var(--study-dock-accent-neutral);
+  --dock-swatch: var(--study-dock-accent-neutral);
+  background-color: var(--dock-swatch);
 }
 
 .dock-accent-swatch__choice-fill--warmAmber,
 .dock-accent-swatch__trigger-fill--warmAmber {
-  background-color: var(--study-dock-accent-warmAmber);
+  --dock-swatch: var(--study-dock-accent-warmAmber);
+  background-color: var(--dock-swatch);
 }
 
 .dock-accent-swatch__choice-fill--skyBlue,
 .dock-accent-swatch__trigger-fill--skyBlue {
-  background-color: var(--study-dock-accent-skyBlue);
+  --dock-swatch: var(--study-dock-accent-skyBlue);
+  background-color: var(--dock-swatch);
 }
 
 .dock-accent-swatch__choice-fill--violet,
 .dock-accent-swatch__trigger-fill--violet {
-  background-color: var(--study-dock-accent-violet);
+  --dock-swatch: var(--study-dock-accent-violet);
+  background-color: var(--dock-swatch);
 }
 
 .dock-accent-swatch__choice-fill--mintGreen,
 .dock-accent-swatch__trigger-fill--mintGreen {
-  background-color: var(--study-dock-accent-mintGreen);
+  --dock-swatch: var(--study-dock-accent-mintGreen);
+  background-color: var(--dock-swatch);
 }
 
 .dock-accent-swatch__choice-fill--coralRose,
 .dock-accent-swatch__trigger-fill--coralRose {
-  background-color: var(--study-dock-accent-coralRose);
+  --dock-swatch: var(--study-dock-accent-coralRose);
+  background-color: var(--dock-swatch);
 }

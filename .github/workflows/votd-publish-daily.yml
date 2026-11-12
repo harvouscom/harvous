@@ -2,10 +2,15 @@ name: Publish Verse of the Day
 
 on:
   schedule:
-    # 09:00 UTC: publish tomorrow's VOTD early so all UTC+ timezone users have their verse
-    # before their local midnight (UTC+14 midnight = 10:00 UTC — this gives a 1-hour buffer).
+    # Two runs a day, and each one publishes BOTH today and tomorrow (UTC), both idempotent.
+    #
+    # It used to decide which day to publish from the clock (`HOUR=9 && MIN<15` → tomorrow). GitHub
+    # starts scheduled jobs hours late — Nov 2026 the 09:00 run was landing at 16:40-19:20 UTC and
+    # the 00:05 run at 06:00-07:00 UTC — so the early run never saw hour 9, republished today as a
+    # no-op, and tomorrow's verse only landed with the late catch-up: after midnight for readers in
+    # the Americas, who got yesterday's passage until it did. Publishing both days every run makes
+    # the start time irrelevant.
     - cron: '0 9 * * *'
-    # 00:05 UTC: idempotent catch-up if the early run failed (publishes "today" if missing).
     - cron: '5 0 * * *'
   workflow_dispatch:
 
@@ -27,36 +32,30 @@ jobs:
           set -euo pipefail
           # Normalize line endings / stray newlines from secret managers
           SECRET_TOKEN="$(printf '%s' "${SECRET_TOKEN:-}" | tr -d '\r\n')"
-
-          HOUR="$(date -u +%H)"
-          MIN="$(date -u +%M)"
-          MIN=$((10#$MIN))
-          if [ "$HOUR" = "9" ] && [ "$MIN" -lt 15 ]; then
-            SUFFIX='?target=next'
-            echo "VOTD: early publish for next UTC calendar day (target=next)"
-          else
-            SUFFIX=''
-            echo "VOTD: publish for current UTC calendar day (catch-up or manual)"
-          fi
-
-          echo "Calling VOTD publish: ${SITE_URL}/api/admin/votd/publish-daily${SUFFIX}"
           if [ -z "$SECRET_TOKEN" ]; then
             echo "::error::GitHub secret VOTD_CRON_SECRET is empty. Add it under Settings → Secrets and variables → Actions (same value as the Fly secret VOTD_CRON_SECRET)."
             exit 1
           fi
-          echo "Bearer auth: enabled (secret length ${#SECRET_TOKEN} chars)"
 
-          response_file="$(mktemp)"
-          code="$(
-            curl -sS -o "$response_file" -w '%{http_code}' -X POST "${SITE_URL}/api/admin/votd/publish-daily${SUFFIX}" \
-              -H "Authorization: Bearer ${SECRET_TOKEN}"
-          )"
-          body="$(cat "$response_file")"
-          rm -f "$response_file"
-          echo "$body"
-          echo "$code"
+          publish() {
+            local suffix="$1"
+            echo "Calling VOTD publish: ${SITE_URL}/api/admin/votd/publish-daily${suffix}"
+            response_file="$(mktemp)"
+            code="$(
+              curl -sS -o "$response_file" -w '%{http_code}' -X POST "${SITE_URL}/api/admin/votd/publish-daily${suffix}" \
+                -H "Authorization: Bearer ${SECRET_TOKEN}"
+            )"
+            body="$(cat "$response_file")"
+            rm -f "$response_file"
+            echo "$body"
+            echo "$code"
 
-          if [ "$code" != "200" ]; then
-            echo "::error::VOTD publish failed with HTTP $code (expected 200). Body above. An HTML \"Just a moment\" body is a Cloudflare bot challenge, not the app. A JSON 401 means the Fly secret VOTD_CRON_SECRET does not match the GitHub secret of the same name."
-            exit 1
-          fi
+            if [ "$code" != "200" ]; then
+              echo "::error::VOTD publish failed with HTTP $code (expected 200). Body above. An HTML \"Just a moment\" body is a Cloudflare bot challenge, not the app. A JSON 401 means the Fly secret VOTD_CRON_SECRET does not match the GitHub secret of the same name."
+              exit 1
+            fi
+          }
+
+          # Today first (also backfills yesterday server-side), then tomorrow.
+          publish ''
+          publish '?target=next'

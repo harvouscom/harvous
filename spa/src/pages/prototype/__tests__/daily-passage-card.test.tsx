@@ -9,7 +9,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 const navigate = vi.fn();
-const setQueryData = vi.fn();
+const setQueriesData = vi.fn();
 const beginPrototypeComposeSession = vi.fn();
 const fetchSpy = vi.fn(async () => new Response('{}'));
 
@@ -18,7 +18,7 @@ vi.mock('@clerk/clerk-react', () => ({
 }));
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }));
 vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: () => {}, setQueryData }),
+  useQueryClient: () => ({ invalidateQueries: () => {}, setQueriesData }),
 }));
 vi.mock('../../../layouts/proto-shell-context', () => ({
   useProtoShell: () => ({ isMobileSidebar: false, closeDrawer: () => {}, beginPrototypeComposeSession }),
@@ -50,7 +50,7 @@ const lastEngagement = () => {
 
 /* The fold, read back through the updater the card handed to the VOTD cache. */
 const actedAfterUpdate = () => {
-  const updater = setQueryData.mock.calls.at(-1)?.[1] as ((v: typeof votd) => typeof votd) | undefined;
+  const updater = setQueriesData.mock.calls.at(-1)?.[1] as ((v: typeof votd) => typeof votd) | undefined;
   return updater ? updater(votd).actedToday : undefined;
 };
 
@@ -156,7 +156,7 @@ describe('the card', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
     fireEvent.click(screen.getByLabelText("Dismiss today's passage"));
     expect(screen.queryByRole('button', { name: 'Open in Bible' })).toBeNull();
-    expect(setQueryData).not.toHaveBeenCalled();
+    expect(setQueriesData).not.toHaveBeenCalled();
     expect(lastEngagement()).toBe('dismiss');
   });
 });

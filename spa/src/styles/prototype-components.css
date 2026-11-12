@@ -5565,6 +5565,10 @@ html.harvous-prototype-route
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Room between an icon and its label, for every caller rather than a typed `&nbsp;` in one
+     of them (a nbsp read ~4px, so the icon sat on the word). The Resources "Read on" button
+     had none at all; the church join row sets its own 6px. */
+  gap: var(--pds-space-2);
   width: 100%;
   border: 0;
   border-radius: 999px;
@@ -11712,12 +11716,19 @@ html.harvous-prototype-route
      centre otherwise, which is what the auth and public shells get. */
   left: var(--proto-toast-center, 50%);
   transform: translateX(-50%);
-  /* Lifted clear of the study dock band. These two are the only bottom-anchored things
-     outside the band — fixed to the body rather than living in it — so the reserve the
-     scrollers take does not move them, and an open dock would sit on top of them. */
+  /* Stands on the frame's floor like the rest of the bottom chrome; with a dock up it rises
+     just clear of the card instead of by a whole band on top of that.
+     The band height is measured from the frame floor, and already carries the card's 16px
+     top padding and (on a phone) the home-indicator clearance. So the toast needs no inset,
+     safe-area or gap of its own above it: 4px less than the band is a 12px gap over the
+     card's shadow edge. Adding the usual 16px + safe-area on top, as this once did, parked
+     it ~30px above that and left it floating mid-page over the content. No dock (the band
+     var is unset): the usual 16px + safe-area above the frame inset.
+     Fixed to the body, so the dock does not reserve room for it; an open dock would sit on
+     top of it otherwise. */
   bottom: calc(
-    var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom) +
-      var(--proto-study-dock-band-height, 0px)
+    var(--pds-shell-frame-inset, 14px) +
+      max(16px + env(safe-area-inset-bottom), var(--proto-study-dock-band-height, 0px) - 4px)
   );
   z-index: 1000021;
   display: inline-flex;
@@ -12064,8 +12075,9 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 .proto-purpose-banner .proto-shared-readonly-banner__icon {
-  /* Optical centring against the first line's cap height. */
-  margin-top: 1px;
+  /* Centred on the first line box (line-height 1.35 above, 11px icon). A fixed 1px left the
+     icon ~2px above the text's middle at 13px. */
+  margin-top: calc((1.35em - 11px) / 2);
 }
 
 .proto-purpose-banner {
@@ -24598,8 +24610,8 @@ button.proto-feed-sheet__stat:hover {
   padding-bottom: var(--pds-space-2);
 }
 
-/* Type comes from `.proto-home-greeting`, which this element also carries. Only the measure
-   is ours: the greeting runs the width of a sidebar, and this one has a whole sheet. */
+/* Type and layout come from `.proto-home-greeting--week`, the signed-in Home's greeting block,
+   which this element also carries. Only the measure is ours. */
 .proto-guest-home__lead {
   max-width: 46ch;
 }
@@ -24626,16 +24638,6 @@ button.proto-feed-sheet__stat:hover {
   padding-inline: var(--pds-space-5);
 }
 
-.proto-guest-home__sheet .proto-feed-sheet__head {
-  padding-inline: var(--pds-space-5);
-  /*
-   * And the heading belongs to the paragraph under it. 16px is right on the feed, where the
-   * head is a date over a stack of unrelated sections; here the next line finishes the
-   * heading's thought, and at that distance the two read as separate announcements. The
-   * paragraph brings 6px of its own, so this is the half that is ours to give back.
-   */
-  padding-bottom: var(--pds-space-2);
-}
 
 /*
   The read-first invitation, shown only until this browser holds something.

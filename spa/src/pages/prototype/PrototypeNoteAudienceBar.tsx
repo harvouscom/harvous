@@ -19,7 +19,8 @@ import type { NotePurpose } from '../../lib/compose-purpose';
  *  - `loud`  — you're in the shared space, or someone actually has the pen. Full
  *    status banner.
  *  - purpose — what this note is *for*, when the author opened it to do a
- *    particular job (writing into a planned week, or writing a template).
+ *    particular job (writing into a planned week, writing a template, or answering
+ *    the Home compose dock's prompt).
  *
  * Escalation happens mid-typing, so every register must occupy identical space:
  * all render `.proto-shared-readonly-banner` with its fixed `min-height`, and the
@@ -89,7 +90,13 @@ export default function PrototypeNoteAudienceBar({
       <div className="proto-shared-readonly-banner proto-shared-readonly-banner--quiet proto-purpose-banner">
         <span className="proto-shared-readonly-banner__status proto-shared-readonly-banner__audience pds-caption">
           <Icon
-            name={purpose.kind === 'template' ? 'file-lines' : 'church'}
+            name={
+              purpose.kind === 'template'
+                ? 'file-lines'
+                : purpose.kind === 'prompt'
+                  ? 'pen-to-square'
+                  : 'church'
+            }
             size={11}
             className="proto-shared-readonly-banner__icon"
             aria-hidden

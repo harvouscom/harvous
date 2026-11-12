@@ -15,7 +15,9 @@
  *
  * Shaped like a field because that is what a composer prompt is everywhere else, but it is a
  * button: it opens the editor the same way the toolbar pencil does (`prototypeShortcutNewNote`),
- * so the two land a new note in the same space and there is one compose path, not two.
+ * so the two land a new note in the same space and there is one compose path, not two. The line
+ * that was showing rides along as the seed's `prompt`, so the new note opens with it as a
+ * dismissible heads-up rather than losing the question that started it.
  *
  * One bounded bit of motion: the line rotates through a few prompts, so it reads as an
  * invitation rather than a label you stop seeing, and each new line types itself out behind a
@@ -29,6 +31,7 @@
  */
 import { useEffect, useState } from 'react';
 import Icon from '@/components/react/Icon';
+import type { PrototypeComposeSeed } from '../../layouts/proto-shell-context';
 import { FEED_COMPOSE_FILLERS } from './feed-compose-prompts';
 
 /** Long enough to read twice, short enough that it feels alive. Includes the typing. */
@@ -41,6 +44,17 @@ const TYPE_MS = 42;
     only right for the moment it appeared. `FEED_COMPOSE_FILLERS` is documented as having this
     line first for exactly this reason. */
 const ANCHOR_LINE = FEED_COMPOSE_FILLERS[0];
+
+/**
+ * What the dock hands the shell's new-note path: the line on screen, as the seed's `prompt`, so
+ * the note opens with it as a heads-up (the purpose register above the paper). The whole line,
+ * even mid-typing — the reader clicked the question, not the letters drawn so far. A heads-up
+ * only: no title or body, so the note itself starts blank.
+ */
+export function composeDetailForPrompt(label: string): { seed?: PrototypeComposeSeed } {
+  const prompt = label.trim();
+  return prompt ? { seed: { prompt } } : {};
+}
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
@@ -166,7 +180,7 @@ export default function PrototypeFeedComposePrompt({
               type="button"
               className="proto-feed-compose"
               aria-label="Write a note"
-              onClick={() => window.dispatchEvent(new Event('prototypeShortcutNewNote'))}
+              onClick={() => window.dispatchEvent(new CustomEvent('prototypeShortcutNewNote', { detail: composeDetailForPrompt(label) }))}
             >
               <Icon name="pen-to-square" size={17} aria-hidden />
               <span key={settled ? 'rest' : activeIndex} className="proto-feed-compose__label" aria-hidden>
