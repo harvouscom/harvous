@@ -1,10 +1,10 @@
 export const coverColors = [
   { id: 'blue', label: 'Sky', color: 'var(--pds-thread-blue)' },
-  { id: 'green', label: 'Meadow', color: 'var(--pds-thread-green)' },
+  { id: 'green', label: 'Leaf', color: 'var(--pds-thread-green)' },
   { id: 'purple', label: 'Lilac', color: 'var(--pds-thread-purple)' },
   { id: 'pink', label: 'Rose', color: 'var(--pds-thread-pink)' },
   { id: 'orange', label: 'Peach', color: 'var(--pds-thread-orange)' },
-  { id: 'yellow', label: 'Sunshine', color: 'var(--pds-thread-yellow)' }
+  { id: 'yellow', label: 'Sun', color: 'var(--pds-thread-yellow)' }
 ] as const;
 export const coverSymbols = ['initial', 'cross', 'leaf', 'sun', 'star', 'book-open', 'puzzle-piece', 'bookmark', 'wand-magic-sparkles',
   // Bible-story stickers: Noah, Jonah, the Spirit as a dove, the King, the mustard seed, hope as an
