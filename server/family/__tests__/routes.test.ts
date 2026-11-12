@@ -52,6 +52,25 @@ describe('family route boundaries', () => {
     const { PgDialect } = await import('drizzle-orm/pg-core');
     expect(new PgDialect().sqlToQuery(where.mock.calls[0][0]).params).toEqual(['other', 'parent-a']);
   });
+  it('lets the owning parent rename a notebook, trimmed, even while consent is paused', async () => {
+    const set = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
+    const select = vi.fn(() => ({ from: () => ({ where: () => ({ for: vi.fn().mockResolvedValue([{ id: 'child-a', status: 'paused' }]) }) }) }));
+    database.transaction.mockImplementationOnce(work => work({ select, update: vi.fn(() => ({ set })) }));
+    const response = await app.request('/api/child-accounts/children/child-a/name', { method: 'PUT',
+      headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: '  Ellie  ' }) });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ displayName: 'Ellie' });
+    expect(set).toHaveBeenCalledWith({ displayName: 'Ellie' });
+  });
+  it.each(['', '   ', 'x'.repeat(33)])('rejects the notebook name %j before touching the database', async (displayName) => {
+    const response = await app.request('/api/child-accounts/children/child-a/name', { method: 'PUT',
+      headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName }) });
+    expect(response.status).toBe(400); expect(database.transaction).not.toHaveBeenCalled();
+  });
+  it('requires parent authentication to rename a notebook', async () => {
+    const response = await app.request('/api/child-accounts/children/child-a/name', { method: 'PUT', body: JSON.stringify({ displayName: 'Ellie' }) });
+    expect(response.status).toBe(401); expect(database.transaction).not.toHaveBeenCalled();
+  });
   it('does not accept child details while enrollment is disabled', async () => {
     const response = await app.request('/api/child-accounts/children', { method: 'POST', headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' }, body: '{}' });
     expect(response.status).toBe(503); expect(database.transaction).not.toHaveBeenCalled();

@@ -224,6 +224,19 @@ route.get(`${base}/children/:id`, requireAuth, async (c) => c.json(await db.tran
   return { child, notes, approvals, ministries, readings: await familyReadings(tx, child), capabilities: CHILD_CAPABILITIES };
 })));
 
+// A parent can rename the notebook at any time — a nickname, a typo, two children with one name.
+// Same rule as at creation: a first name or nickname, 1–32 characters. Allowed while consent is
+// paused, because naming is the parent managing the record, not the child using it.
+const renameInput = z.object({ displayName: z.string().trim().min(1).max(32) }).strict();
+route.put(`${base}/children/:id/name`, requireAuth, async (c) => {
+  const { displayName } = renameInput.parse(await c.req.json());
+  return c.json(await db.transaction(async (tx) => {
+    const child = await ownedChild(tx, parentId(c), requireParam(c, 'id'));
+    await tx.update(FamilyChildren).set({ displayName }).where(eq(FamilyChildren.id, child.id));
+    return { displayName };
+  }));
+});
+
 route.get(`${base}/children/:id/export`, requireAuth, async (c) => c.json(await db.transaction(async (tx) => {
   await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`);
   const child = await ownedChild(tx, parentId(c), requireParam(c, 'id'));

@@ -36,6 +36,12 @@
 .pds-family-management__identity p { margin: 0; overflow-wrap: anywhere; }
 .pds-family-management__identity p { margin-block-start: var(--pds-space-1); }
 .pds-family-management__identity > .pds-kids-book { cursor: default; }
+.pds-family-management__title { display: flex; align-items: center; gap: var(--pds-space-1); min-width: 0; }
+.pds-family-management__title > .proto-toolbar-icon-btn { flex: none; color: var(--pds-text-secondary); }
+.pds-family-rename { display: grid; gap: var(--pds-space-2); min-width: 0; }
+.pds-family-rename > label { color: var(--pds-text-secondary); }
+.pds-family-rename__actions { display: flex; gap: var(--pds-space-2); }
+.pds-family-rename__actions > .proto-settings-btn { width: auto; min-height: 36px; padding-inline: var(--pds-space-4); gap: var(--pds-space-2); }
 .pds-family-management__inline {
   display: grid;
   gap: var(--pds-space-2);

@@ -44,6 +44,8 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState('');
   const [handoff, setHandoff] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState(child.displayName);
   const [confirm, setConfirm] = useState<{ action: 'delete' | 'revoke'; anchor: HTMLButtonElement } | null>(null);
   const screenRef = useRef<HTMLDivElement>(null);
   const endpoint = `/api/child-accounts/children/${encodeURIComponent(child.id)}`;
@@ -110,10 +112,33 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
           </nav>
           <header className="pds-family-management__identity">
             <ChildNotebookCover name={child.displayName} preferences={child.notebookPreferences} />
-            <div>
-              <h2 className="pds-title">{title}</h2>
+            {renaming ? <form className="pds-family-rename" onSubmit={event => {
+              event.preventDefault();
+              const next = name.trim();
+              if (!next || next === child.displayName) { setRenaming(false); return; }
+              void perform(async () => { await api.put(`${endpoint}/name`, { displayName: next }); setRenaming(false); }, 'Renamed.');
+            }}>
+              <label className="pds-caption" htmlFor="child-notebook-name">Name on the notebook</label>
+              <input id="child-notebook-name" className="proto-settings-field__input" value={name} maxLength={32} required autoFocus
+                autoComplete="off" disabled={disabled} aria-describedby="child-notebook-name-hint"
+                onChange={event => setName(event.target.value)}
+                onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setName(child.displayName); setRenaming(false); } }} />
+              <span id="child-notebook-name-hint" className="pds-caption">A first name or nickname. Your child sees it on their notebook.</span>
+              <div className="pds-family-rename__actions">
+                <button type="button" className="proto-settings-btn proto-settings-btn--secondary" disabled={disabled}
+                  onClick={() => { setName(child.displayName); setRenaming(false); }}>Cancel</button>
+                <button type="submit" className="proto-settings-btn" disabled={disabled || !name.trim()}>{busy ? <ProtoLoadingDots /> : null} Save</button>
+              </div>
+            </form> : <div>
+              <div className="pds-family-management__title">
+                <h2 className="pds-title">{title}</h2>
+                <button type="button" className="proto-toolbar-icon-btn" aria-label={`Rename ${title}`} title="Rename" disabled={disabled}
+                  onClick={() => { setName(child.displayName); setRenaming(true); }}>
+                  <Icon name="pen" size={13} aria-hidden />
+                </button>
+              </div>
               <p className="pds-caption">{active ? 'Parent-managed notebook' : 'Consent withdrawn'}</p>
-            </div>
+            </div>}
           </header>
           {feedback}
 
