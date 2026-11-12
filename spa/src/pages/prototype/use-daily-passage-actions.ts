@@ -69,7 +69,7 @@ export function useDailyPassageActions({
    * or the note create itself), so every other device folds it on its next fetch.
    */
   const markActed = useCallback(() => {
-    queryClient.setQueryData<VotdToday | null>(votdTodayQueryKey, (current) =>
+    queryClient.setQueriesData<VotdToday | null>({ queryKey: votdTodayQueryKey }, (current) =>
       current ? { ...current, actedToday: true } : current,
     );
   }, [queryClient]);
