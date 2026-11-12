@@ -26,6 +26,9 @@ import { searchChildNotebook } from '../family/notebook-search';
 import { chapterStickers, setVerseSticker, verseStickerInput } from '../family/stickers';
 import { chapterHighlights, setVerseHighlight, verseHighlightInput } from '../family/highlights';
 import { consentHistory } from '../family/consents';
+import { childLookBackSitting } from '../family/look-back';
+import { buildReviewReveal, getReviewItem } from '../utils/review-service';
+import { reviewOutcomeReply } from './review';
 
 function requireActiveConsent(child: Child) {
   if (!hasActiveChildConsent(child)) throw new HTTPException(403, { message: 'This child account is paused.' });
@@ -426,6 +429,31 @@ route.post(`${base}/child/bible/chapter`, async (c) => {
     return { ...await readChapter(tx, passage), stickers: await chapterStickers(tx, child, passage.book, passage.chapter),
       highlights: await chapterHighlights(tx, child, passage.book, passage.chapter) };
   }));
+});
+// Look back: adult Review's sitting, reveal and answer, run for the signed-in child (see family/look-back.ts).
+const LOOK_BACK_DAY_MS = 26 * 60 * 60 * 1000;
+function lookBackDayStart(raw: string | undefined, now: Date) {
+  if (!raw) return null;
+  const at = new Date(raw);
+  return Number.isNaN(at.getTime()) || at > now || now.getTime() - at.getTime() > LOOK_BACK_DAY_MS ? null : at;
+}
+route.get(`${base}/child/look-back`, async (c) => {
+  const now = new Date();
+  return c.json(await withChildSession(token(c), (_tx, child) => childLookBackSitting(child, lookBackDayStart(c.req.query('dayStart'), now), now)));
+});
+route.get(`${base}/child/look-back/:id/reveal`, async (c) => c.json(await withChildSession(token(c), async (_tx, child) => {
+  const item = await getReviewItem(child.id, requireParam(c, 'id'));
+  if (!item) throw new HTTPException(404, { message: 'That one is gone.' });
+  return buildReviewReveal(child.id, item);
+})));
+route.post(`${base}/child/look-back/:id/answer`, async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const reply = await withChildSession(token(c), async (_tx, child) => {
+    const item = await getReviewItem(child.id, requireParam(c, 'id'));
+    if (!item) throw new HTTPException(404, { message: 'That one is gone.' });
+    return reviewOutcomeReply({ userId: child.id }, item, body);
+  });
+  return c.json(reply.body, reply.status);
 });
 route.put(`${base}/child/bible/highlights`, async (c) => {
   const input = verseHighlightInput.parse(await c.req.json());

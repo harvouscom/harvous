@@ -208,6 +208,17 @@ import { fetchVerseText } from './fetch-verse-text';
 import { getUserDefaultTranslation } from './votd-user-translation';
 import { recordNoteRecallEngaged } from './note-recall-state';
 import { countableUserNotesWhere } from './purge-onboarding-content';
+import { CHILD_ACCOUNT_ID_PREFIX } from '../family/identity';
+
+/**
+ * Which of the reader's own notes review may draw on. Every caller already limits to
+ * `Notes.userId = userId`; the child-account exclusion inside `countableUserNotesWhere` is there to
+ * keep children out of adult pools and analytics, so a child reviewing their own notebook (the
+ * child Look back) is the one reader it must not hide notes from.
+ */
+function ownNotesWhere(userId: string) {
+  return userId.startsWith(CHILD_ACCOUNT_ID_PREFIX) ? undefined : countableUserNotesWhere();
+}
 import {
   chapterTouch,
   noteTouch,
@@ -452,7 +463,7 @@ async function loadNoteLabelPoolUncached(
   const rows = await db
     .select({ id: Notes.id, title: Notes.title, createdAt: Notes.createdAt })
     .from(Notes)
-    .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), countableUserNotesWhere()))
+    .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), ownNotesWhere(userId)))
     .orderBy(desc(Notes.updatedAt))
     .limit(NOTE_OPTION_POOL_LIMIT);
 
@@ -691,7 +702,7 @@ async function loadNoteNeighbourIds(
     db
       .select({ id: Notes.linkedFromNoteId, other: Notes.id })
       .from(Notes)
-      .where(and(eq(Notes.userId, userId), inArray(Notes.linkedFromNoteId, ids), countableUserNotesWhere())),
+      .where(and(eq(Notes.userId, userId), inArray(Notes.linkedFromNoteId, ids), ownNotesWhere(userId))),
   ]);
   const wanted = new Set(ids);
   const add = (a: string | null, b: string | null) => {
@@ -2751,7 +2762,7 @@ async function loadNoteIdsCitingPassage(
           ),
         ),
         ne(Notes.noteType, 'scripture'),
-        countableUserNotesWhere(),
+        ownNotesWhere(userId),
       ),
     );
   return owned.map((row) => row.id);
@@ -3408,7 +3419,7 @@ async function loadCitedVerseNumbersInChapter(
             eq(Notes.userId, userId),
             inArray(Notes.id, ids),
             ne(Notes.noteType, 'scripture'),
-            countableUserNotesWhere(),
+            ownNotesWhere(userId),
           ),
         ),
       db
@@ -3420,7 +3431,7 @@ async function loadCitedVerseNumbersInChapter(
             inArray(NoteScriptureReferences.scriptureNoteId, ids),
             eq(Notes.userId, userId),
             ne(Notes.noteType, 'scripture'),
-            countableUserNotesWhere(),
+            ownNotesWhere(userId),
           ),
         ),
     ]);

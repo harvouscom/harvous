@@ -20,6 +20,7 @@ import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { TypedLine } from './PrototypeFeedComposePrompt';
 import ChildNotebookCoverStudio from './ChildNotebookCoverStudio';
+import ChildLookBackDock, { type LookBackApi, type LookBackSitting } from './ChildLookBackDock';
 import type { ChildNotebookPreferences } from '../../../../shared/child-notebook';
 
 const familyBibleBookmark = { book: 'Psalms', chapter: 23 };
@@ -37,6 +38,8 @@ type Props = {
   onFamilyReading?: (id: string) => Promise<void>;
   onParentSignIn: () => Promise<void>;
   onEndSession?: () => Promise<void>;
+  /** Look back: today's sitting from the review engine, and how to reveal and answer. */
+  lookBack?: { load: () => Promise<LookBackSitting>; api: LookBackApi };
 };
 
 // Local design fixture only. All edits remain in React state, never account data.
@@ -90,7 +93,7 @@ function attachmentKey(attachment: ChildNoteAttachment) {
 
 
 
-export default function ChildNotebookView({ preview = false, privacyUrl, initial, renderBible, renderAttachment, renderSearch, onSaveNote, onReadResource, onSavePreferences, onFamilyReading, onParentSignIn, onEndSession }: Props) {
+export default function ChildNotebookView({ preview = false, privacyUrl, initial, renderBible, renderAttachment, renderSearch, onSaveNote, onReadResource, onSavePreferences, onFamilyReading, onParentSignIn, onEndSession, lookBack }: Props) {
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const [selectedResource, setSelectedResource] = useState<ChildFamilyResource | null>(null);
@@ -154,8 +157,16 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   const [announcement, setAnnouncement] = useState('');
   const [privacy, setPrivacy] = useState(false);
   const [homeFilter, setHomeFilter] = useState<'all' | 'continue' | 'remember' | 'ideas'>('all');
-  const [revealed, setRevealed] = useState(false);
-  const reviewNote = notes[notes.length - 1];
+  // Look back is fetched with Home, so opening the dock finds today's sitting already here.
+  const [lookBackSitting, setLookBackSitting] = useState<LookBackSitting | null>(null);
+  const [lookBackOpen, setLookBackOpen] = useState(false);
+  const [lookBackRevision, setLookBackRevision] = useState(0);
+  useEffect(() => {
+    if (!lookBack) return;
+    let current = true;
+    void lookBack.load().then(sitting => { if (current) setLookBackSitting(sitting); }).catch(() => {});
+    return () => { current = false; };
+  }, [lookBack, lookBackRevision]);
   const [ideaIndex, setIdeaIndex] = useState(0);
   const [systemReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const reducedMotion = systemReducedMotion || appearance.reduceMotion;
@@ -454,8 +465,10 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               {!notes.length && <PrototypeHomeRow icon="pen-to-square" title="Your first note starts here" meta={['A thought, a question, anything you noticed']} onClick={() => openNote()} />}
             </PrototypeHomeSection>}
             {(homeFilter === 'all' || homeFilter === 'remember') && <PrototypeHomeSection title="Look back">
-              {reviewNote ? <PrototypeHomeRow icon="rotate-left" title={reviewNote.title} meta={['What do you remember?', 'Take your time']} onClick={() => { setRevealed(false); setView('remember'); }} />
-                : <PrototypeHomeRow icon="pen-to-square" title="Keep something to come back to" meta={['Write a note first, then revisit it here']} onClick={() => openNote()} />}
+              {lookBackSitting?.items.length
+                ? <PrototypeHomeRow icon="rotate-left" title={lookBackSitting.items[0].kind === 'note' ? lookBackSitting.items[0].noteTitle ?? 'One of your notes' : lookBackSitting.items[0].scriptureReference ?? 'A verse you marked'}
+                    meta={['A few things from your notebook', 'Take your time']} onClick={() => { playCue('nav.open'); setLookBackOpen(true); }} />
+                : <PrototypeHomeRow icon="pen-to-square" title="Keep something to come back to" meta={['Write a note or highlight a verse, then look back here']} onClick={() => openNote()} />}
             </PrototypeHomeSection>}
             {(homeFilter === 'all' || homeFilter === 'ideas') && <>
               <PrototypeHomeSection title="Shared with you">
@@ -507,35 +520,6 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         }} />}
         </div>}
 
-        {view === 'remember' && reviewNote && <div className="pds-kids-preview__body pds-kids-review">
-          <div className="pds-kids-review__hero">
-            <h1 ref={headingRef} tabIndex={-1} className="pds-title-xl">What stayed with you?</h1>
-            <p>There’s no test here. Just a chance to revisit a thought.</p>
-          </div>
-          {/* The same pill tabs as Home's filters. */}
-          <div className="proto-appearance-segmented pds-kids-home-filters pds-kids-review-tabs" role="tablist" aria-label="Revisit your note" onKeyDown={event => {
-            const next = event.key === 'ArrowRight' || event.key === 'End' ? true : event.key === 'ArrowLeft' || event.key === 'Home' ? false : null;
-            if (next === null) return;
-            event.preventDefault(); setRevealed(next);
-            event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next ? 1 : 0]?.focus();
-          }}>
-            <button id="kids-think-tab" className="proto-appearance-segmented__btn" role="tab" aria-selected={!revealed} data-active={!revealed ? 'true' : undefined} aria-controls="kids-review-panel" tabIndex={!revealed ? 0 : -1} onClick={() => setRevealed(false)}><Icon name="rotate-left" size={15} /> Think back</button>
-            <button id="kids-look-tab" className="proto-appearance-segmented__btn" role="tab" aria-selected={revealed} data-active={revealed ? 'true' : undefined} aria-controls="kids-review-panel" tabIndex={revealed ? 0 : -1} onClick={() => setRevealed(true)}><Icon name="book-open" size={15} /> Take a look</button>
-          </div>
-          {/* The note as a page from their own notebook, with their cover colour on the spine. The notebook
-              behind it already carries their paper, so the page itself stays plain. */}
-          <section id="kids-review-panel" className="pds-kids-review__page" role="tabpanel" aria-labelledby={revealed ? 'kids-look-tab' : 'kids-think-tab'}>
-            <span className="pds-kids-review__date">{reviewNote.date}</span>
-            <h2 className="pds-kids-review__title">{reviewNote.title}</h2>
-            {revealed ? <p className="pds-kids-review__text">{reviewNote.content}</p> : <p className="pds-kids-review__text pds-kids-review__text--prompt">Close your eyes for a moment if you like. What do you remember about this note?</p>}
-          </section>
-          <div className="pds-kids-review__actions">
-            {!revealed ? <button className="proto-settings-btn" onClick={() => setRevealed(true)}><Icon name="book-open" size={14} /> Show my note</button>
-              : <button className="proto-settings-btn" onClick={() => openNote(reviewNote)}><Icon name="pen" size={13} /> Add a thought</button>}
-            <button className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setView('home')}><Icon name="arrow-left" size={12} /> Back to my notebook</button>
-          </div>
-        </div>}
-
         {view === 'reading' && selectedResource && <div className="pds-kids-preview__body pds-kids-preview__reading-page">
           <span className="pds-kids-preview__label">{selectedResource.source} · Shared in Family Space</span>
           <h1 ref={headingRef} tabIndex={-1} className="pds-title-xl">{selectedResource.title}</h1>
@@ -544,7 +528,12 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         </div>}
         </div>
 
-        {showComposePrompt && <div className="pds-feed-prompt-dock pds-feed-prompt-dock--sheet" role="region" aria-label="Writing ideas">
+        {showComposePrompt && lookBackOpen && lookBack && lookBackSitting && <div className="pds-feed-prompt-dock pds-feed-prompt-dock--sheet pds-kids-lookback-slot">
+          <ChildLookBackDock sitting={lookBackSitting} api={lookBack.api} playCue={playCue}
+            onClose={() => { setLookBackOpen(false); setLookBackRevision(value => value + 1); }}
+            onOpenNote={noteId => { const note = notes.find(entry => entry.id === noteId); if (note) { setLookBackOpen(false); openNote(note); } }} />
+        </div>}
+        {showComposePrompt && !lookBackOpen && <div className="pds-feed-prompt-dock pds-feed-prompt-dock--sheet" role="region" aria-label="Writing ideas">
             <div className="pds-feed-prompt-field">
               <button className="proto-feed-compose" aria-label={idea.note ? `Continue note: ${idea.note.title}` : 'Write a note with this idea'} onClick={() => openNote(idea.note, idea.text)}>
                 <Icon name="pen-to-square" size={17} />

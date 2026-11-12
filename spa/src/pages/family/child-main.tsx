@@ -11,6 +11,8 @@ import ChildNotebookView, { notebookDays, type Note } from '../prototype/ChildNo
 import ChildNoteAttachmentPicker from '../prototype/ChildNoteAttachmentPicker';
 import type { ChildNotebookCatalog } from '../prototype/ChildNotebookTools';
 import ChildNotebookShell from '../prototype/ChildNotebookShell';
+import type { LookBackReply, LookBackSitting } from '../prototype/ChildLookBackDock';
+import type { ReviewRevealResponse } from '../../hooks/queries/useReview';
 import { ChildNotebookAppearanceProvider, useChildNotebookAppearance } from '../prototype/ChildNotebookAppearance';
 import ChildNotebookBibleReader from '../prototype/ChildNotebookBibleReader';
 import ProtoSpaceLoading from '../prototype/ProtoSpaceLoading';
@@ -115,8 +117,20 @@ function SessionNotebook({ notebook, privacyUrl, request, onEnd, onRefresh, revi
     return { data: settled ? result.data : undefined, isLoading: !!book && !settled, isError: settled && !result.data, refetch: () => setRefresh(value => value + 1) };
   }
 
+  // Look back: the review engine's sitting for this child. "Today" is the child's own midnight.
+  const lookBack = useMemo(() => ({
+    load: () => {
+      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+      return request<LookBackSitting>(`look-back?dayStart=${encodeURIComponent(dayStart.toISOString())}`);
+    },
+    api: {
+      reveal: (id: string) => request<ReviewRevealResponse>(`look-back/${encodeURIComponent(id)}/reveal`),
+      answer: (id: string, body: Record<string, unknown>) => request<LookBackReply>(`look-back/${encodeURIComponent(id)}/answer`, 'POST', body),
+    },
+  }), [request]);
+
   return <ChildNotebookShell onFinish={() => window.dispatchEvent(new CustomEvent('harvousChildNotebookPreviewAction', { detail: 'finish' }))}>
-    <ChildNotebookView preview={isDesignPreview} initial={initial} privacyUrl={privacyUrl}
+    <ChildNotebookView preview={isDesignPreview} initial={initial} privacyUrl={privacyUrl} lookBack={lookBack}
       renderBible={props => <ChildNotebookBibleReader {...props} useChapter={useChildChapter} privacyUrl={privacyUrl}
         live={{ translations: notebook.translations, readings: notebook.readings, activeReading: reading, onReading: setReadingId,
           saveThought: async (id, verse, text) => (await request<{ thought: ChildFamilyThought }>(`bible/readings/${encodeURIComponent(id)}/thoughts`, 'POST', { verse, text })).thought,

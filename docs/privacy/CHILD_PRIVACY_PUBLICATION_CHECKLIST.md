@@ -21,4 +21,4 @@ Before publishing that policy, supply and verify:
 
 Do not claim “COPPA certified” because Harvous uses KWS. Do not enable real child enrollment until the actual product and operational practices have been reviewed.
 
-The in-app notice does not yet list My Bible highlights or verse stickers among saved information. Adding them changes the notice text, which needs a new `CHILD_NOTICE_VERSION` and pauses every existing notebook until its parent renews. Decide with counsel whether this is a material change and update the notice before production enrollment.
+The in-app notice does not yet list My Bible highlights, verse stickers, or Look back review progress (what came back, when, and how it went) among saved information. Adding them changes the notice text, which needs a new `CHILD_NOTICE_VERSION` and pauses every existing notebook until its parent renews. Decide with counsel whether this is a material change and update the notice before production enrollment.

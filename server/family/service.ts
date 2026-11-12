@@ -1,3 +1,4 @@
+import { deleteChildLookBack } from './look-back';
 import { deleteNoteRecordsInTransaction } from '../utils/delete-note-cascade';
 import { parseHTML } from 'linkedom';
 import { and, asc, desc, eq, gt, isNull, sql } from 'drizzle-orm';
@@ -97,6 +98,7 @@ export async function deleteChildData(tx: FamilyTx, child: Child) {
   await deleteNoteRecordsInTransaction(tx, child.id, notes.map((note) => note.id));
   await tx.delete(Tags).where(eq(Tags.userId, child.id));
   await tx.delete(Threads).where(eq(Threads.userId, child.id));
+  await deleteChildLookBack(tx, child.id); // ReviewItems/ReviewEvents key on a text userId, no FK to cascade
   await tx.delete(FamilyChildren).where(eq(FamilyChildren.id, child.id)); // session + approval FK cascades
   await tx.delete(Spaces).where(and(eq(Spaces.id, child.homeSpaceId), eq(Spaces.userId, child.id)));
   await tx.delete(FamilyVerifications).where(eq(FamilyVerifications.id, child.verificationId));

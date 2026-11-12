@@ -4,6 +4,7 @@ import type { ChildSearchResult, ChildSearchScope } from './types';
 import { initialNotes, initialCatalog } from '../prototype/ChildNotebookView';
 import type { Notebook } from './child-main';
 import chapters from './child-preview-chapters.json';
+import type { ReviewItemView } from '../../hooks/queries/useReview';
 const verses = chapters.BSB['Psalms:23'];
 
 const reading = { id: 'preview-psalm', book: 'Psalms', chapter: 23, translation: 'BSB' as const };
@@ -18,7 +19,41 @@ const notebook: Notebook = {
   notes: initialNotes.map(({ date, ...note }) => ({ ...note, updatedAt: date })),
   materials: [{ id: 'preview-reading', spaceId: 'preview-ministry', title: 'This week’s reading', content: 'What’s one kind thing you could do for someone this week?', spaceTitle: 'Kids ministry', updatedAt: null }]
 };
+// A sample Look back sitting: one choice, one note to think back on, one verse to put in order.
+// Marked here the way the server marks it, so the dock can be tried without an account.
+const lookBackItem = (id: string, kind: 'verse' | 'note', prompt: string, extra: Partial<ReviewItemView>): ReviewItemView => ({
+  id, kind, prompt, task: prompt, exercise: null, framing: null, promptKey: `${kind}.preview`, recallState: 'new', status: 'active',
+  origin: 'user', dueAt: new Date().toISOString(), reviewCount: 0, ladderStep: 0, noteTitle: null, secondaryNoteTitle: null,
+  noteLabel: null, noteContext: null, noteWrittenAt: null, scriptureReference: null, noteId: null, challengeId: null,
+  sourceLabel: null, sourceAt: null, cue: null, translation: 'BSB', ...extra,
+});
+const lookBackItems = [
+  lookBackItem('lb-verse', 'verse', 'Which words finish this verse?', { scriptureReference: 'Psalms 23:1' }),
+  lookBackItem('lb-note', 'note', 'What did you notice in this note?', { noteTitle: 'A little kindness', noteId: 'sample-3' }),
+  lookBackItem('lb-order', 'verse', 'Put the verse back in order', { scriptureReference: 'John 1:5' }),
+];
+const lookBackAnswers: Record<string, unknown> = { 'lb-verse': 'I shall not want.', 'lb-order': [0, 1, 2] };
+const lookBackReveals = {
+  'lb-verse': { choice: { options: ['I shall not want.', 'I will fear no evil.', 'He restores my soul.'], opening: false }, verseText: 'The LORD is my shepherd; I shall not want.' },
+  'lb-order': { sequence: { phrases: ['The Light shines in the darkness,', 'and the darkness', 'has not overcome it.'] }, verseText: 'The Light shines in the darkness, and the darkness has not overcome it.' },
+};
+let lookBackAttempts: Record<string, number> = {};
+
 export function previewRequest(path: string, method: string, body: unknown): unknown {
+  if (path.startsWith('look-back')) {
+    if (path.startsWith('look-back?')) { lookBackAttempts = {}; return { items: lookBackItems, reveals: lookBackReveals }; }
+    const [, id, action] = path.split('/');
+    if (action === 'reveal') return (lookBackReveals as Record<string, unknown>)[id] ?? { verseText: null };
+    const answer = (body as { outcome?: string; answer?: { option?: string; order?: number[] } }) ?? {};
+    const key = lookBackAnswers[id];
+    const tries = (lookBackAttempts[id] = (lookBackAttempts[id] ?? 0) + 1);
+    const verseText = (lookBackReveals as Record<string, { verseText?: string }>)[id]?.verseText;
+    if (key === undefined) return { finalized: true, outcome: answer.outcome, next: { label: 'Back in a few days' } };
+    const correct = Array.isArray(key) ? JSON.stringify(answer.answer?.order) === JSON.stringify(key) : answer.answer?.option === key;
+    if (!correct && tries < 2) return { finalized: false, correct: false, attemptsLeft: 1, hint: 'Have another look at how it starts.' };
+    return { finalized: true, correct, outcome: correct ? 'recalled' : 'revealed', ...(correct ? {} : { correctAnswer: Array.isArray(key) ? undefined : key }),
+      truth: verseText ? { verseText } : undefined, next: { label: correct ? 'Back in about two weeks' : 'Back tomorrow' } };
+  }
   if (path === 'redeem') return { token: 'preview' };
   if (path === 'notebook') return structuredClone(notebook);
   if (path === 'session') return { success: true };

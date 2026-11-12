@@ -164,6 +164,14 @@ describe('family route boundaries', () => {
     expect(set).toHaveBeenCalledWith({ status: 'revoked', revokedAt });
     expect(remove).toHaveBeenCalledTimes(2);
   });
+  it.each([
+    ['GET', '/api/child-accounts/child/look-back'],
+    ['GET', '/api/child-accounts/child/look-back/item-1/reveal'],
+    ['POST', '/api/child-accounts/child/look-back/item-1/answer']
+  ])('keeps Look back %s %s behind a child session', async (method, path) => {
+    const response = await app.request(path, { method, headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined });
+    expect(response.status).toBe(401); expect(database.transaction).not.toHaveBeenCalled();
+  });
   it('does not accept Clerk credentials as a child session', async () => {
     const response = await app.request('/api/child-accounts/child/notebook', { headers: { Authorization: 'Bearer parent-token' } });
     expect(response.status).toBe(401); expect(database.transaction).not.toHaveBeenCalled();

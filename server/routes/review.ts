@@ -29,25 +29,26 @@ import { isReviewTableMissing } from '../utils/pg-undefined-relation';
 import {
   REVIEW_INBOX_MAX_ROWS,
   REVIEW_INBOX_UNASKABLE_SLACK,
-  REVIEW_MAX_ATTEMPTS,
   REVIEW_SESSION_CAP,
   isReviewItemKind,
   isReviewItemStatus,
+  REVIEW_MAX_ATTEMPTS,
   isReviewOutcome,
   maxAttemptsFor,
   type ReviewOutcome,
 } from '@/utils/review-item-kinds';
+import { describeDislike } from '@/utils/review-exercise-feedback';
 import { describeNextReturn } from '@/utils/review-scheduling';
 import { REVIEW_REASK_OUTCOMES } from '@/utils/review-dock-state';
-import { describeDislike } from '@/utils/review-exercise-feedback';
 import { REVIEW_EXERCISE_FAMILIES } from '@/utils/review-exercise-families';
 import {
   applyReviewOutcome,
+  askedRungFor,
   chapterTruthFor,
   gradeAnswerFor,
+  stepBackReviewItem,
   verseTruthFor,
   buildReviewItemSummaries,
-  askedRungFor,
   buildReviewItemViews,
   buildReviewReveal,
   createReviewItem,
@@ -60,7 +61,6 @@ import {
   itemsShownSince,
   reviewDislikeRowsFor,
   setReviewItemStatus,
-  stepBackReviewItem,
   buildReviewSample,
   gradeReviewSample,
 } from '../utils/review-service';
@@ -80,6 +80,12 @@ const MAX_CLOZE_WORD_LENGTH = 40;
 const MAX_ATTEMPT_LENGTH = 4000;
 
 /**
+ * How long after a real answer a second look is still part of the same sitting. A bound on a
+ * free marking route rather than a definition of a sitting: past it the item is asked for real.
+ */
+const REVIEW_PRACTICE_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+/**
  * The reader's own midnight, sent by the client as `?dayStart=<ISO>`.
  *
  * The client is the only end that knows it. There is no trustworthy per-user timezone here —
@@ -94,15 +100,6 @@ const MAX_ATTEMPT_LENGTH = 4000;
  * — rather than a sitting that has been quietly emptied.
  */
 const MAX_DAY_START_AGE_MS = 26 * 60 * 60 * 1000;
-
-/**
- * How long after a real answer a second look is still part of the same sitting.
- *
- * Generous, because a sitting is not timed and a reader may leave the dock open over lunch. It
- * is a bound on a free marking route rather than a definition of a sitting: past it the item is
- * simply asked again for real.
- */
-const REVIEW_PRACTICE_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 function readerDayStart(c: Context, now: Date): Date | null {
   const raw = c.req.query('dayStart');
@@ -405,291 +402,306 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
     const auth = getAuthenticatedAuth(c);
     const item = await getReviewItem(auth.userId, c.req.param('id') ?? '', reviewScopeOf(c));
     if (!item) return c.json({ error: 'Review item not found', code: 'REVIEW_ITEM_NOT_FOUND' }, 404);
+    // Marking, retries, practice and the schedule live in review-outcome.ts, shared with the child notebook.
+    const reply = await reviewOutcomeReply(auth, item, await c.req.json());
+    return c.json(reply.body, reply.status);
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/outcome', action: 'review_outcome' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 
-    const body = await c.req.json();
-    const outcome = typeof body?.outcome === 'string' ? body.outcome : '';
-    if (!isReviewOutcome(outcome)) {
-      return c.json({ error: 'Unknown outcome', code: 'REVIEW_OUTCOME_INVALID' }, 400);
-    }
+type ReviewItemRow = NonNullable<Awaited<ReturnType<typeof getReviewItem>>>;
+export type ReviewOutcomeReply = { status: 200 | 400 | 409; body: Record<string, unknown> };
 
-    const attempt =
-      typeof body?.attempt === 'string' ? body.attempt.slice(0, MAX_ATTEMPT_LENGTH) : null;
+/**
+ * Marking, retries, practice, the schedule and the reply for one answer.
+ *
+ * Shared with the child notebook's Look back (server/routes/child-accounts.ts), which answers for
+ * a child identity through its own session, so a child is marked and scheduled exactly like this
+ * rather than by a copy. The caller resolves the item and who is answering.
+ */
+export async function reviewOutcomeReply(auth: { userId: string }, item: ReviewItemRow, body: any): Promise<ReviewOutcomeReply> {
+  
+  const outcome = typeof body?.outcome === 'string' ? body.outcome : '';
+  if (!isReviewOutcome(outcome)) {
+    return { status: 400, body: { error: 'Unknown outcome', code: 'REVIEW_OUTCOME_INVALID' } };
+  }
 
-    /** Which go this is, 1-based. Bounded so a page cannot ask for unlimited tries. */
-    const attemptNumber = Number.isInteger(body?.attemptNumber)
-      ? Math.max(1, Math.min(REVIEW_MAX_ATTEMPTS, body.attemptNumber))
-      : 1;
+  const attempt =
+    typeof body?.attempt === 'string' ? body.attempt.slice(0, MAX_ATTEMPT_LENGTH) : null;
 
-    /** A second look at something missed, which is marked and then changes nothing. */
-    const practice = body?.practice === true;
+  /** Which go this is, 1-based. Bounded so a page cannot ask for unlimited tries. */
+  const attemptNumber = Number.isInteger(body?.attemptNumber)
+    ? Math.max(1, Math.min(REVIEW_MAX_ATTEMPTS, body.attemptNumber))
+    : 1;
 
-    /*
-     * Two rungs of the verse ladder have a right answer, and on those the reader's own verdict
-     * is not the input — the arrangement or the option they chose is. Marked here rather than
-     * in the page, because a puzzle whose answer key reached the client is not a puzzle.
-     *
-     * Every other rung stays exactly as it was: an open question, judged by the person who
-     * wrote the note, with nothing stored to compare it against.
-     */
-    const answer =
-      body?.answer && typeof body.answer === 'object'
-        ? {
-            order: Array.isArray(body.answer.order)
-              ? body.answer.order.filter((v: unknown) => Number.isInteger(v)).slice(0, 12)
-              : undefined,
-            option: typeof body.answer.option === 'string' ? body.answer.option : undefined,
-            // A church matching question: for each left row, the right index chosen. Validated
-            // against the exercise's size by the grader.
-            pairs: Array.isArray(body.answer.pairs)
-              ? body.answer.pairs.filter((v: unknown) => Number.isInteger(v)).slice(0, 6)
-              : undefined,
-            // Which word the reader pointed at. Sanitised to an integer here rather than
-            // trusted: it indexes a token array on the server.
-            wordIndex: Number.isInteger(body.answer.wordIndex)
-              ? Math.max(0, Math.min(MAX_WORD_INDEX, body.answer.wordIndex))
-              : undefined,
-            // The words filled into a cloze's gaps. Bounded on both axes: a verse never has
-            // more blanks than this, and no single missing word is this long.
-            // What the reader wrote back from the first letters. Bounded; graded, never stored
-            // as the answer — `attempt` is the stored copy, and that is bounded separately.
-            text: typeof body.answer.text === 'string' ? body.answer.text.slice(0, MAX_ATTEMPT_LENGTH) : undefined,
-            words: Array.isArray(body.answer.words)
-              ? body.answer.words
-                  .filter((w: unknown) => typeof w === 'string')
-                  .slice(0, MAX_CLOZE_BLANKS)
-                  .map((w: string) => w.slice(0, MAX_CLOZE_WORD_LENGTH))
-              : undefined,
-            // Which question the client believes it was shown. Only ever used to detect that
-            // the material moved underneath it, never to decide the answer.
-            promptKey: typeof body.answer.promptKey === 'string' ? body.answer.promptKey : undefined,
-          }
-        : null;
-    /*
-     * The rung the server resolved, which is also what decides how many goes it allows.
-     *
-     * Resolved on its own rather than by building the item's whole view for one string — see
-     * `askedRungFor`. The full build cost more than a second of the answer's round trip and
-     * every part of it but this was thrown away.
-     */
-    // Marked by kind inside the service, so a new kind can never fall into another's grader. The
-    // two read the same memoised material, so side by side they share one load.
-    const [askedKey, graded] = await Promise.all([
-      askedRungFor(auth.userId, item),
-      answer ? gradeAnswerFor(auth.userId, item, answer) : Promise.resolve(null),
-    ]);
-    const maxAttempts = maxAttemptsFor(askedKey);
+  /** A second look at something missed, which is marked and then changes nothing. */
+  const practice = body?.practice === true;
 
-    /*
-     * A wrong first answer is not a verdict yet.
-     *
-     * Getting one wrong and being told "back in 4 days" teaches nothing — the whole point of
-     * spaced repetition is that trying again *now*, and then seeing the right answer, is where
-     * the learning happens. So a graded rung gets two goes or three — see `maxAttemptsFor` — and
-     * how many it took is what decides
-     * the interval:
-     *
-     *   right first time   → recalled  (a fortnight)
-     *   right on the second → almost   (a few days)
-     *   wrong twice         → revealed (tomorrow), with the answer shown
-     *
-     * Nothing is written on a non-final attempt: no outcome, no schedule, no event. The reader
-     * is looking at the same question they were looking at a second ago.
-     *
-     * `attempt` comes from the page, which is the only thing that knows how many goes this has
-     * had. A page that always claimed its first attempt would be giving itself a longer interval,
-     * which is a way of asking to be shown a verse less often — not an exploit worth a round trip
-     * to defend against.
-     */
-    if (graded && !graded.correct && attemptNumber < maxAttempts) {
-      return c.json({
-        success: true,
-        correct: false,
-        finalized: false,
-        attemptsLeft: maxAttempts - attemptNumber,
-        attempts: { used: attemptNumber, total: maxAttempts },
-        // What was right, so the next go can be about what was not. The parts index the
-        // reader's own submission; nothing here names anything they did not write.
-        ...(graded.parts ? { parts: graded.parts } : {}),
-        ...(graded.reached ? { reached: graded.reached } : {}),
-        /*
-         * And one thing to go on, **only while there is a go left**.
-         *
-         * A retry that repeats the identical question with no new information is a second chance
-         * to make the same mistake. This is the only branch a hint may appear in: the finalized
-         * response below carries the answer itself, so a hint there would be a worse version of
-         * something the reader is about to be shown anyway.
-         *
-         * It cannot buy the long interval — every second-or-later attempt already maps to
-         * `almost` a few lines down, so the most a hinted answer earns is a few days.
-         */
-        ...(graded.hint ? { hint: graded.hint } : {}),
-      });
-    }
-
-    const verdict: ReviewOutcome | null = graded
-      ? graded.correct
-        ? attemptNumber > 1
-          ? 'almost'
-          : 'recalled'
-        : 'revealed'
+  /*
+   * Two rungs of the verse ladder have a right answer, and on those the reader's own verdict
+   * is not the input — the arrangement or the option they chose is. Marked here rather than
+   * in the page, because a puzzle whose answer key reached the client is not a puzzle.
+   *
+   * Every other rung stays exactly as it was: an open question, judged by the person who
+   * wrote the note, with nothing stored to compare it against.
+   */
+  const answer =
+    body?.answer && typeof body.answer === 'object'
+      ? {
+          order: Array.isArray(body.answer.order)
+            ? body.answer.order.filter((v: unknown) => Number.isInteger(v)).slice(0, 12)
+            : undefined,
+          option: typeof body.answer.option === 'string' ? body.answer.option : undefined,
+          // A church matching question: for each left row, the right index chosen. Validated
+          // against the exercise's size by the grader.
+          pairs: Array.isArray(body.answer.pairs)
+            ? body.answer.pairs.filter((v: unknown) => Number.isInteger(v)).slice(0, 6)
+            : undefined,
+          // Which word the reader pointed at. Sanitised to an integer here rather than
+          // trusted: it indexes a token array on the server.
+          wordIndex: Number.isInteger(body.answer.wordIndex)
+            ? Math.max(0, Math.min(MAX_WORD_INDEX, body.answer.wordIndex))
+            : undefined,
+          // The words filled into a cloze's gaps. Bounded on both axes: a verse never has
+          // more blanks than this, and no single missing word is this long.
+          // What the reader wrote back from the first letters. Bounded; graded, never stored
+          // as the answer — `attempt` is the stored copy, and that is bounded separately.
+          text: typeof body.answer.text === 'string' ? body.answer.text.slice(0, MAX_ATTEMPT_LENGTH) : undefined,
+          words: Array.isArray(body.answer.words)
+            ? body.answer.words
+                .filter((w: unknown) => typeof w === 'string')
+                .slice(0, MAX_CLOZE_BLANKS)
+                .map((w: string) => w.slice(0, MAX_CLOZE_WORD_LENGTH))
+            : undefined,
+          // Which question the client believes it was shown. Only ever used to detect that
+          // the material moved underneath it, never to decide the answer.
+          promptKey: typeof body.answer.promptKey === 'string' ? body.answer.promptKey : undefined,
+        }
       : null;
+  /*
+   * The rung the server resolved, which is also what decides how many goes it allows.
+   *
+   * Resolved on its own rather than by building the item's whole view for one string — see
+   * `askedRungFor`. The full build cost more than a second of the answer's round trip and
+   * every part of it but this was thrown away.
+   */
+  // Marked by kind inside the service, so a new kind can never fall into another's grader. The
+  // two read the same memoised material, so side by side they share one load.
+  const [askedKey, graded] = await Promise.all([
+    askedRungFor(auth.userId, item),
+    answer ? gradeAnswerFor(auth.userId, item, answer) : Promise.resolve(null),
+  ]);
+  const maxAttempts = maxAttemptsFor(askedKey);
 
-    /*
-     * One more look at something missed, which changes nothing about when it comes back.
-     *
-     * The sitting asks a missed item again before it ends — the strongest lever there is, and
-     * the one the engine had none of: a miss left the queue and returned tomorrow, so the
-     * sitting in which the reader actually saw the answer never once asked them to produce it.
-     *
-     * It must not touch `ReviewItems`, and that is the whole of the design. The schedule for a
-     * missed item is already set — tomorrow — and grading this as an outcome would overwrite the
-     * one-day interval with a fortnight on the strength of an answer given a minute after seeing
-     * the answer. It would also count a second `reviewCount`, move the ladder, and let a rehearsal
-     * graduate an item off its learning steps. So: mark it, say how it went, write one event for
-     * the record, and leave the row exactly as the real answer left it.
-     *
-     * Guarded rather than trusted, because the client asks for it: only an item answered within
-     * the last few hours and not answered *well* can be practised. Otherwise it is a free way to
-     * be marked with no consequence, which is a different feature and not this one.
-     */
-    if (practice) {
-      const recent =
-        item.lastReviewedAt != null &&
-        Date.now() - item.lastReviewedAt.getTime() <= REVIEW_PRACTICE_WINDOW_MS;
-      if (!recent || item.lastOutcome === 'recalled') {
-        return c.json({ error: 'Not offered', code: 'REVIEW_PRACTICE_NOT_OFFERED' }, 409);
-      }
+  /*
+   * A wrong first answer is not a verdict yet.
+   *
+   * Getting one wrong and being told "back in 4 days" teaches nothing — the whole point of
+   * spaced repetition is that trying again *now*, and then seeing the right answer, is where
+   * the learning happens. So a graded rung gets two goes or three — see `maxAttemptsFor` — and
+   * how many it took is what decides
+   * the interval:
+   *
+   *   right first time   → recalled  (a fortnight)
+   *   right on the second → almost   (a few days)
+   *   wrong twice         → revealed (tomorrow), with the answer shown
+   *
+   * Nothing is written on a non-final attempt: no outcome, no schedule, no event. The reader
+   * is looking at the same question they were looking at a second ago.
+   *
+   * `attempt` comes from the page, which is the only thing that knows how many goes this has
+   * had. A page that always claimed its first attempt would be giving itself a longer interval,
+   * which is a way of asking to be shown a verse less often — not an exploit worth a round trip
+   * to defend against.
+   */
+  if (graded && !graded.correct && attemptNumber < maxAttempts) {
+    return { status: 200, body: {
+      success: true,
+      correct: false,
+      finalized: false,
+      attemptsLeft: maxAttempts - attemptNumber,
+      attempts: { used: attemptNumber, total: maxAttempts },
+      // What was right, so the next go can be about what was not. The parts index the
+      // reader's own submission; nothing here names anything they did not write.
+      ...(graded.parts ? { parts: graded.parts } : {}),
+      ...(graded.reached ? { reached: graded.reached } : {}),
+      /*
+       * And one thing to go on, **only while there is a go left**.
+       *
+       * A retry that repeats the identical question with no new information is a second chance
+       * to make the same mistake. This is the only branch a hint may appear in: the finalized
+       * response below carries the answer itself, so a hint there would be a worse version of
+       * something the reader is about to be shown anyway.
+       *
+       * It cannot buy the long interval — every second-or-later attempt already maps to
+       * `almost` a few lines down, so the most a hinted answer earns is a few days.
+       */
+      ...(graded.hint ? { hint: graded.hint } : {}),
+    } };
+  }
 
-      await recordReviewEvent(auth.userId, item, 'practiced', {
-        attempt,
-        rungKey: askedKey,
-        attemptNumber,
-        graded: graded != null,
-      });
+  const verdict: ReviewOutcome | null = graded
+    ? graded.correct
+      ? attemptNumber > 1
+        ? 'almost'
+        : 'recalled'
+      : 'revealed'
+    : null;
 
-      const practiceTruth =
-        (await verseTruthFor(item, auth.userId)) ?? (await chapterTruthFor(item, auth.userId));
-
-      return c.json({
-        success: true,
-        practice: true,
-        outcome: verdict ?? outcome,
-        correct: graded ? graded.correct : undefined,
-        finalized: true,
-        ...(graded && !graded.correct && graded.correctAnswer
-          ? { correctAnswer: graded.correctAnswer }
-          : {}),
-        ...(graded?.parts ? { parts: graded.parts } : {}),
-        ...(graded?.reached ? { reached: graded.reached } : {}),
-        attempts: { used: attemptNumber, total: maxAttempts },
-        ...(practiceTruth ? { truth: { verseText: practiceTruth } } : {}),
-        /* The schedule the real answer set, unchanged and restated — so the card can say when
-           this comes back without implying that the rehearsal moved it. */
-        next: {
-          intervalDays: item.intervalDays,
-          dueAt: item.dueAt.toISOString(),
-          recallState: item.recallState,
-          label: describeNextReturn(item.intervalDays),
-        },
-      });
+  /*
+   * One more look at something missed, which changes nothing about when it comes back.
+   *
+   * The sitting asks a missed item again before it ends — the strongest lever there is, and
+   * the one the engine had none of: a miss left the queue and returned tomorrow, so the
+   * sitting in which the reader actually saw the answer never once asked them to produce it.
+   *
+   * It must not touch `ReviewItems`, and that is the whole of the design. The schedule for a
+   * missed item is already set — tomorrow — and grading this as an outcome would overwrite the
+   * one-day interval with a fortnight on the strength of an answer given a minute after seeing
+   * the answer. It would also count a second `reviewCount`, move the ladder, and let a rehearsal
+   * graduate an item off its learning steps. So: mark it, say how it went, write one event for
+   * the record, and leave the row exactly as the real answer left it.
+   *
+   * Guarded rather than trusted, because the client asks for it: only an item answered within
+   * the last few hours and not answered *well* can be practised. Otherwise it is a free way to
+   * be marked with no consequence, which is a different feature and not this one.
+   */
+  if (practice) {
+    const recent =
+      item.lastReviewedAt != null &&
+      Date.now() - item.lastReviewedAt.getTime() <= REVIEW_PRACTICE_WINDOW_MS;
+    if (!recent || item.lastOutcome === 'recalled') {
+      return { status: 409, body: { error: 'Not offered', code: 'REVIEW_PRACTICE_NOT_OFFERED' } };
     }
 
-    /*
-     * The verse a rung withheld, handed back now that the question is answered. Read from the
-     * item as it was asked, not as it will be — the outcome moves it to the next rung, and the
-     * verse owed is the one just answered about. Started here so it loads while the outcome is
-     * written rather than after.
-     */
-    const truthPending = verseTruthFor(item, auth.userId)
-      .then(async (verse) => verse ?? (await chapterTruthFor(item, auth.userId)))
-      // Never left unhandled if the write below throws first; a missing truth is a card without it.
-      .catch(() => null);
-
-    const { item: applied, nextReturnDays, leech, stalled } = await applyReviewOutcome(
-      auth.userId,
-      item,
-      verdict ?? outcome,
+    await recordReviewEvent(auth.userId, item, 'practiced', {
       attempt,
-      new Date(),
-      // The rung that was asked, resolved the way the list resolved it — not the client's claim.
-      askedKey,
-      /*
-       * How it was reached, so the log can tell "wrong twice" from "gave up on the first go".
-       * `graded != null` is the marked/self-judged split: a rung with no answer key produces no
-       * grading result at all, and false would claim it was marked and failed.
-       */
-      { attemptNumber, graded: graded != null },
-    );
+      rungKey: askedKey,
+      attemptNumber,
+      graded: graded != null,
+    });
 
-    /*
-     * Difficulty goes down on its own, the way it goes up on its own.
-     *
-     * A miss that made the item a leech — four lapses, or never once recalled — used to hand the
-     * reader a card saying "This way of asking is not landing. Try a different one?" with a
-     * "Make it easier" button. That is the engine asking permission to do its job. The whole
-     * point of a ladder that climbs on clean recalls is that it should also step back on
-     * repeated misses without being told; a reader who has just got something wrong four times
-     * is the last person who should be handed a decision about it.
-     *
-     * So the step back is applied here, silently, and the next asking is simply easier. The
-     * flags still go out so the card can say nothing about it on purpose rather than by accident.
-     */
-    const updated = leech ? (await stepBackReviewItem(auth.userId, applied)) ?? applied : applied;
+    const practiceTruth =
+      (await verseTruthFor(item, auth.userId)) ?? (await chapterTruthFor(item, auth.userId));
 
-    /*
-     * The row as it will be asked next, built only when the page will ask it again.
-     *
-     * Its one reader is the dock's re-ask: a graded miss comes back once at the tail of the
-     * sitting, wearing the question built from the post-answer row (see `shouldReaskInSitting`).
-     * Every other answer threw the view away — and building it is the heaviest step left in this
-     * route (framing, node states, thread titles, the note label pool), so a right answer waited
-     * on a second of work nobody read before the card could say it was right.
-     */
-    const willReask = graded != null && REVIEW_REASK_OUTCOMES.has(verdict ?? outcome);
-    const [truth, view] = await Promise.all([
-      truthPending,
-      willReask
-        ? buildReviewItemViews(auth.userId, [updated]).then(([built]) => built)
-        : Promise.resolve(undefined),
-    ]);
-
-    return c.json({
+    return { status: 200, body: {
       success: true,
-      /*
-       * What was actually recorded, which on a graded rung is not what the page sent.
-       *
-       * The page has no answer key, so it sends `almost` and lets the server mark the tap. It
-       * then told the reader "Almost." whichever way the marking went — a right answer on every
-       * graded rung read as a near miss.
-       */
+      practice: true,
       outcome: verdict ?? outcome,
       correct: graded ? graded.correct : undefined,
       finalized: true,
-      // Shown only once the question is over, and only where the answer was one of the options:
-      // the rungs built out of the verse hand back the verse itself instead.
       ...(graded && !graded.correct && graded.correctAnswer
         ? { correctAnswer: graded.correctAnswer }
         : {}),
       ...(graded?.parts ? { parts: graded.parts } : {}),
       ...(graded?.reached ? { reached: graded.reached } : {}),
       attempts: { used: attemptNumber, total: maxAttempts },
-      ...(view ? { item: view } : {}),
-      ...(truth ? { truth: { verseText: truth } } : {}),
-      ...(leech ? { leech: true, stalled } : {}),
+      ...(practiceTruth ? { truth: { verseText: practiceTruth } } : {}),
+      /* The schedule the real answer set, unchanged and restated — so the card can say when
+         this comes back without implying that the rehearsal moved it. */
       next: {
-        intervalDays: nextReturnDays,
-        dueAt: updated.dueAt.toISOString(),
-        recallState: updated.recallState,
-        // The one line the session shows afterwards, phrased once on the server so web and
-        // native cannot drift on how a fortnight is described.
-        label: describeNextReturn(nextReturnDays),
+        intervalDays: item.intervalDays,
+        dueAt: item.dueAt.toISOString(),
+        recallState: item.recallState,
+        label: describeNextReturn(item.intervalDays),
       },
-    });
-  } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/outcome', action: 'review_outcome' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    } };
   }
-});
+
+  /*
+   * The verse a rung withheld, handed back now that the question is answered. Read from the
+   * item as it was asked, not as it will be — the outcome moves it to the next rung, and the
+   * verse owed is the one just answered about. Started here so it loads while the outcome is
+   * written rather than after.
+   */
+  const truthPending = verseTruthFor(item, auth.userId)
+    .then(async (verse) => verse ?? (await chapterTruthFor(item, auth.userId)))
+    // Never left unhandled if the write below throws first; a missing truth is a card without it.
+    .catch(() => null);
+
+  const { item: applied, nextReturnDays, leech, stalled } = await applyReviewOutcome(
+    auth.userId,
+    item,
+    verdict ?? outcome,
+    attempt,
+    new Date(),
+    // The rung that was asked, resolved the way the list resolved it — not the client's claim.
+    askedKey,
+    /*
+     * How it was reached, so the log can tell "wrong twice" from "gave up on the first go".
+     * `graded != null` is the marked/self-judged split: a rung with no answer key produces no
+     * grading result at all, and false would claim it was marked and failed.
+     */
+    { attemptNumber, graded: graded != null },
+  );
+
+  /*
+   * Difficulty goes down on its own, the way it goes up on its own.
+   *
+   * A miss that made the item a leech — four lapses, or never once recalled — used to hand the
+   * reader a card saying "This way of asking is not landing. Try a different one?" with a
+   * "Make it easier" button. That is the engine asking permission to do its job. The whole
+   * point of a ladder that climbs on clean recalls is that it should also step back on
+   * repeated misses without being told; a reader who has just got something wrong four times
+   * is the last person who should be handed a decision about it.
+   *
+   * So the step back is applied here, silently, and the next asking is simply easier. The
+   * flags still go out so the card can say nothing about it on purpose rather than by accident.
+   */
+  const updated = leech ? (await stepBackReviewItem(auth.userId, applied)) ?? applied : applied;
+
+  /*
+   * The row as it will be asked next, built only when the page will ask it again.
+   *
+   * Its one reader is the dock's re-ask: a graded miss comes back once at the tail of the
+   * sitting, wearing the question built from the post-answer row (see `shouldReaskInSitting`).
+   * Every other answer threw the view away — and building it is the heaviest step left in this
+   * route (framing, node states, thread titles, the note label pool), so a right answer waited
+   * on a second of work nobody read before the card could say it was right.
+   */
+  const willReask = graded != null && REVIEW_REASK_OUTCOMES.has(verdict ?? outcome);
+  const [truth, view] = await Promise.all([
+    truthPending,
+    willReask
+      ? buildReviewItemViews(auth.userId, [updated]).then(([built]) => built)
+      : Promise.resolve(undefined),
+  ]);
+
+  return { status: 200, body: {
+    success: true,
+    /*
+     * What was actually recorded, which on a graded rung is not what the page sent.
+     *
+     * The page has no answer key, so it sends `almost` and lets the server mark the tap. It
+     * then told the reader "Almost." whichever way the marking went — a right answer on every
+     * graded rung read as a near miss.
+     */
+    outcome: verdict ?? outcome,
+    correct: graded ? graded.correct : undefined,
+    finalized: true,
+    // Shown only once the question is over, and only where the answer was one of the options:
+    // the rungs built out of the verse hand back the verse itself instead.
+    ...(graded && !graded.correct && graded.correctAnswer
+      ? { correctAnswer: graded.correctAnswer }
+      : {}),
+    ...(graded?.parts ? { parts: graded.parts } : {}),
+    ...(graded?.reached ? { reached: graded.reached } : {}),
+    attempts: { used: attemptNumber, total: maxAttempts },
+    ...(view ? { item: view } : {}),
+    ...(truth ? { truth: { verseText: truth } } : {}),
+    ...(leech ? { leech: true, stalled } : {}),
+    next: {
+      intervalDays: nextReturnDays,
+      dueAt: updated.dueAt.toISOString(),
+      recallState: updated.recallState,
+      // The one line the session shows afterwards, phrased once on the server so web and
+      // native cannot drift on how a fortnight is described.
+      label: describeNextReturn(nextReturnDays),
+    },
+  } };
+}
 
 route.post('/api/review/items/:id/defer', requireAuth, rateLimit('write'), requireReviewAccess(), async (c) => {
   try {

@@ -571,7 +571,9 @@ describe('the answer round trip', () => {
        a right answer's verdict behind the heaviest step in the route. */
     const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
     const outcome = route.slice(route.indexOf("'/api/review/items/:id/outcome'"));
-    const finalized = outcome.slice(outcome.indexOf('const { item: applied'), outcome.indexOf('handleAPIError'));
+    const start = outcome.indexOf('const { item: applied');
+    // The marking lives in `reviewOutcomeReply`, after the route; read up to the next handler.
+    const finalized = outcome.slice(start, outcome.indexOf('handleAPIError', start));
     expect(finalized).toContain('REVIEW_REASK_OUTCOMES.has(verdict ?? outcome)');
     expect(finalized).toMatch(/willReask\s*\?\s*buildReviewItemViews/);
   });

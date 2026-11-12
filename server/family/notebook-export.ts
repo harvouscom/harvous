@@ -7,6 +7,7 @@ import { childNoteSelection, type Child, type FamilyTx } from './service';
 import { exportVerseStickers } from './stickers';
 import { exportVerseHighlights } from './highlights';
 import { consentHistory } from './consents';
+import { exportChildLookBack } from './look-back';
 
 export async function exportChildNotebook(tx: FamilyTx, child: Child) {
   const ownNotes = tx.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, child.id));
@@ -49,6 +50,7 @@ export async function exportChildNotebook(tx: FamilyTx, child: Child) {
     verseStickers: await exportVerseStickers(tx, child),
     verseHighlights: await exportVerseHighlights(tx, child),
     consentHistory: await consentHistory(tx, child),
+    lookBack: await exportChildLookBack(child),
     notes: notes.map(({ threadId, secondaryCollections, ...note }) => ({
       ...note,
       secondaryCollections: parseNoteSecondaryCollections(secondaryCollections),
