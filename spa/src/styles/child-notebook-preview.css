@@ -1104,3 +1104,32 @@
 .pds-kids-studio__scroll-btn[data-side='end'] svg { rotate: -90deg; }
 .pds-kids-studio__scroll-btn:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .pds-kids-studio__scroll-btn:hover { background: var(--pds-bg-subtle); } }
+
+/* ─── Look back: one page from the child's own notebook ───────────────────────────────────
+   The question above, the page itself (their cover colour on the spine, their paper inside, set
+   down at a slight angle), then what to do. No box inside a box. */
+.pds-kids-lookback { display: grid; justify-items: center; gap: var(--pds-space-6); text-align: center; }
+.pds-kids-lookback__intro { display: grid; gap: var(--pds-space-2); }
+.pds-kids-lookback__intro > * { margin: 0; }
+.pds-kids-lookback__page {
+  --kids-paper-line: color-mix(in oklab, var(--kids-cover-color) 30%, var(--pds-border-soft));
+  position: relative; width: min(100%, 440px); box-sizing: border-box; text-align: start;
+  padding: 22px 28px 28px 36px; border-left: 6px solid var(--kids-cover-ink); border-radius: 4px 14px 14px 4px;
+  background-color: var(--pds-bg-page);
+  box-shadow: 0 0 0 1px var(--pds-border-soft), 0 14px 28px -16px color-mix(in oklab, var(--pds-text-primary) 35%, transparent);
+  transform: rotate(-1.2deg);
+  line-height: 28px;
+}
+.pds-kids-lookback__page[data-paper='lined'] {
+  background-image:
+    linear-gradient(90deg, transparent 20px, color-mix(in oklab, var(--pds-thread-pink) 55%, transparent) 20px 21px, transparent 21px),
+    repeating-linear-gradient(to bottom, transparent 0 27px, var(--kids-paper-line) 27px 28px);
+  background-position: 0 22px;
+}
+.pds-kids-lookback__date { display: block; font-size: 13px; color: var(--pds-text-secondary); }
+.pds-kids-lookback__title { margin: 0; font: 600 20px/28px var(--pds-font-display); color: var(--pds-text-primary); }
+.pds-kids-lookback__text { margin: 0; font-size: 17px; line-height: 28px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--pds-text-primary); }
+.pds-kids-appearance-scope[data-text-size='bigger'] .pds-kids-lookback__text { font-size: 19px; }
+.pds-kids-lookback__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--pds-space-3); }
+.pds-kids-lookback__actions .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }
+@media (prefers-reduced-motion: reduce) { .pds-kids-lookback__page { transform: none; } }

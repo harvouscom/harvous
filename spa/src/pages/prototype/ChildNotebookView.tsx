@@ -496,21 +496,20 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
         }} />}
         </div>}
 
-        {view === 'remember' && reviewNote && <div className="pds-kids-preview__body pds-kids-review">
-          {/* Looking back, not a memory test: the note is right there to read again. */}
-          <div className="pds-kids-review__hero"><span className="pds-kids-review__art" aria-hidden="true"><Icon name="rotate-left" size={28} /><span><Icon name="star" size={12} /></span></span>
+        {view === 'remember' && reviewNote && <div className="pds-kids-preview__body pds-kids-lookback">
+          {/* Looking back, not a memory test: the note is right there, as a page from their own notebook. */}
+          <header className="pds-kids-lookback__intro">
             <span className="pds-kids-preview__label">A little look back</span>
-            <h1 ref={headingRef} tabIndex={-1} className="pds-title-xl">What do you think about it now?</h1>
-            <p>Read what you wrote before. Has anything grown or changed?</p>
-          </div>
-          <section className="pds-kids-review__card" aria-label="Your note"><span className="pds-kids-preview__label">From your notebook · {reviewNote.date}</span><h2 className="pds-title">{reviewNote.title}</h2>
-            <blockquote className="pds-kids-review__note">{reviewNote.content}</blockquote>
-          </section>
-          <div className="pds-kids-review__actions">
+            <h1 ref={headingRef} tabIndex={-1} className="pds-title">What do you think about it now?</h1>
+          </header>
+          <article className="pds-kids-lookback__page" data-paper={preferences.paper ?? 'plain'} aria-label={`Your note, ${reviewNote.title}`}>
+            <span className="pds-kids-lookback__date">{reviewNote.date}</span>
+            <h2 className="pds-kids-lookback__title">{reviewNote.title}</h2>
+            <p className="pds-kids-lookback__text">{reviewNote.content}</p>
+          </article>
+          <div className="pds-kids-lookback__actions">
             <button className="proto-settings-btn" onClick={() => openNote(reviewNote)}><Icon name="pen" size={13} /> Add a thought</button>
-            <button className="proto-settings-btn proto-settings-btn--secondary" onClick={() => setView('home')}><Icon name="arrow-left" size={12} /> Back to my notebook</button>
           </div>
-          <p className="pds-caption">A little is enough. Come back whenever you like.</p>
         </div>}
 
         {view === 'reading' && selectedResource && <div className="pds-kids-preview__body pds-kids-preview__reading-page">
