@@ -398,6 +398,11 @@
 .pds-kids-settings-modal .proto-settings-modal__body { flex: 1; }
 .pds-kids-settings-modal .proto-settings { height: 100%; }
 .pds-kids-settings-modal .proto-settings__detail { overflow-y: auto; }
+/* Child-mode modals scroll without a visible scrollbar (wheel, touch and keys still work):
+   the dialog itself and anything inside it that overflows. */
+:is(.pds-kids-settings-modal, .pds-kids-privacy-modal), :is(.pds-kids-settings-modal, .pds-kids-privacy-modal) * { scrollbar-width: none; }
+:is(.pds-kids-settings-modal, .pds-kids-privacy-modal)::-webkit-scrollbar,
+:is(.pds-kids-settings-modal, .pds-kids-privacy-modal) *::-webkit-scrollbar { display: none; }
 .pds-kids-settings-pane { min-width: 0; }
 .pds-kids-settings-pane[data-studio-page='cover'] { padding: var(--pds-space-5); }
 .pds-kids-settings-modal svg { overflow: visible; }
