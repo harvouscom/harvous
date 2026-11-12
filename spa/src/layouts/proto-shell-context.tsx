@@ -304,6 +304,14 @@ export type PrototypeComposeSeed = {
    */
   startedFromRecallOpportunityId?: string;
   startedFromRecallKind?: RecallOpportunityKind;
+  /**
+   * The writing prompt that started this note — Home's compose dock line ("Still thinking about
+   * God's love?"). Shown above the draft as a dismissible heads-up through the purpose register
+   * (`notePurposeModel`), never written into the body and never sent to the server: the create
+   * payload picks its seed fields by name, and this is not one of them. Epoch-gated with the
+   * rest of the seed, so it cannot follow the reader into the next note.
+   */
+  prompt?: string;
 };
 
 /**

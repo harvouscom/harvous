@@ -12051,8 +12051,9 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 .proto-purpose-banner .proto-shared-readonly-banner__icon {
-  /* Optical centring against the first line's cap height. */
-  margin-top: 1px;
+  /* Centred on the first line box (line-height 1.35 above, 11px icon). A fixed 1px left the
+     icon ~2px above the text's middle at 13px. */
+  margin-top: calc((1.35em - 11px) / 2);
 }
 
 .proto-purpose-banner {

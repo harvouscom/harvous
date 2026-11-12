@@ -55,7 +55,8 @@ export function dismissPurpose(noteId: string | null | undefined) {
 
 export type NotePurpose =
   | { kind: 'template'; label: string; actionLabel: string }
-  | { kind: 'service'; label: string; actionLabel: null };
+  | { kind: 'service'; label: string; actionLabel: null }
+  | { kind: 'prompt'; label: string; actionLabel: null };
 
 /**
  * The purpose register for one note, or null when there is nothing to say.
@@ -66,6 +67,12 @@ export type NotePurpose =
  */
 export function notePurposeModel(input: {
   composePurpose: ComposePurpose | null;
+  /**
+   * The writing prompt the note was started from (Home's compose dock), from the epoch-gated
+   * compose seed. A heads-up only: it is never part of the note, so it exists only while the
+   * compose session that carried it does, and dismissing it leaves a plain blank note.
+   */
+  composePrompt?: string | null;
   startedFromServiceTitle?: string | null;
   /**
    * The note's own space is a church space, not My Home — which is the difference
@@ -103,6 +110,15 @@ export function notePurposeModel(input: {
       label: 'Creating a template',
       actionLabel: 'Save as template',
     };
+  }
+
+  /*
+    The prompt is what the author is answering right now, so it outranks the service line —
+    though in practice the dock that sets it never carries a service, so they do not meet.
+  */
+  const prompt = input.composePrompt?.trim();
+  if (prompt) {
+    return { kind: 'prompt', label: prompt, actionLabel: null };
   }
 
   /*
