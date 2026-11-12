@@ -15,7 +15,11 @@ export type ChildDetail = {
   child: FamilyChild; notes: ChildNote[];
   readings: ChildFamilyReading[];
   approvals: { spaceId: string }[]; ministries: { id: string; title: string }[];
+  /** Every agreement to the child privacy notice, oldest first. Absent from older API responses. */
+  consents?: ChildConsent[];
 };
+
+export type ChildConsent = { noticeVersion: string; consentedAt: string; kind: 'created' | 'renewed' | string };
 
 export type ChildMaterial = ChildNote & { spaceId: string; spaceTitle: string };
 export type ChildSearchScope = 'all' | 'notebook' | 'family';

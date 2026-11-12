@@ -75,10 +75,12 @@ describe('family route boundaries', () => {
     const renew = (body: unknown) => app.request('/api/child-accounts/children/child-a/consent', { method: 'POST',
       headers: { Authorization: 'Bearer parent-token', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const current = { noticeVersion: CHILD_NOTICE_VERSION, isGuardian: true, consent: true };
+    const history = vi.fn();
     function owned(child: Record<string, unknown>) {
       const set = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
       const select = vi.fn(() => ({ from: () => ({ where: () => ({ for: vi.fn().mockResolvedValue([{ id: 'child-a', ...child }]) }) }) }));
-      database.transaction.mockImplementationOnce(work => work({ select, update: vi.fn(() => ({ set })) }));
+      history.mockReset();
+      database.transaction.mockImplementationOnce(work => work({ select, update: vi.fn(() => ({ set })), insert: vi.fn(() => ({ values: history.mockResolvedValue(undefined) })) }));
       return set;
     }
     beforeEach(() => { vi.stubEnv('HARVOUS_CHILD_ACCOUNTS_ENABLED', 'true'); vi.stubEnv('HARVOUS_CHILD_RETENTION_READY', 'true'); });
@@ -87,11 +89,15 @@ describe('family route boundaries', () => {
       const response = await renew(current);
       expect(response.status).toBe(200);
       expect(set).toHaveBeenCalledWith({ noticeVersion: CHILD_NOTICE_VERSION, consentedAt: expect.any(Date) });
+      // The renewal is added to the history rather than replacing the earlier agreement.
+      expect(history).toHaveBeenCalledWith(expect.objectContaining({ childId: 'child-a', parentUserId: 'parent-a',
+        noticeVersion: CHILD_NOTICE_VERSION, consentedAt: expect.any(Date), kind: 'renewed' }));
     });
     it('is a no-op when the notebook is already on the current notice', async () => {
       const set = owned({ status: 'active', noticeVersion: CHILD_NOTICE_VERSION, consentedAt: new Date('2026-11-11') });
       expect((await renew(current)).status).toBe(200);
       expect(set).not.toHaveBeenCalled();
+      expect(history).not.toHaveBeenCalled();
     });
     it('never resumes a notebook whose consent was withdrawn', async () => {
       const set = owned({ status: 'revoked', noticeVersion: '2026-11-10.1', consentedAt: new Date('2026-11-10') });

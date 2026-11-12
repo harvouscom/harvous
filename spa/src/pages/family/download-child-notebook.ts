@@ -1,7 +1,8 @@
 import { api } from '../../lib/api';
 import type { ChildFamilyReading, ChildFamilyThought } from '../../../../shared/child-notebook';
 import { verseStickerLabel } from '../../../../shared/child-verse-stickers';
-import type { ChildNote } from './types';
+import { verseHighlightLabel } from '../../../../shared/child-verse-highlights';
+import type { ChildConsent, ChildNote } from './types';
 
 export type ChildExportFormat = 'text' | 'backup';
 
@@ -10,6 +11,8 @@ type NotebookExport = {
   notes: ChildNote[];
   familyBible?: (ChildFamilyReading & { thoughts: ChildFamilyThought[] })[];
   verseStickers?: { book: string; chapter: number; verse: number; sticker: string }[];
+  verseHighlights?: { book: string; chapter: number; verse: number; color: string }[];
+  consentHistory?: ChildConsent[];
   scriptureReferences: { noteId: string; reference: string; translation: string }[];
 };
 
@@ -31,7 +34,11 @@ export async function downloadChildNotebook(childId: string, format: ChildExport
     ...(notebook.familyBible ?? []).flatMap(reading => reading.thoughts.map(thought =>
       `${reading.book} ${reading.chapter}:${thought.verse} · ${reading.translation}\n${thought.text}`)),
     ...(notebook.verseStickers?.length ? [['Bible stickers', ...notebook.verseStickers.map(item =>
-      `${item.book} ${item.chapter}:${item.verse} · ${verseStickerLabel(item.sticker)}`)].join('\n')] : [])
+      `${item.book} ${item.chapter}:${item.verse} · ${verseStickerLabel(item.sticker)}`)].join('\n')] : []),
+    ...(notebook.verseHighlights?.length ? [['Bible highlights', ...notebook.verseHighlights.map(item =>
+      `${item.book} ${item.chapter}:${item.verse} · ${verseHighlightLabel(item.color)}`)].join('\n')] : []),
+    ...(notebook.consentHistory?.length ? [['Parent consent', ...notebook.consentHistory.map(item =>
+      `${new Date(item.consentedAt).toLocaleDateString()} · ${item.kind === 'renewed' ? 'Renewed' : 'Given'} · notice ${item.noticeVersion}`)].join('\n')] : [])
   ].join('\n\n');
   const objectUrl = URL.createObjectURL(new Blob([text], {
     type: format === 'backup' ? 'application/json' : 'text/plain;charset=utf-8'

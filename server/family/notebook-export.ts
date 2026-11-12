@@ -5,6 +5,8 @@ import { familyReadings, familyThoughts } from './bible';
 import { defaultChildPreferences } from '../../shared/child-notebook';
 import { childNoteSelection, type Child, type FamilyTx } from './service';
 import { exportVerseStickers } from './stickers';
+import { exportVerseHighlights } from './highlights';
+import { consentHistory } from './consents';
 
 export async function exportChildNotebook(tx: FamilyTx, child: Child) {
   const ownNotes = tx.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, child.id));
@@ -45,6 +47,8 @@ export async function exportChildNotebook(tx: FamilyTx, child: Child) {
       ...reading, thoughts: (await familyThoughts(tx, reading.id)).filter(thought => thought.role === 'child')
     }))),
     verseStickers: await exportVerseStickers(tx, child),
+    verseHighlights: await exportVerseHighlights(tx, child),
+    consentHistory: await consentHistory(tx, child),
     notes: notes.map(({ threadId, secondaryCollections, ...note }) => ({
       ...note,
       secondaryCollections: parseNoteSecondaryCollections(secondaryCollections),

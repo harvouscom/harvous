@@ -261,6 +261,15 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
               </SettingsGroup>
             </>}
             {pane === 'privacy' && <>
+              {!!detail.consents?.length && <section aria-labelledby="child-consent-history-title">
+                <h3 id="child-consent-history-title" className="pds-caption pds-family-enrollment-label">Consent history</h3>
+                <SettingsGroup>
+                  {[...detail.consents].reverse().map(item => <SettingsRow key={`${item.consentedAt}:${item.noticeVersion}`} trailing="none"
+                    leadingIcon={item.kind === 'renewed' ? 'arrows-rotate' : 'user-shield'}
+                    label={`${item.kind === 'renewed' ? 'Renewed' : 'Gave'} consent · ${new Date(item.consentedAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`}
+                    sublabel={`Privacy notice ${item.noticeVersion}${item.noticeVersion === CHILD_NOTICE_VERSION ? ' (current)' : ''}`} />)}
+                </SettingsGroup>
+              </section>}
               <SettingsGroup>
                 <SettingsRow label="End all sessions" leadingIcon="lock" sublabel="Signs your child out on every device"
                   trailing="none" disabled={disabled} onClick={() => void perform(async () => {

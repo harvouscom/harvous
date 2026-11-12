@@ -1,7 +1,7 @@
 import { CHILD_ACCOUNT_ID_PREFIX } from '../family/identity';
 import { childNoteDetails, noteDetailsInput, writeChildNoteDetails } from '../family/note-details';
 import imagePresets from '../../shared/appearance-image-presets.json';
-import { timingSafeEqual } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { purgeExpiredFamilyData } from '../family/retention';
 import { exportChildNotebook } from '../family/notebook-export';
 import { familyPublicConfig } from '../family/config';
@@ -12,7 +12,7 @@ import { createClerkClient } from '@clerk/backend';
 import { and, eq, gt, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client';
-import { FamilyChildren, FamilyChildBibleReadings, FamilyChildSessions, FamilySpaceApprovals, FamilyVerifications, Notes, Spaces } from '../db/schema';
+import { FamilyChildConsents, FamilyChildren, FamilyChildBibleReadings, FamilyChildSessions, FamilySpaceApprovals, FamilyVerifications, Notes, Spaces } from '../db/schema';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import { isPgUndefinedRelation } from '../utils/pg-undefined-relation';
 import { syncEntitlementsFromProvider } from '../utils/entitlements';
@@ -24,6 +24,8 @@ import { childBibleTranslationChoices, childBibleTranslations, childSchemes, chi
 import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput } from '../family/bible';
 import { searchChildNotebook } from '../family/notebook-search';
 import { chapterStickers, setVerseSticker, verseStickerInput } from '../family/stickers';
+import { chapterHighlights, setVerseHighlight, verseHighlightInput } from '../family/highlights';
+import { consentHistory } from '../family/consents';
 
 function requireActiveConsent(child: Child) {
   if (!hasActiveChildConsent(child)) throw new HTTPException(403, { message: 'This child account is paused.' });
@@ -211,6 +213,8 @@ route.post(`${base}/children`, requireAuth, async (c) => {
     const [created] = await tx.insert(FamilyChildren).values({ id, homeSpaceId, parentUserId: parentId(c), displayName: input.displayName,
       ageBand: 'under-13', verificationId: verification.id, noticeVersion: input.noticeVersion, consentedAt: new Date(),
       status: 'active', createdAt: new Date(), lastActiveAt: new Date(), bibleTranslations: [childBibleTranslations[0]] }).returning();
+    await tx.insert(FamilyChildConsents).values({ id: `consent_${randomUUID()}`, childId: created.id, parentUserId: parentId(c),
+      noticeVersion: created.noticeVersion, consentedAt: created.consentedAt, kind: 'created' });
     return created;
   });
   return c.json({ child }, 201);
@@ -221,7 +225,7 @@ route.get(`${base}/children/:id`, requireAuth, async (c) => c.json(await db.tran
   const notes = await tx.select(childNoteSelection).from(Notes).where(eq(Notes.userId, child.id));
   const approvals = await tx.select().from(FamilySpaceApprovals).where(eq(FamilySpaceApprovals.childId, child.id));
   const ministries = await availableMinistries(tx, parentId(c));
-  return { child, notes, approvals, ministries, readings: await familyReadings(tx, child), capabilities: CHILD_CAPABILITIES };
+  return { child, notes, approvals, ministries, readings: await familyReadings(tx, child), consents: await consentHistory(tx, child), capabilities: CHILD_CAPABILITIES };
 })));
 
 // A parent can rename the notebook at any time — a nickname, a typo, two children with one name.
@@ -257,7 +261,8 @@ route.post(`${base}/children/:id/handoff`, requireAuth, async (c) => {
 });
 
 // Renewing consent after the notice changes. A notebook agreed under an older notice is paused
-// (hasActiveChildConsent); this records the parent's agreement to the current one and resumes it.
+// (hasActiveChildConsent); this records the parent's agreement to the current one, adds it to the
+// consent history, and resumes the notebook.
 // Same confirmations as creation. Only for active notebooks: a withdrawal or revocation never
 // reactivates here. Already on the current notice is a no-op, so a double submit is harmless.
 const renewalInput = z.object({ noticeVersion: z.literal(CHILD_NOTICE_VERSION), isGuardian: z.literal(true), consent: z.literal(true) }).strict();
@@ -270,6 +275,8 @@ route.post(`${base}/children/:id/consent`, requireAuth, async (c) => {
     if (child.noticeVersion === CHILD_NOTICE_VERSION) return { noticeVersion: child.noticeVersion, consentedAt: child.consentedAt };
     const consentedAt = new Date();
     await tx.update(FamilyChildren).set({ noticeVersion: CHILD_NOTICE_VERSION, consentedAt }).where(eq(FamilyChildren.id, child.id));
+    await tx.insert(FamilyChildConsents).values({ id: `consent_${randomUUID()}`, childId: child.id, parentUserId: parentId(c),
+      noticeVersion: CHILD_NOTICE_VERSION, consentedAt, kind: 'renewed' });
     return { noticeVersion: CHILD_NOTICE_VERSION, consentedAt };
   }));
 });
@@ -414,8 +421,13 @@ route.post(`${base}/child/bible/chapter`, async (c) => {
   const passage = passageInput.parse(await c.req.json());
   return c.json(await withChildSession(token(c), async (tx, child) => {
     requireApprovedTranslation(child, passage.translation);
-    return { ...await readChapter(tx, passage), stickers: await chapterStickers(tx, child, passage.book, passage.chapter) };
+    return { ...await readChapter(tx, passage), stickers: await chapterStickers(tx, child, passage.book, passage.chapter),
+      highlights: await chapterHighlights(tx, child, passage.book, passage.chapter) };
   }));
+});
+route.put(`${base}/child/bible/highlights`, async (c) => {
+  const input = verseHighlightInput.parse(await c.req.json());
+  return c.json(await withChildSession(token(c), async (tx, child) => ({ highlight: await setVerseHighlight(tx, child, input) })));
 });
 route.put(`${base}/child/bible/stickers`, async (c) => {
   const input = verseStickerInput.parse(await c.req.json());

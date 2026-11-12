@@ -5,6 +5,7 @@ import Icon from '@/components/react/Icon';
 import { adjacentChapter } from '@/utils/bible-book-chapters';
 import type { ChildBibleChapter, ChildBibleTranslation, ChildFamilyChapter, ChildFamilyReading, ChildFamilyThought, ChildNotebookPreferences } from '../../../../shared/child-notebook';
 import type { ChildVerseSticker } from '../../../../shared/child-verse-stickers';
+import type { ChildVerseHighlight } from '../../../../shared/child-verse-highlights';
 import type { ChildMaterial, ChildNote, ChildSearchResult, ChildSearchScope } from './types';
 import ChildNotebookView, { notebookDays, type Note } from '../prototype/ChildNotebookView';
 import ChildNoteAttachmentPicker from '../prototype/ChildNoteAttachmentPicker';
@@ -99,12 +100,12 @@ function SessionNotebook({ notebook, privacyUrl, request, onEnd, onRefresh, revi
   function useChildChapter(book: string | undefined, chapter: number | undefined, translation: ChildBibleTranslation, sharedId?: string) {
     const [refresh, setRefresh] = useState(0);
     const key = JSON.stringify([book, chapter, translation, sharedId, refresh, revision]);
-    const [result, setResult] = useState<{ key: string; data?: { verses: { number: number; text: string }[]; thoughts?: ChildFamilyThought[]; stickers?: ChildVerseSticker[] } }>();
+    const [result, setResult] = useState<{ key: string; data?: { verses: { number: number; text: string }[]; thoughts?: ChildFamilyThought[]; stickers?: ChildVerseSticker[]; highlights?: ChildVerseHighlight[] } }>();
     useEffect(() => {
       if (!book || !chapter) return;
       let current = true;
       const load = sharedId ? request<ChildFamilyChapter>(`bible/readings/${encodeURIComponent(sharedId)}`)
-        : request<ChildBibleChapter & { stickers?: ChildVerseSticker[] }>('bible/chapter', 'POST', { book, chapter, translation });
+        : request<ChildBibleChapter & { stickers?: ChildVerseSticker[]; highlights?: ChildVerseHighlight[] }>('bible/chapter', 'POST', { book, chapter, translation });
       void load.then(data => {
         if (current) setResult({ key, data: { ...data, verses: data.verses.map(verse => ({ number: verse.verse, text: verse.text })) } });
       }).catch(() => { if (current) setResult({ key }); });
@@ -119,7 +120,8 @@ function SessionNotebook({ notebook, privacyUrl, request, onEnd, onRefresh, revi
       renderBible={props => <ChildNotebookBibleReader {...props} useChapter={useChildChapter} privacyUrl={privacyUrl}
         live={{ translations: notebook.translations, readings: notebook.readings, activeReading: reading, onReading: setReadingId,
           saveThought: async (id, verse, text) => (await request<{ thought: ChildFamilyThought }>(`bible/readings/${encodeURIComponent(id)}/thoughts`, 'POST', { verse, text })).thought,
-          saveSticker: async (book, chapter, verse, sticker) => { await request('bible/stickers', 'PUT', { book, chapter, verse, sticker }); } }}
+          saveSticker: async (book, chapter, verse, sticker) => { await request('bible/stickers', 'PUT', { book, chapter, verse, sticker }); },
+          saveHighlight: async (book, chapter, verse, color) => { await request('bible/highlights', 'PUT', { book, chapter, verse, color }); } }}
         renderEdge={(book, chapter, translation, direction, onSelect) => {
           const next = adjacentChapter(book, chapter, direction === 'behind' ? -1 : 1, translation);
           return next && <div className={`pds-reader-stack__edges pds-reader-stack__edges--${direction}`} style={{ '--edge-count': 1 } as CSSProperties}>

@@ -11,12 +11,13 @@ import FamilyVerseDiscussion from '../family/FamilyVerseDiscussion';
 import ProtoSelectMenu from './ProtoSelectMenu';
 import type { CSSProperties, ReactNode } from 'react';
 import { verseStickers, verseStickerLabel, type ChildVerseSticker, type VerseSticker } from '../../../../shared/child-verse-stickers';
+import { verseHighlightColors, type ChildVerseHighlight, type VerseHighlightColor } from '../../../../shared/child-verse-highlights';
 import { VerseStickerMark, VerseStickerPicker } from './ChildVerseStickers';
 import { legacyChildBibleTranslations, type ChildBibleTranslation, type ChildFamilyReading, type ChildFamilyThought } from '../../../../shared/child-notebook';
 
 export type ChildBiblePassage = { book: string; chapter: number };
 
-/** The reader's existing highlight colours, named for kids. */
+/** The reader's existing highlight colours, named for kids. Ids match `verseHighlightColors`. */
 const markers = [
   { id: 'warmAmber', label: 'Sunny', token: 'var(--pds-highlight-warm-amber)' },
   { id: 'mintGreen', label: 'Mint', token: 'var(--pds-highlight-mint-green)' },
@@ -24,7 +25,7 @@ const markers = [
   { id: 'violet', label: 'Grape', token: 'var(--pds-highlight-violet)' },
   { id: 'coralRose', label: 'Rose', token: 'var(--pds-highlight-coral-rose)' }
 ] as const;
-type MarkerId = typeof markers[number]['id'];
+type MarkerId = VerseHighlightColor;
 export type ChildBibleMode = 'personal' | 'family';
 
 export const familyBibleBookmark = { book: 'Psalms', chapter: 23 };
@@ -69,7 +70,7 @@ export type ChildReaderProps = {
   onStartNote: (reference: string, translation: string) => void;
 };
 type ChapterQuery = {
-  data?: { verses: { number: number; text: string }[]; thoughts?: ChildFamilyThought[]; stickers?: ChildVerseSticker[] };
+  data?: { verses: { number: number; text: string }[]; thoughts?: ChildFamilyThought[]; stickers?: ChildVerseSticker[]; highlights?: ChildVerseHighlight[] };
   isLoading: boolean; isError: boolean; refetch: () => unknown;
 };
 type Props = ChildReaderProps & {
@@ -83,6 +84,7 @@ type Props = ChildReaderProps & {
     onReading: (id: string) => void;
     saveThought: (readingId: string, verse: number, text: string) => Promise<ChildFamilyThought>;
     saveSticker?: (book: string, chapter: number, verse: number, sticker: VerseSticker | null) => Promise<void>;
+    saveHighlight?: (book: string, chapter: number, verse: number, color: VerseHighlightColor | null) => Promise<void>;
   };
 };
 
@@ -110,7 +112,12 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
   ), [book]);
   const [selection, setSelection] = useState<{ positionKey: string; verse: number } | null>(null);
   const selectedVerse = selection?.positionKey === positionKey ? selection.verse : null;
-  const [highlights, setHighlights] = useState<Record<string, MarkerId | undefined>>({});
+  // My Bible highlights are saved: what the chapter loaded with, overlaid by this session's changes,
+  // keyed by verse rather than translation (like stickers). The Family Bible's "Highlight for family"
+  // is the design preview's sample only, so it stays local.
+  const [highlightEdits, setHighlightEdits] = useState<Record<string, MarkerId | null>>({});
+  const [familyHighlights, setFamilyHighlights] = useState<Record<string, MarkerId | undefined>>({});
+  const [highlightError, setHighlightError] = useState<string | null>(null);
   const [marker, setMarker] = useState<MarkerId>('warmAmber');
   const [thoughts, setThoughts] = useState(initialFamilyThoughts);
   const [savedThoughts, setSavedThoughts] = useState<(ChildFamilyThought & { positionKey: string })[]>([]);
@@ -131,17 +138,44 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
     }
   }, [active, data, positionKey]);
 
+  function highlightAt(verse: number): MarkerId | null {
+    if (isFamily) return familyHighlights[`${positionKey}:${verse}`] ?? null;
+    const key = `${book}:${chapter}:${verse}`;
+    if (key in highlightEdits) return highlightEdits[key];
+    const saved = data?.highlights?.find(item => item.verse === verse)?.color;
+    return saved && verseHighlightColors.includes(saved) ? saved : null;
+  }
+
+  async function setHighlight(verse: number, color: MarkerId | null) {
+    if (isFamily) {
+      setFamilyHighlights(current => ({ ...current, [`${positionKey}:${verse}`]: color ?? undefined }));
+      return;
+    }
+    const key = `${book}:${chapter}:${verse}`;
+    const previous = highlightAt(verse);
+    setHighlightEdits(current => ({ ...current, [key]: color }));
+    setHighlightError(null);
+    if (!live?.saveHighlight) return;
+    try {
+      await live.saveHighlight(book, chapter, verse, color);
+    } catch {
+      // Put back what was there, unless the child has already changed it again.
+      setHighlightEdits(current => current[key] === color ? { ...current, [key]: previous } : current);
+      setHighlightError(key);
+      setAnnouncement('We couldn’t save that highlight. Try again.');
+    }
+  }
+
   /** Paint the verse with a marker; the same marker again takes it off. */
   function paintHighlight(verse: number, color: MarkerId = marker) {
-    const key = `${positionKey}:${verse}`;
-    const removing = highlights[key] === color;
+    const removing = highlightAt(verse) === color;
     playCue(removing ? 'nav.toggle' : 'highlight.created');
     setMarker(color);
-    setHighlights(current => ({ ...current, [key]: removing ? undefined : color }));
+    void setHighlight(verse, removing ? null : color);
   }
   function clearHighlight(verse: number) {
     playCue('nav.toggle');
-    setHighlights(current => ({ ...current, [`${positionKey}:${verse}`]: undefined }));
+    void setHighlight(verse, null);
   }
 
   // In My Bible, a press anywhere outside the open verse (its text, actions and sticker sheet)
@@ -292,7 +326,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
             <div className="pds-reader__verses">
               {data.verses.map(verse => {
                 const selected = verse.number === selectedVerse;
-                const ownColor = highlights[`${positionKey}:${verse.number}`];
+                const ownColor = highlightAt(verse.number) ?? undefined;
                 const ownHighlight = Boolean(ownColor);
                 const parentHighlight = !live && isFamily && atBookmark && verse.number === 1;
                 const verseThoughts = isFamily ? live
@@ -346,6 +380,9 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                     {!isFamily && selected && stickerPicker === stickerSlot && (
                       <VerseStickerPicker current={sticker} reference={reference} onPick={next => void placeSticker(verse.number, next)}
                         onClose={() => { setStickerPicker(null); stickerButtonRef.current?.focus(); }} />
+                    )}
+                    {!isFamily && selected && highlightError === stickerSlot && (
+                      <p className="pds-kids-bible__verse-extra pds-caption pds-kids-verse-stickers__error" role="alert">We couldn’t save that highlight. Try again.</p>
                     )}
                     {!isFamily && selected && stickerError === stickerSlot && (
                       <p className="pds-kids-bible__verse-extra pds-caption pds-kids-verse-stickers__error" role="alert">We couldn’t save that sticker. Try again.</p>

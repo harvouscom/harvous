@@ -56,8 +56,25 @@ export const FAMILY_DDL = [
     "sticker" text NOT NULL, "createdAt" timestamptz NOT NULL,
     PRIMARY KEY ("childId", "book", "chapter", "verse")
   )`,
+  `CREATE TABLE IF NOT EXISTS "FamilyChildVerseHighlights" (
+    "childId" text NOT NULL REFERENCES "FamilyChildren" ("id") ON DELETE CASCADE,
+    "book" text NOT NULL, "chapter" integer NOT NULL, "verse" integer NOT NULL,
+    "color" text NOT NULL, "createdAt" timestamptz NOT NULL,
+    PRIMARY KEY ("childId", "book", "chapter", "verse")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "FamilyChildConsents" (
+    "id" text PRIMARY KEY, "childId" text NOT NULL REFERENCES "FamilyChildren" ("id") ON DELETE CASCADE,
+    "parentUserId" text NOT NULL, "noticeVersion" text NOT NULL, "consentedAt" timestamptz NOT NULL, "kind" text NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "FamilyChildConsents_childIndex" ON "FamilyChildConsents" ("childId")`,
+  // Notebooks created before the history existed start it with their current agreement. Re-running
+  // adds nothing: a notebook that already has any history row is skipped.
+  `INSERT INTO "FamilyChildConsents" ("id", "childId", "parentUserId", "noticeVersion", "consentedAt", "kind")
+    SELECT 'backfill_' || c."id", c."id", c."parentUserId", c."noticeVersion", c."consentedAt", 'created'
+    FROM "FamilyChildren" c
+    WHERE NOT EXISTS (SELECT 1 FROM "FamilyChildConsents" h WHERE h."childId" = c."id")`,
   ...['ChildNoteResources', 'FamilyVerifications', 'FamilyChildren', 'FamilyChildSessions', 'FamilySpaceApprovals',
-    'FamilyChildBibleReadings', 'FamilyChildBibleThoughts', 'FamilyChildVerseStickers']
+    'FamilyChildBibleReadings', 'FamilyChildBibleThoughts', 'FamilyChildVerseStickers', 'FamilyChildVerseHighlights', 'FamilyChildConsents']
     .map((name) => `ALTER TABLE "${name}" ENABLE ROW LEVEL SECURITY`)
 ];
 

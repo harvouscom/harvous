@@ -9,6 +9,8 @@ const verses = chapters.BSB['Psalms:23'];
 const reading = { id: 'preview-psalm', book: 'Psalms', chapter: 23, translation: 'BSB' as const };
 // Sample verse stickers, so the margin shows one before the child has placed any.
 const stickers = new Map<string, string>([['Psalms:23:1', 'star'], ['John:1:5', 'sun']]);
+// Sample highlights, kept for the preview session like the real ones are on the server.
+const highlights = new Map<string, string>([['John:1:4', 'mintGreen']]);
 const thoughts: ChildFamilyThought[] = [{ id: 'preview-thought', verse: 1, role: 'parent', text: 'Which words would you like to remember?' }];
 const notebook: Notebook = {
   displayName: 'Sam', privacyUrl: '#preview-privacy-policy', preferences: { ...defaultChildPreferences }, translations: ['BSB', 'NIV', 'NLT'], readings: [reading],
@@ -46,7 +48,14 @@ export function previewRequest(path: string, method: string, body: unknown): unk
     if (!passage?.length) throw new Error('John 1, John 2, Luke 24, and Psalm 23 are available in this design preview.');
     const prefix = `${book}:${chapter}:`;
     return { verses: passage, stickers: [...stickers].filter(([key]) => key.startsWith(prefix))
-      .map(([key, sticker]) => ({ verse: Number(key.slice(prefix.length)), sticker })) };
+      .map(([key, sticker]) => ({ verse: Number(key.slice(prefix.length)), sticker })),
+      highlights: [...highlights].filter(([key]) => key.startsWith(prefix))
+        .map(([key, color]) => ({ verse: Number(key.slice(prefix.length)), color })) };
+  }
+  if (path === 'bible/highlights') {
+    const { book, chapter, verse, color } = body as { book: string; chapter: number; verse: number; color: string | null };
+    if (color) highlights.set(`${book}:${chapter}:${verse}`, color); else highlights.delete(`${book}:${chapter}:${verse}`);
+    return { highlight: { verse, color } };
   }
   if (path === 'bible/stickers') {
     const { book, chapter, verse, sticker } = body as { book: string; chapter: number; verse: number; sticker: string | null };

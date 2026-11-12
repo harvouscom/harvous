@@ -3946,6 +3946,30 @@ export const FamilyChildVerseStickers = pgTable('FamilyChildVerseStickers', {
   createdAt: ts('createdAt').notNull()
 }, (t) => [primaryKey({ columns: [t.childId, t.book, t.chapter, t.verse] })]);
 
+/** A highlight a child put on a verse in My Bible. Child-only; exported to the parent; cascades with the child. */
+export const FamilyChildVerseHighlights = pgTable('FamilyChildVerseHighlights', {
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  verse: integer('verse').notNull(),
+  color: text('color').notNull(),
+  createdAt: ts('createdAt').notNull()
+}, (t) => [primaryKey({ columns: [t.childId, t.book, t.chapter, t.verse] })]);
+
+/**
+ * Every time a parent agreed to the child privacy notice: once at creation, again at each renewal.
+ * FamilyChildren keeps only the current agreement (it gates access); this keeps the history.
+ * Cascades with the child, like the rest of the notebook's records.
+ */
+export const FamilyChildConsents = pgTable('FamilyChildConsents', {
+  id: text('id').primaryKey(),
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  parentUserId: text('parentUserId').notNull(),
+  noticeVersion: text('noticeVersion').notNull(),
+  consentedAt: ts('consentedAt').notNull(),
+  kind: text('kind').notNull()
+}, (t) => [index('FamilyChildConsents_childIndex').on(t.childId)]);
+
 export const ChildNoteResources = pgTable('ChildNoteResources', {
   noteId: text('noteId').notNull().references(() => Notes.id, { onDelete: 'cascade' }),
   spaceId: text('spaceId').notNull().references(() => Spaces.id, { onDelete: 'cascade' }),
