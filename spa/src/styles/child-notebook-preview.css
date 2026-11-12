@@ -272,7 +272,6 @@
 .pds-kids-mode-trigger__text strong { font-size: 12px; font-weight: 600; }
 .pds-kids-mode-trigger__text > span { display: inline-flex; align-items: center; gap: var(--pds-space-1); color: var(--pds-text-secondary); font-size: 10px; }
 .pds-kids-mode-menu .proto-menu-item { gap: var(--pds-space-3); min-height: 40px; }
-.pds-kids-mode-menu__hint { padding: var(--pds-space-2) var(--pds-space-3); margin: 0; font-size: 11px; }
 .pds-kids-mode-trigger:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
 .pds-kids-parent-gate > .pds-kids-review__art { margin-bottom: var(--pds-space-5); }
 .pds-kids-parent-gate > p { font-size: 14px; line-height: 1.65; }
@@ -283,6 +282,8 @@
 .pds-kids-parent-gate { width: min(400px, calc(100vw - 32px)); overflow-x: hidden; }
 .pds-kids-parent-gate > .pds-kids-review__art { width: 48px; height: 48px; border-radius: var(--pds-radius-input); }
 .pds-kids-parent-gate > .pds-kids-review__art svg { overflow: visible; }
+.pds-kids-parent-gate__choices { margin-top: var(--pds-space-5); text-align: start; }
+.pds-kids-parent-gate__stay { width: 100%; }
 .pds-kids-parent-gate__notice { margin: var(--pds-space-2) 0 var(--pds-space-5); font-size: 12px; overflow-wrap: anywhere; }
 .pds-kids-parent-gate .pds-kids-review__actions { gap: var(--pds-space-3); }
 .pds-kids-parent-gate .proto-settings-btn { white-space: normal; overflow-wrap: anywhere; min-width: 0; }

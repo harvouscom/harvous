@@ -690,7 +690,8 @@ describe('the cloze payload', () => {
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
     const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.rebuild'"));
     const block = branch.slice(0, branch.indexOf("rung.key === 'verse.sequence'"));
-    expect(block).toMatch(/spec\.wordBank && cloze\.blanks\.length > 0/);
+    // A child's Look back places words at every tier; everyone else, only where the tier says.
+    expect(block).toMatch(/\(spec\.wordBank \|\| isChildReader\(userId\)\) && cloze\.blanks\.length > 0/);
     expect(block).toMatch(/buildClozeBank\(\s*cloze/);
     expect(block).not.toMatch(/cloze\.blanks\.map/);
 

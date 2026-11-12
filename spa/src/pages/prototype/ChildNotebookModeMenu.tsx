@@ -5,7 +5,7 @@ import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
 import ProtoPopoverShell from './ProtoPopoverShell';
 
 /** Design-preview menu. Real child sessions never use an adult account menu. */
-export default function ChildNotebookModeMenu({ onFinish }: { onFinish?: () => void }) {
+export default function ChildNotebookModeMenu() {
   const { name } = useChildNotebookAppearance();
   const { open, toggle, close, rootRef } = usePopoverDismiss<HTMLDivElement>();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -38,10 +38,9 @@ export default function ChildNotebookModeMenu({ onFinish }: { onFinish?: () => v
         <button className="proto-menu-item" role="menuitem" autoFocus onClick={() => act('settings')}><Icon name="gear" size={14} /><span className="proto-menu-item__label">Settings</span></button>
         <button className="proto-menu-item" role="menuitem" onClick={() => act('privacy')}><Icon name="user-shield" size={14} /><span className="proto-menu-item__label">Who can see my notebook?</span></button>
       </div>
-      <div className="proto-menu-section" role="group" aria-label="Parent access">
-        <button className="proto-menu-item" role="menuitem" onClick={() => act('parent')}><Icon name="arrow-right-arrow-left" size={14} aria-hidden /><span className="proto-menu-item__label">Return to parent mode</span></button>
-        {onFinish && <button className="proto-menu-item" role="menuitem" onClick={() => { close(); onFinish(); }}><Icon name="right-from-bracket" size={14} /><span className="proto-menu-item__label">Finish studying</span></button>}
-        <p className="pds-caption pds-kids-mode-menu__hint">Your parent needs to sign in.</p>
+      <div className="proto-menu-section" role="group" aria-label="Leaving">
+        {/* One way out. The dialog it opens asks whether to hand the notebook back or close it. */}
+        <button className="proto-menu-item" role="menuitem" onClick={() => act('parent')}><Icon name="circle-check" size={14} aria-hidden /><span className="proto-menu-item__label">I’m all done</span></button>
       </div>
     </ProtoPopoverShell>}
   </div>;

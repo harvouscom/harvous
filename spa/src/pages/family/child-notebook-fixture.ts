@@ -19,8 +19,9 @@ const notebook: Notebook = {
   notes: initialNotes.map(({ date, ...note }) => ({ ...note, updatedAt: date })),
   materials: [{ id: 'preview-reading', spaceId: 'preview-ministry', title: 'This week’s reading', content: 'What’s one kind thing you could do for someone this week?', spaceTitle: 'Kids ministry', updatedAt: null }]
 };
-// A sample Look back sitting: one choice, one note's passage, one verse to put in order — the
-// shapes the server sends a child (a note is always asked what goes with it, never self-rated).
+// A sample Look back sitting: what comes next, a note's passage, word-tile blanks, an order and a
+// verse to say from memory —
+// the shapes the server sends a child (a note is always asked what goes with it, never self-rated).
 // Marked here the way the server marks it, so the dock can be tried without an account.
 const lookBackItem = (id: string, kind: 'verse' | 'note', prompt: string, extra: Partial<ReviewItemView>): ReviewItemView => ({
   id, kind, prompt, task: prompt, exercise: null, framing: null, promptKey: `${kind}.preview`, recallState: 'new', status: 'active',
@@ -31,12 +32,17 @@ const lookBackItem = (id: string, kind: 'verse' | 'note', prompt: string, extra:
 const lookBackItems = [
   lookBackItem('lb-verse', 'verse', 'Pick the verse that follows Psalms 23:1.', { scriptureReference: 'Psalms 23:1', promptKey: 'verse.next' }),
   lookBackItem('lb-note', 'note', 'Pick a passage you cited in “A little kindness”.', { noteTitle: 'A little kindness', noteId: 'sample-3', promptKey: 'note.passage' }),
+  lookBackItem('lb-blanks', 'verse', 'Fill in the blanks in Psalms 23:3.', { scriptureReference: 'Psalms 23:3', promptKey: 'verse.rebuild' }),
   lookBackItem('lb-order', 'verse', 'Put John 1:5 back in order.', { scriptureReference: 'John 1:5', promptKey: 'verse.sequence' }),
+  lookBackItem('lb-memory', 'verse', 'Write out Psalms 23:1 from memory.', { scriptureReference: 'Psalms 23:1', promptKey: 'verse.recall' }),
 ];
-const lookBackAnswers: Record<string, unknown> = { 'lb-verse': 'He makes me lie down in green pastures;', 'lb-note': 'Ephesians 4:32', 'lb-order': [0, 1, 2] };
+const lookBackAnswers: Record<string, unknown> = { 'lb-verse': 'He makes me lie down in green pastures;', 'lb-note': 'Ephesians 4:32', 'lb-order': [0, 1, 2], 'lb-blanks': { words: ['restores', 'paths'] } };
 const lookBackReveals = {
   'lb-verse': { next: { options: ['He makes me lie down in green pastures;', 'Even though I walk through the valley', 'Surely goodness and mercy will follow me'] }, verseText: 'The LORD is my shepherd; I shall not want.' },
   'lb-note': { noteChoice: { fragment: null, options: ['Psalms 23:1', 'Ephesians 4:32', 'John 1:5'] } },
+  'lb-blanks': { cloze: { segments: ['He ', ' my soul; He guides me in the ', ' of righteousness for the sake of His name.'], blankLengths: [8, 5], bank: ['paths', 'leads', 'restores', 'waters', 'ways'] },
+    verseText: 'He restores my soul; He guides me in the paths of righteousness for the sake of His name.' },
+  'lb-memory': { recall: { shown: 'The LORD is my shepherd;', mode: 'finish', words: 3 }, verseText: 'The LORD is my shepherd; I shall not want.' },
   'lb-order': { sequence: { phrases: ['The Light shines in the darkness,', 'and the darkness', 'has not overcome it.'] }, verseText: 'The Light shines in the darkness, and the darkness has not overcome it.' },
 };
 let lookBackAttempts: Record<string, number> = {};
@@ -46,14 +52,17 @@ export function previewRequest(path: string, method: string, body: unknown): unk
     if (path.startsWith('look-back?')) { lookBackAttempts = {}; return { items: lookBackItems, reveals: lookBackReveals }; }
     const [, id, action] = path.split('/');
     if (action === 'reveal') return (lookBackReveals as Record<string, unknown>)[id] ?? { verseText: null };
-    const answer = (body as { outcome?: string; answer?: { option?: string; order?: number[] } }) ?? {};
+    const answer = (body as { outcome?: string; answer?: { option?: string; order?: number[]; words?: string[] } }) ?? {};
     const key = lookBackAnswers[id];
     const tries = (lookBackAttempts[id] = (lookBackAttempts[id] ?? 0) + 1);
     const verseText = (lookBackReveals as Record<string, { verseText?: string }>)[id]?.verseText;
     if (key === undefined) return { finalized: true, outcome: answer.outcome, next: { label: 'Back in a few days' } };
-    const correct = Array.isArray(key) ? JSON.stringify(answer.answer?.order) === JSON.stringify(key) : answer.answer?.option === key;
-    if (!correct && tries < 2) return { finalized: false, correct: false, attemptsLeft: 1, hint: 'Have another look at how it starts.' };
-    return { finalized: true, correct, outcome: correct ? 'recalled' : 'revealed', ...(correct ? {} : { correctAnswer: Array.isArray(key) ? undefined : key }),
+    const gaps = (key as { words?: string[] }).words;
+    const parts = gaps ? gaps.map((word, at) => answer.answer?.words?.[at] === word) : undefined;
+    const correct = gaps ? parts!.every(Boolean) : Array.isArray(key) ? JSON.stringify(answer.answer?.order) === JSON.stringify(key) : answer.answer?.option === key;
+    if (!correct && tries < 2) return { finalized: false, correct: false, attemptsLeft: 1, ...(parts ? { parts } : {}),
+      ...(id === 'lb-verse' ? { hint: { kind: 'lead', text: 'He makes me' } } : {}) };
+    return { finalized: true, correct, outcome: correct ? 'recalled' : 'revealed', ...(parts ? { parts } : {}), ...(correct || typeof key !== 'string' ? {} : { correctAnswer: key }),
       truth: verseText ? { verseText } : undefined, next: { label: correct ? 'Back in about two weeks' : 'Back tomorrow' } };
   }
   if (path === 'redeem') return { token: 'preview' };

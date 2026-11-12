@@ -129,7 +129,7 @@ function SessionNotebook({ notebook, privacyUrl, request, onEnd, onRefresh, revi
     },
   }), [request]);
 
-  return <ChildNotebookShell onFinish={() => window.dispatchEvent(new CustomEvent('harvousChildNotebookPreviewAction', { detail: 'finish' }))}>
+  return <ChildNotebookShell>
     <ChildNotebookView preview={isDesignPreview} initial={initial} privacyUrl={privacyUrl} lookBack={lookBack}
       renderBible={props => <ChildNotebookBibleReader {...props} useChapter={useChildChapter} privacyUrl={privacyUrl}
         live={{ translations: notebook.translations, readings: notebook.readings, activeReading: reading, onReading: setReadingId,

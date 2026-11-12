@@ -9,7 +9,7 @@ export function ChildNotebookPreviewShell({ children }: { children: ReactNode })
   return <ChildNotebookAppearanceProvider><ChildNotebookShell>{children}</ChildNotebookShell></ChildNotebookAppearanceProvider>;
 }
 
-export default function ChildNotebookShell({ children, onFinish }: { children: ReactNode; onFinish?: () => void }) {
+export default function ChildNotebookShell({ children }: { children: ReactNode }) {
   useChildBackdropDismiss();
   function send(detail: string) {
     window.dispatchEvent(new CustomEvent('harvousChildNotebookPreviewAction', { detail }));
@@ -28,7 +28,7 @@ export default function ChildNotebookShell({ children, onFinish }: { children: R
               <Icon name="magnifying-glass" size={14} /><span className="pds-kids-search-trigger__label">Search</span>
             </button>
           </div>
-          <div className="proto-toolbar-right"><ChildNotebookModeMenu onFinish={onFinish} /></div>
+          <div className="proto-toolbar-right"><ChildNotebookModeMenu /></div>
         </div>
       </div></header>
       <main className="proto-shell__main-cell"><div className="proto-shell__main-inner">{children}</div></main>

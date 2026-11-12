@@ -636,12 +636,30 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
     </dialog>, document.body)}
 
     {createPortal(<dialog ref={parentDialogRef} className="pds-kids-privacy-modal proto-theme pds-kids-parent-gate" aria-labelledby="parent-gate-title" aria-describedby="parent-gate-description" style={themeStyle} onCancel={event => { if (parentBusy) event.preventDefault(); else setParentGate(false); }} onClose={() => { if (!parentBusy) { setParentGate(false); document.getElementById('child-notebook-mode-trigger')?.focus(); } }}>
-      <span className="pds-kids-review__art" aria-hidden="true"><Icon name="lock" size={22} /></span>
-      <h2 id="parent-gate-title" className="pds-title-xl">{parentGate === 'export' ? 'Export my notebook' : 'A parent’s turn.'}</h2>
-      <p id="parent-gate-description">{parentGate === 'export' ? 'Ask your parent to sign in and download a copy from My Family.' : 'Ask your parent to sign in to leave child mode.'}</p>
-      {preview && <p className="pds-caption pds-kids-parent-gate__notice">Preview changes reset when you leave.</p>}
-      {parentError && <p role="alert">{parentError}</p>}
-      <div className="pds-kids-review__actions"><button className="proto-settings-btn" disabled={parentBusy} onClick={() => void goToParentSignIn()}>{parentBusy ? <ProtoLoadingDots /> : <Icon name="lock" size={12} />} Parent sign-in</button><button className="proto-settings-btn proto-settings-btn--secondary" disabled={parentBusy} onClick={() => setParentGate(false)}><Icon name="arrow-left" size={12} /> Stay here</button></div>
+      {parentGate === 'export' ? <>
+        <span className="pds-kids-review__art" aria-hidden="true"><Icon name="lock" size={22} /></span>
+        <h2 id="parent-gate-title" className="pds-title-xl">Export my notebook</h2>
+        <p id="parent-gate-description">Ask your parent to sign in and download a copy from My Family.</p>
+        {preview && <p className="pds-caption pds-kids-parent-gate__notice">Preview changes reset when you leave.</p>}
+        {parentError && <p role="alert">{parentError}</p>}
+        <div className="pds-kids-review__actions"><button className="proto-settings-btn" disabled={parentBusy} onClick={() => void goToParentSignIn()}>{parentBusy ? <ProtoLoadingDots /> : <Icon name="lock" size={12} />} Parent sign-in</button><button className="proto-settings-btn proto-settings-btn--secondary" disabled={parentBusy} onClick={() => setParentGate(false)}><Icon name="arrow-left" size={12} /> Stay here</button></div>
+      </> : <>
+        {/* One way out of the notebook, from the menu. It asks what "done" means here — hand the
+            device back, or close up — rather than the menu offering two exits that read alike. */}
+        <span className="pds-kids-review__art" aria-hidden="true"><Icon name="star" size={22} /></span>
+        <h2 id="parent-gate-title" className="pds-title-xl">All done for now?</h2>
+        <p id="parent-gate-description">Everything you wrote is saved.</p>
+        {preview && <p className="pds-caption pds-kids-parent-gate__notice">Preview changes reset when you leave.</p>}
+        {parentError && <p role="alert">{parentError}</p>}
+        <div className="proto-settings__content pds-kids-parent-gate__choices"><SettingsGroup>
+          <SettingsRow label="Give it to my parent" sublabel={parentBusy ? 'Getting sign-in ready…' : 'They’ll sign in to their account'} leadingIcon="user-shield" disabled={parentBusy} onClick={() => void goToParentSignIn()} />
+          {onEndSession && <SettingsRow label="Close my notebook" sublabel="Next time, ask your parent for a new link" leadingIcon="book" disabled={parentBusy} onClick={() => {
+            setParentGate(false);
+            window.dispatchEvent(new CustomEvent('harvousChildNotebookPreviewAction', { detail: 'finish' }));
+          }} />}
+        </SettingsGroup></div>
+        <button className="proto-settings-btn proto-settings-btn--secondary pds-kids-parent-gate__stay" disabled={parentBusy} onClick={() => setParentGate(false)}>Keep going</button>
+      </>}
     </dialog>, document.body)}
     {createPortal(<dialog ref={privacyDialogRef} className="pds-kids-privacy-modal proto-theme" aria-labelledby="kids-privacy-title" aria-describedby="kids-privacy-description" style={themeStyle} onCancel={() => setPrivacy(false)} onClose={() => { setPrivacy(false); document.getElementById('child-notebook-mode-trigger')?.focus(); }}>
       <div className="pds-kids-privacy-modal__heading"><span className="pds-kids-review__art" aria-hidden="true"><Icon name="user-shield" size={25} /></span><button className="pds-kids-preview__quiet" aria-label="Close privacy guide" onClick={() => setPrivacy(false)}><Icon name="xmark" size={17} /></button></div>

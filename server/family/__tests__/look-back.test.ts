@@ -25,7 +25,18 @@ describe('Look back (the child review dock)', () => {
     const service = readFileSync(resolve(process.cwd(), 'server/utils/review-service.ts'), 'utf8');
     expect(service).not.toMatch(/countableUserNotesWhere\(\)\s*[,)]/);
     const helper = service.slice(service.indexOf('function ownNotesWhere'));
-    expect(helper.slice(0, 200)).toMatch(/userId\.startsWith\(CHILD_ACCOUNT_ID_PREFIX\) \? undefined : countableUserNotesWhere\(\)/);
+    expect(helper.slice(0, 200)).toMatch(/isChildReader\(userId\) \? undefined : countableUserNotesWhere\(\)/);
+    expect(service).toMatch(/function isChildReader\(userId: string\) \{\s*return userId\.startsWith\(CHILD_ACCOUNT_ID_PREFIX\);/);
+  });
+
+  it('asks a child only what they can answer by tapping or saying aloud', () => {
+    const service = readFileSync(resolve(process.cwd(), 'server/utils/review-service.ts'), 'utf8');
+    // Step 1 walks past first letters (typed) to the blanks, which are always word tiles.
+    expect(service).toMatch(/CHILD_RUNG_PREFERENCES: RungPreferences = \{ skip: new Set\(\['verse\.initials'\]\)/);
+    expect(service).toMatch(/if \(isChildReader\(userId\)\) return CHILD_RUNG_PREFERENCES;/);
+    // The from-memory cards keep the verse for a child only, to check against after saying it.
+    expect(service).toMatch(/if \(!isChildReader\(userId\)\) payload\.verseText = null;/);
+    expect(service).toMatch(/if \(payload\.keywords && !isChildReader\(userId\)\) payload\.verseText = null;/);
   });
 
   it('marks a child’s answer with the adult route’s shared function, not a copy', () => {
