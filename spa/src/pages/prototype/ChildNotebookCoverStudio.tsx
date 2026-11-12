@@ -1,9 +1,10 @@
 import { useState, type CSSProperties, type ComponentProps, type ReactElement } from 'react';
 import Icon from '@/components/react/Icon';
-import { ChildNotebookCover, coverColors, coverPatterns, coverSymbols, useChildNotebookAppearance, type CoverSymbol } from './ChildNotebookAppearance';
+import { ChildNotebookCover, coverBindings, coverColors, coverPatterns, coverSymbols, notebookPapers, useChildNotebookAppearance, type CoverSymbol } from './ChildNotebookAppearance';
+import ChildCoverSymbol from './ChildCoverSymbol';
 
 /**
- * The notebook's cover studio in child Settings: colour, pattern and symbol, with the notebook
+ * The notebook's cover studio in child Settings: colour, pattern, sticker, binding and pages, with the notebook
  * itself as the thing you're making. Three layouts are under review (Derek, Nov 2026); the
  * switch is preview-only and goes once one is picked.
  */
@@ -16,23 +17,27 @@ const variantFromUrl = (() => {
 
 const patternLabels: Record<typeof coverPatterns[number], string> = { plain: 'Simple', dots: 'Dots', stripes: 'Stripes', gingham: 'Checks' };
 const symbolLabel = (symbol: CoverSymbol) => symbol === 'initial' ? 'My initial' : symbol.replaceAll('-', ' ');
+const bindingLabels: Record<typeof coverBindings[number], string> = { classic: 'Classic', spiral: 'Spiral', stitched: 'Stitched', band: 'Band' };
+const paperLabels: Record<typeof notebookPapers[number], string> = { plain: 'Plain', lined: 'Lined', dotted: 'Dotted', grid: 'Grid' };
 // A gentle, fixed tilt per sticker so the sheet looks hand-placed but never shuffles under a finger.
 const stickerTilt = [-6, 4, -3, 7, -5, 3, -7, 5, -2];
 
-type Group = 'color' | 'pattern' | 'symbol';
+type Group = 'color' | 'pattern' | 'symbol' | 'binding' | 'paper';
 const groups: { id: Group; label: string; icon: ComponentProps<typeof Icon>['name']; question: string }[] = [
   { id: 'color', label: 'Color', icon: 'paintbrush', question: 'What color should it be?' },
   { id: 'pattern', label: 'Pattern', icon: 'table-cells', question: 'Plain or patterned?' },
-  { id: 'symbol', label: 'Sticker', icon: 'star', question: 'Pick a sticker for the front' }
+  { id: 'symbol', label: 'Sticker', icon: 'star', question: 'Pick a sticker for the front' },
+  { id: 'binding', label: 'Binding', icon: 'link', question: 'How is it bound?' },
+  { id: 'paper', label: 'Pages', icon: 'file-lines', question: 'What are the pages like inside?' }
 ];
 
 export default function ChildNotebookCoverStudio({ showVariantSwitch = false }: { showVariantSwitch?: boolean }) {
-  const { name, preferences, coverColor, setCoverColor, coverPattern, setCoverPattern, coverSymbol, setCoverSymbol, playCue } = useChildNotebookAppearance();
+  const { name, preferences, coverColor, setCoverColor, coverPattern, setCoverPattern, coverSymbol, setCoverSymbol, coverBinding, setCoverBinding, paper, setPaper, playCue } = useChildNotebookAppearance();
   const [variant, setVariant] = useState<CoverStudioVariant>(variantFromUrl ?? 'stickers');
   const [tab, setTab] = useState<Group>('color');
   const [step, setStep] = useState(0);
   const initial = Array.from(name)[0]?.toUpperCase();
-  const coverKey = `${coverColor.id}-${coverPattern}-${coverSymbol}`;
+  const coverKey = `${coverColor.id}-${coverPattern}-${coverSymbol}-${coverBinding}`;
 
   function pick(apply: () => void) {
     playCue('nav.select');
@@ -48,6 +53,7 @@ export default function ChildNotebookCoverStudio({ showVariantSwitch = false }: 
     setCoverColor(choose(coverColors, coverColor));
     setCoverPattern(choose(coverPatterns, coverPattern));
     setCoverSymbol(choose(coverSymbols, coverSymbol));
+    setCoverBinding(choose(coverBindings, coverBinding));
   }
 
   const colorOptions = (size: 'big' | 'paint') => <div className="pds-kids-studio__colors" data-size={size}>
@@ -69,11 +75,28 @@ export default function ChildNotebookCoverStudio({ showVariantSwitch = false }: 
   const symbolOptions = <div className="pds-kids-studio__stickers">
     {coverSymbols.map((symbol, index) => <label key={symbol} className="pds-kids-studio__sticker" style={{ '--kids-tilt': `${stickerTilt[index % stickerTilt.length]}deg` } as CSSProperties}>
       <input type="radio" name="notebook-symbol" aria-label={symbolLabel(symbol)} checked={coverSymbol === symbol} onChange={() => pick(() => setCoverSymbol(symbol))} />
-      <span aria-hidden="true">{symbol === 'initial' ? initial : <Icon name={symbol} size={20} />}</span>
+      <span aria-hidden="true">{symbol === 'initial' ? initial : <ChildCoverSymbol symbol={symbol} size={20} />}</span>
     </label>)}
   </div>;
 
-  const options: Record<Group, ReactElement> = { color: colorOptions('big'), pattern: patternOptions, symbol: symbolOptions };
+  // Each binding is shown on a little copy of their own notebook, so the choice is the result.
+  const bindingOptions = <div className="pds-kids-studio__bindings">
+    {coverBindings.map(binding => <label key={binding} className="pds-kids-studio__binding">
+      <input type="radio" name="notebook-binding" aria-label={bindingLabels[binding]} checked={coverBinding === binding} onChange={() => pick(() => setCoverBinding(binding))} />
+      <span aria-hidden="true"><ChildNotebookCover name={name} preferences={{ ...preferences, coverBinding: binding }} /></span>
+      <small>{bindingLabels[binding]}</small>
+    </label>)}
+  </div>;
+
+  const paperOptions = <div className="pds-kids-studio__papers">
+    {notebookPapers.map((option, index) => <label key={option} className="pds-kids-studio__paper" style={{ '--kids-tilt': `${index % 2 ? 2 : -2}deg` } as CSSProperties}>
+      <input type="radio" name="notebook-paper" aria-label={paperLabels[option]} checked={paper === option} onChange={() => pick(() => setPaper(option))} />
+      <span aria-hidden="true" data-paper={option} />
+      <small>{paperLabels[option]}</small>
+    </label>)}
+  </div>;
+
+  const options: Record<Group, ReactElement> = { color: colorOptions('big'), pattern: patternOptions, symbol: symbolOptions, binding: bindingOptions, paper: paperOptions };
 
   const stage = (caption: string) => <div className="pds-kids-studio__stage">
     <span key={coverKey} className="pds-kids-studio__book"><ChildNotebookCover name={name} preferences={preferences} large /></span>
@@ -108,6 +131,8 @@ export default function ChildNotebookCoverStudio({ showVariantSwitch = false }: 
       <fieldset className="pds-kids-studio__row"><legend><Icon name="paintbrush" size={14} aria-hidden /> Paint it <span>{coverColor.label}</span></legend>{colorOptions('paint')}</fieldset>
       <fieldset className="pds-kids-studio__row"><legend><Icon name="table-cells" size={14} aria-hidden /> Dress it up <span>{patternLabels[coverPattern]}</span></legend>{patternOptions}</fieldset>
       <fieldset className="pds-kids-studio__row"><legend><Icon name="star" size={14} aria-hidden /> Stick it on</legend>{symbolOptions}</fieldset>
+      <fieldset className="pds-kids-studio__row"><legend><Icon name="link" size={14} aria-hidden /> Bind it <span>{bindingLabels[coverBinding]}</span></legend>{bindingOptions}</fieldset>
+      <fieldset className="pds-kids-studio__row"><legend><Icon name="file-lines" size={14} aria-hidden /> Pick your pages <span>{paperLabels[paper]}</span></legend>{paperOptions}</fieldset>
     </>}
 
     {variant === 'steps' && <>

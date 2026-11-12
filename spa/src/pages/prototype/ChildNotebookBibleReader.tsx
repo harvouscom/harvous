@@ -8,10 +8,20 @@ import { bookAbbreviation } from '@/utils/scripture-osis';
 import { useChildNotebookAppearance } from './ChildNotebookAppearance';
 import FamilyVerseDiscussion from '../family/FamilyVerseDiscussion';
 import ProtoSelectMenu from './ProtoSelectMenu';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { legacyChildBibleTranslations, type ChildBibleTranslation, type ChildFamilyReading, type ChildFamilyThought } from '../../../../shared/child-notebook';
 
 export type ChildBiblePassage = { book: string; chapter: number };
+
+/** The reader's existing highlight colours, named for kids. */
+const markers = [
+  { id: 'warmAmber', label: 'Sunny', token: 'var(--pds-highlight-warm-amber)' },
+  { id: 'mintGreen', label: 'Mint', token: 'var(--pds-highlight-mint-green)' },
+  { id: 'skyBlue', label: 'Sky', token: 'var(--pds-highlight-sky-blue)' },
+  { id: 'violet', label: 'Grape', token: 'var(--pds-highlight-violet)' },
+  { id: 'coralRose', label: 'Rose', token: 'var(--pds-highlight-coral-rose)' }
+] as const;
+type MarkerId = typeof markers[number]['id'];
 export type ChildBibleMode = 'personal' | 'family';
 
 export const familyBibleBookmark = { book: 'Psalms', chapter: 23 };
@@ -96,7 +106,8 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
   ), [book]);
   const [selection, setSelection] = useState<{ positionKey: string; verse: number } | null>(null);
   const selectedVerse = selection?.positionKey === positionKey ? selection.verse : null;
-  const [highlights, setHighlights] = useState<Record<string, boolean>>({});
+  const [highlights, setHighlights] = useState<Record<string, MarkerId | undefined>>({});
+  const [marker, setMarker] = useState<MarkerId>('warmAmber');
   const [thoughts, setThoughts] = useState(initialFamilyThoughts);
   const [savedThoughts, setSavedThoughts] = useState<(ChildFamilyThought & { positionKey: string })[]>([]);
   const [announcement, setAnnouncement] = useState('');
@@ -110,10 +121,17 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
     }
   }, [active, data, positionKey]);
 
-  function toggleHighlight(verse: number) {
+  /** Paint the verse with a marker; the same marker again takes it off. */
+  function paintHighlight(verse: number, color: MarkerId = marker) {
     const key = `${positionKey}:${verse}`;
-    playCue(highlights[key] ? 'nav.toggle' : 'highlight.created');
-    setHighlights(current => ({ ...current, [key]: !current[key] }));
+    const removing = highlights[key] === color;
+    playCue(removing ? 'nav.toggle' : 'highlight.created');
+    setMarker(color);
+    setHighlights(current => ({ ...current, [key]: removing ? undefined : color }));
+  }
+  function clearHighlight(verse: number) {
+    playCue('nav.toggle');
+    setHighlights(current => ({ ...current, [`${positionKey}:${verse}`]: undefined }));
   }
 
   async function saveThought(verse: number, text: string) {
@@ -213,7 +231,8 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
             <div className="pds-reader__verses">
               {data.verses.map(verse => {
                 const selected = verse.number === selectedVerse;
-                const ownHighlight = Boolean(highlights[`${positionKey}:${verse.number}`]);
+                const ownColor = highlights[`${positionKey}:${verse.number}`];
+                const ownHighlight = Boolean(ownColor);
                 const parentHighlight = !live && isFamily && atBookmark && verse.number === 1;
                 const verseThoughts = isFamily ? live
                   ? sharedThoughts.filter(thought => thought.verse === verse.number)
@@ -222,7 +241,7 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                 return (
                   <div className="pds-reader__block" key={verse.number}>
                     <p className="pds-reader-text">
-                      <button type="button" className="pds-reader__verse pds-kids-bible__verse" aria-pressed={isFamily ? undefined : selected} aria-expanded={isFamily ? selected : undefined} data-selected={selected && !isFamily ? 'true' : undefined} data-highlighted={ownHighlight || parentHighlight ? 'true' : undefined} data-highlight-color={ownHighlight ? 'warmAmber' : 'skyBlue'} onClick={toggle}>
+                      <button type="button" className="pds-reader__verse pds-kids-bible__verse" aria-pressed={isFamily ? undefined : selected} aria-expanded={isFamily ? selected : undefined} data-selected={selected && !isFamily ? 'true' : undefined} data-highlighted={ownHighlight || parentHighlight ? 'true' : undefined} data-highlight-color={ownColor ?? 'skyBlue'} onClick={toggle}>
                         <sup className="pds-reader-verse-num">{verse.number}</sup>{' '}
                         <span className="pds-reader__verse-text">{verse.text}</span>
                       </button>
@@ -235,15 +254,24 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                     {isFamily && <FamilyVerseDiscussion key={positionKey} verse={verse.number} comments={verseThoughts}
                       viewer="child" childName={name} preferences={preferences} expanded={selected} onToggle={toggle}
                       privacyUrl={privacyUrl} onSave={text => saveThought(verse.number, text)}>
-                      {!live && <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => toggleHighlight(verse.number)}>
+                      {!live && <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => ownHighlight ? clearHighlight(verse.number) : paintHighlight(verse.number)}>
                         <Icon name="highlighter" size={14} aria-hidden /> {ownHighlight ? 'Remove my highlight' : 'Highlight for family'}
                       </button>}
                     </FamilyVerseDiscussion>}
                     {!isFamily && selected && (
                       <div className="pds-kids-bible__verse-extra pds-kids-review__actions" role="group" aria-label={`Actions for ${reference}`}>
-                        <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => toggleHighlight(verse.number)}>
-                          <Icon name="highlighter" size={14} /> {ownHighlight ? 'Remove my highlight' : 'Highlight'}
-                        </button>
+                        <div className="pds-kids-markers" role="group" aria-label="Highlight with a marker">
+                          <Icon name="highlighter" size={14} aria-hidden />
+                          {markers.map(option => <button key={option.id} type="button" className="pds-kids-marker"
+                            style={{ '--kids-marker': option.token } as CSSProperties}
+                            aria-label={ownColor === option.id ? `Remove ${option.label} highlight` : `Highlight ${option.label}`}
+                            aria-pressed={ownColor === option.id} onClick={() => paintHighlight(verse.number, option.id)}>
+                            {ownColor === option.id && <Icon name="check" size={11} aria-hidden />}
+                          </button>)}
+                          {ownHighlight && <button type="button" className="pds-kids-marker pds-kids-marker--clear" aria-label="Remove highlight" onClick={() => clearHighlight(verse.number)}>
+                            <Icon name="xmark" size={11} aria-hidden />
+                          </button>}
+                        </div>
                         <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => onStartNote(reference, translation)}>
                           <Icon name="pen-to-square" size={14} /> Write a note
                         </button>

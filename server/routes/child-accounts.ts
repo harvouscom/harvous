@@ -20,7 +20,7 @@ import { sponsorFeatureKeys } from '../utils/family-entitlements';
 import { CHILD_CAPABILITIES, CHILD_NOTICE_VERSION, HANDOFF_TTL_MS, VERIFICATION_TTL_MS, childSecret, emailDigest, hashSecret, hasActiveChildConsent, kwsWebhookSignatureResult } from '../family/policy';
 import { familyEnrollmentConfig, kwsConfig, requireFamilyEnrollment, sendKwsVerification } from '../family/kws';
 import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, withChildSession, type Child } from '../family/service';
-import { childBibleTranslationChoices, childBibleTranslations, childSchemes, childTextSizes, legacyChildBibleTranslations, coverColors, coverPatterns, coverSymbols, defaultChildPreferences } from '../../shared/child-notebook';
+import { childBibleTranslationChoices, childBibleTranslations, childSchemes, childTextSizes, legacyChildBibleTranslations, coverBindings, coverColors, coverPatterns, coverSymbols, defaultChildPreferences, notebookPapers } from '../../shared/child-notebook';
 import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput } from '../family/bible';
 import { searchChildNotebook } from '../family/notebook-search';
 
@@ -345,7 +345,8 @@ route.get(`${base}/child/notebook`, async (c) => c.json(await withChildSession(t
 
 const preferencesInput = z.object({
   coverColor: z.enum(coverColors.map(color => color.id)), coverSymbol: z.enum(coverSymbols),
-  coverPattern: z.enum(coverPatterns), scheme: z.enum(childSchemes), textSize: z.enum(childTextSizes),
+  coverPattern: z.enum(coverPatterns), coverBinding: z.enum(coverBindings).optional(), paper: z.enum(notebookPapers).optional(),
+  scheme: z.enum(childSchemes), textSize: z.enum(childTextSizes),
   reduceMotion: z.boolean(), sounds: z.boolean(),
   soundMode: z.enum(['everywhere', 'moments', 'off']).optional(),
   canvas: z.string().refine(value => value === 'device' || imagePresets.presets.some(image => image.mode === 'light' && value === `image:${image.id}`)).optional(),

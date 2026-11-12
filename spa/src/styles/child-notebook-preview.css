@@ -955,3 +955,81 @@
   .pds-kids-studio__book, .pds-kids-studio * { animation: none !important; transition: none !important; }
 }
 .pds-kids-settings-modal[data-reduce-motion] .pds-kids-studio :is(.pds-kids-studio__book, *) { animation: none !important; transition: none !important; }
+
+/* ─── Binding, drawn on the notebook wherever it appears ──────────────────────────────────
+   Sizes are percentages of the cover so the same rule reads on the 36px header book and the
+   100px studio book. Classic draws nothing extra: the spine border is the binding. */
+.pds-kids-book[data-binding]:not([data-binding='classic']) .pds-kids-book__front::before {
+  content: ''; position: absolute; pointer-events: none; z-index: 2;
+}
+.pds-kids-book[data-binding='spiral'] .pds-kids-book__front { border-left-width: 2px; }
+.pds-kids-book[data-binding='spiral'] .pds-kids-book__front::before {
+  left: -12%; top: 5%; bottom: 5%; width: 24%;
+  background: radial-gradient(ellipse 46% 28% at 50% 50%, transparent 52%, oklch(0.84 0.005 260) 58% 78%, transparent 84%) 0 0 / 100% 10%;
+}
+.pds-kids-book[data-binding='stitched'] .pds-kids-book__front::before {
+  left: 12%; top: 7%; bottom: 7%; width: 0;
+  border-left: max(1px, 0.04em) dashed color-mix(in oklab, var(--pds-on-accent) 80%, transparent);
+}
+.pds-kids-book[data-binding='band'] .pds-kids-book__front::before {
+  right: 14%; top: -2%; bottom: -2%; width: 7%; min-width: 2px; border-radius: 1px;
+  background: color-mix(in oklab, var(--pds-text-primary) 78%, var(--kids-cover-ink));
+}
+
+/* ─── The paper inside: lines, dots or a grid on the notebook sheet, tinted by the cover ─── */
+/* Restated on the studio: Settings is portaled outside the appearance scope. */
+.pds-kids-appearance-scope, .pds-kids-studio { --kids-paper-line: color-mix(in oklab, var(--kids-cover-color) 30%, var(--pds-border-soft)); }
+.pds-kids-appearance-scope[data-paper='lined'] .pds-kids-preview__paper .pds-kids-preview__body,
+.pds-kids-studio__paper > [data-paper='lined'] {
+  background-image:
+    linear-gradient(90deg, transparent 10px, color-mix(in oklab, var(--pds-thread-pink) 55%, transparent) 10px 11px, transparent 11px),
+    repeating-linear-gradient(to bottom, transparent 0 27px, var(--kids-paper-line) 27px 28px);
+}
+.pds-kids-appearance-scope[data-paper='dotted'] .pds-kids-preview__paper .pds-kids-preview__body,
+.pds-kids-studio__paper > [data-paper='dotted'] {
+  background-image: radial-gradient(var(--kids-paper-line) 1.2px, transparent 1.6px);
+  background-size: 18px 18px;
+}
+.pds-kids-appearance-scope[data-paper='grid'] .pds-kids-preview__paper .pds-kids-preview__body,
+.pds-kids-studio__paper > [data-paper='grid'] {
+  background-image:
+    linear-gradient(to right, var(--kids-paper-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--kids-paper-line) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+/* Studio options for binding (little notebooks) and pages (paper slips). */
+.pds-kids-studio__bindings, .pds-kids-studio__papers { display: flex; flex-wrap: wrap; gap: var(--pds-space-4); }
+.pds-kids-studio__binding, .pds-kids-studio__paper { display: grid; justify-items: center; gap: var(--pds-space-2); }
+.pds-kids-studio__binding > span {
+  display: grid; place-items: center; width: 72px; height: 80px; border-radius: 16px;
+  background: color-mix(in oklab, var(--kids-cover-color) 14%, var(--pds-bg-page));
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-studio__binding > input:checked + span { outline: 3px solid var(--pds-text-primary); outline-offset: 2px; transform: scale(1.04); }
+.pds-kids-studio__paper > span[data-paper] {
+  display: block; width: 56px; height: 72px; border-radius: 4px; background-color: var(--pds-bg-page);
+  box-shadow: 0 0 0 1px var(--pds-border-soft), 0 3px 6px color-mix(in oklab, var(--pds-text-primary) 12%, transparent);
+  transform: rotate(var(--kids-tilt)); transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-studio__paper > input:checked + span { transform: rotate(0deg) scale(1.06); outline: 3px solid var(--pds-text-primary); outline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  .pds-kids-studio__paper:hover > input:not(:checked) + span { transform: rotate(0deg) translateY(-2px); }
+  .pds-kids-studio__binding:hover > input:not(:checked) + span { transform: translateY(-2px); }
+}
+
+/* ─── Highlighter set in the Bible reader: five marker caps, the same one again takes it off ── */
+.pds-kids-markers { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pds-space-2); color: var(--pds-text-secondary); }
+.pds-kids-marker {
+  appearance: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  border: 3px solid var(--pds-bg-page); border-radius: 50%; background: var(--kids-marker);
+  box-shadow: 0 0 0 1px var(--pds-border); color: var(--pds-text-primary); cursor: pointer;
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-marker[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--pds-text-primary); transform: scale(1.08); }
+.pds-kids-marker--clear { background: var(--pds-bg-control); }
+@media (hover: hover) and (pointer: fine) { .pds-kids-marker:hover { transform: translateY(-1px); } }
+.pds-kids-marker:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
+.pds-kids-marker, .pds-kids-marker * { color: var(--pds-text-primary) !important; }
+/* The little notebooks in the binding choices, drawn big enough to see the rings and stitches. */
+.pds-kids-studio__binding .pds-kids-book { transform: scale(1.45); }

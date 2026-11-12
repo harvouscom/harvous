@@ -6,7 +6,12 @@ export const coverColors = [
   { id: 'orange', label: 'Peach', color: 'var(--pds-thread-orange)' },
   { id: 'yellow', label: 'Sunshine', color: 'var(--pds-thread-yellow)' }
 ] as const;
-export const coverSymbols = ['initial', 'cross', 'leaf', 'sun', 'star', 'book-open', 'puzzle-piece', 'bookmark', 'wand-magic-sparkles'] as const;
+export const coverSymbols = ['initial', 'cross', 'leaf', 'sun', 'star', 'book-open', 'puzzle-piece', 'bookmark', 'wand-magic-sparkles',
+  // Bible-story stickers: Noah, Jonah, the Spirit as a dove, the King, the mustard seed, hope as an
+  // anchor, the storm on the lake, love, prayer.
+  'rainbow', 'fish', 'dove', 'crown', 'seedling', 'anchor', 'sailboat', 'heart', 'hands-praying'] as const;
+export const coverBindings = ['classic', 'spiral', 'stitched', 'band'] as const;
+export const notebookPapers = ['plain', 'lined', 'dotted', 'grid'] as const;
 export const coverPatterns = ['plain', 'dots', 'stripes', 'gingham'] as const;
 export const childSchemes = ['system', 'light', 'dark'] as const;
 export const childTextSizes = ['standard', 'bigger'] as const;
@@ -20,6 +25,9 @@ export type ChildNotebookPreferences = {
   coverColor: typeof coverColors[number]['id'];
   coverSymbol: typeof coverSymbols[number];
   coverPattern: typeof coverPatterns[number];
+  /** Optional so notebooks saved before these existed still read as classic and plain. */
+  coverBinding?: typeof coverBindings[number];
+  paper?: typeof notebookPapers[number];
   scheme: typeof childSchemes[number];
   textSize: typeof childTextSizes[number];
   reduceMotion: boolean;

@@ -19,6 +19,7 @@ import '../../styles/prototype-tokens.css';
 import '../../styles/prototype-shell.css';
 import '@/styles/loading-dots.css';
 import '@/styles/scripture-pill-chrome.css';
+import '@/styles/study-highlight-accent-colors.css';
 import '../../styles/family.css';
 import '../../styles/child-notebook-preview.css';
 
