@@ -4,9 +4,10 @@ import { useEffect, useRef, useState, type CSSProperties, type ComponentProps, t
 import { createPortal } from 'react-dom';
 import ProtoLoadingDots from './ProtoLoadingDots';
 import Icon from '@/components/react/Icon';
-import { SOUND_PREFERENCES } from '@/utils/sound-prefs';
+import { SOUND_PREFERENCES, type SoundPreference } from '@/utils/sound-prefs';
 import { playSound, warmSounds } from '@/utils/sounds';
-import { SettingsGroup, SettingsRow } from './settings/SettingsShell';
+import { SettingsGroup, SettingsRow, SettingsToggleRow } from './settings/SettingsShell';
+import ProtoSelectMenu from './ProtoSelectMenu';
 import type { ChildBibleMode, ChildBiblePassage, ChildReaderProps } from './ChildNotebookBibleReader';
 import type ChildNoteAttachmentPicker from './ChildNoteAttachmentPicker';
 import type { ChildNoteAttachment, ChildFamilyResource } from './ChildNoteAttachmentPicker';
@@ -621,37 +622,48 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
               <fieldset><legend>Appearance</legend><div className="proto-appearance-segmented" role="group" aria-label="Color scheme">{(['system', 'light', 'dark'] as const).map(mode => <button key={mode} className="proto-appearance-segmented__btn" data-active={appearance.scheme === mode ? 'true' : undefined} aria-pressed={appearance.scheme === mode} onClick={() => setAppearance(current => ({ ...current, scheme: mode }))}>{mode === 'system' ? 'Auto' : mode === 'light' ? 'Light' : 'Dark'}</button>)}</div></fieldset>
               <fieldset><legend>Background imagery</legend>
                 <div className="proto-appearance-carousel" role="listbox" aria-label={`${resolvedScheme} notebook background`}>
-                  <AppearancePreviewTile label="App background" selected={!activeCanvas.startsWith('image:')} canvasColor="var(--pds-canvas-default)" onClick={() => pickCanvas('device')} />
+                  <AppearancePreviewTile label="Paper" selected={!activeCanvas.startsWith('image:')} canvasColor="var(--pds-canvas-default)" onClick={() => pickCanvas('device')} />
                   {childImageChoices.filter(choice => choice.mode === resolvedScheme).map(choice => <AppearancePreviewTile key={choice.id} label={choice.label} selected={activeCanvas === `image:${choice.id}`} canvasImageUrl={childImageUrl(choice)} glassMode="image" onClick={() => pickCanvas(`image:${choice.id}`)} />)}
                 </div>
               </fieldset>
               <fieldset><legend>Reading & writing text</legend><div className="proto-menu-tabs pds-kids-text-choices" role="group" aria-label="Reading text size">{(['standard', 'bigger'] as const).map(size => <button key={size} className="proto-menu-tab" aria-pressed={appearance.textSize === size} data-active={appearance.textSize === size ? 'true' : undefined} onClick={() => setAppearance(current => ({ ...current, textSize: size }))}><span aria-hidden="true" className="pds-kids-type-sample" data-size={size}>Aa</span>{size === 'standard' ? 'Just right' : 'A little bigger'}</button>)}</div></fieldset>
               <p className="pds-caption">These settings are just for your notebook.</p>
             </section>
-            <div className="pds-kids-studio__finish"><button className="proto-settings-btn" disabled={saving} onClick={() => void closeSettings()}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Done</button></div>
           </div> : <div className="pds-kids-inside-settings pds-kids-feedback-settings">
-            <section className="proto-inspector-section">
-              <h3 className="pds-list-title">Sound effects</h3>
-              <div className="proto-appearance-segmented" role="group" aria-label="Sound effects">
-                {SOUND_PREFERENCES.map(option => (
-                  <button key={option.id} type="button" className="proto-appearance-segmented__btn" aria-pressed={soundPreference === option.id} data-active={soundPreference === option.id ? 'true' : undefined} onClick={() => {
-                    setSoundPreference(option.id);
-                    if (option.id !== 'off') warmSounds({ force: true });
-                    if (option.id === 'everywhere') playSound('nav.select', { preference: option.id });
-                  }}>{option.label}</button>
-                ))}
-              </div>
-              <p className="pds-caption">{SOUND_PREFERENCES.find(option => option.id === soundPreference)?.description}</p>
-              <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => playSound('organize.filed', { force: true, preference: soundPreference })}><Icon name="volume-low" size={14} /> Hear a sound</button>
-            </section>
-            <section className="proto-inspector-section">
-              <label className="pds-kids-motion-choice"><span><strong>Reduce motion</strong><span>Less wiggle when you move around.</span></span><input type="checkbox" checked={appearance.reduceMotion} onChange={event => {
-                playCue('nav.toggle');
-                setAppearance(current => ({ ...current, reduceMotion: event.target.checked }));
-              }} /></label>
-            </section>
+            {/* Adult Settings › Sounds, the same pieces: a row with the choice menu, a "Hear it" row, and
+                a switch row for motion. Kid words where adult's are a grown-up's. */}
+            <div className="proto-settings__content">
+              <SettingsGroup>
+                <div className="proto-note-row proto-note-row--static">
+                  <span className="proto-settings-list-row__main">
+                    <span className="pds-list-title" style={{ color: 'var(--pds-text-primary)' }}>Sounds</span>
+                    <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>{SOUND_PREFERENCES.find(option => option.id === soundPreference)?.description}</span>
+                  </span>
+                  <span className="proto-settings-list-row__trailing">
+                    <ProtoSelectMenu<SoundPreference> label="When to play sounds" value={soundPreference} menuWidth={180}
+                      options={SOUND_PREFERENCES.map(option => ({ value: option.id, label: option.label }))}
+                      onChange={next => {
+                        setSoundPreference(next);
+                        if (next !== 'off') warmSounds({ force: true });
+                        if (next === 'everywhere') playSound('nav.select', { preference: next });
+                      }} />
+                  </span>
+                </div>
+              </SettingsGroup>
+              <SettingsGroup>
+                <SettingsRow label="Hear it" sublabel="What a sound in your notebook is like." leadingIcon="volume-low" trailing="none"
+                  onClick={() => playSound('organize.filed', { force: true, preference: soundPreference })} />
+              </SettingsGroup>
+              <SettingsGroup>
+                <SettingsToggleRow label="Reduce motion" sublabel="Less wiggle when you move around." checked={appearance.reduceMotion}
+                  onChange={next => { playCue('nav.toggle'); setAppearance(current => ({ ...current, reduceMotion: next })); }} />
+              </SettingsGroup>
+            </div>
           </div>}
-        </section></div>
+        </section>
+        {/* One footer for every page, pinned under the scrolling pane like adult sheets' footer band, so Done is
+            always in view without scrolling. Settings save as they change; Done just closes. */}
+        <div className="pds-kids-settings-footer proto-sheet-footer--stacked"><button className="proto-settings-btn" disabled={saving} onClick={() => void closeSettings()}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Done</button></div></div>
       </div></div>
     </dialog>, document.body)}
 

@@ -193,6 +193,9 @@ export default function ProtoSelectMenu<T extends string | number>(
   const popoverRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
   const settingsSheet = open ? triggerRef.current?.closest<HTMLElement>('.proto-settings-sheet') : null;
+  /* Inside a modal <dialog> (the child notebook's Settings), a body portal lands beneath the top
+     layer and the menu opens unseen; portal into the dialog instead. Positioning stays fixed. */
+  const modalHost = open && !settingsSheet ? triggerRef.current?.closest<HTMLElement>('dialog[open]') : null;
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const menuId = useId();
 
@@ -542,7 +545,7 @@ export default function ProtoSelectMenu<T extends string | number>(
               ))}
               {footer?.(() => setOpen(false))}
             </ProtoPopoverShell>,
-            settingsSheet ?? document.body,
+            settingsSheet ?? modalHost ?? document.body,
           )
         : null}
     </>

@@ -187,8 +187,6 @@
 .pds-kids-studio__sample .pds-kids-book__front { font-size: 52px; border-left-width: 7px; border-radius: 3px 9px 9px 3px; }
 .pds-kids-flip__back .pds-kids-preview__customizer { padding: 0; border: 0; gap: var(--pds-space-6); }
 .pds-kids-preview__customizer legend > span { font-weight: 400; color: var(--pds-text-secondary); margin-left: var(--pds-space-2); }
-.pds-kids-studio__finish { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-4); padding-top: var(--pds-space-5); border-top: 1px solid var(--pds-border-soft); }
-.pds-kids-studio__finish .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); }
 .pds-kids-patterns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--pds-space-3); }
 .pds-kids-pattern { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--pds-space-2); cursor: pointer; font-size: 12px; color: var(--pds-text-secondary); }
 .pds-kids-pattern input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
@@ -257,7 +255,6 @@
   .pds-kids-studio__hero .pds-title-xl { font-size: 28px; }
   .pds-kids-studio__sample { width: 100px; }
   .pds-kids-studio__sample .pds-kids-book__volume { width: 65px; height: 90px; }
-  .pds-kids-studio__finish { align-items: flex-start; flex-direction: column; }
   .pds-kids-privacy-modal { padding: var(--pds-space-5); }
 }
 @media (prefers-reduced-motion: reduce) { .pds-kids-preview .pds-kids-flip { transition: none; } }
@@ -316,11 +313,6 @@
 .pds-kids-text-choices.proto-menu-tabs { position: static; margin: 0; }
 .pds-kids-text-choices .proto-menu-tab { min-height: 44px; display: flex; justify-content: center; align-items: center; gap: var(--pds-space-2); }
 .pds-kids-text-choices [data-active] { background: var(--pds-bg-popover-solid); }
-.pds-kids-motion-choice { display: flex; align-items: center; justify-content: space-between; gap: var(--pds-space-4); cursor: pointer; }
-.pds-kids-motion-choice > span { display: flex; flex-direction: column; gap: var(--pds-space-1); }
-.pds-kids-motion-choice strong { font-size: 13px; font-weight: 500; }
-.pds-kids-motion-choice span > span { font-size: 12px; color: var(--pds-text-secondary); }
-.pds-kids-motion-choice input { width: 20px; height: 20px; accent-color: var(--pds-accent); }
 .pds-kids-appearance-scope[data-text-size='bigger'] :is(.pds-child-note__writing, .pds-kids-review__note, .pds-kids-preview__reading-page > p) { font-size: 19px; }
 .pds-kids-appearance-scope[data-reduce-motion] :is(.pds-kids-book__volume, .pds-kids-book__front, .pds-kids-prompt__shuffle-icon, .pds-kids-flip__front, .pds-kids-flip__back) { animation: none; transition: none; }
 @media (prefers-reduced-motion: reduce) { .pds-kids-flip__front, .pds-kids-flip__back { transition: none; } }
@@ -345,7 +337,6 @@
 .pds-kids-inside-settings .pds-kids-appearance-settings { padding-top: 0; border-top: 0; }
 .pds-kids-inside-settings .proto-appearance-carousel { margin-top: var(--pds-space-4); }
 .pds-kids-inside-settings .proto-appearance-segmented__btn { min-height: 40px; }
-.pds-kids-motion-choice input { appearance: auto; -webkit-appearance: auto; opacity: 1; flex: 0 0 20px; }
 .pds-kids-type-sample { font-size: 14px; font-weight: 500; }
 .pds-kids-type-sample[data-size='bigger'] { font-size: 19px; }
 .pds-kids-appearance-scope:not([data-canvas='device']) .proto-shell-frame { background: var(--kids-canvas); background-image: var(--kids-canvas-image); background-position: center; background-size: cover; background-repeat: no-repeat; }
@@ -393,7 +384,11 @@
 .pds-kids-settings-modal::backdrop { background: var(--pds-overlay-heavy); }
 .pds-kids-settings-modal .proto-settings-modal__body { flex: 1; }
 .pds-kids-settings-modal .proto-settings { height: 100%; }
-.pds-kids-settings-modal .proto-settings__detail { overflow-y: auto; }
+.pds-kids-settings-modal .proto-settings__detail { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.pds-kids-settings-modal .pds-kids-settings-pane { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* Adult sheets' footer band (hairline, ghost fill), pinned under the pane so Done never needs a scroll. */
+.pds-kids-settings-footer { flex-shrink: 0; padding: 10px var(--pds-space-5) 14px; border-top: 0.5px solid var(--pds-border-control); background: var(--pds-bg-ghost); }
+.pds-kids-settings-footer .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }
 /* Child-mode modals scroll without a visible scrollbar (wheel, touch and keys still work):
    the dialog itself and anything inside it that overflows. */
 :is(.pds-kids-settings-modal, .pds-kids-privacy-modal), :is(.pds-kids-settings-modal, .pds-kids-privacy-modal) * { scrollbar-width: none; }
@@ -739,22 +734,6 @@
   margin: var(--pds-space-2) 0 0;
 }
 
-.pds-kids-feedback-settings .proto-inspector-section {
-  display: grid;
-  gap: var(--pds-space-3);
-}
-.pds-kids-feedback-settings .proto-inspector-section + .proto-inspector-section {
-  margin-top: 0;
-}
-.pds-kids-feedback-settings :is(h3, p) {
-  margin: 0;
-}
-.pds-kids-feedback-settings .proto-settings-btn {
-  justify-self: start;
-  width: auto;
-  min-height: 44px;
-  gap: var(--pds-space-2);
-}
 .pds-kids-settings-modal[data-reduce-motion] .pds-kids-book__volume {
   animation: none;
   transition: none;
