@@ -9,6 +9,8 @@ import { useChildNotebookAppearance } from './ChildNotebookAppearance';
 import FamilyVerseDiscussion from '../family/FamilyVerseDiscussion';
 import ProtoSelectMenu from './ProtoSelectMenu';
 import type { CSSProperties, ReactNode } from 'react';
+import { verseStickers, verseStickerLabel, type ChildVerseSticker, type VerseSticker } from '../../../../shared/child-verse-stickers';
+import { VerseStickerMark, VerseStickerPicker } from './ChildVerseStickers';
 import { legacyChildBibleTranslations, type ChildBibleTranslation, type ChildFamilyReading, type ChildFamilyThought } from '../../../../shared/child-notebook';
 
 export type ChildBiblePassage = { book: string; chapter: number };
@@ -66,7 +68,7 @@ export type ChildReaderProps = {
   onStartNote: (reference: string, translation: string) => void;
 };
 type ChapterQuery = {
-  data?: { verses: { number: number; text: string }[]; thoughts?: ChildFamilyThought[] };
+  data?: { verses: { number: number; text: string }[]; thoughts?: ChildFamilyThought[]; stickers?: ChildVerseSticker[] };
   isLoading: boolean; isError: boolean; refetch: () => unknown;
 };
 type Props = ChildReaderProps & {
@@ -79,6 +81,7 @@ type Props = ChildReaderProps & {
     activeReading?: ChildFamilyReading;
     onReading: (id: string) => void;
     saveThought: (readingId: string, verse: number, text: string) => Promise<ChildFamilyThought>;
+    saveSticker?: (book: string, chapter: number, verse: number, sticker: VerseSticker | null) => Promise<void>;
   };
 };
 
@@ -111,6 +114,12 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
   const [thoughts, setThoughts] = useState(initialFamilyThoughts);
   const [savedThoughts, setSavedThoughts] = useState<(ChildFamilyThought & { positionKey: string })[]>([]);
   const [announcement, setAnnouncement] = useState('');
+  // Stickers in My Bible: what the chapter loaded with, overlaid by what the child changed this session.
+  const [stickerEdits, setStickerEdits] = useState<Record<string, VerseSticker | null>>({});
+  const [stickerPicker, setStickerPicker] = useState<string | null>(null);
+  const [freshSticker, setFreshSticker] = useState<string | null>(null);
+  const [stickerError, setStickerError] = useState<string | null>(null);
+  const stickerButtonRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const positions = useRef(new Map<string, number>());
   const reference = selectedVerse === null ? '' : `${book} ${chapter}:${selectedVerse}`;
@@ -132,6 +141,36 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
   function clearHighlight(verse: number) {
     playCue('nav.toggle');
     setHighlights(current => ({ ...current, [`${positionKey}:${verse}`]: undefined }));
+  }
+
+  const stickerKey = (verse: number) => `${book}:${chapter}:${verse}`;
+  function stickerAt(verse: number): VerseSticker | null {
+    const key = stickerKey(verse);
+    if (key in stickerEdits) return stickerEdits[key];
+    const saved = data?.stickers?.find(item => item.verse === verse)?.sticker;
+    return saved && verseStickers.includes(saved) ? saved : null;
+  }
+
+  async function placeSticker(verse: number, sticker: VerseSticker | null) {
+    const key = stickerKey(verse);
+    const previous = stickerAt(verse);
+    const where = `${book} ${chapter}:${verse}`;
+    setStickerEdits(current => ({ ...current, [key]: sticker }));
+    setFreshSticker(sticker ? key : null);
+    setStickerPicker(null);
+    setStickerError(null);
+    stickerButtonRef.current?.focus();
+    playCue(sticker ? 'highlight.created' : 'nav.toggle');
+    setAnnouncement(sticker ? `${verseStickerLabel(sticker)} sticker added to ${where}.` : `Sticker taken off ${where}.`);
+    if (!live?.saveSticker) return;
+    try {
+      await live.saveSticker(book, chapter, verse, sticker);
+    } catch {
+      // Put back what was there, unless the child has already changed it again.
+      setStickerEdits(current => current[key] === sticker ? { ...current, [key]: previous } : current);
+      setStickerError(key);
+      setAnnouncement('We couldn’t save that sticker. Try again.');
+    }
   }
 
   async function saveThought(verse: number, text: string) {
@@ -238,8 +277,11 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                   ? sharedThoughts.filter(thought => thought.verse === verse.number)
                   : thoughts.filter(thought => thought.chapterKey === chapterKey && thought.verse === verse.number) : [];
                 const toggle = () => setSelection(selected ? null : { positionKey, verse: verse.number });
+                const sticker = isFamily ? null : stickerAt(verse.number);
+                const stickerSlot = stickerKey(verse.number);
                 return (
-                  <div className="pds-reader__block" key={verse.number}>
+                  <div className="pds-reader__block" key={verse.number} data-sticker={sticker ? 'true' : undefined}>
+                    {sticker && <VerseStickerMark key={sticker} sticker={sticker} verse={verse.number} chapter={chapter} fresh={freshSticker === stickerSlot} />}
                     <p className="pds-reader-text">
                       <button type="button" className="pds-reader__verse pds-kids-bible__verse" aria-pressed={isFamily ? undefined : selected} aria-expanded={isFamily ? selected : undefined} data-selected={selected && !isFamily ? 'true' : undefined} data-highlighted={ownHighlight || parentHighlight ? 'true' : undefined} data-highlight-color={ownColor ?? 'skyBlue'} onClick={toggle}>
                         <sup className="pds-reader-verse-num">{verse.number}</sup>{' '}
@@ -275,7 +317,18 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
                         <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => onStartNote(reference, translation)}>
                           <Icon name="pen-to-square" size={14} /> Write a note
                         </button>
+                        <button type="button" ref={stickerButtonRef} className="proto-settings-btn proto-settings-btn--secondary" aria-expanded={stickerPicker === stickerSlot}
+                          onClick={() => { playCue('nav.toggle'); setStickerError(null); setStickerPicker(stickerPicker === stickerSlot ? null : stickerSlot); }}>
+                          <Icon name="star" size={14} /> {sticker ? 'Change sticker' : 'Sticker'}
+                        </button>
                       </div>
+                    )}
+                    {!isFamily && selected && stickerPicker === stickerSlot && (
+                      <VerseStickerPicker current={sticker} reference={reference} onPick={next => void placeSticker(verse.number, next)}
+                        onClose={() => { setStickerPicker(null); stickerButtonRef.current?.focus(); }} />
+                    )}
+                    {!isFamily && selected && stickerError === stickerSlot && (
+                      <p className="pds-kids-bible__verse-extra pds-caption pds-kids-verse-stickers__error" role="alert">We couldn’t save that sticker. Try again.</p>
                     )}
                   </div>
                 );

@@ -98,6 +98,13 @@ describe('family route boundaries', () => {
     const response = await app.request('/api/child-accounts/child/notebook', { headers: { Authorization: 'Bearer parent-token' } });
     expect(response.status).toBe(401); expect(database.transaction).not.toHaveBeenCalled();
   });
+  it('rejects a verse sticker outside the set before opening a child session', async () => {
+    const response = await app.request('/api/child-accounts/child/bible/stickers', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ book: 'Psalms', chapter: 23, verse: 1, sticker: 'initial' })
+    });
+    expect(response.status).toBe(400); expect(database.transaction).not.toHaveBeenCalled();
+  });
   it('rejects child app requests from the adult origin', async () => {
     const response = await app.request('/api/child-accounts/child/notebook', { headers: { Origin: 'https://app.harvous.com' } });
     expect(response.status).toBe(403);

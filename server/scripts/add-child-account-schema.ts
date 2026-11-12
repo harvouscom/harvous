@@ -50,8 +50,14 @@ export const FAMILY_DDL = [
     "resourceNoteId" text NOT NULL REFERENCES "Notes" ("id") ON DELETE CASCADE,
     PRIMARY KEY ("noteId", "spaceId", "resourceNoteId")
   )`,
+  `CREATE TABLE IF NOT EXISTS "FamilyChildVerseStickers" (
+    "childId" text NOT NULL REFERENCES "FamilyChildren" ("id") ON DELETE CASCADE,
+    "book" text NOT NULL, "chapter" integer NOT NULL, "verse" integer NOT NULL,
+    "sticker" text NOT NULL, "createdAt" timestamptz NOT NULL,
+    PRIMARY KEY ("childId", "book", "chapter", "verse")
+  )`,
   ...['ChildNoteResources', 'FamilyVerifications', 'FamilyChildren', 'FamilyChildSessions', 'FamilySpaceApprovals',
-    'FamilyChildBibleReadings', 'FamilyChildBibleThoughts']
+    'FamilyChildBibleReadings', 'FamilyChildBibleThoughts', 'FamilyChildVerseStickers']
     .map((name) => `ALTER TABLE "${name}" ENABLE ROW LEVEL SECURITY`)
 ];
 

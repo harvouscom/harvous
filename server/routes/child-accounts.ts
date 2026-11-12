@@ -23,6 +23,7 @@ import { availableMinistries, childNoteSelection, deleteChildData, ministryMater
 import { childBibleTranslationChoices, childBibleTranslations, childSchemes, childTextSizes, legacyChildBibleTranslations, coverBindings, coverColors, coverPatterns, coverSymbols, defaultChildPreferences, notebookPapers } from '../../shared/child-notebook';
 import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput } from '../family/bible';
 import { searchChildNotebook } from '../family/notebook-search';
+import { chapterStickers, setVerseSticker, verseStickerInput } from '../family/stickers';
 
 function requireActiveConsent(child: Child) {
   if (!hasActiveChildConsent(child)) throw new HTTPException(403, { message: 'This child account is paused.' });
@@ -380,10 +381,14 @@ route.get(`${base}/child/notes/:id`, async (c) => c.json(await withChildSession(
 
 route.post(`${base}/child/bible/chapter`, async (c) => {
   const passage = passageInput.parse(await c.req.json());
-  return c.json(await withChildSession(token(c), (tx, child) => {
+  return c.json(await withChildSession(token(c), async (tx, child) => {
     requireApprovedTranslation(child, passage.translation);
-    return readChapter(tx, passage);
+    return { ...await readChapter(tx, passage), stickers: await chapterStickers(tx, child, passage.book, passage.chapter) };
   }));
+});
+route.put(`${base}/child/bible/stickers`, async (c) => {
+  const input = verseStickerInput.parse(await c.req.json());
+  return c.json(await withChildSession(token(c), async (tx, child) => ({ sticker: await setVerseSticker(tx, child, input) })));
 });
 route.get(`${base}/child/bible/readings/:readingId`, async (c) => c.json(await withChildSession(token(c), async (tx, child) => {
   const reading = await getFamilyReading(tx, child, requireParam(c, 'readingId'));

@@ -7,6 +7,8 @@ import chapters from './child-preview-chapters.json';
 const verses = chapters.BSB['Psalms:23'];
 
 const reading = { id: 'preview-psalm', book: 'Psalms', chapter: 23, translation: 'BSB' as const };
+// Sample verse stickers, so the margin shows one before the child has placed any.
+const stickers = new Map<string, string>([['Psalms:23:1', 'star'], ['John:1:5', 'sun']]);
 const thoughts: ChildFamilyThought[] = [{ id: 'preview-thought', verse: 1, role: 'parent', text: 'Which words would you like to remember?' }];
 const notebook: Notebook = {
   displayName: 'Sam', privacyUrl: '#preview-privacy-policy', preferences: { ...defaultChildPreferences }, translations: ['BSB', 'NIV', 'NLT'], readings: [reading],
@@ -42,7 +44,14 @@ export function previewRequest(path: string, method: string, body: unknown): unk
     const available = (chapters as Partial<Record<ChildBibleTranslation, Record<string, { verse: number; text: string }[]>>>)[translation];
     const passage = available?.[`${book}:${chapter}`];
     if (!passage?.length) throw new Error('John 1, John 2, Luke 24, and Psalm 23 are available in this design preview.');
-    return { verses: passage };
+    const prefix = `${book}:${chapter}:`;
+    return { verses: passage, stickers: [...stickers].filter(([key]) => key.startsWith(prefix))
+      .map(([key, sticker]) => ({ verse: Number(key.slice(prefix.length)), sticker })) };
+  }
+  if (path === 'bible/stickers') {
+    const { book, chapter, verse, sticker } = body as { book: string; chapter: number; verse: number; sticker: string | null };
+    if (sticker) stickers.set(`${book}:${chapter}:${verse}`, sticker); else stickers.delete(`${book}:${chapter}:${verse}`);
+    return { sticker: { verse, sticker } };
   }
   if (path === `bible/readings/${reading.id}`) return { ...reading, verses, thoughts: [...thoughts] };
   if (path === `bible/readings/${reading.id}/thoughts`) {

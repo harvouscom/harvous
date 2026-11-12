@@ -1,5 +1,6 @@
 import { api } from '../../lib/api';
 import type { ChildFamilyReading, ChildFamilyThought } from '../../../../shared/child-notebook';
+import { verseStickerLabel } from '../../../../shared/child-verse-stickers';
 import type { ChildNote } from './types';
 
 export type ChildExportFormat = 'text' | 'backup';
@@ -8,6 +9,7 @@ type NotebookExport = {
   displayName: string;
   notes: ChildNote[];
   familyBible?: (ChildFamilyReading & { thoughts: ChildFamilyThought[] })[];
+  verseStickers?: { book: string; chapter: number; verse: number; sticker: string }[];
   scriptureReferences: { noteId: string; reference: string; translation: string }[];
 };
 
@@ -27,7 +29,9 @@ export async function downloadChildNotebook(childId: string, format: ChildExport
       [...(references.get(note.id) ?? [])].join('\n')
     ].filter(Boolean).join('\n')),
     ...(notebook.familyBible ?? []).flatMap(reading => reading.thoughts.map(thought =>
-      `${reading.book} ${reading.chapter}:${thought.verse} · ${reading.translation}\n${thought.text}`))
+      `${reading.book} ${reading.chapter}:${thought.verse} · ${reading.translation}\n${thought.text}`)),
+    ...(notebook.verseStickers?.length ? [['Bible stickers', ...notebook.verseStickers.map(item =>
+      `${item.book} ${item.chapter}:${item.verse} · ${verseStickerLabel(item.sticker)}`)].join('\n')] : [])
   ].join('\n\n');
   const objectUrl = URL.createObjectURL(new Blob([text], {
     type: format === 'backup' ? 'application/json' : 'text/plain;charset=utf-8'

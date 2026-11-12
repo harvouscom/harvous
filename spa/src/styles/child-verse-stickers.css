@@ -1,0 +1,105 @@
+/*
+ * Verse stickers in the child's My Bible. The same die-cut material as the cover studio's
+ * sticker sheet (a page-coloured border, a lifted shadow, a hand-placed tilt), sized down
+ * to sit in the reader's right margin lane.
+ */
+.pds-kids-bible .pds-reader__block[data-sticker] { position: relative; }
+
+.pds-kids-verse-sticker {
+  --kids-verse-sticker-size: 32px;
+  position: absolute;
+  top: -2px;
+  /* Centred in the right inset, which mirrors the left gutter. On a phone the inset is
+     narrower than the sticker, so it hangs a pixel or two into the paper's own padding. */
+  inset-inline-end: calc((var(--pds-reader-text-inset) - var(--kids-verse-sticker-size)) / 2);
+  display: grid;
+  place-items: center;
+  width: var(--kids-verse-sticker-size);
+  height: var(--kids-verse-sticker-size);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--kids-cover-color, var(--pds-thread-blue)) 38%, var(--pds-bg-page));
+  border: 2px solid var(--pds-bg-page);
+  box-shadow: 0 0 0 1px var(--pds-border-soft), 0 2px 5px color-mix(in oklab, var(--pds-text-primary) 16%, transparent);
+  color: var(--kids-cover-ink, var(--pds-text-primary));
+  transform: rotate(var(--kids-tilt));
+  pointer-events: none;
+}
+.pds-kids-verse-sticker[data-fresh] { animation: pds-kids-verse-sticker-on 420ms var(--pds-ease-emphasized); }
+@keyframes pds-kids-verse-sticker-on {
+  0% { transform: rotate(calc(var(--kids-tilt) - 14deg)) scale(0.4); opacity: 0; }
+  60% { transform: rotate(calc(var(--kids-tilt) + 3deg)) scale(1.12); opacity: 1; }
+  100% { transform: rotate(var(--kids-tilt)); }
+}
+
+/* The picker: a short sheet of stickers under the verse's actions. */
+.pds-kids-verse-stickers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pds-space-3);
+}
+.pds-kids-verse-stickers__sheet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-2);
+  padding: var(--pds-space-3);
+  border-radius: var(--pds-radius-card);
+  background: var(--pds-bg-subtle);
+}
+.pds-kids-verse-stickers__option {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.pds-kids-verse-stickers__option > span {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--kids-cover-color, var(--pds-thread-blue)) 22%, var(--pds-bg-page));
+  border: 3px solid var(--pds-bg-page);
+  box-shadow: 0 0 0 1px var(--pds-border-soft), 0 3px 6px color-mix(in oklab, var(--pds-text-primary) 14%, transparent);
+  color: var(--kids-cover-ink, var(--pds-text-primary));
+  transform: rotate(var(--kids-tilt));
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+.pds-kids-verse-stickers__option[aria-pressed='true'] > span {
+  background: var(--kids-cover-ink, var(--pds-text-primary));
+  color: var(--pds-on-accent);
+  transform: rotate(0deg) scale(1.06);
+  box-shadow: 0 0 0 2px var(--kids-cover-ink, var(--pds-text-primary)), 0 6px 12px color-mix(in oklab, var(--kids-cover-ink, var(--pds-text-primary)) 35%, transparent);
+}
+.pds-kids-verse-stickers__option[aria-pressed='true'] > span * { color: var(--pds-on-accent) !important; }
+.pds-kids-verse-stickers__option:active > span { transform: rotate(0deg) scale(0.94); }
+@media (hover: hover) and (pointer: fine) {
+  .pds-kids-verse-stickers__option:hover > span { transform: rotate(0deg) translateY(-2px); }
+}
+.pds-kids-verse-stickers .pds-kids-verse-stickers__remove { width: auto; min-height: 44px; gap: var(--pds-space-2); }
+.pds-kids-verse-stickers__error { margin-bottom: 0; color: var(--pds-text-secondary); }
+
+/* On dark paper a page-coloured edge vanishes and the stickers go muddy. Real die-cut stickers
+   keep their pale edge in the dark, so these do too, with a brighter face. */
+.pds-kids-appearance-scope[data-color-scheme='dark'] :is(.pds-kids-verse-sticker, .pds-kids-verse-stickers__option > span) {
+  background: color-mix(in oklab, var(--kids-cover-color, var(--pds-thread-blue)) 62%, var(--pds-bg-page));
+  border-color: color-mix(in oklab, var(--pds-text-primary) 82%, var(--pds-bg-page));
+  color: var(--pds-text-primary);
+  box-shadow: 0 2px 6px color-mix(in oklab, black 45%, transparent);
+}
+.pds-kids-appearance-scope[data-color-scheme='dark'] .pds-kids-verse-stickers__option[aria-pressed='true'] > span {
+  background: var(--pds-text-primary);
+  color: var(--pds-bg-page);
+  box-shadow: 0 0 0 2px var(--pds-text-primary), 0 6px 12px color-mix(in oklab, black 45%, transparent);
+}
+.pds-kids-appearance-scope[data-color-scheme='dark'] .pds-kids-verse-stickers__option[aria-pressed='true'] > span * { color: var(--pds-bg-page) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pds-kids-verse-sticker, .pds-kids-verse-stickers__option > span { animation: none; transition: none; }
+}
+.pds-kids-appearance-scope[data-reduce-motion] :is(.pds-kids-verse-sticker, .pds-kids-verse-stickers__option > span) { animation: none; transition: none; }

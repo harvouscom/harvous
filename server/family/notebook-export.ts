@@ -4,6 +4,7 @@ import { parseNoteSecondaryCollections } from '../utils/note-secondary-collectio
 import { familyReadings, familyThoughts } from './bible';
 import { defaultChildPreferences } from '../../shared/child-notebook';
 import { childNoteSelection, type Child, type FamilyTx } from './service';
+import { exportVerseStickers } from './stickers';
 
 export async function exportChildNotebook(tx: FamilyTx, child: Child) {
   const ownNotes = tx.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, child.id));
@@ -43,6 +44,7 @@ export async function exportChildNotebook(tx: FamilyTx, child: Child) {
     familyBible: await Promise.all((await familyReadings(tx, child)).map(async reading => ({
       ...reading, thoughts: (await familyThoughts(tx, reading.id)).filter(thought => thought.role === 'child')
     }))),
+    verseStickers: await exportVerseStickers(tx, child),
     notes: notes.map(({ threadId, secondaryCollections, ...note }) => ({
       ...note,
       secondaryCollections: parseNoteSecondaryCollections(secondaryCollections),

@@ -3936,6 +3936,16 @@ export const FamilyChildBibleThoughts = pgTable('FamilyChildBibleThoughts', {
   createdAt: ts('createdAt').notNull()
 }, (t) => [index('FamilyChildBibleThoughts_readingIndex').on(t.readingId)]);
 
+/** A sticker a child put beside a verse in My Bible. Child-only; exported to the parent; cascades with the child. */
+export const FamilyChildVerseStickers = pgTable('FamilyChildVerseStickers', {
+  childId: text('childId').notNull().references(() => FamilyChildren.id, { onDelete: 'cascade' }),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  verse: integer('verse').notNull(),
+  sticker: text('sticker').notNull(),
+  createdAt: ts('createdAt').notNull()
+}, (t) => [primaryKey({ columns: [t.childId, t.book, t.chapter, t.verse] })]);
+
 export const ChildNoteResources = pgTable('ChildNoteResources', {
   noteId: text('noteId').notNull().references(() => Notes.id, { onDelete: 'cascade' }),
   spaceId: text('spaceId').notNull().references(() => Spaces.id, { onDelete: 'cascade' }),
