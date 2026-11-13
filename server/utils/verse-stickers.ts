@@ -12,7 +12,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { bookChapterCount } from '@/utils/bible-book-chapters';
-import { VERSE_STICKER_LIMIT, isVerseSticker, verseStickers, type VerseSticker } from '../../shared/verse-stickers';
+import { VERSE_STICKER_LIMIT, isReaderSticker, readerStickers, type ReaderSticker } from '../../shared/verse-stickers';
 import { VerseStickers } from '../db/schema';
 import { db as defaultDb } from '../db/client';
 import { isPgUndefinedRelation } from './pg-undefined-relation';
@@ -27,10 +27,11 @@ export const verseStickerInput = z.object({
   chapter: z.number().int().positive(),
   // Psalm 119 is the longest chapter at 176 verses.
   verse: z.number().int().positive().max(176),
-  sticker: z.enum(verseStickers).nullable(),
+  // The reader's whole set: the stickers child notebooks share, and the themes only it offers.
+  sticker: z.enum(readerStickers).nullable(),
 }).strict().refine(({ book, chapter }) => chapterShape.safeParse({ book, chapter }).success, { message: 'Unknown chapter' });
 
-export type ChapterSticker = { verse: number; sticker: VerseSticker };
+export type ChapterSticker = { verse: number; sticker: ReaderSticker };
 
 export class VerseStickerLimitError extends Error {
   constructor() { super('Your Bible is full of stickers. Take one off to add another.'); }
@@ -48,7 +49,7 @@ export async function listChapterStickers(userId: string, book: string, chapter:
       .where(and(eq(VerseStickers.userId, userId), eq(VerseStickers.book, book), eq(VerseStickers.chapter, chapter)))
       .orderBy(asc(VerseStickers.verse));
     // A sticker retired from the set stays in the row but is not drawn.
-    return rows.filter((row): row is ChapterSticker => isVerseSticker(row.sticker));
+    return rows.filter((row): row is ChapterSticker => isReaderSticker(row.sticker));
   } catch (error) {
     if (missing(error)) return [];
     throw error;

@@ -12,12 +12,31 @@ export const verseStickers = coverSymbols.filter(
 );
 export type VerseSticker = typeof verseStickers[number];
 
-export function isVerseSticker(value: unknown): value is VerseSticker {
-  return typeof value === 'string' && (verseStickers as readonly string[]).includes(value);
+/**
+ * More for grown-ups: themes rather than pictures, for the deeper things a verse can be about.
+ * The adult reader offers these after the shared set. A child's My Bible never does, so every
+ * child sticker is still one the reader knows when a notebook moves into a teen's own account,
+ * and nothing ever has to move the other way.
+ */
+export const readerOnlyStickers = [
+  'scale-balanced', 'scroll', 'fire-flame-curved', 'droplet', 'bread-slice', 'wine-glass',
+  'key', 'shield-halved', 'mountain', 'road', 'tree', 'church',
+  'handshake', 'hand-holding-heart', 'hourglass-half', 'lightbulb', 'question', 'cloud-rain',
+] as const;
+export type ReaderOnlySticker = typeof readerOnlyStickers[number];
+/** Everything the adult reader offers: its themes first, then the stickers it shares with child notebooks. */
+export const readerStickers = [...readerOnlyStickers, ...verseStickers] as const;
+export type ReaderSticker = VerseSticker | ReaderOnlySticker;
+
+export function isReaderSticker(value: unknown): value is ReaderSticker {
+  return typeof value === 'string' && (readerStickers as readonly string[]).includes(value);
 }
 
 const names: Partial<Record<string, string>> = {
-  'book-open': 'Bible', 'puzzle-piece': 'puzzle', 'wand-magic-sparkles': 'sparkles', 'hands-praying': 'praying hands'
+  'book-open': 'Bible', 'puzzle-piece': 'puzzle', 'wand-magic-sparkles': 'sparkles', 'hands-praying': 'praying hands',
+  'scale-balanced': 'justice', 'fire-flame-curved': 'fire', droplet: 'water', 'bread-slice': 'bread', 'wine-glass': 'cup',
+  'shield-halved': 'shield', road: 'the way', handshake: 'covenant', 'hand-holding-heart': 'mercy',
+  'hourglass-half': 'waiting', lightbulb: 'insight', 'cloud-rain': 'lament'
 };
 export function verseStickerLabel(sticker: string) {
   const label = names[sticker] ?? sticker.replaceAll('-', ' ');
@@ -30,10 +49,14 @@ export function verseStickerLabel(sticker: string) {
  * per sticker rather than chosen, so a fish is always the same blue wherever it is stuck.
  */
 export type VerseStickerTone = 'blue' | 'green' | 'purple' | 'pink' | 'orange' | 'yellow';
-export const verseStickerTones: Record<VerseSticker, VerseStickerTone> = {
+export const verseStickerTones: Record<ReaderSticker, VerseStickerTone> = {
   cross: 'purple', leaf: 'green', sun: 'yellow', star: 'purple', 'book-open': 'blue', 'puzzle-piece': 'orange',
   bookmark: 'pink', 'wand-magic-sparkles': 'purple', rainbow: 'pink', fish: 'blue', dove: 'blue', crown: 'green',
-  seedling: 'green', anchor: 'blue', sailboat: 'blue', heart: 'orange', 'hands-praying': 'yellow'
+  seedling: 'green', anchor: 'blue', sailboat: 'blue', heart: 'orange', 'hands-praying': 'yellow',
+  'scale-balanced': 'purple', scroll: 'yellow', 'fire-flame-curved': 'orange', droplet: 'blue', 'bread-slice': 'yellow',
+  'wine-glass': 'pink', key: 'yellow', 'shield-halved': 'blue', mountain: 'green', road: 'orange', tree: 'green',
+  church: 'purple', handshake: 'orange', 'hand-holding-heart': 'pink', 'hourglass-half': 'yellow', lightbulb: 'yellow',
+  question: 'purple', 'cloud-rain': 'blue'
 };
 
 /** Hand-placed angles, picked from the verse rather than at random, so a sticker sits the same way every time. */

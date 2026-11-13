@@ -42,6 +42,8 @@ describe('verse stickers', () => {
     [{ book: 'Hezekiah', chapter: 1, verse: 1, sticker: 'star' }, false],
     [{ book: 'Psalms', chapter: 119, verse: 177, sticker: 'star' }, false],
     [{ book: 'Psalms', chapter: 23, verse: 1, sticker: 'initial' }, false],
+    // The grown-up themes are the adult reader's only; a child's My Bible never offers them.
+    [{ book: 'Psalms', chapter: 23, verse: 1, sticker: 'scale-balanced' }, false],
     [{ book: 'Psalms', chapter: 23, verse: 1, sticker: 'star', note: 'hi' }, false]
   ])('accepts only a real verse and a sticker from the set: %o', (input, ok) => {
     expect(verseStickerInput.safeParse(input).success).toBe(ok);

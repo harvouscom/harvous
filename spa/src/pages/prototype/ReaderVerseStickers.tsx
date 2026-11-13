@@ -8,18 +8,61 @@
  */
 import type { CSSProperties } from 'react';
 import Icon from '@/components/react/Icon';
+import { safeRenderHtml } from '@/utils/content-renderer';
+import scaleBalancedSvg from '@fortawesome/fontawesome-free/svgs/solid/scale-balanced.svg?raw';
+import scrollSvg from '@fortawesome/fontawesome-free/svgs/solid/scroll.svg?raw';
+import fireSvg from '@fortawesome/fontawesome-free/svgs/solid/fire-flame-curved.svg?raw';
+import dropletSvg from '@fortawesome/fontawesome-free/svgs/solid/droplet.svg?raw';
+import breadSvg from '@fortawesome/fontawesome-free/svgs/solid/bread-slice.svg?raw';
+import cupSvg from '@fortawesome/fontawesome-free/svgs/solid/wine-glass.svg?raw';
+import keySvg from '@fortawesome/fontawesome-free/svgs/solid/key.svg?raw';
+import shieldSvg from '@fortawesome/fontawesome-free/svgs/solid/shield-halved.svg?raw';
+import mountainSvg from '@fortawesome/fontawesome-free/svgs/solid/mountain.svg?raw';
+import roadSvg from '@fortawesome/fontawesome-free/svgs/solid/road.svg?raw';
+import treeSvg from '@fortawesome/fontawesome-free/svgs/solid/tree.svg?raw';
+import churchSvg from '@fortawesome/fontawesome-free/svgs/solid/church.svg?raw';
+import handshakeSvg from '@fortawesome/fontawesome-free/svgs/solid/handshake.svg?raw';
+import mercySvg from '@fortawesome/fontawesome-free/svgs/solid/hand-holding-heart.svg?raw';
+import hourglassSvg from '@fortawesome/fontawesome-free/svgs/solid/hourglass-half.svg?raw';
+import lightbulbSvg from '@fortawesome/fontawesome-free/svgs/solid/lightbulb.svg?raw';
+import questionSvg from '@fortawesome/fontawesome-free/svgs/solid/question.svg?raw';
+import cloudRainSvg from '@fortawesome/fontawesome-free/svgs/solid/cloud-rain.svg?raw';
 import {
+  readerOnlyStickers,
   verseStickerLabel,
   verseStickerTilt,
   verseStickerTilts,
   verseStickerTones,
   verseStickers,
-  type VerseSticker,
+  type ReaderOnlySticker,
+  type ReaderSticker,
 } from '../../../../shared/verse-stickers';
 import ChildCoverSymbol from './ChildCoverSymbol';
 import '../../styles/reader-verse-stickers.css';
 
-export type PlacedSticker = { verse: number; sticker: VerseSticker; top: number };
+export type PlacedSticker = { verse: number; sticker: ReaderSticker; top: number };
+
+/** The grown-up themes' glyphs. Here, not in `Icon`, for the reason `ChildCoverSymbol` gives. */
+const themeGlyphs: Record<ReaderOnlySticker, string> = {
+  'scale-balanced': scaleBalancedSvg, scroll: scrollSvg, 'fire-flame-curved': fireSvg, droplet: dropletSvg,
+  'bread-slice': breadSvg, 'wine-glass': cupSvg, key: keySvg, 'shield-halved': shieldSvg, mountain: mountainSvg,
+  road: roadSvg, tree: treeSvg, church: churchSvg, handshake: handshakeSvg, 'hand-holding-heart': mercySvg,
+  'hourglass-half': hourglassSvg, lightbulb: lightbulbSvg, question: questionSvg, 'cloud-rain': cloudRainSvg,
+};
+const themeMarkup = new Map<string, { __html: string }>();
+
+function StickerGlyph({ sticker, size }: { sticker: ReaderSticker; size: number }) {
+  const raw = (themeGlyphs as Record<string, string>)[sticker];
+  if (!raw) return <ChildCoverSymbol symbol={sticker as typeof verseStickers[number]} size={size} />;
+  const key = `${sticker}|${size}`;
+  let html = themeMarkup.get(key);
+  if (!html) {
+    // A stable object per glyph and size, so React doesn't re-apply innerHTML every render.
+    html = { __html: safeRenderHtml(raw.replace(/<svg\s+/, `<svg fill="currentColor" width="${size}" height="${size}" style="display:block;overflow:visible" `)) };
+    themeMarkup.set(key, html);
+  }
+  return <span style={{ display: 'inline-flex', width: size, height: size }} dangerouslySetInnerHTML={html} />;
+}
 
 /**
  * The margin layer. Positions are measured by the pane (a verse in prose layout has no box of
@@ -38,7 +81,7 @@ export function ReaderStickerMargin({ placed, chapter, fresh }: { placed: Placed
           data-fresh={fresh === verse ? 'true' : undefined}
           style={{ top, '--sticker-tilt': `${verseStickerTilt(verse, chapter)}deg` } as CSSProperties}
         >
-          <ChildCoverSymbol symbol={sticker} size={13} />
+          <StickerGlyph sticker={sticker} size={13} />
         </span>
       ))}
     </div>
@@ -56,10 +99,33 @@ export function ReaderStickerSheet({
   onPick,
 }: {
   reference: string;
-  current: VerseSticker | null;
+  current: ReaderSticker | null;
   onBack: () => void;
-  onPick: (sticker: VerseSticker | null) => void;
+  onPick: (sticker: ReaderSticker | null) => void;
 }) {
+  const option = (sticker: ReaderSticker, index: number) => {
+    const selected = current === sticker;
+    return (
+      <button
+        key={sticker}
+        type="button"
+        className="pds-reader-stickers__option"
+        title={verseStickerLabel(sticker)}
+        aria-label={`${verseStickerLabel(sticker)} sticker`}
+        aria-pressed={selected}
+        onClick={() => onPick(sticker)}
+      >
+        <span
+          className={`pds-reader-sticker pds-reader-sticker--option${selected ? ' proto-ink-on-accent' : ''}`}
+          data-tone={verseStickerTones[sticker]}
+          style={{ '--sticker-tilt': `${verseStickerTilts[index % verseStickerTilts.length]}deg` } as CSSProperties}
+          aria-hidden
+        >
+          <StickerGlyph sticker={sticker} size={15} />
+        </span>
+      </button>
+    );
+  };
   return (
     <>
       <div className="pds-reader-stickers__head">
@@ -86,30 +152,15 @@ export function ReaderStickerSheet({
           </button>
         ) : null}
       </div>
-      <div className="pds-reader-stickers__grid" role="group" aria-label={`Stickers for ${reference}`}>
-        {verseStickers.map((sticker, index) => {
-          const selected = current === sticker;
-          return (
-            <button
-              key={sticker}
-              type="button"
-              className="pds-reader-stickers__option"
-              title={verseStickerLabel(sticker)}
-              aria-label={`${verseStickerLabel(sticker)} sticker`}
-              aria-pressed={selected}
-              onClick={() => onPick(sticker)}
-            >
-              <span
-                className={`pds-reader-sticker pds-reader-sticker--option${selected ? ' proto-ink-on-accent' : ''}`}
-                data-tone={verseStickerTones[sticker]}
-                style={{ '--sticker-tilt': `${verseStickerTilts[index % verseStickerTilts.length]}deg` } as CSSProperties}
-                aria-hidden
-              >
-                <ChildCoverSymbol symbol={sticker} size={15} />
-              </span>
-            </button>
-          );
-        })}
+      {/* Themes first (the deeper things a verse is about), then the pictures child notebooks
+          share. Two labelled groups, so the sheet reads as two kinds rather than one long grid. */}
+      <div className="pds-reader-stickers__group" role="group" aria-label={`Theme stickers for ${reference}`}>
+        <p className="pds-reader-stickers__label pds-footnote" aria-hidden>Themes</p>
+        <div className="pds-reader-stickers__grid">{readerOnlyStickers.map(option)}</div>
+      </div>
+      <div className="pds-reader-stickers__group" role="group" aria-label={`Picture stickers for ${reference}`}>
+        <p className="pds-reader-stickers__label pds-footnote" aria-hidden>Pictures</p>
+        <div className="pds-reader-stickers__grid">{verseStickers.map(option)}</div>
       </div>
     </>
   );

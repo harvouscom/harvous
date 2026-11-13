@@ -11,12 +11,14 @@
 import { useState } from 'react';
 import { ProtoShellProvider } from '../../../layouts/proto-shell-context';
 import PrototypeBibleReaderPane from '../../prototype/PrototypeBibleReaderPane';
-import type { VerseSticker } from '../../../../../shared/verse-stickers';
+import type { ReaderSticker } from '../../../../../shared/verse-stickers';
 
-const START: [number, VerseSticker][] = [
+const START: [number, ReaderSticker][] = [
   [3, 'dove'],
   [5, 'sailboat'],
   [6, 'leaf'],
+  // A grown-up theme beside the pictures: the wind and the Spirit.
+  [8, 'fire-flame-curved'],
   [16, 'heart'],
   [17, 'star'],
 ];

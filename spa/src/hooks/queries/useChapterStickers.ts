@@ -9,9 +9,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthReady } from '../useAuthReady';
 import { useHarvousIdentity } from '../useHarvousIdentity';
-import { isVerseSticker, type VerseSticker } from '../../../../shared/verse-stickers';
+import { isReaderSticker, type ReaderSticker } from '../../../../shared/verse-stickers';
 
-export type ChapterSticker = { verse: number; sticker: VerseSticker };
+export type ChapterSticker = { verse: number; sticker: ReaderSticker };
 
 export function chapterStickersKey(book: string, chapter: number) {
   return ['prototype', 'scripture-stickers', book, chapter] as const;
@@ -30,7 +30,7 @@ export function useChapterStickers(book: string, chapter: number) {
       if (!res.ok) throw new Error('Failed to load stickers');
       const data = (await res.json()) as { stickers?: Array<{ verse: unknown; sticker: unknown }> };
       return (data.stickers ?? []).flatMap((row) =>
-        typeof row.verse === 'number' && isVerseSticker(row.sticker) ? [{ verse: row.verse, sticker: row.sticker }] : [],
+        typeof row.verse === 'number' && isReaderSticker(row.sticker) ? [{ verse: row.verse, sticker: row.sticker }] : [],
       );
     },
   });
@@ -41,7 +41,7 @@ export function useSetVerseSticker(book: string, chapter: number) {
   const queryClient = useQueryClient();
   const key = chapterStickersKey(book, chapter);
   return useMutation({
-    mutationFn: async (input: { verse: number; sticker: VerseSticker | null }) => {
+    mutationFn: async (input: { verse: number; sticker: ReaderSticker | null }) => {
       const res = await fetch('/api/scripture/stickers', {
         method: 'PUT',
         credentials: 'include',

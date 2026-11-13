@@ -18,6 +18,7 @@ const LOCAL = vi.hoisted(() => {
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../../db/client';
 import { VerseStickers } from '../../db/schema';
+import { readerStickers, verseStickers } from '../../../shared/verse-stickers';
 import { listChapterStickers, setVerseSticker, verseStickerInput, VerseStickersUnavailableError } from '../verse-stickers';
 
 const run = LOCAL ? describe : describe.skip;
@@ -31,6 +32,8 @@ run('reader verse stickers', () => {
     await setVerseSticker(me, { book: 'Psalms', chapter: 23, verse: 1, sticker: 'star' });
     await setVerseSticker(me, { book: 'Psalms', chapter: 23, verse: 4, sticker: 'anchor' });
     await setVerseSticker(me, { book: 'Psalms', chapter: 23, verse: 1, sticker: 'dove' });
+    await setVerseSticker(me, { book: 'Psalms', chapter: 23, verse: 5, sticker: 'wine-glass' });
+    await setVerseSticker(me, { book: 'Psalms', chapter: 23, verse: 5, sticker: null });
     expect(await listChapterStickers(me, 'Psalms', 23)).toEqual([{ verse: 1, sticker: 'dove' }, { verse: 4, sticker: 'anchor' }]);
     expect(await db.select().from(VerseStickers).where(eq(VerseStickers.userId, me))).toHaveLength(2);
 
@@ -71,6 +74,13 @@ describe('verse sticker input', () => {
   it('takes a known sticker on a real verse, or null to take it off', () => {
     expect(verseStickerInput.safeParse({ book: 'Psalms', chapter: 119, verse: 176, sticker: 'star' }).success).toBe(true);
     expect(verseStickerInput.safeParse({ book: 'Psalms', chapter: 23, verse: 1, sticker: null }).success).toBe(true);
+  });
+  it('takes the grown-up themes as well as every sticker a child notebook can move in', () => {
+    for (const sticker of readerStickers) {
+      expect(verseStickerInput.safeParse({ book: 'Psalms', chapter: 23, verse: 1, sticker }).success, sticker).toBe(true);
+    }
+    expect(verseStickers.every((sticker) => (readerStickers as readonly string[]).includes(sticker))).toBe(true);
+    expect(readerStickers.length).toBe(new Set(readerStickers).size);
   });
   it('refuses the initial, unknown stickers, unknown chapters and extra fields', () => {
     expect(verseStickerInput.safeParse({ book: 'Psalms', chapter: 23, verse: 1, sticker: 'initial' }).success).toBe(false);

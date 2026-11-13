@@ -54,7 +54,7 @@ import type {
   SavedReference,
 } from '../../hooks/queries/usePrototypeChapterHighlights';
 import { useChapterStickers, useSetVerseSticker } from '../../hooks/queries/useChapterStickers';
-import type { VerseSticker } from '../../../../shared/verse-stickers';
+import type { ReaderSticker } from '../../../../shared/verse-stickers';
 import { useUpdateTranslation } from '../../hooks/mutations/useUpdateTranslation';
 import { TRANSLATIONS } from '@/data/translations';
 import { playSound } from '@/utils/sounds';
@@ -254,7 +254,7 @@ export default function PrototypeReadPage() {
     [chapterStickers],
   );
   const handleSetSticker = useCallback(
-    (verse: number, sticker: VerseSticker | null) => {
+    (verse: number, sticker: ReaderSticker | null) => {
       if (sticker) playSound('highlight.created');
       setSticker.mutate({ verse, sticker }, {
         onError: (error) => toastError(error, 'Couldn’t save that sticker — try again', { scope: 'reader-sticker' }),

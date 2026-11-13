@@ -69,8 +69,8 @@
 }
 
 /* ─── The sheet in the action bar ─────────────────────────────────────────
-   The bar stays the bar (same glass, same 36px buttons) and grows a grid under its head row.
-   Six across fits a phone; three rows hold the set. */
+   The bar stays the bar (same glass, same 36px buttons) and grows two grids under its head
+   row: the grown-up themes, then the pictures child notebooks share. Six across fits a phone. */
 /* Doubled class: `.pds-native-selection-bar` sets the 36px height at the same specificity, in
    a stylesheet that loads after this one. */
 .pds-reader-menu.pds-reader-menu--sheet {
@@ -79,12 +79,6 @@
   height: auto;
   padding: 2px 2px var(--pds-space-2);
   gap: 0;
-}
-
-/* The bar is placed for a 36px height. Placed above the verse, the sheet grows up from where
-   the bar's bottom edge would be, so it never covers the verse it is for. */
-.pds-reader-menu.pds-reader-menu--sheet[data-placement='above'] {
-  transform: translate(-50%, calc(-100% + 36px));
 }
 
 .pds-reader-stickers__head {
@@ -102,6 +96,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.pds-reader-stickers__label {
+  margin: var(--pds-space-1) 0 2px;
+  padding-inline: var(--pds-space-2);
+  color: var(--pds-text-tertiary);
 }
 
 .pds-reader-stickers__grid {
@@ -124,6 +124,17 @@
   cursor: pointer;
 }
 
+/* A global `button span { color: … !important }` reaches into every button, so the sticker's
+   ink inside one has to say it as firmly. Scoped to the sheet; the margin marks aren't buttons. */
+.pds-reader-stickers__option > .pds-reader-sticker--option {
+  color: oklch(from var(--sticker-c, var(--pds-thread-blue)) 0.48 calc(c * 2) h) !important;
+}
+
+/* …and its `button *` half reaches the glyph's own svg and paths. */
+.pds-reader-stickers__option > .pds-reader-sticker--option * {
+  color: inherit !important;
+}
+
 .pds-reader-sticker--option {
   --sticker-size: 28px;
   border-radius: 8px;
@@ -144,7 +155,7 @@
    No tinted ring or glow — the gradient is the accent. */
 .pds-reader-stickers__option[aria-pressed='true'] > .pds-reader-sticker--option {
   background: var(--pds-bg-accent-button);
-  color: var(--pds-on-accent);
+  color: var(--pds-on-accent) !important;
   transform: rotate(0deg);
 }
 

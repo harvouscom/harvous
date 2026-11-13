@@ -114,7 +114,7 @@ import { useIsCatholic } from '../../hooks/useTradition';
 import { usePrintedVerseLabels } from '../../hooks/usePrintedVerseLabels';
 import PrototypeReaderChapterStack from './PrototypeReaderChapterStack';
 import { ReaderStickerMargin, ReaderStickerSheet, type PlacedSticker } from './ReaderVerseStickers';
-import { verseStickerLabel, type VerseSticker } from '../../../../shared/verse-stickers';
+import { verseStickerLabel, type ReaderSticker } from '../../../../shared/verse-stickers';
 import {
   DEUTEROCANON_TRANSLATIONS,
   TRANSLATION_ORDER,
@@ -286,7 +286,7 @@ const VerseSpan = memo(function VerseSpan({
   /** How many of your notes cite this verse, 0 for none. See `noteCountLabel` below. */
   noteCount: number;
   /** The sticker beside this verse, if any — spoken here because the margin mark is `aria-hidden`. */
-  sticker?: VerseSticker;
+  sticker?: ReaderSticker;
   html: { __html: string };
   onFocusVerse: (n: number, column: ReaderColumn) => void;
   onActivate: (n: number, e: ReactMouseEvent<HTMLSpanElement>, column: ReaderColumn) => void;
@@ -598,9 +598,9 @@ export interface PrototypeBibleReaderPaneProps {
    * because a sticker is on the verse rather than on any version's words. Drawn in the right
    * margin; absent (with `onSetSticker`) where there is no account to keep them in.
    */
-  stickers?: ReadonlyMap<number, VerseSticker>;
+  stickers?: ReadonlyMap<number, ReaderSticker>;
   /** Stick one on a verse, swap it, or (with `null`) take it off. Its presence adds Sticker to the bar. */
-  onSetSticker?: (verse: number, sticker: VerseSticker | null) => void;
+  onSetSticker?: (verse: number, sticker: ReaderSticker | null) => void;
   /** Open a margin note, with its scripture dock already on the passage the bar marked. */
   onOpenNoteAtReference?: (noteId: string, reference: string) => void;
   /**
@@ -1599,6 +1599,7 @@ export default function PrototypeBibleReaderPane({
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; above: boolean } | null>(
     null,
   );
+  const readerMenuRef = useRef<HTMLDivElement | null>(null);
   const selectionEnd = selection?.end ?? null;
   const selectionColumn = selection?.column ?? null;
 
@@ -1642,9 +1643,16 @@ export default function PrototypeBibleReaderPane({
         ?.getBoundingClientRect();
       const dockTop = dockBand && dockBand.height > 0 ? dockBand.top : window.innerHeight;
       const below = rect.bottom + READER_MENU_GAP;
-      const above = below + READER_MENU_HEIGHT > dockTop;
+      /*
+       * The bar's real height once it is up: 36px as a bar, several rows as the sticker sheet.
+       * Flips above only when there is room there, so a verse near the top keeps it below.
+       */
+      const height = readerMenuRef.current?.offsetHeight || READER_MENU_HEIGHT;
+      // Above means above the verse, not above its last line, or a wrapped verse is covered.
+      const firstTop = (rects[0] ?? rect).top;
+      const above = below + height > dockTop && firstTop - READER_MENU_GAP - height >= 0;
       setMenuPos({
-        top: above ? rect.top - READER_MENU_GAP - READER_MENU_HEIGHT : below,
+        top: above ? firstTop - READER_MENU_GAP - height : below,
         left: rect.left + rect.width / 2,
         above,
       });
@@ -1657,7 +1665,8 @@ export default function PrototypeBibleReaderPane({
       scroller?.removeEventListener('scroll', place);
       window.removeEventListener('resize', place);
     };
-  }, [selectionEnd, selectionColumn]);
+    // Re-placed when the bar turns into the sticker sheet, which is taller than the bar.
+  }, [selectionEnd, selectionColumn, stickerSheetOpen]);
 
   /*
    * Land on the deep-linked verse once its element exists — BEFORE the browser paints.
@@ -2194,6 +2203,7 @@ export default function PrototypeBibleReaderPane({
     selection && selectionLabel && menuPos
       ? createPortal(
           <div
+            ref={readerMenuRef}
             className={`pds-reader-menu pds-native-selection-bar floating-picker-enter${
               stickerSheetOpen && onSetSticker ? ' pds-reader-menu--sheet' : ''
             }`}
