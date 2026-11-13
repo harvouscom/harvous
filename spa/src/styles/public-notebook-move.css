@@ -86,8 +86,9 @@
   .public-move__sticker:nth-child(4) { top: 116px !important; left: 78% !important; }
 }
 
-/* Above the sky; the opening, the book and the letter sit above the stickers. */
-.public-move > :not(.public-move__stickers) {
+/* Above the sky; the book and the letter sit above the stickers. Not the button bar: it's
+   `position: sticky` (public-shared-paper.css), floating at the window's bottom while you read. */
+.public-move > :not(.public-move__stickers, .public-shared__cta-bar) {
   position: relative;
   z-index: 1;
 }
