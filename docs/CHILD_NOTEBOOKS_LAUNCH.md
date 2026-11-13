@@ -19,11 +19,8 @@ waiting on Epic's review of KWS Production (up to seven business days).
   changes.
 - Production database: the family schema is applied, including stickers, highlights and consent
   history (`add-child-account-schema.ts --apply --production`, run 12 Nov 2026).
-  - **Still to run:** the notebook move (#341) added `FamilyChildTransfers` to that script after
-    that run, so production doesn't have it yet. Re-run `npm run child-accounts:schema:apply --
-    --production` before the first move link is made. Every statement is `IF NOT EXISTS`, and
-    the consent backfill only fills gaps. Until then the parent's notebook page reads "no open
-    link" and making one fails.
+  - `FamilyChildTransfers` (the notebook move's links, #341) was added to that script after
+    that run, and applied 13 Nov 2026 (`add-child-account-schema.ts --apply --production`).
   - `VerseStickers` (reader stickers, which a moved notebook's stickers become) was applied
     13 Nov 2026 (`verse-stickers:schema:apply --production`).
 - Staging (family-test / kids-test) runs main and is how changes are checked before production.
