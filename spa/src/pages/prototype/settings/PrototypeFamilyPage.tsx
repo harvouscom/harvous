@@ -27,6 +27,7 @@ import {
 } from '@/lib/family-roles';
 import { APIError } from '../../../lib/api';
 import { useChildAccountsStatus } from '../../family/useChildAccountsStatus';
+import type { FamilyStatus } from '../../family/types';
 import {
   useChangeFamilyRole,
   useCreateFamily,
@@ -66,75 +67,55 @@ import '../../../styles/family.css';
 
 export type InFamily = Extract<FamilyResponse, { me: unknown }>;
 
-function ChildAccountsRow() {
-  const { data } = useChildAccountsStatus();
-  const navigate = useNavigate();
-  const [ageChoice, setAgeChoice] = useState<'choose' | 'teen' | null>(null);
-  if (!data?.available && !data?.children.length) {
-    // Before enrollment opens: Plus members (whose plan will include it) see it's on the way. No setup,
-    // nothing to fill in, nothing collected. Turns into the real flow when the server reports `available`.
-    if (!data?.plus) return null;
-    return (
-      <section aria-label="Child notebooks">
-        <SectionLabel>Child notebooks</SectionLabel>
-        <SettingsGroup>
-          <SettingsRow label="Under 13" badge="Coming soon" leadingIcon="book-open" trailing="none"
-            sublabel="Parent-managed notebooks for kids in the United States, included with Harvous Plus" />
-        </SettingsGroup>
-      </section>
-    );
-  }
-  const verified = data.verifications.some((verification) => verification.status === 'verified');
-  const inProgress = !data.requiresPlus && (verified || data.verifications.some((verification) => verification.status === 'pending'));
-  const hasNotebooks = data.children.length > 0;
-  const to = prototypeHref('settings/child-accounts');
-  const openSetup = () => void navigate({ to, search: { setup: true } });
-  const openUpgrade = () => void navigate({ to: '/upgrade' });
+/**
+ * Notebooks for kids under 13 are part of a family: they're added from "Invite someone" and sit
+ * in People beside everyone else, so a parent never meets them as a separate feature. Outside a
+ * family there's nothing to add; notebooks a parent already has still show, so they can always be
+ * opened, exported or deleted.
+ */
+type NotebookOption = 'open' | 'needs-plus' | 'coming-soon' | 'full';
 
+function notebookOption(data: FamilyStatus | undefined): NotebookOption | null {
+  if (!data) return null;
+  // Before enrollment opens, Plus members (whose plan will include it) see it's on the way.
+  if (!data.available) return data.plus ? 'coming-soon' : null;
+  if (data.requiresPlus) return 'needs-plus';
+  if (data.childNotebookMax !== undefined && (data.childNotebookPlacesHeld ?? 0) >= data.childNotebookMax) return 'full';
+  return 'open';
+}
+
+const NOTEBOOK_SETUP = prototypeHref('settings/child-accounts');
+
+/** The parent's own notebooks, plus a setup they've started, as rows for a People list. */
+function ChildNotebookRows({ data }: { data: FamilyStatus }) {
+  const navigate = useNavigate();
+  const verified = data.verifications.some((v) => v.status === 'verified');
+  const inProgress = data.available && !data.requiresPlus && data.familyParent !== false
+    && (verified || data.verifications.some((v) => v.status === 'pending'));
+  return (
+    <>
+      {data.children.map((child) => (
+        <ChildNotebookSettingsRow key={child.id} child={child}
+          onClick={() => void navigate({ to: NOTEBOOK_SETUP, search: { child: child.id } })} />
+      ))}
+      {inProgress ? (
+        <SettingsRow label="Continue notebook setup" leadingIcon="list-check"
+          sublabel={verified ? 'Child under 13 · Review privacy' : 'Child under 13 · Verify adult'}
+          onClick={() => void navigate({ to: NOTEBOOK_SETUP, search: { setup: true } })} />
+      ) : null}
+    </>
+  );
+}
+
+/** Before a family exists: notebooks a parent already has (say, after leaving one). */
+function StrandedNotebooks() {
+  const { data } = useChildAccountsStatus();
+  if (!data?.children.length) return null;
   return (
     <section aria-label="Child notebooks">
       <SectionLabel>Child notebooks</SectionLabel>
       <SettingsGroup>
-        {hasNotebooks ? data.children.map((child) => (
-          <ChildNotebookSettingsRow key={child.id} child={child}
-            onClick={() => void navigate({ to, search: { child: child.id } })} />
-        )) : (
-          <SettingsRow label="Choose an account" leadingIcon={inProgress ? 'circle-check' : 'circle-user'}
-            sublabel={inProgress ? 'Parent-managed notebook' : 'Under 13 or 13 and older'}
-            expanded={!!ageChoice}
-            onClick={() => setAgeChoice(ageChoice ? null : 'choose')} />
-        )}
-        {data.available && hasNotebooks && !inProgress && (
-          <SettingsRow label="Add another notebook" leadingIcon="plus" expanded={!!ageChoice}
-            onClick={() => setAgeChoice(ageChoice ? null : 'choose')} />
-        )}
-        {data.available && ageChoice && (
-          <>
-            <SettingsRow label="Under 13" sublabel={data.requiresPlus ? 'Parent-managed notebooks are included with Harvous Plus' : 'Set up a parent-managed notebook for a child in the United States'}
-              leadingIcon="book-open" onClick={data.requiresPlus ? openUpgrade : openSetup} />
-            <SettingsRow label="13 and older" sublabel="Sign up for a standard Harvous account"
-              leadingIcon="circle-user" expanded={ageChoice === 'teen'}
-              onClick={() => setAgeChoice(ageChoice === 'teen' ? 'choose' : 'teen')} />
-            {ageChoice === 'teen' && (
-              <div className="pds-family-signup">
-                <p className="pds-caption">Share this link so they can sign up with their own email on their device or in a separate browser profile.</p>
-                <SettingsCopyRow value={new URL('/sign-up', window.location.origin).href} copyLabel="Copy signup link" />
-              </div>
-            )}
-          </>
-        )}
-        {data.available && (inProgress || !hasNotebooks) && (
-          data.requiresPlus ? <SettingsRow label="Set up the notebook" sublabel="Included with Harvous Plus"
-            leadingIcon="lock" onClick={openUpgrade} /> : (
-            <SettingsRow label={inProgress ? 'Continue notebook setup' : 'Set up the notebook'} leadingIcon="list-check"
-              sublabel={inProgress ? (verified ? 'In progress · Review privacy' : 'In progress · Verify adult') : 'Verify an adult, review privacy, and give permission'}
-              trailing={inProgress ? 'chevron' : 'none'} onClick={inProgress ? openSetup : undefined} />
-          )
-        )}
-        {!hasNotebooks && (
-          <SettingsRow label="Open the notebook" sublabel="Use this device or create a sign-in link after setup"
-            leadingIcon="book-open" trailing="none" />
-        )}
+        <ChildNotebookRows data={data} />
       </SettingsGroup>
     </section>
   );
@@ -267,6 +248,7 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const others = data.maxMembers - 1;
+  const underThirteen = notebookOption(useChildAccountsStatus().data);
 
   async function start() {
     setError(null);
@@ -285,7 +267,7 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
    */
   return (
     <SettingsShell>
-      <ChildAccountsRow />
+      <StrandedNotebooks />
       <SettingsGroup>
         <div className="proto-lock-pin-settings__body">
           <div className="proto-lock-pin-settings__hero">
@@ -351,6 +333,15 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
           sublabel="A teen family member can ask to become an adult member or leave the family."
           trailing="none"
         />
+        {underThirteen ? (
+          <SettingsRow
+            leadingIcon="book-open"
+            label="Notebooks for kids under 13"
+            sublabel="Once your family is started, add a notebook you set up and manage. No email or account for them."
+            badge={underThirteen === 'coming-soon' ? 'Coming soon' : undefined}
+            trailing="none"
+          />
+        ) : null}
       </SettingsGroup>
       <PreviewNote />
     </SettingsShell>
@@ -359,17 +350,31 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
 
 // ─── New invite ─────────────────────────────────────────────────────────────
 
-function NewInviteScreen({ onDone }: { onDone: () => void }) {
+const UNDER_13_FOR_INVITER: Record<NotebookOption, string> = {
+  open: 'A notebook you set up and manage. No email or account: they open it with a link from you.',
+  'needs-plus': 'A notebook you set up and manage. Needs your own Harvous Plus.',
+  'coming-soon': 'A notebook you set up and manage. No email or account: they open it with a link from you.',
+  full: 'You have all six notebooks you can have.',
+};
+
+function NewInviteScreen({ onDone, notebook }: { onDone: () => void; notebook: NotebookOption | null }) {
+  const navigate = useNavigate();
   const create = useCreateFamilyInvite();
-  const [role, setRole] = useState<FamilyRole>('child');
+  const [role, setRole] = useState<FamilyRole | 'under-13'>('child');
+  // A child under 13 doesn't get an invite: they get a notebook, set up by the parent here.
+  const choices: (FamilyRole | 'under-13')[] = notebook ? ['child', 'under-13', 'adult', 'parent'] : ['child', 'adult', 'parent'];
+  const unavailable = (option: FamilyRole | 'under-13') => option === 'under-13' && (notebook === 'coming-soon' || notebook === 'full');
+  // If the status changes under a choice it no longer allows (or the option goes), fall back.
+  const chosen = choices.includes(role) && !unavailable(role) ? role : 'child';
   const [label, setLabel] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<FamilyInvite | null>(null);
 
   async function make() {
+    if (chosen === 'under-13') return;
     setError(null);
     try {
-      const { invite } = await create.mutateAsync({ role, label: label.trim() || undefined });
+      const { invite } = await create.mutateAsync({ role: chosen, label: label.trim() || undefined });
       setCreated(invite);
     } catch (e) {
       setError(errorMessage(e, 'Could not make an invite. Try again in a moment.'));
@@ -396,14 +401,15 @@ function NewInviteScreen({ onDone }: { onDone: () => void }) {
     <SettingsSubScreen title="Invite someone" onBack={onDone}>
       <SectionLabel>They join as</SectionLabel>
       <SettingsGroup>
-        {(['child', 'adult', 'parent'] as const).map((option) => (
+        {choices.map((option) => (
           /* The translation picker's shape: the whole row chooses, the tick sits trailing. */
           <button
             key={option}
             type="button"
             role="radio"
-            aria-checked={role === option}
-            className="proto-note-row proto-settings-row"
+            aria-checked={chosen === option}
+            disabled={unavailable(option)}
+            className={`proto-note-row proto-settings-row${unavailable(option) ? ' proto-note-row--disabled' : ''}`}
             style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', boxSizing: 'border-box', margin: 0, padding: 12, textAlign: 'left' }}
             onClick={() => setRole(option)}
           >
@@ -411,10 +417,13 @@ function NewInviteScreen({ onDone }: { onDone: () => void }) {
                 or it pushes the tick past the card's edge. */}
             <span className="proto-settings-list-row__main" style={{ flex: '1 1 auto', minWidth: 0 }}>
               <span className="pds-list-title" style={{ color: 'var(--pds-text-primary)' }}>
-                {FAMILY_ROLE_LABEL[option]}
+                {option === 'under-13' ? 'Child under 13' : option === 'child' && notebook ? 'Child, 13 or older' : FAMILY_ROLE_LABEL[option]}
+                {option === 'under-13' && notebook === 'coming-soon' ? (
+                  <span className="proto-thread-review__badge" style={{ marginLeft: 8 }}>Coming soon</span>
+                ) : null}
               </span>
               <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
-                {FAMILY_ROLE_FOR_INVITER[option]}
+                {option === 'under-13' ? UNDER_13_FOR_INVITER[notebook ?? 'open'] : FAMILY_ROLE_FOR_INVITER[option]}
               </span>
             </span>
             <span
@@ -422,7 +431,7 @@ function NewInviteScreen({ onDone }: { onDone: () => void }) {
               style={{ flex: '0 0 20px', display: 'flex', justifyContent: 'flex-end' }}
               aria-hidden
             >
-              {role === option ? (
+              {chosen === option ? (
                 <span className="proto-accent-check-orb proto-accent-check-orb--selected">
                   <Icon name="check" size={11} />
                 </span>
@@ -431,21 +440,40 @@ function NewInviteScreen({ onDone }: { onDone: () => void }) {
           </button>
         ))}
       </SettingsGroup>
-      <Field
-        label="Note for your list (optional)"
-        value={label}
-        placeholder="For Tyler"
-        onChange={(v) => setLabel(v.slice(0, FAMILY_INVITE_LABEL_MAX))}
-      />
-      <ErrorText>{error}</ErrorText>
-      <button
-        type="button"
-        className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
-        disabled={create.isPending}
-        onClick={() => void make()}
-      >
-        {create.isPending && <ProtoLoadingDots />} Make invite link
-      </button>
+      {chosen === 'under-13' ? (
+        <>
+          <SettingsIntro>
+            {notebook === 'needs-plus'
+              ? 'Notebooks for kids under 13 come with your own Harvous Plus.'
+              : 'You’ll verify you’re an adult, read the privacy notice and give permission. Then they open their notebook on this device, or with a sign-in link from you.'}
+          </SettingsIntro>
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
+            onClick={() => void navigate(notebook === 'needs-plus' ? { to: '/upgrade' } : { to: NOTEBOOK_SETUP, search: { setup: true } })}
+          >
+            {notebook === 'needs-plus' ? 'Get Harvous Plus' : 'Set up their notebook'}
+          </button>
+        </>
+      ) : (
+        <>
+          <Field
+            label="Note for your list (optional)"
+            value={label}
+            placeholder="For Tyler"
+            onChange={(v) => setLabel(v.slice(0, FAMILY_INVITE_LABEL_MAX))}
+          />
+          <ErrorText>{error}</ErrorText>
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--primary proto-ink-on-accent"
+            disabled={create.isPending}
+            onClick={() => void make()}
+          >
+            {create.isPending && <ProtoLoadingDots />} Make invite link
+          </button>
+        </>
+      )}
     </SettingsSubScreen>
   );
 }
@@ -803,10 +831,12 @@ export function FamilyView({ data }: { data: InFamily }) {
   const leaveAnchorRef = useRef<HTMLDivElement | null>(null);
   const hasChild = family.members.some((m) => m.role === 'child');
   const frozen = Boolean(family.frozen);
+  const notebooks = useChildAccountsStatus().data;
+  const underThirteen = isParent && !frozen ? notebookOption(notebooks) : null;
   const requests = family.requests ?? [];
 
   const back = () => setView({ kind: 'main' });
-  if (view.kind === 'invite-new') return <NewInviteScreen onDone={back} />;
+  if (view.kind === 'invite-new') return <NewInviteScreen onDone={back} notebook={underThirteen} />;
   if (view.kind === 'rename') return <RenameScreen current={family.name} onDone={back} />;
   if (view.kind === 'invite') {
     const invite = family.invites.find((i) => i.id === view.id);
@@ -831,9 +861,18 @@ export function FamilyView({ data }: { data: InFamily }) {
         </SettingsIntro>
       ) : null}
       {frozen ? (
-        <SettingsIntro>
-          Harvous support has paused changes to this family while they look into something. You can still leave.
-        </SettingsIntro>
+        // The same shape as "Waiting for a parent to answer": a glyph, what's true, then what's
+        // still possible. Not plain intro text, which read as a page description.
+        <SettingsGroup>
+          <div role="status">
+            <SettingsRow
+              label="Changes are paused"
+              leadingIcon="circle-exclamation"
+              sublabel="Harvous support is looking into something with this family. You can still leave."
+              trailing="none"
+            />
+          </div>
+        </SettingsGroup>
       ) : null}
 
       {isParent
@@ -859,7 +898,6 @@ export function FamilyView({ data }: { data: InFamily }) {
         ) : null}
       </SettingsGroup>
 
-      <ChildAccountsRow />
       <SectionLabel>{`People · ${family.members.length} of ${maxMembers}`}</SectionLabel>
       <SettingsGroup>
         {family.members.map((member) => (
@@ -890,15 +928,28 @@ export function FamilyView({ data }: { data: InFamily }) {
               />
             ))
           : null}
+        {notebooks ? <ChildNotebookRows data={notebooks} /> : null}
         {isParent && seats < maxMembers ? (
           <SettingsRow
             label="Invite someone"
+            sublabel={underThirteen ? 'Or add a notebook for a child under 13' : undefined}
             leadingIcon="plus"
             disabled={!family.sponsoring || frozen}
             onClick={() => setView({ kind: 'invite-new' })}
           />
+        ) : underThirteen === 'open' || underThirteen === 'needs-plus' ? (
+          // Every place is taken, but a notebook doesn't use one.
+          <SettingsRow
+            label="Add a child under 13"
+            sublabel="Notebooks don’t take a family place"
+            leadingIcon="plus"
+            onClick={() => void navigate(underThirteen === 'open' ? { to: NOTEBOOK_SETUP, search: { setup: true } } : { to: '/upgrade' })}
+          />
         ) : null}
       </SettingsGroup>
+      {notebooks?.children.length ? (
+        <Footnote>Notebooks for kids under 13 don’t take a family place, and only you can open the ones you manage.</Footnote>
+      ) : null}
       {me.hasOwnPlus && !me.isOwner && family.sponsoring ? (
         <Footnote>You also have your own Plus. The family covers you, so you can cancel yours from Plan any time.</Footnote>
       ) : null}

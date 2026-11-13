@@ -95,7 +95,10 @@ export default function PrototypeChildAccountsPage() {
         void navigate({ to: notebookRoute, search: {}, replace: true });
       }} />;
   }
-  const canEnroll = data.available && !data.requiresPlus;
+  // Notebooks are added from a family (the server refuses otherwise); outside one, this page still
+  // opens and manages the notebooks a parent already has.
+  const needsFamily = data.available && !data.requiresPlus && data.familyParent === false;
+  const canEnroll = data.available && !data.requiresPlus && !needsFamily;
   const showEnrollment = canEnroll && !selected && (search.get('setup') === 'true' || data.children.length === 0);
   const showNotebookList = !selected && !showEnrollment && data.children.length > 0;
   const setupInProgress = !!verification || awaitingVerification;
@@ -115,6 +118,10 @@ export default function PrototypeChildAccountsPage() {
     <div className="pds-family-stack">
       {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
       {!data.available && <p className="pds-caption" role="status">Child account setup is not open yet. Existing family accounts can still be managed here.</p>}
+      {needsFamily && !selected && <SettingsGroup>
+        <SettingsRow leadingIcon="people-roof" label="Child notebooks are added from your family"
+          sublabel="Start a family in My Family first" onClick={() => void navigate({ to: prototypeHref('settings/family') })} />
+      </SettingsGroup>}
       {data.available && data.requiresPlus && !selected && <SettingsGroup>
         <SettingsRow leadingIcon="lock" label="Child notebook setup is included with Harvous Plus"
           sublabel="See Harvous Plus options" onClick={() => void navigate({ to: '/upgrade' })} />

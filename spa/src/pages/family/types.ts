@@ -11,6 +11,8 @@ export type FamilyStatus = {
   available: boolean; requiresPlus: boolean; children: FamilyChild[]; noticeVersion: string;
   /** The parent has Harvous Plus (the check that gates setup), sent even while setup is closed. */
   plus?: boolean;
+  /** The parent is a parent in a family, where notebooks are added. Absent from older API responses. */
+  familyParent?: boolean;
   verifications: { id: string; status: string }[];
   /** Per-parent child notebook cap and how many places are taken. Absent from older API responses. */
   childNotebookMax?: number; childNotebookPlacesHeld?: number;

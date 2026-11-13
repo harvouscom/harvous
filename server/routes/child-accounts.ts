@@ -29,6 +29,7 @@ import { consentHistory } from '../family/consents';
 import { claimNotebookMove, createNotebookMove, openNotebookMove, previewNotebookMove, revokeNotebookMoves } from '../family/notebook-move';
 import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
 import { getPublicAppOrigin } from '../utils/public-app-origin';
+import { isFamilyParent } from '../family/family-membership';
 import { childLookBackSitting } from '../family/look-back';
 import { buildReviewReveal, getReviewItem } from '../utils/review-service';
 import { reviewOutcomeReply } from './review';
@@ -83,6 +84,11 @@ const needsPlus = {
   code: 'CHILD_NOTEBOOK_NEEDS_PLUS',
   upgradeUrl: '/upgrade',
 };
+// Notebooks for kids under 13 are added from My Family, alongside the people in it.
+const needsFamily = {
+  error: 'Start a family first. Child notebooks are added from My Family.',
+  code: 'CHILD_NOTEBOOK_NEEDS_FAMILY',
+};
 
 // Child notebooks have their own cap and never count toward Family's six people
 // (FAMILY_MAX_MEMBERS). See CHILD_NOTEBOOK_MAX_PER_PARENT and holdsChildNotebookPlace.
@@ -121,11 +127,13 @@ route.get(`${base}/status`, requireAuth, async (c) => {
     // shown "Coming soon" before enrollment opens.
     const plus = (await sponsorFeatureKeys(parentId(c))).length > 0;
     const requiresPlus = available && !plus;
-    return c.json({ available, requiresPlus, plus, children, verifications, ...publicConfig, noticeVersion: CHILD_NOTICE_VERSION,
+    // Setup is offered from inside a family; outside one, existing notebooks stay manageable.
+    const familyParent = await isFamilyParent(parentId(c));
+    return c.json({ available, requiresPlus, plus, familyParent, children, verifications, ...publicConfig, noticeVersion: CHILD_NOTICE_VERSION,
       childNotebookMax: CHILD_NOTEBOOK_MAX_PER_PARENT, childNotebookPlacesHeld: notebookPlacesHeld(children) });
   } catch (error) {
     if (isPgUndefinedRelation(error, 'FamilyChildren') || isPgUndefinedRelation(error, 'FamilyVerifications')) {
-      return c.json({ available: false, requiresPlus: false, plus: false, children: [], verifications: [], noticeVersion: CHILD_NOTICE_VERSION,
+      return c.json({ available: false, requiresPlus: false, plus: false, familyParent: false, children: [], verifications: [], noticeVersion: CHILD_NOTICE_VERSION,
         childNotebookMax: CHILD_NOTEBOOK_MAX_PER_PARENT, childNotebookPlacesHeld: 0 });
     }
     throw error;
@@ -135,6 +143,7 @@ route.get(`${base}/status`, requireAuth, async (c) => {
 route.post(`${base}/verification`, requireAuth, async (c) => {
   const config = requireFamilyEnrollment(parentId(c));
   if (!await canEnrollChild(parentId(c))) return c.json(needsPlus, 402);
+  if (!await isFamilyParent(parentId(c))) return c.json(needsFamily, 409);
   const input = z.object({ location: z.literal('US') }).strict().parse(await c.req.json());
   const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
   const user = await clerk.users.getUser(parentId(c));
@@ -229,6 +238,7 @@ route.post(kwsWebhook, bodyLimit({ maxSize: 16 * 1024 }), async (c) => {
 route.post(`${base}/children`, requireAuth, async (c) => {
   const config = requireFamilyEnrollment(parentId(c));
   if (!await canEnrollChild(parentId(c))) return c.json(needsPlus, 402);
+  if (!await isFamilyParent(parentId(c))) return c.json(needsFamily, 409);
   const input = z.object({ verificationId: z.string().uuid(), displayName: z.string().trim().min(1).max(32),
     // Accept the old form's age band during rollout. New records store only under-13 eligibility.
     ageBand: z.enum(['under-8', '8-12']).optional(), noticeVersion: z.literal(CHILD_NOTICE_VERSION),
