@@ -7,7 +7,7 @@ import {
   SHARED_SPACES_ADDON_FEATURE_BULLETS,
   OWNED_SHARED_SPACES_ADDON_LIMIT,
 } from '../shared-spaces-limits';
-import { WITHHELD_FEATURES } from '../billing-plans';
+import { CHILD_NOTEBOOKS_ON_PLUS_LIST, WITHHELD_FEATURES } from '../billing-plans';
 
 describe('formatOwnedSharedSpacesFeatureBullet', () => {
   it('shows usage against a finite allotment', () => {
@@ -62,7 +62,8 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
     expect(bullets).toContain('Use your study in AI apps like Claude and ChatGPT');
     // Family Accounts, launched Oct 2026 — the same rule: on the list only once it's on.
     expect(bullets).toContain(FAMILY_PLUS_BULLET);
-    expect(bullets).toHaveLength(9);
+    // Child notebooks join after Family once enrollment opens (CHILD_NOTEBOOKS_ON_PLUS_LIST).
+    expect(bullets).toHaveLength(CHILD_NOTEBOOKS_ON_PLUS_LIST ? 10 : 9);
   });
 
   /**

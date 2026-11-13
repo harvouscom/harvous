@@ -19,7 +19,7 @@ import Icon from '@/components/react/Icon';
 import Harvous3Numeral from '../Harvous3Numeral';
 import ImportSourceFan from '../import/ImportSourceFan';
 
-export type CalloutIllustrationKey = 'today-tabs' | 'legal' | 'whats-new' | 'import' | 'letter' | 'family' | 'my-bible';
+export type CalloutIllustrationKey = 'today-tabs' | 'legal' | 'whats-new' | 'import' | 'letter' | 'family' | 'family-notebooks' | 'my-bible';
 
 /** A line of body copy: a rounded bar. */
 function Bar({ w, strong = false }: { w: number; strong?: boolean }) {
@@ -145,6 +145,51 @@ function Family() {
 }
 
 /**
+ * A child's notebook, small: a coloured cover with a spine and the child's initial — the same
+ * look as the real cover (`ChildNotebookCover`), drawn here in a few spans so the callout does not
+ * pull the child notebook's appearance code into every page.
+ */
+function MiniNotebook({ initial, tone, pattern = 'plain' }: { initial: string; tone: 'blue' | 'green'; pattern?: 'plain' | 'dots' | 'stripes' }) {
+  return (
+    <span className={`proto-callout-art__notebook proto-callout-art__notebook--${tone}`} data-pattern={pattern}>
+      {initial}
+    </span>
+  );
+}
+
+/**
+ * My Family, upgraded: the household's People list, where the kids' notebooks now sit beside the
+ * grown-ups, with one child's notebook in front. Counts only, as the parent's page shows.
+ */
+function FamilyNotebooks() {
+  return (
+    <div className="proto-callout-art__sheet">
+      <div className="proto-callout-art__head">
+        <b>Johnson family</b>
+        <span>People</span>
+      </div>
+      <div className="proto-callout-art__people">
+        {['D', 'S'].map((initial, i) => (
+          <span key={initial} className={`proto-callout-art__person proto-callout-art__person--${i}`}>
+            {initial}
+          </span>
+        ))}
+        <MiniNotebook initial="R" tone="green" pattern="stripes" />
+      </div>
+      <div className="proto-callout-art__deck proto-callout-art__front">
+        <div className="proto-callout-art__row">
+          <MiniNotebook initial="K" tone="blue" pattern="dots" />
+          <span className="proto-callout-art__row-text">
+            <b>Kit’s notebook · Under 13</b>
+            <span>12 notes · 5 highlights</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * My Bible: the Home card's shelf — a spine per book, Genesis to Revelation, filled by how much
  * of each you have been in. Heights are fixed and made up; no one's real map.
  */
@@ -192,6 +237,8 @@ export default function CalloutIllustration({ name }: { name: CalloutIllustratio
         <Letter />
       ) : name === 'family' ? (
         <Family />
+      ) : name === 'family-notebooks' ? (
+        <FamilyNotebooks />
       ) : name === 'my-bible' ? (
         <MyBible />
       ) : (
