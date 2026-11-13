@@ -21,6 +21,7 @@
     '/churches/start',
     // `/family/join/{token}` only — see the note in src/lib/prototype-path.ts.
     '/family/join/',
+    '/family/notebook/',
     '/api/',
   ];
   var RESERVED_SEGMENTS = {
@@ -92,6 +93,7 @@
         logical.indexOf('/churches/join/') === 0 ||
         logical === '/churches/start' ||
         logical.indexOf('/family/join/') === 0 ||
+        logical.indexOf('/family/notebook/') === 0 ||
         logical.indexOf('/invitations/') === 0 ||
         logical === '/upgrade' ||
         logical.indexOf('/upgrade/') === 0 ||

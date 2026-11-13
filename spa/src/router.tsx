@@ -143,6 +143,13 @@ const familyJoinRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/public/PublicJoinFamilyPage')),
 });
 
+// A parent's link to move a child notebook into the teen's own account (Settings › My Family).
+const familyNotebookMoveRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/family/notebook/$token',
+  component: lazyRouteComponent(() => import('./pages/public/PublicClaimNotebookPage')),
+});
+
 const invitationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/invitations/$token',
@@ -344,6 +351,7 @@ function buildRouteTree() {
     churchJoinRoute,
     churchStartRoute,
     familyJoinRoute,
+    familyNotebookMoveRoute,
     invitationRoute,
     statusRoute,
     ...(designSystemGalleryRoute ? [designSystemGalleryRoute] : []),

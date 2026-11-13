@@ -39,8 +39,8 @@ Completed November 11, 2026, on the isolated Harvous staging sites with fictiona
 
 ## Handoff when a child turns 13
 
-A new user who is already 13 or older can use the standard Harvous signup. An existing child notebook stays parent-managed today. Harvous records under-13 eligibility at enrollment, so the transition needs a deliberate action in **My Family**.
+Built November 2026. The parent starts it from the notebook's page in My Family ("Move to their own account"); the teen claims it at `/family/notebook/:token`, signed in to their own account. How it works and what moves is in `CHILD_ACCOUNTS.md` ("Moving a notebook into the teen's own account").
 
-- [ ] Design a handoff that verifies the guardian’s authorization and lets the teen claim the notebook with their own Harvous sign-in.
-- [ ] Preserve the private notebook’s notes, folders, tags, Threads, and Scripture references. Define which Family Bible and ministry resources stay governed by family permissions.
-- [ ] Explain when the parent’s notebook access ends and end old child sessions at cutover. Test unauthorized, interrupted, and repeated handoffs, along with data integrity after a successful transfer.
+- [x] A handoff that rests on the guardian's authorization (a single-use, 7-day link only the managing parent can make, after confirming the child is 13 or older) and lets the teen claim it with their own Harvous sign-in. The parent can't claim it themself.
+- [x] Notes, folders, tags, Threads and Scripture references move with their ids. Highlights become reader highlights; Look back becomes Review history; the child's own Family Bible thoughts become notes. Links to ministry readings are written into the note, not kept, because their access was the family's.
+- [x] Parent access and child sessions end at cutover: the child record is deleted in the same transaction. Unauthorized, expired, replaced, repeated, racing and interrupted claims are covered by `server/family/__tests__/notebook-move.integration.test.ts` against a real Postgres.

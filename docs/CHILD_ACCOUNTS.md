@@ -19,7 +19,7 @@ The US-first web pilot runs in isolated staging with fictional child accounts. T
 - Approved ministry access is **read-only channel reading**, not collaborative Shared Space membership. A parent must currently follow the ministry channel. That membership and the live association are checked on each read. Removing the parent’s membership or approval removes future access. Child identity and personal notes never enter the channel roster. Material is rendered as plain text without images, links, scripts, or embeds.
 - Family Bible shares chapters and verse thoughts between the child and the parent managing that notebook. The parent chooses permitted translations and shared chapters. My Bible can read chapters in the same permitted translations. Neither mode offers comparison. Removing a translation hides readings in that translation from the child. Removing a shared chapter deletes its thoughts. The adult Family Space membership and sharing rules remain separate.
 - Search covers the child’s own notes, their Family Bible readings, and currently approved ministry resources. Opening a result checks access again. Notebook cover, light/dark mode, larger reading and writing text, and sound and motion preferences are stored on the child account.
-- The pilot omits ministry responses, co-editing, uploads, rich text, peer discovery, push notifications, native sign-in, parent transfer, automatic graduation, and automatic reactivation after withdrawal. A notice version change pauses child access until the parent renews consent on the notebook's page in My Family (`POST /api/child-accounts/children/:id/consent`); withdrawn notebooks never resume there.
+- The pilot omits ministry responses, co-editing, uploads, rich text, peer discovery, push notifications, native sign-in, parent transfer, automatic graduation (moving a notebook at 13 is a parent's action; see below), and automatic reactivation after withdrawal. A notice version change pauses child access until the parent renews consent on the notebook's page in My Family (`POST /api/child-accounts/children/:id/consent`); withdrawn notebooks never resume there.
 
 ## KWS setup
 
@@ -144,6 +144,30 @@ The preview puts private notes in My Notebook and parent-shared ministry reading
 
 Use the adult note model for production organization. The folder is the note's `primaryCollection` label. Tags use `Tags` and `NoteTags`, and Threads use child-owned `Threads` and `NoteThreads`. The note inspector can edit those relationships inside the child's personal Home. Preview edits stay in memory. The isolated child API persists titles, bodies, and note details, including organization and approved resource references.
 
-For a future transition to an independent account, preserve canonical note and organization IDs. After verifying both sides of the handoff, a server transaction should transfer ownership of the personal Home, notes, tags and Threads together. Preserve their relationships and Scripture references, reconcile account-local note numbers if needed, and end child sessions and guardian access at cutover. Family Space resources and membership should remain governed by the family's permissions. The transition needs its own identity, authorization, and data integrity checks before it can be enabled.
+See "Moving a notebook into the teen's own account" below for the transition that was built on this model.
 
 Repeat the shared-device handoff against the production Clerk configuration before opening real enrollment. Verify parent session freshness, browser Back and refresh, and the supported sign-in methods.
+
+## Moving a notebook into the teen's own account
+
+When a child turns 13, the parent can move their notebook into the teen's own Harvous account. `server/family/notebook-move.ts` holds the rules.
+
+**The parent's side.** It's on the notebook's page in My Family, under "Move to their own account" (`MoveChildNotebook.tsx`).
+- The page says what moves and what doesn't, and asks the parent to confirm the child is 13 or older.
+- It makes a single-use link that works for 7 days (`POST /api/child-accounts/children/:id/move`). Making a new one turns off the old one; `DELETE` turns it off.
+- If the parent is in a family with a free place, the page can attach a family invite (role child, 13 or older), offered to the teen once the move is done.
+
+**The teen's side.** `/family/notebook/:token` (`PublicClaimNotebookPage.tsx`) is drawn like the shared Thread page: their notebook in the cover they chose, its name and counts on a bookplate, and what moving does on a letter. Signed out, it shows nothing about the notebook. `?fixture=preview|done` shows the signed-in states in dev.
+
+**The move** is one transaction, so a failure leaves the notebook as it was:
+- notes keep their ids, go into the teen's My Home and are numbered after the teen's own. Plain text becomes paragraphs, and each note's verses and family readings are written out at the end;
+- tags and Threads move, or merge by name into the teen's own;
+- Scripture metadata moves with its note;
+- Look back items and events move into Review. Where the teen already reviews the same source, the history joins their item;
+- My Bible highlights become reader highlights (`StudyThreadEntries`, `scriptureLink`) in the child's first translation, unless the teen already highlighted that verse;
+- the child's own Family Bible thoughts become one note per chapter, in a "Family Bible" folder. The parent's replies aren't included;
+- stickers, the cover and notebook settings don't move. They're only in child notebooks, and the parent's backup download has them;
+- the child record is then deleted, which ends child sessions and the parent's access. A row in `FamilyChildTransfers` records the move: who, when and counts, no content.
+
+The parent can't claim their own link, and a child session can't claim one at all. `FamilyChildTransfers` is created by `add-child-account-schema.ts`. Until it exists, the notebook page reads "no open link" rather than failing.
+

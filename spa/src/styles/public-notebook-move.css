@@ -1,0 +1,260 @@
+/*
+ * `/family/notebook/:token` (PublicClaimNotebookPage), loaded with its lazy route. The page
+ * shell — sky, opening sentence, cream letter, floating button — is public-shared-paper.css.
+ *
+ * The object is the notebook itself, the same book the child app draws (`.pds-kids-book`),
+ * in the cover they chose, standing on a bookplate the way a shared Thread's notes stand in
+ * their folder. The plate carries only the notebook: a tab, the name, and fields. Nothing
+ * from inside a note.
+ */
+
+.public-move__object {
+  position: relative;
+  margin: 8px auto 30px;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* The child app's book at bookshelf size, standing with its foot inside the plate. */
+.public-move__book {
+  position: relative;
+  z-index: 2;
+  width: 168px;
+  height: 196px;
+  margin-bottom: -46px;
+  display: grid;
+  place-items: center;
+}
+
+.public-move__book .pds-kids-book {
+  transform: scale(1.9);
+  transform-origin: 50% 60%;
+  filter: drop-shadow(0 10px 14px rgb(20 18 12 / 0.16));
+  animation: public-move-arrive 620ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+@keyframes public-move-arrive {
+  from { opacity: 0; transform: translateY(18px) scale(1.82); }
+}
+
+/* Moved: the book lifts a little, as if picked up off the plate, and takes a stamp. */
+.public-move__object--moved .public-move__book .pds-kids-book {
+  animation: public-move-lift 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes public-move-lift {
+  from { transform: scale(1.9); }
+  to { transform: translateY(-8px) rotate(3deg) scale(1.9); }
+}
+
+.public-move__stamp {
+  position: absolute;
+  right: 6px;
+  bottom: 40px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 2px solid var(--sh-card);
+  background: var(--pds-bg-accent-button);
+  color: #fff;
+  box-shadow: 0 6px 14px -6px rgb(0 80 200 / 0.6);
+  animation: public-move-stamp 420ms 380ms cubic-bezier(0.2, 0.8, 0.2, 1.4) backwards;
+}
+
+.public-move__stamp svg,
+.public-move__stamp path {
+  fill: currentColor;
+}
+
+@keyframes public-move-stamp {
+  from { opacity: 0; transform: scale(0.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-move__book .pds-kids-book,
+  .public-move__object--moved .public-move__book .pds-kids-book,
+  .public-move__stamp {
+    animation: none;
+  }
+  .public-move__object--moved .public-move__book .pds-kids-book {
+    transform: scale(1.9);
+  }
+}
+
+/* The bookplate: cream card, a tab, the name printed, then fields like the Thread folder's. */
+.public-move__label {
+  position: relative;
+  z-index: 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 62px 22px 20px;
+  border-radius: 18px;
+  text-align: center;
+  background:
+    radial-gradient(rgb(20 18 12 / 0.035) 1px, transparent 1.2px) 0 0 / 6px 6px,
+    linear-gradient(180deg, var(--sh-card), #f8f5ec);
+  border: 0.5px solid var(--sh-rule);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 1px 2px rgb(20 18 12 / 0.05),
+    0 16px 36px -22px rgb(20 18 12 / 0.28);
+}
+
+.public-move__tab {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
+}
+
+.public-move__name {
+  font-family: "Google Sans Flex", "Google Sans", system-ui, sans-serif;
+  font-size: clamp(1.45rem, 1.2rem + 1vw, 1.9rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: var(--sh-ink);
+  text-wrap: balance;
+}
+
+.public-move__fields {
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 32px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--sh-rule);
+}
+
+.public-move__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.public-move__field span {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
+}
+
+.public-move__field b {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--sh-ink);
+}
+
+/* The letter: what moving it does, in short lines with a glyph each. */
+.public-page--shared .public-paper-stack.public-move__letter {
+  margin-top: 0;
+}
+
+.public-move__sheet {
+  padding: 26px 22px 58px;
+}
+
+.public-move__heading {
+  margin: 0 0 14px;
+  font-family: "Google Sans Flex", "Google Sans", system-ui, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.public-move__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-move__lines li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 0.975rem;
+  line-height: 1.45;
+  color: var(--sh-ink);
+}
+
+.public-move__lines li svg,
+.public-move__note svg {
+  flex: none;
+  margin-top: 3px;
+  fill: var(--sh-ink-soft);
+}
+
+.public-move__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--sh-rule);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--sh-ink-soft);
+}
+
+.public-move__cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.public-move__cta .public-cta-btn {
+  width: 100%;
+}
+
+.public-move__aside {
+  margin: 18px 0 0;
+  font-size: 0.9rem;
+  color: var(--sh-ink-soft);
+}
+
+.public-move__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--sh-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.public-move__error {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--pds-destructive, #b42318);
+}
+
+@media (min-width: 700px) {
+  .public-move__sheet {
+    padding: 36px 44px 64px;
+  }
+}
+
+/* The app's reset sets `flex-shrink: 0` on everything, so the text must opt back in to wrap. */
+.public-move__lines li > span:last-child,
+.public-move__note > span:last-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}

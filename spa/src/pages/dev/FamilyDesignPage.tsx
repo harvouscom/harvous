@@ -15,9 +15,20 @@ import { toast } from '@/utils/toast';
 import { FamilyDemoContext, type FamilyDemo } from '../../hooks/queries/family-demo';
 import type { FamilyMember, FamilyProgressEntry, FamilyRoleRequest } from '../../hooks/queries/useFamily';
 import { FamilyView, type InFamily } from '../prototype/settings/PrototypeFamilyPage';
+import MoveChildNotebook from '../prototype/settings/MoveChildNotebook';
+import { SettingsShell } from '../prototype/settings/SettingsShell';
+import type { ChildDetail } from '../family/types';
+
 
 const DAY = 24 * 60 * 60 * 1000;
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY).toISOString();
+
+/** Abby's notebook on the day she turns 13: the parent's "Move to their own account" page. */
+const ABBY: ChildDetail = {
+  child: { id: 'child_demo_abby', displayName: 'Abby', ageBand: 'under-13', status: 'active', bibleTranslations: ['BSB'],
+    notebookPreferences: null, consentedAt: iso(400), noticeVersion: 'demo', revokedAt: null },
+  notes: [], readings: [], approvals: [], ministries: [], consents: [], move: null,
+};
 
 type RequestState = 'none' | 'waiting' | 'waiting-14' | 'declined' | 'reviewing';
 
@@ -174,6 +185,21 @@ export default function FamilyDesignPage() {
           state={state}
           frozen={frozen}
         />
+      </section>
+
+      <section className="dev-family__grid" style={{ marginTop: 32 }}>
+        <div className="dev-family__col">
+          <p className="pds-caption dev-col-label">Moving a notebook — Abby turns 13</p>
+          <p className="pds-caption dev-family__note">
+            The parent’s page for moving a child notebook into the teen’s own account. Nothing here sends a request.
+          </p>
+          <div className="dev-family__pane">
+            <SettingsShell>
+              <MoveChildNotebook detail={ABBY} busy={false}
+                perform={async (_work, message) => { toast.info(`Demo: the link would be made here. ${message}`.trim()); }} />
+            </SettingsShell>
+          </div>
+        </div>
       </section>
     </div>
   );

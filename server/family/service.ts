@@ -1,3 +1,4 @@
+import { revokeNotebookMoves } from './notebook-move';
 import { deleteChildLookBack } from './look-back';
 import { deleteNoteRecordsInTransaction } from '../utils/delete-note-cascade';
 import { parseHTML } from 'linkedom';
@@ -94,6 +95,7 @@ export async function ministryMaterials(tx: FamilyTx, child: Child, item?: { spa
 
 /** Only the isolated child API writes these identities; notes never have sharing or derived records. */
 export async function deleteChildData(tx: FamilyTx, child: Child) {
+  await revokeNotebookMoves(tx, child.id);
   const notes = await tx.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, child.id));
   await deleteNoteRecordsInTransaction(tx, child.id, notes.map((note) => note.id));
   await tx.delete(Tags).where(eq(Tags.userId, child.id));
