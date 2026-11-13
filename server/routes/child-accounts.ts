@@ -96,11 +96,14 @@ route.get(`${base}/status`, requireAuth, async (c) => {
     const verifications = await db.select({ id: FamilyVerifications.id, status: FamilyVerifications.status })
       .from(FamilyVerifications).where(and(eq(FamilyVerifications.parentUserId, parentId(c)),
         gt(FamilyVerifications.expiresAt, new Date()))).orderBy(desc(FamilyVerifications.createdAt));
-    const requiresPlus = available && (await sponsorFeatureKeys(parentId(c))).length === 0;
-    return c.json({ available, requiresPlus, children, verifications, ...publicConfig, noticeVersion: CHILD_NOTICE_VERSION });
+    // `plus`: the same check that gates setup, sent even while setup is closed, so Plus members can be
+    // shown "Coming soon" before enrollment opens.
+    const plus = (await sponsorFeatureKeys(parentId(c))).length > 0;
+    const requiresPlus = available && !plus;
+    return c.json({ available, requiresPlus, plus, children, verifications, ...publicConfig, noticeVersion: CHILD_NOTICE_VERSION });
   } catch (error) {
     if (isPgUndefinedRelation(error, 'FamilyChildren') || isPgUndefinedRelation(error, 'FamilyVerifications')) {
-      return c.json({ available: false, requiresPlus: false, children: [], verifications: [], noticeVersion: CHILD_NOTICE_VERSION });
+      return c.json({ available: false, requiresPlus: false, plus: false, children: [], verifications: [], noticeVersion: CHILD_NOTICE_VERSION });
     }
     throw error;
   }
