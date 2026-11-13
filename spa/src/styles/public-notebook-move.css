@@ -222,11 +222,14 @@
   color: var(--sh-ink);
 }
 
-.public-page--shared .public-move__heading {
+/* Set like the field labels above it. Specific enough to beat the shared pages' rule that inks
+   every heading in the letter (public-shared-paper.css). */
+.public-page--shared .public-shared__sheet h2.public-move__heading {
   margin: 30px 0 10px;
   font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  /* !important: a global rule sets every h1–h6 to 700 !important. */
+  font-weight: 600 !important;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--sh-ink-soft) !important;
 }
