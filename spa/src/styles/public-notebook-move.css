@@ -8,6 +8,27 @@
  * from inside a note.
  */
 
+.public-move__sky {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 0;
+  height: min(70vh, 620px);
+  background:
+    radial-gradient(55% 60% at 50% 42%, color-mix(in oklab, var(--pds-thread-green) 40%, transparent), transparent 70%),
+    radial-gradient(40% 50% at 8% 6%, color-mix(in oklab, var(--pds-thread-pink) 45%, transparent), transparent 70%),
+    radial-gradient(40% 50% at 94% 80%, color-mix(in oklab, var(--pds-thread-yellow) 50%, transparent), transparent 70%),
+    color-mix(in oklab, var(--pds-thread-blue) 22%, var(--sh-paper));
+  pointer-events: none;
+}
+
+.public-move__sky::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 200px;
+  background: linear-gradient(to bottom, transparent, var(--sh-paper));
+}
+
 .public-move__object {
   position: relative;
   margin: 8px auto 30px;

@@ -1,11 +1,14 @@
 /**
  * `/family/notebook/:token` — a parent's link to move a child notebook into the teen's own account.
  *
- * Built on the shared pages (PublicSharedThreadPage): the sign-in sky, who sent it as a sentence
+ * Built on the shared pages (PublicSharedThreadPage): a sky band, who sent it as a sentence
  * with their name marked, then the object itself. A shared Thread is a manila folder; this is
  * the notebook they kept as a kid, drawn with the cover they chose, its name and fields printed
  * under it like the folder's. Nothing from inside a note is on the page. Below it, a cream
  * letter says what moving it does, and the button floats and comes to rest on the letter's edge.
+ *
+ * The sky is a gradient, not the sign-in photo: the "desk" behind the notebook on harvous.com's
+ * child notebooks page (green behind the book, pink and yellow at the corners, pale blue under).
  *
  * Signed out, the page shows a plain notebook and no name, then asks them to sign in or create
  * their account. The move is server/family/notebook-move.ts: one transaction, all or nothing.
@@ -23,7 +26,6 @@ import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pe
 import { defaultChildPreferences, type ChildNotebookPreferences } from '../../../../shared/child-notebook';
 import { ChildNotebookCover } from '../prototype/ChildNotebookAppearance';
 import { PublicErrorState, PublicSharedFooter, PublicTopBar } from './public-shared';
-import { SharedSky } from './shared-opening';
 import '../../styles/public-shared-paper.css';
 import '../../styles/child-notebook-preview.css';
 import '../../styles/public-notebook-move.css';
@@ -241,7 +243,8 @@ export default function PublicClaimNotebookPage() {
       <div className="public-page public-page--shared">
         <PublicTopBar isSignedIn={Boolean(isSignedIn)} />
         <div className="public-body">
-          <SharedSky />
+          {/* Not the photo sky: the child notebooks page's desk, as a soft band behind the notebook. */}
+          <div className="public-move__sky" aria-hidden />
           <div className="public-shared-host">
             <SubtleContentMount variant="fade">
               <div className="public-shared public-move">
