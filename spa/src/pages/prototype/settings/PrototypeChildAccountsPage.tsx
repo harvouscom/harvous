@@ -13,6 +13,7 @@ import ProtoSpaceLoading from '../ProtoSpaceLoading';
 import ManageChildNotebook from './ManageChildNotebook';
 import { ChildNotebookCover } from '../ChildNotebookAppearance';
 import ChildPrivacyNotice from '../../family/ChildPrivacyNotice';
+import ChildNotebookStartingCover, { DEFAULT_STARTING_COVER, type StartingCover } from './ChildNotebookStartingCover';
 import type { ChildDetail, FamilyChild, FamilyStatus } from '../../family/types';
 import { useChildAccountsStatus } from '../../family/useChildAccountsStatus';
 import { CHILD_NOTICE_VERSION, childNotebookLimitMessage, defaultChildPreferences } from '../../../../../shared/child-notebook';
@@ -37,6 +38,7 @@ export default function PrototypeChildAccountsPage() {
   const [busy, setBusy] = useState(false);
   const [noticeAccepted, setNoticeAccepted] = useState(false);
   const [displayName, setDisplayName] = useState('');
+  const [startingCover, setStartingCover] = useState<StartingCover>(DEFAULT_STARTING_COVER);
   const status = useChildAccountsStatus();
   const requestedChild = search.get('child');
   const feedbackScope = requestedChild ?? (search.get('setup') === 'true' ? 'setup' : '');
@@ -207,7 +209,7 @@ export default function PrototypeChildAccountsPage() {
                     e.preventDefault();
                     void perform(async () => {
                       const { child } = await api.post<{ child: FamilyChild }>('/api/child-accounts/children', { verificationId: verification.id, displayName,
-                        noticeVersion: CHILD_NOTICE_VERSION, consent: true, isGuardian: true });
+                        noticeVersion: CHILD_NOTICE_VERSION, consent: true, isGuardian: true, cover: startingCover });
                       qc.setQueryData<FamilyStatus>(['family', userId, 'child-accounts'], (current) => current && ({
                         ...current,
                         children: [...current.children.filter((item) => item.id !== child.id), child],
@@ -215,6 +217,7 @@ export default function PrototypeChildAccountsPage() {
                       }));
                       openNotebook(child.id, true);
                       setDisplayName('');
+                      setStartingCover(DEFAULT_STARTING_COVER);
                       setNoticeAccepted(false);
                     }, '');
                   }}>
@@ -223,6 +226,7 @@ export default function PrototypeChildAccountsPage() {
                         aria-describedby="child-first-name-hint" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
                       <span id="child-first-name-hint" className="pds-caption">Use a first name or nickname. Leave out the last name.</span>
                     </label>
+                    <ChildNotebookStartingCover name={displayName} value={startingCover} onChange={setStartingCover} disabled={busy} />
                     <button className="proto-settings-btn" type="submit" disabled={busy || !displayName.trim()}>
                       {busy ? <ProtoLoadingDots /> : <Icon name="book-open" size={14} aria-hidden />} Agree and create notebook
                     </button>

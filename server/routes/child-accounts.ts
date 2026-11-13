@@ -229,7 +229,11 @@ route.post(`${base}/children`, requireAuth, async (c) => {
   const input = z.object({ verificationId: z.string().uuid(), displayName: z.string().trim().min(1).max(32),
     // Accept the old form's age band during rollout. New records store only under-13 eligibility.
     ageBand: z.enum(['under-8', '8-12']).optional(), noticeVersion: z.literal(CHILD_NOTICE_VERSION),
-    isGuardian: z.literal(true), consent: z.literal(true) }).strict().parse(await c.req.json());
+    isGuardian: z.literal(true), consent: z.literal(true),
+    // The parent picks how the notebook looks to start with. The cover always starts with the
+    // child's initial; the child can change all of it, sticker included, in their notebook.
+    cover: z.object({ coverColor: z.enum(coverColors.map(color => color.id)), coverPattern: z.enum(coverPatterns),
+      coverBinding: z.enum(coverBindings) }).strict().optional() }).strict().parse(await c.req.json());
   const child = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${parentId(c)}))`);
     // Counted under the same per-parent lock that consumes the verification, so two concurrent
@@ -246,7 +250,8 @@ route.post(`${base}/children`, requireAuth, async (c) => {
     await tx.insert(Spaces).values({ id: homeSpaceId, title: 'My Home', userId: id, type: 'personal', createdAt: new Date() });
     const [created] = await tx.insert(FamilyChildren).values({ id, homeSpaceId, parentUserId: parentId(c), displayName: input.displayName,
       ageBand: 'under-13', verificationId: verification.id, noticeVersion: input.noticeVersion, consentedAt: new Date(),
-      status: 'active', createdAt: new Date(), lastActiveAt: new Date(), bibleTranslations: [childBibleTranslations[0]] }).returning();
+      status: 'active', createdAt: new Date(), lastActiveAt: new Date(), bibleTranslations: [childBibleTranslations[0]],
+      notebookPreferences: input.cover ? { ...defaultChildPreferences, ...input.cover, coverSymbol: 'initial' } : null }).returning();
     await tx.insert(FamilyChildConsents).values({ id: `consent_${randomUUID()}`, childId: created.id, parentUserId: parentId(c),
       noticeVersion: created.noticeVersion, consentedAt: created.consentedAt, kind: 'created' });
     return created;

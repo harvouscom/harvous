@@ -111,6 +111,26 @@ describe('the per-parent child notebook cap', () => {
       expect(tx.update).not.toHaveBeenCalled();
       expect(tx.insert).not.toHaveBeenCalled();
     });
+    const createWith = (extra: Record<string, unknown>) => app.request('/api/child-accounts/children', { method: 'POST', headers, body: JSON.stringify({
+      verificationId: 'b7bd3862-d943-46d3-9e4a-9cd301375e23', displayName: 'Sam', noticeVersion: CHILD_NOTICE_VERSION, isGuardian: true, consent: true, ...extra }) });
+    const childValues = (tx: ReturnType<typeof transactionAnswering>) =>
+      (tx.insert.mock.results[1].value as { values: ReturnType<typeof vi.fn> }).values.mock.calls[0][0];
+    it('starts the notebook with the cover the parent picked, and the child’s initial on it', async () => {
+      const tx = transactionAnswering([]);
+      const response = await createWith({ cover: { coverColor: 'purple', coverPattern: 'dots', coverBinding: 'spiral' } });
+      expect(response.status).toBe(201);
+      expect(childValues(tx).notebookPreferences).toMatchObject({ coverColor: 'purple', coverPattern: 'dots', coverBinding: 'spiral', coverSymbol: 'initial' });
+    });
+    it('leaves the defaults when the parent picked nothing', async () => {
+      const tx = transactionAnswering([]);
+      expect((await createWith({})).status).toBe(201);
+      expect(childValues(tx).notebookPreferences).toBeNull();
+    });
+    it('doesn’t let the parent choose the sticker: that’s the child’s', async () => {
+      const response = await createWith({ cover: { coverColor: 'purple', coverPattern: 'dots', coverBinding: 'spiral', coverSymbol: 'dove' } });
+      expect(response.status).toBe(400);
+      expect(database.transaction).not.toHaveBeenCalled();
+    });
     it('creates the sixth notebook', async () => {
       const tx = transactionAnswering(notebooks(5));
       const response = await create();

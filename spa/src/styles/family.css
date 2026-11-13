@@ -315,3 +315,105 @@ body:has(.pds-child-app) { margin: 0; background: var(--pds-canvas-default); }
 .pds-family-renewal .pds-family-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--pds-space-2); line-height: 1.6; cursor: pointer; }
 .pds-family-renewal .pds-family-choice > input[type='checkbox'] { margin-block-start: 0.2em; }
 .pds-family-renewal .pds-family-choice > input[type='checkbox']:not(:checked) { border-color: var(--pds-text-tertiary); }
+
+/* The parent picks how the notebook starts out (ChildNotebookStartingCover): the book drawn live
+   beside colour, pattern and style. Neutral controls; the only colour is the swatches and the book. */
+.pds-family-cover {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.pds-family-cover > legend {
+  padding: 0;
+  margin-block-end: var(--pds-space-2);
+}
+.pds-family-cover__layout {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-5);
+  padding: var(--pds-space-4);
+  border: 0.5px solid var(--pds-border-on-paper);
+  border-radius: var(--pds-radius-menu);
+}
+.pds-family-cover__preview {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 96px;
+}
+.pds-family-cover__choices {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-3);
+}
+.pds-family-cover__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-1);
+  min-width: 0;
+}
+.pds-family-cover__label {
+  color: var(--pds-text-secondary);
+}
+.pds-family-cover__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-2);
+}
+.pds-family-cover input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.pds-family-cover__swatch {
+  position: relative;
+  cursor: pointer;
+}
+.pds-family-cover__swatch > span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  color: #fff;
+  background: oklch(from var(--swatch) 0.66 calc(c * 1.7) h);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08);
+}
+.pds-family-cover__swatch > span svg,
+.pds-family-cover__swatch > span path {
+  fill: currentColor;
+}
+.pds-family-cover__pill {
+  position: relative;
+  cursor: pointer;
+}
+.pds-family-cover__pill > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 var(--pds-space-3);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  color: var(--pds-text-primary);
+  background: var(--pds-bg-section);
+}
+.pds-family-cover__pill input:checked + span {
+  background: var(--pds-bg-accent-button);
+  color: #fff;
+}
+.pds-family-cover :is(.pds-family-cover__swatch, .pds-family-cover__pill) input:focus-visible + span {
+  outline: 2px solid var(--pds-accent, #3869e6);
+  outline-offset: 2px;
+}
+.pds-family-cover__hint {
+  margin: var(--pds-space-2) 0 0;
+  color: var(--pds-text-secondary);
+}
+@media (max-width: 420px) {
+  .pds-family-cover__layout { flex-direction: column; align-items: stretch; }
+  .pds-family-cover__preview { width: auto; }
+}

@@ -147,3 +147,8 @@ Use the adult note model for production organization. The folder is the note's `
 For a future transition to an independent account, preserve canonical note and organization IDs. After verifying both sides of the handoff, a server transaction should transfer ownership of the personal Home, notes, tags and Threads together. Preserve their relationships and Scripture references, reconcile account-local note numbers if needed, and end child sessions and guardian access at cutover. Family Space resources and membership should remain governed by the family's permissions. The transition needs its own identity, authorization, and data integrity checks before it can be enabled.
 
 Repeat the shared-device handoff against the production Clerk configuration before opening real enrollment. Verify parent session freshness, browser Back and refresh, and the supported sign-in methods.
+
+## How a notebook starts out
+
+At setup, after the child's first name, the parent picks how the notebook looks the first time it's opened: colour, pattern and style (classic, spiral or stitched), drawn live with the child's initial (`ChildNotebookStartingCover.tsx`). `POST /api/child-accounts/children` takes these as an optional `cover` and saves them over the defaults with `coverSymbol: 'initial'`. A parent can't pick the sticker; the server refuses one. The child can change all of it, stickers included, in their notebook's cover studio.
+
