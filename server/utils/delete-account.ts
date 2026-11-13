@@ -84,6 +84,7 @@ import {
   UserLifetimeXP,
   UserNodeStates,
   UserSeasonalXP,
+  VerseStickers,
   WeeklyStreaks,
   ClerkUserMapping,
 } from '../db';
@@ -179,6 +180,7 @@ function databaseSteps(userId: string): Step[] {
     ['highlights', () => byUser(StudyThreadEntries)],
     ['thread member orders', () => byUser(StudyThreadMemberOrders)],
     ['thread links', () => byUser(StudyThreadShares)],
+    ['verse stickers', () => byUser(VerseStickers)],
     ['thread progress', () => byUser(ThreadProgress)],
     ['note connections', () => byUser(NoteConnections)],
     ['chat origins', () => byUser(NoteChatOrigins)],
