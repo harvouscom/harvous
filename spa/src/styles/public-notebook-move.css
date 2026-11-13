@@ -75,15 +75,15 @@
   50% { transform: translateY(-8px) rotate(calc(var(--tilt) + 3deg)); }
 }
 
-/* On a phone, four smaller stickers at the edges, clear of the headline and the book. */
+/* On a phone, four smaller stickers at the edges, beside the book and above the letter. */
 @media (max-width: 560px) {
   .public-move__sticker { width: 38px; border-radius: 11px; }
   .public-move__sticker:nth-child(5),
   .public-move__sticker:nth-child(6) { display: none; }
-  .public-move__sticker:nth-child(1) { top: 150px !important; left: 2% !important; }
-  .public-move__sticker:nth-child(2) { top: 270px !important; left: 6% !important; }
-  .public-move__sticker:nth-child(3) { top: 140px !important; left: 84% !important; }
-  .public-move__sticker:nth-child(4) { top: 260px !important; left: 80% !important; }
+  .public-move__sticker:nth-child(1) { top: 30px !important; left: 4% !important; }
+  .public-move__sticker:nth-child(2) { top: 120px !important; left: 8% !important; }
+  .public-move__sticker:nth-child(3) { top: 24px !important; left: 82% !important; }
+  .public-move__sticker:nth-child(4) { top: 116px !important; left: 78% !important; }
 }
 
 /* Above the sky; the opening, the book and the letter sit above the stickers. */
@@ -93,12 +93,13 @@
 }
 
 /* ─── The notebook ──────────────────────────────────────────────────────── */
+/* It leads the page now: the book first, then the letter it stands on says the rest. */
 /* The child app's book at bookshelf size, its foot standing on the letter below. */
 .public-move > .public-move__book {
   z-index: 3;
   width: 168px;
   height: 196px;
-  margin: 4px auto -58px;
+  margin: 20px auto -58px;
   display: grid;
   place-items: center;
 }
@@ -166,6 +167,15 @@
   align-items: center;
   gap: 4px;
   text-align: center;
+}
+
+.public-move__eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
 }
 
 .public-page--shared .public-move__name {

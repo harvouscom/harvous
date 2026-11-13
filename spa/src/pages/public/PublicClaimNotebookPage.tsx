@@ -1,8 +1,8 @@
 /**
  * `/family/notebook/:token` — a parent's link to move a child notebook into the teen's own account.
  *
- * Built on the shared pages (PublicSharedThreadPage): a sky band, who sent it as a sentence
- * with their name marked, then the object itself. A shared Thread is a manila folder; this is
+ * Built on the shared pages (PublicSharedThreadPage): a sky band, then the object itself, then
+ * one letter that says who sent it, as a sentence with their name marked. A shared Thread is a manila folder; this is
  * the notebook they kept as a kid, drawn with the cover they chose, standing on a cream letter
  * that names it, counts it and says what moving it does. Nothing from inside a note is on the
  * page. The button floats and comes to rest on the letter's edge.
@@ -97,12 +97,12 @@ type Tone = 'blue' | 'green' | 'purple' | 'pink' | 'orange' | 'yellow';
 
 /** Die-cut stickers around the notebook, as on harvous.com's child notebooks desk. */
 const STICKERS: { symbol: 'rainbow' | 'fish' | 'sun' | 'crown' | 'heart' | 'star'; tone: Tone; top: string; left: string; tilt: number }[] = [
-  { symbol: 'rainbow', tone: 'pink', top: '10%', left: '6%', tilt: -10 },
-  { symbol: 'fish', tone: 'blue', top: '52%', left: '3%', tilt: 8 },
-  { symbol: 'sun', tone: 'yellow', top: '6%', left: '84%', tilt: 12 },
-  { symbol: 'heart', tone: 'orange', top: '48%', left: '88%', tilt: -7 },
-  { symbol: 'crown', tone: 'green', top: '30%', left: '18%', tilt: 6 },
-  { symbol: 'star', tone: 'purple', top: '30%', left: '74%', tilt: -12 },
+  { symbol: 'rainbow', tone: 'pink', top: '6%', left: '8%', tilt: -10 },
+  { symbol: 'fish', tone: 'blue', top: '30%', left: '2%', tilt: 8 },
+  { symbol: 'sun', tone: 'yellow', top: '4%', left: '84%', tilt: 12 },
+  { symbol: 'heart', tone: 'orange', top: '30%', left: '90%', tilt: -7 },
+  { symbol: 'crown', tone: 'green', top: '22%', left: '20%', tilt: 6 },
+  { symbol: 'star', tone: 'purple', top: '20%', left: '72%', tilt: -12 },
 ];
 
 function FloatingStickers() {
@@ -127,8 +127,9 @@ type ManifestRow = { icon: IconName; tone: Tone; what: string; detail?: string; 
  * goes, so nothing has to be read as a paragraph. One button floats, as on the shared pages;
  * anything else is a quiet link at the letter's foot.
  */
-function Letter({ name, fields, title, rows, note, aside, moved = false }: {
-  name: string;
+function Letter({ eyebrow, heading, fields, title, rows, note, aside, moved = false }: {
+  eyebrow: string;
+  heading: ReactNode;
   fields: { label: string; value: string }[];
   title: string;
   rows: ManifestRow[];
@@ -140,9 +141,10 @@ function Letter({ name, fields, title, rows, note, aside, moved = false }: {
     <div className="public-paper-stack public-shared__stack public-move__letter">
       <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
       <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
-      <section className="public-shared__sheet public-move__sheet" aria-label={name}>
+      <section className="public-shared__sheet public-move__sheet" aria-label={eyebrow}>
         <header className="public-move__plate">
-          <h1 className="public-move__name">{name}</h1>
+          <p className="public-move__eyebrow">{eyebrow}</p>
+          <h1 className="public-move__name">{heading}</h1>
           {fields.length ? (
             <dl className="public-move__fields">
               {fields.map((field) => (
@@ -211,12 +213,6 @@ export default function PublicClaimNotebookPage() {
   const openHome = (spaceId: string) => void navigate({ to: enterSpaceUrl(spaceId) as never });
 
   const data = FIXTURE ? FIXTURE_PREVIEW : preview.data;
-  const opening = (eyebrow: string, line: ReactNode) => (
-    <div className="public-shared__opening">
-      <p className="public-shared__eyebrow">{eyebrow}</p>
-      <h2 className="public-shared__opening-line">{line}</h2>
-    </div>
-  );
   const cta = (primary: ReactNode) => (
     <div className="public-shared__cta-bar">
       <div className="public-shared__cta-inner public-move__cta">{primary}</div>
@@ -230,9 +226,9 @@ export default function PublicClaimNotebookPage() {
     const s = done.summary;
     const notes = s.notes + s.familyBibleNotes;
     content = <>
-      {opening('It’s yours now', <>Welcome to <span className="public-shared__mark">your own Harvous</span>.</>)}
       <Notebook name={data?.displayName ?? ''} preferences={data?.preferences ?? null} moved />
-      <Letter moved name={data?.displayName ? `${data.displayName}’s notebook` : 'Your notebook'}
+      <Letter moved eyebrow={data?.displayName ? `${data.displayName}’s notebook` : 'Your notebook'}
+        heading={<>Welcome to <span className="public-shared__mark">your own Harvous</span>.</>}
         fields={[{ label: 'Notes', value: String(notes) }, ...(s.highlights ? [{ label: 'Highlights', value: String(s.highlights) }] : [])]}
         title="Where everything went" rows={[
           { icon: 'note-sticky', tone: 'blue', what: notes === 1 ? '1 note' : `${notes} notes`, detail: 'With their folders, tags and Threads', where: 'My Home' },
@@ -251,9 +247,8 @@ export default function PublicClaimNotebookPage() {
   } else if (!isSignedIn && !FIXTURE) {
     // Nothing about the notebook until they're signed in: no name, no cover, no counts.
     content = <>
-      {opening('From your family', 'A notebook is waiting for you.')}
       <Notebook name="" preferences={WAITING_COVER} />
-      <Letter name="Your notebook" fields={[]} title="Keep what you wrote" rows={[
+      <Letter eyebrow="From your family" heading="A notebook is waiting for you." fields={[]} title="Keep what you wrote" rows={[
         { icon: 'note-sticky', tone: 'blue', what: 'Your notes', detail: 'With their folders, tags and Threads', where: 'Your account' },
         { icon: 'highlighter', tone: 'yellow', what: 'Your highlights', where: 'Your Bible' },
       ]} note="Your parent sent this link. Create your account, or sign in, to see your notebook."
@@ -271,11 +266,12 @@ export default function PublicClaimNotebookPage() {
   } else {
     const keptSpan = kept(data.keptFrom, data.keptTo);
     content = <>
-      {opening('From your family', data.parentFirstName
-        ? <><span className="public-shared__mark">{data.parentFirstName}</span> sent you your notebook.</>
-        : 'Your notebook is ready to move.')}
       <Notebook name={data.displayName} preferences={data.preferences} />
-      <Letter name={`${data.displayName}’s notebook`} fields={[
+      <Letter eyebrow={`${data.displayName}’s notebook`}
+        heading={data.parentFirstName
+          ? <><span className="public-shared__mark">{data.parentFirstName}</span> sent you your notebook.</>
+          : 'Your notebook is ready to move.'}
+        fields={[
         { label: 'Notes', value: data.notes ? String(data.notes) : 'None yet' },
         ...(data.highlights ? [{ label: 'Highlights', value: String(data.highlights) }] : []),
         ...(keptSpan ? [{ label: 'Kept', value: keptSpan }] : []),
