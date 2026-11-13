@@ -77,7 +77,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     group: 'mine',
     title: 'My Family',
     route: prototypeHref('settings/family'),
-    icon: 'user-group',
+    icon: 'people-roof',
     footnote: 'A Family Space, your Plus for the household, and how the kids are doing.',
   },
   {
