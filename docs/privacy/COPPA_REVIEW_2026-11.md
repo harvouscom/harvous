@@ -233,3 +233,58 @@ from following the rule, not from the LLC. Ask the lawyer about insurance (quest
    version).
 5. Lawyer review of this document, the notice and #72.
 6. Publish the policy, then submit KWS Production for Epic's review.
+
+## Second review: three independent passes (12 November 2026)
+
+There is no counsel. In its place, three reviewers worked separately from the rule text and the code,
+not from this document:
+1. The notice and policy, element by element against §312.4–§312.10.
+2. Every claim the notice and policy make, checked against the code.
+3. An adversarial "FTC staff" reading.
+
+Each finding below was verified in the code before it was acted on.
+
+**Fixed in code**, in the PR that added this section:
+- **PostHog leak.** The child's "Give it to my parent" hop lands on adult sign-in with the settings path
+  URL-encoded, and the analytics filter missed it. It now matches the encoded form and `child_return=`,
+  with a behavioural test (`src/utils/__tests__/posthog-child-context.test.ts`).
+- **Look back left rows behind.** A child's answers wrote study-graph rows (`UserNodeStates`) that notebook
+  deletion never cleared. Children no longer write them, and deletion clears any that exist. The "shown"
+  events are now awaited, so none can land after a delete.
+- **Free text could be stored.** The child answer route no longer passes on `attempt`, so a child's Look
+  back can't store free text even if a request sends it.
+- **Removing access during a pause.** Removing ministry access works while a notebook is paused for
+  re-consent, as the policy's "at any time" promises.
+- **Enrollment gate.** Production enrollment, the pilot included, now also requires
+  `HARVOUS_CHILD_SECURITY_PROGRAM_ADOPTED=true` (§312.8(b)).
+- **Policy link inside the notice.** The notice now links the policy itself, so the renewal screen has the
+  link (§312.4(c)(1)(v)). My Bible has the policy footnote by its highlights and stickers (§312.4(d)).
+- **Notice wording** (now version `2026-11-12.3`):
+  - the consent checkbox no longer says "disclosure";
+  - the disclosure exceptions match the policy;
+  - it names the country and language sent to KWS;
+  - it tells the parent to "check the box and select Agree";
+  - it makes clear that the 30-day export window follows a withdrawal.
+- **Kids Worker query strings.** The Worker dropped query strings, so Look back's day boundary never reached
+  the API. Not a privacy issue.
+
+**Policy wording**, sent to the harvous.com policy PR: the notice summarizes the policy rather than
+matching it; KWS is listed separately as handling only the parent's details; there's no single-note
+delete; no retention row is open-ended; "last used" gets a row; expired links and sessions are cleared
+daily; the completed verification (email hash and KWS reference) is kept with the notebook; the export
+holds Look back's current progress; and the wording about adult Harvous is tighter.
+
+**Still Derek's to decide or do before launch:**
+1. **AgeGraph pre-verification** (all three passes flagged it). A parent KWS has already verified skips
+   every listed method. Either turn pre-verification off for Harvous in KWS, if the portal allows it, or
+   add a confirmation email to the verified address after consent, which §312.5(b)(2)(viii) allows
+   because Harvous makes no disclosures.
+2. **Epic in writing:** how long KWS keeps SSNs and card data, and whether it refuses prepaid and gift
+   cards (§312.5(b)(2)(ii), (v)).
+3. **The written assurances (DPAs)** and the signed security program, including the staff-access log the
+   policy promises. Then set `HARVOUS_CHILD_SECURITY_PROGRAM_ADOPTED=true`.
+4. **Email parents when the notice changes** (§312.4(b)). This only matters once real parents exist.
+5. **The child-return hop** still lands on a sign-in page that links to sign-up. Consider a sign-in-only
+   page for `child_return`.
+6. **A COPPA Safe Harbor program** (kidSAFE, PRIVO, iKeepSafe and others, §312.11) is the practical stand-in
+   for counsel. It gives an accountable review and deemed compliance while Harvous follows its guidelines.

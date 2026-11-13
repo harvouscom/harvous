@@ -34,6 +34,9 @@ export function familyEnrollmentConfig(env = process.env, parentId?: string) {
         env.FLY_APP_NAME === 'harvous' || ['harvous.com', 'app.harvous.com', 'new.harvous.com'].includes(parent.hostname) ||
         new URL(urls.childAppUrl).hostname === 'kids.harvous.com') return null;
   } else if (env.NODE_ENV === 'production' && config.environment !== 'production') return null;
+  // COPPA §312.8(b): no child's information in production until the written security program is adopted
+  // (docs/privacy/CHILD_INFORMATION_SECURITY_PROGRAM.md, signed). Staging is exempt; it holds fictional children.
+  else if (env.NODE_ENV === 'production' && env.HARVOUS_CHILD_SECURITY_PROGRAM_ADOPTED !== 'true') return null;
   return config;
 }
 

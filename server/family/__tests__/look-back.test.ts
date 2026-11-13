@@ -2,19 +2,28 @@ import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PgDialect } from 'drizzle-orm/pg-core';
-import { ReviewEvents, ReviewItems } from '../../db/schema';
+import { ReviewEvents, ReviewItems, UserNodeStates } from '../../db/schema';
 import { deleteChildLookBack, CHILD_LOOK_BACK_CAP } from '../look-back';
 
 vi.mock('../../db/client', () => ({ db: {} }));
 
 describe('Look back (the child review dock)', () => {
-  it('deletes the child’s review items and events with the notebook', async () => {
+  it('deletes the child’s review items, events and any study-graph rows with the notebook', async () => {
     const tables: unknown[] = []; const wheres: any[] = [];
     const tx = { delete: vi.fn((table: unknown) => { tables.push(table); return { where: (condition: any) => { wheres.push(condition); return Promise.resolve(); } }; }) };
     await deleteChildLookBack(tx as never, 'child_abc');
-    expect(tables).toEqual([ReviewEvents, ReviewItems]);
+    expect(tables).toEqual([ReviewEvents, ReviewItems, UserNodeStates]);
     const dialect = new PgDialect();
-    expect(wheres.map(where => dialect.sqlToQuery(where).params)).toEqual([['child_abc'], ['child_abc']]);
+    expect(wheres.map(where => dialect.sqlToQuery(where).params)).toEqual([['child_abc'], ['child_abc'], ['child_abc']]);
+  });
+
+  it('never writes the study graph or free text for a child, and awaits its own writes', () => {
+    const service = readFileSync(resolve(process.cwd(), 'server/utils/review-service.ts'), 'utf8');
+    expect(service).toMatch(/if \(!isChildReader\(userId\)\) void recordReviewOutcomeNodes\(/);
+    const routes = readFileSync(resolve(process.cwd(), 'server/routes/child-accounts.ts'), 'utf8');
+    expect(routes).toMatch(/const \{ attempt: _ignored, \.\.\.body \}/);
+    const lookBack = readFileSync(resolve(process.cwd(), 'server/family/look-back.ts'), 'utf8');
+    expect(lookBack).toMatch(/await itemsShownSince\(/);
   });
 
   it('keeps a child’s day small', () => {
