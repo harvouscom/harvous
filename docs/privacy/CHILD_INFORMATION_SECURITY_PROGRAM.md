@@ -50,7 +50,9 @@ they're added in section 3 before their access starts.
   - **Supabase:** on (passkey, with recovery codes).
   - **Cloudflare:** its own two-factor is off; sign-in goes through GitHub. Turn Cloudflare's on as
     well, in case a password sign-in exists.
-  - **Fly.io, Clerk, Epic:** to confirm in each account's security settings.
+  - **Fly.io:** no password at all; sign-in only through the linked identity (derekj@hey.com, the
+    GitHub account's email), so it's protected by that sign-in's two-factor.
+  - **Clerk, Epic:** to confirm in each account's security settings.
 - **No direct reads.** Staff don't open a child's notebook or query children's rows except to fix
   a problem the parent reports, with the parent's permission, or when the law requires it. Each
   such access is noted in the staff access log: iCloud Drive › Harvous Compliance ›
