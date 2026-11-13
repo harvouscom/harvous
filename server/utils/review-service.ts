@@ -2243,7 +2243,8 @@ export async function applyReviewOutcome(
   // Study Bible layer: what the reader just answered, and when it comes back. The mirror
   // columns exist so the engine can skip a node that is already scheduled without joining
   // this table; ReviewItems above stays the authority on the schedule itself.
-  void recordReviewOutcomeNodes(userId, item, outcome, attempt, next, now);
+  // Not for a child: Look back has no study graph, and these rows would outlive the notebook's deletion.
+  if (!isChildReader(userId)) void recordReviewOutcomeNodes(userId, item, outcome, attempt, next, now);
 
   return {
     item: updated,

@@ -40,7 +40,7 @@ describe('KWS integration', () => {
       HARVOUS_CHILD_PRIVACY_URL: 'https://harvous.com/children', CLERK_SECRET_KEY: 'sk_live_placeholder',
       KWS_ENVIRONMENT: 'production', KWS_CLIENT_ID: 'client', KWS_API_KEY: 'key',
       KWS_SEND_EMAIL_URL: 'https://api.kidswebservices.com/configured/send-email', KWS_ORG_ID: 'org',
-      KWS_PRODUCT_ID: 'product', KWS_WEBHOOK_SECRET: 'webhook',
+      KWS_PRODUCT_ID: 'product', KWS_WEBHOOK_SECRET: 'webhook', HARVOUS_CHILD_SECURITY_PROGRAM_ADOPTED: 'true',
       SUPABASE_DATABASE_URL: 'postgres://postgres.mhriprqpyvhjgdssjlfl:dummy@aws-1-us-east-1.pooler.supabase.com/postgres'
     };
     expect(familyEnrollmentConfig(production, 'user_testPilot')?.environment).toBe('production');
@@ -51,6 +51,9 @@ describe('KWS integration', () => {
     expect(familyEnrollmentConfig({ ...production, HARVOUS_CHILD_RETENTION_READY: 'false' }, 'user_testPilot')).toBeNull();
     expect(familyEnrollmentConfig({ ...production, CLERK_SECRET_KEY: 'sk_test_placeholder' }, 'user_testPilot')).toBeNull();
     expect(familyEnrollmentConfig({ ...production, SUPABASE_DATABASE_URL: 'postgres://localhost:5432/harvous' }, 'user_testPilot')).toBeNull();
+    // COPPA §312.8(b): no production enrollment, pilot included, until the security program is adopted.
+    expect(familyEnrollmentConfig({ ...production, HARVOUS_CHILD_SECURITY_PROGRAM_ADOPTED: undefined }, 'user_testPilot')).toBeNull();
+    expect(familyEnrollmentConfig({ ...production, HARVOUS_CHILD_ACCOUNTS_ENABLED: 'true', HARVOUS_CHILD_SECURITY_PROGRAM_ADOPTED: 'false' })).toBeNull();
   });
 
   it('does not contact KWS without explicit enrollment enablement', async () => {

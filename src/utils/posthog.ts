@@ -59,7 +59,9 @@ function getPostHogHost(): string {
   return env.VITE_PUBLIC_POSTHOG_HOST || env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
 }
 
-const childNotebookContext = /\/(?:settings\/(?:family|child-accounts)|__dev\/child-notebook|kids\.html|api\/child-accounts)\b|\bchild_[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\b/i;
+// Also the URL-encoded form (`redirect_url=%2Fsettings%2Fchild-accounts`) and the child-return hop: a child
+// tapping "Give it to my parent" lands on adult sign-in while still holding the device.
+export const childNotebookContext = /(?:\/|%2F)(?:settings(?:\/|%2F)(?:family|child-accounts)|__dev(?:\/|%2F)child-notebook|kids\.html|api(?:\/|%2F)child-accounts)\b|\bchild_return=|\bchild_[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\b/i;
 
 const excludeChildNotebookEvents: BeforeSendFn = (event) => {
   if (!event || childNotebookContext.test(window.location.href)) return null;
