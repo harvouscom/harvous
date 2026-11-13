@@ -70,7 +70,20 @@ function ChildAccountsRow() {
   const { data } = useChildAccountsStatus();
   const navigate = useNavigate();
   const [ageChoice, setAgeChoice] = useState<'choose' | 'teen' | null>(null);
-  if (!data?.available && !data?.children.length) return null;
+  if (!data?.available && !data?.children.length) {
+    // Before enrollment opens: Plus members (whose plan will include it) see it's on the way. No setup,
+    // nothing to fill in, nothing collected. Turns into the real flow when the server reports `available`.
+    if (!data?.plus) return null;
+    return (
+      <section aria-label="Child notebooks">
+        <SectionLabel>Child notebooks</SectionLabel>
+        <SettingsGroup>
+          <SettingsRow label="Under 13" badge="Coming soon" leadingIcon="book-open" trailing="none"
+            sublabel="Parent-managed notebooks for kids in the United States, included with Harvous Plus" />
+        </SettingsGroup>
+      </section>
+    );
+  }
   const verified = data.verifications.some((verification) => verification.status === 'verified');
   const inProgress = !data.requiresPlus && (verified || data.verifications.some((verification) => verification.status === 'pending'));
   const hasNotebooks = data.children.length > 0;
@@ -277,7 +290,7 @@ function StartFamily({ data }: { data: Extract<FamilyResponse, { family: null }>
         <div className="proto-lock-pin-settings__body">
           <div className="proto-lock-pin-settings__hero">
             <span className="proto-lock-pin-settings__glyph" aria-hidden>
-              <Icon name="user-group" size={22} />
+              <Icon name="people-roof" size={22} />
             </span>
             <span className="proto-lock-pin-settings__hero-text">
               <span className="proto-lock-pin-settings__status">Start a family</span>
@@ -833,7 +846,7 @@ export function FamilyView({ data }: { data: InFamily }) {
         <SettingsRow
           label={family.name}
           sublabel={isParent ? 'Rename' : undefined}
-          leadingIcon="user-group"
+          leadingIcon="people-roof"
           trailing={isParent ? 'chevron' : 'none'}
           onClick={isParent ? () => setView({ kind: 'rename' }) : undefined}
         />

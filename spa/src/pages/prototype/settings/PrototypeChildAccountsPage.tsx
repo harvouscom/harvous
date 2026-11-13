@@ -85,7 +85,7 @@ export default function PrototypeChildAccountsPage() {
     void navigate({ to: notebookRoute, search: { child }, replace });
   }
   if (selected && detail.data) {
-    return <ManageChildNotebook key={selected} detail={detail.data} childAppUrl={data.available ? data.childAppUrl : undefined}
+    return <ManageChildNotebook key={selected} detail={detail.data} childAppUrl={data.available ? data.childAppUrl : undefined} privacyUrl={data.privacyUrl}
       busy={busy} error={error} message={message} perform={perform} onDelete={() => {
         qc.setQueryData<FamilyStatus>(['family', userId, 'child-accounts'], current => current && ({
           ...current, children: current.children.filter(child => child.id !== selected),
@@ -186,7 +186,7 @@ export default function PrototypeChildAccountsPage() {
                         <span className="pds-list-title">Read the full privacy notice</span>
                         <Icon name="chevron-down" size={12} aria-hidden />
                       </summary>
-                      <ChildPrivacyNotice />
+                      <ChildPrivacyNotice privacyUrl={data.privacyUrl} />
                     </details>
                     <a className="proto-note-row proto-settings-row pds-family-privacy__action" href={data.privacyUrl} target="_blank" rel="noreferrer">
                       <span className="pds-list-title">Privacy policy and contact details</span>
@@ -201,7 +201,7 @@ export default function PrototypeChildAccountsPage() {
                   <label className="pds-family-choice pds-subheadline">
                     <input type="checkbox" className="proto-checkbox--accent" checked={noticeAccepted}
                       disabled={busy || !noticeMatches} onChange={(e) => setNoticeAccepted(e.target.checked)} />
-                    <span>I am the parent or legal guardian. My child is under 13 and lives in the United States. I have read the notice and consent to the collection, use, and disclosure it describes.</span>
+                    <span>I am the parent or legal guardian. My child is under 13 and lives in the United States. I have read the notice and consent to the collection and use of my child’s information it describes.</span>
                   </label>
                   {noticeAccepted && noticeMatches && <form className="pds-family-stack pds-family-consent__form" onSubmit={(e) => {
                     e.preventDefault();

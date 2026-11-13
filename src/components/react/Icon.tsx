@@ -116,6 +116,7 @@ import eraserSvg from '@fortawesome/fontawesome-free/svgs/solid/eraser.svg?raw';
 import replySvg from '@fortawesome/fontawesome-free/svgs/solid/reply.svg?raw';
 import userSvg from '@fortawesome/fontawesome-free/svgs/solid/user.svg?raw';
 import userGroupSvg from '@fortawesome/fontawesome-free/svgs/solid/user-group.svg?raw';
+import peopleRoofSvg from '@fortawesome/fontawesome-free/svgs/solid/people-roof.svg?raw';
 import eyeSvg from '@fortawesome/fontawesome-free/svgs/solid/eye.svg?raw';
 import eyeSlashSvg from '@fortawesome/fontawesome-free/svgs/solid/eye-slash.svg?raw';
 import pasteSvg from '@fortawesome/fontawesome-free/svgs/solid/paste.svg?raw';
@@ -195,6 +196,8 @@ const icons = {
   // Privacy selector icons
   user: svgRootCurrentColor(userSvg),
   'user-group': svgRootCurrentColor(userGroupSvg),
+  // My Family — matches the Family add-on's mark on harvous.com.
+  'people-roof': svgRootCurrentColor(peopleRoofSvg),
   megaphone: withCurrentColor(bullhornSvg),
   
   // Selection/action icons (Font Awesome)

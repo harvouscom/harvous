@@ -9,6 +9,8 @@ export type FamilyChild = {
 export type ChildNote = { id: string; title: string | null; content: string; updatedAt: string | null; primaryCollection?: string | null; tagIds?: string[]; threadIds?: string[]; attachments?: ChildNoteAttachment[] };
 export type FamilyStatus = {
   available: boolean; requiresPlus: boolean; children: FamilyChild[]; noticeVersion: string;
+  /** The parent has Harvous Plus (the check that gates setup), sent even while setup is closed. */
+  plus?: boolean;
   verifications: { id: string; status: string }[];
   /** Per-parent child notebook cap and how many places are taken. Absent from older API responses. */
   childNotebookMax?: number; childNotebookPlacesHeld?: number;

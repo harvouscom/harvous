@@ -27,7 +27,7 @@ export const familyAddableBibleTranslations = ['BSB', 'NIV', 'NLT', 'KJV', 'NKJV
 export type ChildBibleTranslation = typeof childBibleTranslations[number] | typeof familyAddableBibleTranslations[number];
 export const allChildBibleTranslations = [...childBibleTranslations, ...familyAddableBibleTranslations] as const;
 
-export const CHILD_NOTICE_VERSION = '2026-11-12.2';
+export const CHILD_NOTICE_VERSION = '2026-11-12.3';
 
 /**
  * How many child notebooks one parent can hold. Separate from Family's six people

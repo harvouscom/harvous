@@ -101,6 +101,8 @@ Set `HARVOUS_CHILD_ENVIRONMENT=staging` on the staging API. That setting accepts
 
 ## Deployment sequence
 
+**Launch status and the approval-day runbook are in [`CHILD_NOTEBOOKS_LAUNCH.md`](CHILD_NOTEBOOKS_LAUNCH.md).** The sequence below is the original plan; the launch doc records where it stands.
+
 1. Review the child data flow, privacy notice, vendor contracts, jurisdiction scope, retention, ministry safeguards, and incident-response process with qualified counsel. KWS integration is not Harvous certification.
 2. Run `npm run child-accounts:schema` to inspect the additive SQL. Apply it to the explicitly reviewed staging target using `npm run child-accounts:schema -- --apply` and the existing database target guard. Do not use the Shared Spaces migration for these tables.
 3. Build the API and adult SPA. Run `npm run build:child` to build `kids.html` into `dist-kids`. Deploy the child front end with `wrangler.kids.jsonc` on its own origin. That worker blocks adult routes and service workers, strips cookies, has no SPA fallback, and sends restrictive content/security headers. Do not enable Cloudflare Web Analytics or other tracking injection on this origin.

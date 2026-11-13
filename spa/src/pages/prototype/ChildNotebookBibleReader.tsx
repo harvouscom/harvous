@@ -8,6 +8,7 @@ import { bookChapterCount, orderedCanonBooks } from '@/utils/bible-book-chapters
 import { bookAbbreviation } from '@/utils/scripture-osis';
 import { useChildNotebookAppearance } from './ChildNotebookAppearance';
 import FamilyVerseDiscussion from '../family/FamilyVerseDiscussion';
+import { ChildPrivacyFootnote } from '../family/ChildPrivacyNotice';
 import ProtoSelectMenu from './ProtoSelectMenu';
 import type { CSSProperties, ReactNode } from 'react';
 import { verseStickers, verseStickerLabel, type ChildVerseSticker, type VerseSticker } from '../../../../shared/child-verse-stickers';
@@ -393,6 +394,9 @@ export default function ChildNotebookBibleReader({ active, mode, passage, onMode
             </div>
           )}
           {live && data && <p className="pds-caption pds-kids-bible__copyright">{getTranslation(translation)?.copyright}</p>}
+          {/* My Bible saves highlights and stickers, so the policy link sits with them (COPPA §312.4(d)). Family
+              Bible thoughts carry their own, in the reply box. */}
+          {!isFamily && data && <ChildPrivacyFootnote url={privacyUrl}>Your highlights and stickers are saved to your notebook.</ChildPrivacyFootnote>}
           </>}
         </article>
         {!liveEmpty && (!live || !isFamily) && renderEdge(book, chapter, translation, 'ahead', onNavigate)}

@@ -1,6 +1,6 @@
 import { and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '../db/client';
-import { FamilyChildVerseHighlights, FamilyChildVerseStickers, Notes, ReviewEvents, ReviewItems } from '../db/schema';
+import { FamilyChildVerseHighlights, FamilyChildVerseStickers, Notes, ReviewEvents, ReviewItems, UserNodeStates } from '../db/schema';
 import { buildReviewSitting } from '../utils/review-sitting';
 import {
   composeTodaySittingFor,
@@ -81,7 +81,8 @@ export async function childLookBackSitting(child: Child, since: Date | null, now
   const { items, reveals } = await buildReviewSitting(child.id, sitting.rows, now);
   const rowById = new Map(sitting.rows.map(row => [row.id, row]));
   const shownSince = since ?? new Date(now.getTime() - 86_400_000);
-  void itemsShownSince(child.id, items.map(item => item.id), shownSince)
+  // Awaited (at most a handful of rows) so nothing is written under the child's id after the request ends.
+  await itemsShownSince(child.id, items.map(item => item.id), shownSince)
     .then(already => Promise.all(items.map(item => {
       const row = rowById.get(item.id);
       return row && !already.has(item.id) ? recordReviewEvent(child.id, row, 'shown', { rungKey: item.promptKey }) : Promise.resolve();
@@ -104,5 +105,7 @@ export async function exportChildLookBack(child: Child) {
 export async function deleteChildLookBack(tx: Pick<typeof db, 'delete'>, childId: string) {
   await tx.delete(ReviewEvents).where(eq(ReviewEvents.userId, childId));
   await tx.delete(ReviewItems).where(eq(ReviewItems.userId, childId));
+  // Study-graph rows a child's answers wrote before review-service skipped them for children.
+  await tx.delete(UserNodeStates).where(eq(UserNodeStates.userId, childId));
 }
 

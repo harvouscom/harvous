@@ -22,7 +22,7 @@ export default {
       const headers = new Headers(request.headers);
       headers.delete('Cookie');
       try {
-        const upstream = new Request(new URL(url.pathname, env.API_ORIGIN), { method: request.method,
+        const upstream = new Request(new URL(url.pathname + url.search, env.API_ORIGIN), { method: request.method,
           headers, body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body, redirect: 'manual' });
         const response = await fetch(upstream, { signal: AbortSignal.timeout(20_000) });
         const result = new Response(response.body, response);

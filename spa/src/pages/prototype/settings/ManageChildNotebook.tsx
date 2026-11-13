@@ -30,6 +30,8 @@ type Pane = keyof typeof paneTitles;
 type Props = {
   detail: ChildDetail;
   childAppUrl?: string;
+  /** The published Children's Privacy Policy, linked inside the renewal notice (§312.4(c)(1)(v)). */
+  privacyUrl?: string;
   busy: boolean;
   error: string;
   message: string;
@@ -37,7 +39,7 @@ type Props = {
   onDelete: () => void;
 };
 
-export default function ManageChildNotebook({ detail, childAppUrl, busy, error, message, perform, onDelete }: Props) {
+export default function ManageChildNotebook({ detail, childAppUrl, privacyUrl, busy, error, message, perform, onDelete }: Props) {
   const { child, notes, readings, ministries, approvals } = detail;
   const clerk = useClerk();
   const queryClient = useQueryClient();
@@ -154,12 +156,12 @@ export default function ManageChildNotebook({ detail, childAppUrl, busy, error, 
               <p className="pds-subheadline">{child.displayName}’s notebook is paused until you review the changes and agree again. Their notes are safe in the meantime.</p>
               <details className="pds-family-privacy__disclosure pds-family-renewal__notice">
                 <summary className="pds-list-title">Read the updated notice <Icon name="chevron-down" size={12} aria-hidden /></summary>
-                <ChildPrivacyNotice />
+                <ChildPrivacyNotice privacyUrl={privacyUrl} />
               </details>
               <label className="pds-family-choice pds-subheadline">
                 <input type="checkbox" className="proto-checkbox--accent" checked={renewAccepted} disabled={disabled}
                   onChange={event => setRenewAccepted(event.target.checked)} />
-                <span>I am the parent or legal guardian. My child is under 13 and lives in the United States. I have read the updated notice and consent to the collection, use, and disclosure it describes.</span>
+                <span>I am the parent or legal guardian. My child is under 13 and lives in the United States. I have read the updated notice and consent to the collection and use of my child’s information it describes.</span>
               </label>
               <button type="button" className="proto-settings-btn" disabled={disabled || !renewAccepted}
                 onClick={() => void perform(async () => {
