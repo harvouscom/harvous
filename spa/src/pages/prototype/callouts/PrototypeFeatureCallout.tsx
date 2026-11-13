@@ -168,6 +168,7 @@ export function useActiveCallouts(): {
         },
         openSettings: (path) => void navigate({ to: prototypeHref(path) as never }),
         openBibleMap: () => openExpandedSidebar('bible-map'),
+        openUpgrade: () => void navigate({ to: '/upgrade' }),
       };
       if ('href' in callout.action) {
         window.open(callout.action.href, '_blank', 'noopener,noreferrer');

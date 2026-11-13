@@ -265,7 +265,8 @@
 .proto-callout-art--today-tabs { background-image: url("/images/callouts/today-tabs.webp"); }
 .proto-callout-art--legal { background-image: url("/images/callouts/legal.webp"); }
 /* Family wears the golden canvas (ai_bg_050). */
-.proto-callout-art--family { background-image: url("/images/callouts/family.webp"); }
+.proto-callout-art--family,
+.proto-callout-art--family-notebooks { background-image: url("/images/callouts/family.webp"); }
 /* My Bible wears the river canvas (ai_bg_047) — a map of where you have been. */
 .proto-callout-art--my-bible { background-image: url("/images/callouts/my-bible.webp"); }
 /* The letter wears harvous.com's homepage hero sky (ai_bg_053, cropped from the site's copy). */
@@ -450,6 +451,42 @@
   color: var(--pds-text-secondary);
   font-size: 7.5px;
   font-weight: 600;
+}
+
+/* A child's notebook, small: the cover colour, a darker spine on the left, its pattern, the
+   initial in the middle. The colours are the real cover's (`coverColors` in shared/child-notebook.ts). */
+.proto-callout-art__notebook {
+  --notebook-cover: var(--pds-thread-blue);
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 13px;
+  height: 16px;
+  padding-left: 2px;
+  border-radius: 1.5px 3px 3px 1.5px;
+  background: var(--notebook-cover);
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--notebook-cover) 70%, var(--pds-text-primary)),
+    0 0.5px 1.5px rgb(0 0 0 / 0.14);
+  /* The cover's own darker ink, as the kids' covers draw their initial — white disappears on
+     these pastels at this size. */
+  color: color-mix(in oklab, var(--notebook-cover) 35%, var(--pds-text-primary));
+  font-size: 7.5px;
+  font-weight: 700;
+}
+
+.proto-callout-art__notebook--blue { --notebook-cover: var(--pds-thread-blue); }
+.proto-callout-art__notebook--green { --notebook-cover: var(--pds-thread-green); }
+
+.proto-callout-art__notebook[data-pattern="dots"] {
+  background-image: radial-gradient(color-mix(in srgb, white 45%, transparent) 0.6px, transparent 0.8px);
+  background-size: 3px 3px;
+  background-color: var(--notebook-cover);
+}
+
+.proto-callout-art__notebook[data-pattern="stripes"] {
+  background-image: repeating-linear-gradient(135deg, color-mix(in srgb, white 35%, transparent) 0 1px, transparent 1px 3px);
+  background-color: var(--notebook-cover);
 }
 
 /* My Bible: the Home card's shelf, a spine per book, filled from the bottom. */
