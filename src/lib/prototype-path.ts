@@ -89,6 +89,8 @@ const NON_PROTOTYPE_PREFIXES = [
   '/churches/start',
   // A family invite, `/family/join/{token}` — same reasoning; there is no `/family` page.
   '/family/join/',
+  // A parent's link to move a child notebook into the teen's own account.
+  '/family/notebook/',
   '/api/',
   // The public listing page, `/discover/{slug}` — the install action only; the
   // in-app catalog is an expanded-sidebar tool with no route of its own. Without
@@ -125,6 +127,7 @@ export function isPublicAppPath(pathname: string): boolean {
       logical.startsWith('/churches/join/') ||
       logical === '/churches/start' ||
       logical.startsWith('/family/join/') ||
+      logical.startsWith('/family/notebook/') ||
       logical === '/upgrade' ||
       logical.startsWith('/upgrade/') ||
       logical === '/addon' ||

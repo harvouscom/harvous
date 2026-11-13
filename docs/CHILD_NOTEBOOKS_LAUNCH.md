@@ -130,6 +130,12 @@ In order. The person each step needs is in brackets.
   2. Update the public policy to match, in the same release.
   3. Email parents (§312.4(b)). That email isn't built yet.
 
+## Moving a notebook at 13
+
+Built after launch prep (see `CHILD_ACCOUNTS.md`). Before its first production deploy, Derek runs
+`add-child-account-schema.ts --apply --production`, which adds the `FamilyChildTransfers` table. It's
+idempotent, and the notebook page tolerates the table being missing until then.
+
 ## Open items that don't block launch
 
 - **Ask Epic** whether KWS's card check refuses prepaid and gift cards.

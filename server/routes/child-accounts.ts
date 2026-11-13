@@ -26,6 +26,9 @@ import { searchChildNotebook } from '../family/notebook-search';
 import { chapterStickers, setVerseSticker, verseStickerInput } from '../family/stickers';
 import { chapterHighlights, setVerseHighlight, verseHighlightInput } from '../family/highlights';
 import { consentHistory } from '../family/consents';
+import { claimNotebookMove, createNotebookMove, openNotebookMove, previewNotebookMove, revokeNotebookMoves } from '../family/notebook-move';
+import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
+import { getPublicAppOrigin } from '../utils/public-app-origin';
 import { isFamilyParent } from '../family/family-membership';
 import { childLookBackSitting } from '../family/look-back';
 import { buildReviewReveal, getReviewItem } from '../utils/review-service';
@@ -274,7 +277,8 @@ route.get(`${base}/children/:id`, requireAuth, async (c) => c.json(await db.tran
   const notes = await tx.select(childNoteSelection).from(Notes).where(eq(Notes.userId, child.id));
   const approvals = await tx.select().from(FamilySpaceApprovals).where(eq(FamilySpaceApprovals.childId, child.id));
   const ministries = await availableMinistries(tx, parentId(c));
-  return { child, notes, approvals, ministries, readings: await familyReadings(tx, child), consents: await consentHistory(tx, child), capabilities: CHILD_CAPABILITIES };
+  return { child, notes, approvals, ministries, readings: await familyReadings(tx, child), consents: await consentHistory(tx, child),
+    move: await openNotebookMove(tx, child.id), capabilities: CHILD_CAPABILITIES };
 })));
 
 // A parent can rename the notebook at any time — a nickname, a typo, two children with one name.
@@ -550,6 +554,36 @@ route.delete(`${base}/child/session`, async (c) => c.json(await withChildSession
   await tx.delete(FamilyChildSessions).where(eq(FamilyChildSessions.tokenHash, hashSecret(token(c)!)));
   return { success: true };
 })));
+
+// Moving a notebook into the young person's own account once they're 13 (server/family/notebook-move.ts).
+// Not gated on enrollment being open: like export and delete, it's a way out, never a way in.
+const moveInput = z.object({ familyInviteId: z.string().min(1).max(100).nullable().optional() }).strict();
+route.post(`${base}/children/:id/move`, requireAuth, async (c) => {
+  const input = moveInput.parse(await c.req.json().catch(() => ({})));
+  const created = await db.transaction(async (tx) => {
+    const child = await ownedChild(tx, parentId(c), requireParam(c, 'id'));
+    return createNotebookMove(tx, child, input.familyInviteId ?? null);
+  });
+  return c.json({ url: `${getPublicAppOrigin(c)}/family/notebook/${created.token}`, expiresAt: created.expiresAt }, 201);
+});
+route.delete(`${base}/children/:id/move`, requireAuth, async (c) => c.json(await db.transaction(async (tx) => {
+  const child = await ownedChild(tx, parentId(c), requireParam(c, 'id'));
+  await revokeNotebookMoves(tx, child.id);
+  return { success: true };
+})));
+const moveToken = (c: Parameters<typeof requireParam>[0]) => {
+  const value = requireParam(c, 'token');
+  if (!/^hvmove_[\w-]{43}$/.test(value)) throw new HTTPException(404, { message: 'This link isn’t working. Ask your parent for a new one.' });
+  return value;
+};
+route.get(`${base}/move/:token`, requireAuth, async (c) => c.json(await previewNotebookMove(moveToken(c), { userId: parentId(c) })));
+route.post(`${base}/move/:token/claim`, requireAuth, async (c) => {
+  const token = moveToken(c);
+  const userId = parentId(c);
+  const homeSpaceId = await ensurePersonalHomeSpace(userId);
+  const { summary, familyInviteToken } = await claimNotebookMove(token, { userId }, homeSpaceId);
+  return c.json({ summary, homeSpaceId, familyJoinPath: familyInviteToken ? `/family/join/${familyInviteToken}` : null });
+});
 
 route.post(retentionJob, async (c) => {
   const expected = process.env.FAMILY_RETENTION_CRON_SECRET;

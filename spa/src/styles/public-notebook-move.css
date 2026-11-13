@@ -1,0 +1,400 @@
+/*
+ * `/family/notebook/:token` (PublicClaimNotebookPage), loaded with its lazy route. The page
+ * shell — opening sentence, cream letter, floating button — is public-shared-paper.css.
+ *
+ * Inspired by harvous.com's child notebooks page: its "desk" gradient instead of the sign-in
+ * photo, die-cut stickers floating around the notebook, and the notebook itself (the child
+ * app's `.pds-kids-book`, in the cover they chose) standing on the letter. The letter is the
+ * notebook's label (name and fields, as on a shared Thread's folder) and then its packing
+ * list: each thing in it, and where it goes. Nothing from inside a note is on the page.
+ */
+
+/* ─── The desk ──────────────────────────────────────────────────────────── */
+.public-move__sky {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 0;
+  height: min(70vh, 620px);
+  background:
+    radial-gradient(55% 60% at 50% 42%, color-mix(in oklab, var(--pds-thread-green) 40%, transparent), transparent 70%),
+    radial-gradient(40% 50% at 8% 6%, color-mix(in oklab, var(--pds-thread-pink) 45%, transparent), transparent 70%),
+    radial-gradient(40% 50% at 94% 80%, color-mix(in oklab, var(--pds-thread-yellow) 50%, transparent), transparent 70%),
+    color-mix(in oklab, var(--pds-thread-blue) 22%, var(--sh-paper));
+  pointer-events: none;
+}
+
+.public-move__sky::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 200px;
+  background: linear-gradient(to bottom, transparent, var(--sh-paper));
+}
+
+/* Thread colours, as the child app and the website name them. */
+.public-move [data-tone="blue"] { --c: var(--pds-thread-blue); }
+.public-move [data-tone="green"] { --c: var(--pds-thread-green); }
+.public-move [data-tone="purple"] { --c: var(--pds-thread-purple); }
+.public-move [data-tone="pink"] { --c: var(--pds-thread-pink); }
+.public-move [data-tone="orange"] { --c: var(--pds-thread-orange); }
+.public-move [data-tone="yellow"] { --c: var(--pds-thread-yellow); }
+
+/* ─── Floating stickers ─────────────────────────────────────────────────── */
+.public-move {
+  position: relative;
+}
+
+.public-move__stickers {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 0;
+  height: 380px;
+  pointer-events: none;
+}
+
+.public-move__sticker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  aspect-ratio: 1;
+  border: 3px solid #fff;
+  border-radius: 14px;
+  color: oklch(from var(--c) 0.48 calc(c * 2) h);
+  background: oklch(from var(--c) 0.9 calc(c * 1.3) h);
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.08), 0 6px 12px -4px rgb(15 23 42 / 0.3);
+  transform: rotate(var(--tilt, 0deg));
+  animation: public-move-bob 6s ease-in-out infinite;
+}
+
+.public-move__sticker:nth-child(2n) { animation-delay: -2s; }
+.public-move__sticker:nth-child(3n) { animation-delay: -4s; }
+
+@keyframes public-move-bob {
+  0%, 100% { transform: translateY(0) rotate(var(--tilt)); }
+  50% { transform: translateY(-8px) rotate(calc(var(--tilt) + 3deg)); }
+}
+
+/* On a phone, four smaller stickers at the edges, beside the book and above the letter. */
+@media (max-width: 560px) {
+  .public-move__sticker { width: 38px; border-radius: 11px; }
+  .public-move__sticker:nth-child(5),
+  .public-move__sticker:nth-child(6) { display: none; }
+  .public-move__sticker:nth-child(1) { top: 30px !important; left: 4% !important; }
+  .public-move__sticker:nth-child(2) { top: 120px !important; left: 8% !important; }
+  .public-move__sticker:nth-child(3) { top: 24px !important; left: 82% !important; }
+  .public-move__sticker:nth-child(4) { top: 116px !important; left: 78% !important; }
+}
+
+/* Above the sky; the book and the letter sit above the stickers. Not the button bar: it's
+   `position: sticky` (public-shared-paper.css), floating at the window's bottom while you read. */
+.public-move > :not(.public-move__stickers, .public-shared__cta-bar) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── The notebook ──────────────────────────────────────────────────────── */
+/* It leads the page now: the book first, then the letter it stands on says the rest. */
+/* The child app's book at bookshelf size, its foot standing on the letter below. */
+.public-move > .public-move__book {
+  z-index: 3;
+  width: 168px;
+  height: 196px;
+  margin: 20px auto -58px;
+  display: grid;
+  place-items: center;
+}
+
+.public-move__book .pds-kids-book {
+  transform: scale(1.9);
+  transform-origin: 50% 60%;
+  filter: drop-shadow(0 10px 14px rgb(20 18 12 / 0.16));
+  animation: public-move-arrive 620ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+@keyframes public-move-arrive {
+  from { opacity: 0; transform: translateY(18px) scale(1.82); }
+}
+
+/* Moved: the book lifts a little off the letter, as if picked up, and takes a stamp. */
+.public-move__book--moved .pds-kids-book {
+  animation: public-move-lift 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes public-move-lift {
+  from { transform: scale(1.9); }
+  to { transform: translateY(-8px) rotate(3deg) scale(1.9); }
+}
+
+.public-move__stamp {
+  position: absolute;
+  right: 6px;
+  bottom: 40px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 2px solid var(--sh-card);
+  background: var(--pds-bg-accent-button);
+  color: #fff;
+  box-shadow: 0 6px 14px -6px rgb(0 80 200 / 0.6);
+  animation: public-move-stamp 420ms 380ms cubic-bezier(0.2, 0.8, 0.2, 1.4) backwards;
+}
+
+.public-move__stamp svg,
+.public-move__stamp path {
+  fill: currentColor;
+}
+
+@keyframes public-move-stamp {
+  from { opacity: 0; transform: scale(0.4); }
+}
+
+/* ─── The letter: label, then packing list ──────────────────────────────── */
+.public-page--shared .public-paper-stack.public-move__letter {
+  margin-top: 0;
+}
+
+.public-move__sheet {
+  /* The book's foot reaches ~15px into the letter; the name starts a short step below it. */
+  padding: 42px 22px 58px;
+}
+
+.public-move__plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.public-move__eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
+}
+
+.public-page--shared .public-move__name {
+  margin: 0;
+  font-family: "Google Sans Flex", "Google Sans", system-ui, sans-serif;
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: var(--sh-ink) !important;
+  text-wrap: balance;
+}
+
+.public-move__fields {
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 32px;
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--sh-rule);
+}
+
+.public-move__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.public-move__field dt {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft);
+}
+
+.public-move__field dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--sh-ink);
+}
+
+/* Set like the field labels above it. Specific enough to beat the shared pages' rule that inks
+   every heading in the letter (public-shared-paper.css). */
+.public-page--shared .public-shared__sheet h2.public-move__heading {
+  margin: 30px 0 10px;
+  font-size: 0.6875rem;
+  /* !important: a global rule sets every h1–h6 to 700 !important. */
+  font-weight: 600 !important;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sh-ink-soft) !important;
+}
+
+/* Each row: a sticker chip for the thing, what it is, and where it lands. */
+.public-move__manifest {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-move__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px dashed var(--sh-rule);
+}
+
+.public-move__row:first-child {
+  border-top: 0;
+}
+
+.public-move__chip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid #fff;
+  border-radius: 10px;
+  color: oklch(from var(--c) 0.48 calc(c * 2) h);
+  background: oklch(from var(--c) 0.9 calc(c * 1.3) h);
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.07), 0 3px 8px -4px rgb(15 23 42 / 0.3);
+  transform: rotate(-3deg);
+}
+
+.public-move__row:nth-child(even) .public-move__chip {
+  transform: rotate(3deg);
+}
+
+.public-move__chip svg,
+.public-move__chip path {
+  fill: currentColor;
+}
+
+/* The app's reset sets `flex-shrink: 0` on everything; the text opts back in so it wraps. */
+.public-move__what {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.public-move__what b {
+  font-size: 0.975rem;
+  font-weight: 600;
+  color: var(--sh-ink);
+}
+
+.public-move__what small {
+  font-size: 0.8125rem;
+  color: var(--sh-ink-soft);
+}
+
+.public-move__where {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 46%;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: right;
+  color: var(--sh-ink);
+  background: rgb(26 25 22 / 0.05);
+}
+
+.public-move__where svg,
+.public-move__where path {
+  flex: none;
+  fill: var(--sh-ink-soft);
+}
+
+/* What stays behind reads quieter: no arrow, an outline instead of a fill. Its chip is in the
+   notebook's own cover colour (set in the page), since what stays is the cover. */
+.public-move__row--stays .public-move__what b {
+  color: var(--sh-ink-soft);
+}
+
+.public-move__row--stays .public-move__where {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--sh-rule);
+  color: var(--sh-ink-soft);
+  font-weight: 500;
+}
+
+.public-move__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--sh-rule);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--sh-ink-soft);
+}
+
+.public-move__note > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.public-move__note svg {
+  flex: none;
+  margin-top: 3px;
+  fill: var(--sh-ink-soft);
+}
+
+.public-move__aside {
+  margin: 16px 0 0;
+  font-size: 0.9rem;
+  color: var(--sh-ink-soft);
+}
+
+.public-move__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--sh-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.public-move__cta .public-cta-btn {
+  width: 100%;
+}
+
+.public-move__error {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--pds-destructive, #b42318);
+}
+
+@media (min-width: 700px) {
+  .public-move__sheet {
+    padding: 44px 44px 64px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-move__sticker,
+  .public-move__book .pds-kids-book,
+  .public-move__book--moved .pds-kids-book,
+  .public-move__stamp {
+    animation: none;
+  }
+  .public-move__book--moved .pds-kids-book {
+    transform: scale(1.9);
+  }
+}

@@ -23,6 +23,8 @@ export type ChildDetail = {
   approvals: { spaceId: string }[]; ministries: { id: string; title: string }[];
   /** Every agreement to the child privacy notice, oldest first. Absent from older API responses. */
   consents?: ChildConsent[];
+  /** An open link to move this notebook into the child's own account. Absent from older API responses. */
+  move?: { expiresAt: string; familyInviteId: string | null } | null;
 };
 
 export type ChildConsent = { noticeVersion: string; consentedAt: string; kind: 'created' | 'renewed' | string };

@@ -73,8 +73,15 @@ export const FAMILY_DDL = [
     SELECT 'backfill_' || c."id", c."id", c."parentUserId", c."noticeVersion", c."consentedAt", 'created'
     FROM "FamilyChildren" c
     WHERE NOT EXISTS (SELECT 1 FROM "FamilyChildConsents" h WHERE h."childId" = c."id")`,
+  `CREATE TABLE IF NOT EXISTS "FamilyChildTransfers" (
+    "id" text PRIMARY KEY, "childId" text NOT NULL, "parentUserId" text NOT NULL, "tokenHash" text NOT NULL,
+    "familyInviteId" text, "status" text NOT NULL, "createdAt" timestamptz NOT NULL, "expiresAt" timestamptz NOT NULL,
+    "completedAt" timestamptz, "newUserId" text, "summary" jsonb
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "FamilyChildTransfers_token" ON "FamilyChildTransfers" ("tokenHash")`,
+  `CREATE INDEX IF NOT EXISTS "FamilyChildTransfers_childIndex" ON "FamilyChildTransfers" ("childId")`,
   ...['ChildNoteResources', 'FamilyVerifications', 'FamilyChildren', 'FamilyChildSessions', 'FamilySpaceApprovals',
-    'FamilyChildBibleReadings', 'FamilyChildBibleThoughts', 'FamilyChildVerseStickers', 'FamilyChildVerseHighlights', 'FamilyChildConsents']
+    'FamilyChildBibleReadings', 'FamilyChildBibleThoughts', 'FamilyChildVerseStickers', 'FamilyChildVerseHighlights', 'FamilyChildConsents', 'FamilyChildTransfers']
     .map((name) => `ALTER TABLE "${name}" ENABLE ROW LEVEL SECURITY`)
 ];
 

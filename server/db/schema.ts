@@ -3970,6 +3970,29 @@ export const FamilyChildConsents = pgTable('FamilyChildConsents', {
   kind: text('kind').notNull()
 }, (t) => [index('FamilyChildConsents_childIndex').on(t.childId)]);
 
+/**
+ * A parent's link to move a child notebook into the young person's own account (they've turned 13),
+ * and, once used, the only record that it happened. No foreign key to FamilyChildren on purpose: the
+ * child row is deleted by the move, and this minimal row (no content) outlives it. See
+ * server/family/notebook-move.ts.
+ */
+export const FamilyChildTransfers = pgTable('FamilyChildTransfers', {
+  id: text('id').primaryKey(),
+  childId: text('childId').notNull(),
+  parentUserId: text('parentUserId').notNull(),
+  tokenHash: text('tokenHash').notNull(),
+  /** An open family invite (role child) the teen is offered right after claiming. */
+  familyInviteId: text('familyInviteId'),
+  /** 'open' | 'completed' | 'revoked' */
+  status: text('status').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  expiresAt: ts('expiresAt').notNull(),
+  completedAt: ts('completedAt'),
+  newUserId: text('newUserId'),
+  /** Counts only: how many notes, tags, Threads, highlights and Review items moved. */
+  summary: jsonb('summary'),
+}, (t) => [uniqueIndex('FamilyChildTransfers_token').on(t.tokenHash), index('FamilyChildTransfers_childIndex').on(t.childId)]);
+
 export const ChildNoteResources = pgTable('ChildNoteResources', {
   noteId: text('noteId').notNull().references(() => Notes.id, { onDelete: 'cascade' }),
   spaceId: text('spaceId').notNull().references(() => Spaces.id, { onDelete: 'cascade' }),

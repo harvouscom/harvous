@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../../../lib/api';
 import ManageChildFamilyBible from '../../family/ManageChildFamilyBible';
+import MoveChildNotebook from './MoveChildNotebook';
 import { downloadChildNotebook, type ChildExportFormat } from '../../family/download-child-notebook';
 import type { ChildDetail } from '../../family/types';
 import { ChildNotebookCover } from '../ChildNotebookAppearance';
@@ -23,6 +24,7 @@ const paneTitles = {
   ministries: 'Ministry reading',
   notes: 'Notes and exports',
   privacy: 'Privacy and sessions',
+  move: 'Move to their own account',
 };
 
 type Pane = keyof typeof paneTitles;
@@ -217,6 +219,11 @@ export default function ManageChildNotebook({ detail, childAppUrl, privacyUrl, b
             <SettingsRow label={paneTitles.privacy} leadingIcon="user-shield" sublabel="Manage sign-ins, consent, and deletion"
               disabled={disabled} onClick={() => showPane('privacy')} />
           </SettingsGroup>
+          <SettingsGroup>
+            <SettingsRow label={paneTitles.move} leadingIcon="seedling"
+              sublabel={detail.move ? `Link open until ${new Date(detail.move.expiresAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}` : 'When they turn 13, they keep everything they wrote'}
+              disabled={disabled || !active} onClick={() => showPane('move')} />
+          </SettingsGroup>
         </SettingsShell>
       ) : pane === 'bible' ? (
         <ManageChildFamilyBible detail={detail} busy={busy} perform={perform} feedback={feedback}
@@ -262,6 +269,7 @@ export default function ManageChildNotebook({ detail, childAppUrl, privacyUrl, b
                   disabled={disabled} onClick={() => download('backup')} />
               </SettingsGroup>
             </>}
+            {pane === 'move' && <MoveChildNotebook detail={detail} busy={busy} perform={perform} />}
             {pane === 'privacy' && <>
               {!!detail.consents?.length && <section aria-labelledby="child-consent-history-title">
                 <h3 id="child-consent-history-title" className="pds-caption pds-family-enrollment-label">Consent history</h3>
