@@ -15,7 +15,7 @@ import { ChildNotebookCover } from '../ChildNotebookAppearance';
 import ChildPrivacyNotice from '../../family/ChildPrivacyNotice';
 import type { ChildDetail, FamilyChild, FamilyStatus } from '../../family/types';
 import { useChildAccountsStatus } from '../../family/useChildAccountsStatus';
-import { CHILD_NOTICE_VERSION, defaultChildPreferences } from '../../../../../shared/child-notebook';
+import { CHILD_NOTICE_VERSION, childNotebookLimitMessage, defaultChildPreferences } from '../../../../../shared/child-notebook';
 import '../../../styles/family.css';
 
 /** The whole journey up front: what each step is for, so a parent knows what they're agreeing to before they start. */
@@ -99,6 +99,11 @@ export default function PrototypeChildAccountsPage() {
   const showEnrollment = canEnroll && !selected && (search.get('setup') === 'true' || data.children.length === 0);
   const showNotebookList = !selected && !showEnrollment && data.children.length > 0;
   const setupInProgress = !!verification || awaitingVerification;
+  // At the cap a new verification can't become a notebook, so the start button gives way to a
+  // plain sentence. A verification already completed can still be used, so it isn't blocked here.
+  const atNotebookLimit = data.childNotebookMax !== undefined && !verification
+    && (data.childNotebookPlacesHeld ?? 0) >= data.childNotebookMax;
+  const notebookLimitMessage = data.childNotebookMax !== undefined ? childNotebookLimitMessage(data.childNotebookMax) : '';
   return <SettingsShell>
     <nav className="pds-family-breadcrumb pds-caption" aria-label="Settings breadcrumb">
       <Link to={prototypeHref('settings/family')}>My Family</Link>
@@ -119,7 +124,8 @@ export default function PrototypeChildAccountsPage() {
         <SettingsGroup>
           {data.children.map(child => <ChildNotebookSettingsRow key={child.id} child={child}
             onClick={() => openNotebook(child.id)} />)}
-          {canEnroll && <SettingsRow leadingIcon={setupInProgress ? 'list-check' : 'plus'}
+          {canEnroll && atNotebookLimit && <SettingsRow trailing="none" label={notebookLimitMessage} />}
+          {canEnroll && !atNotebookLimit && <SettingsRow leadingIcon={setupInProgress ? 'list-check' : 'plus'}
             label={setupInProgress ? 'Continue notebook setup' : 'Add another notebook'}
             onClick={() => void navigate({ to: notebookRoute, search: { setup: true } })} />}
         </SettingsGroup>
@@ -147,12 +153,12 @@ export default function PrototypeChildAccountsPage() {
                 <p className="pds-subheadline">{state === 'done' ? step.done : index === 0 && awaitingVerification
                   ? 'Open the email from Kids Web Services and complete verification. Then come back here to continue.' : step.summary}</p>
                 {open && index === 0 && <div className="pds-family-setup__body" role="status">
-                  {!awaitingVerification && <ul className="pds-family-verification__shared" aria-label="Shared with Kids Web Services">
+                  {!awaitingVerification && !atNotebookLimit && <ul className="pds-family-verification__shared" aria-label="Shared with Kids Web Services">
                     <li><Icon name="envelope" size={11} aria-hidden /> Email</li>
                     <li><Icon name="location-dot" size={11} aria-hidden /> Country</li>
                     <li><Icon name="language" size={11} aria-hidden /> Language</li>
                   </ul>}
-                  <div className="pds-family-verification__actions">
+                  {atNotebookLimit ? <p className="pds-body">{notebookLimitMessage}</p> : <div className="pds-family-verification__actions">
                     {awaitingVerification ? <>
                       <button className="proto-settings-btn" disabled={busy || status.isFetching} onClick={() => void checkVerification()}>
                         {status.isFetching && <ProtoLoadingDots />} Check verification status
@@ -163,7 +169,7 @@ export default function PrototypeChildAccountsPage() {
                     </> : <button className="proto-settings-btn" disabled={busy} onClick={sendVerification}>
                       {busy ? <ProtoLoadingDots /> : <Icon name="envelope" size={14} aria-hidden />} Send verification email
                     </button>}
-                  </div>
+                  </div>}
                   {verificationFeedback && awaitingVerification && <p className="pds-body" role="status">{verificationFeedback}</p>}
                 </div>}
                 {open && index === 1 && verification && <div className="pds-family-setup__body">

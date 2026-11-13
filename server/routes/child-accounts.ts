@@ -2,7 +2,7 @@ import { CHILD_ACCOUNT_ID_PREFIX } from '../family/identity';
 import { childNoteDetails, noteDetailsInput, writeChildNoteDetails } from '../family/note-details';
 import imagePresets from '../../shared/appearance-image-presets.json';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
-import { purgeExpiredFamilyData } from '../family/retention';
+import { holdsChildNotebookPlace, purgeExpiredFamilyData } from '../family/retention';
 import { exportChildNotebook } from '../family/notebook-export';
 import { familyPublicConfig } from '../family/config';
 import { Hono, type MiddlewareHandler } from 'hono';
@@ -19,8 +19,8 @@ import { syncEntitlementsFromProvider } from '../utils/entitlements';
 import { sponsorFeatureKeys } from '../utils/family-entitlements';
 import { CHILD_CAPABILITIES, CHILD_NOTICE_VERSION, HANDOFF_TTL_MS, VERIFICATION_TTL_MS, childSecret, emailDigest, hashSecret, hasActiveChildConsent, kwsWebhookSignatureResult } from '../family/policy';
 import { familyEnrollmentConfig, kwsConfig, requireFamilyEnrollment, sendKwsVerification } from '../family/kws';
-import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, withChildSession, type Child } from '../family/service';
-import { childBibleTranslations, childSchemes, childTextSizes, allChildBibleTranslations, coverBindings, coverColors, coverPatterns, coverSymbols, defaultChildPreferences, notebookPapers } from '../../shared/child-notebook';
+import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, withChildSession, type Child, type FamilyTx } from '../family/service';
+import { CHILD_NOTEBOOK_LIMIT_CODE, CHILD_NOTEBOOK_MAX_PER_PARENT, childNotebookLimitMessage, childBibleTranslations, childSchemes, childTextSizes, allChildBibleTranslations, coverBindings, coverColors, coverPatterns, coverSymbols, defaultChildPreferences, notebookPapers } from '../../shared/child-notebook';
 import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, hasTranslationText, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput } from '../family/bible';
 import { searchChildNotebook } from '../family/notebook-search';
 import { chapterStickers, setVerseSticker, verseStickerInput } from '../family/stickers';
@@ -65,6 +65,7 @@ route.use(`${base}/*`, async (c, next) => {
 route.use(`${base}/*`, bodyLimit({ maxSize: 32 * 1024 }));
 route.use(`${base}/*`, async (c, next) => { c.header('Cache-Control', 'no-store'); await next(); });
 route.onError((error, c) => {
+  if (error instanceof ChildNotebookLimitError) return c.json(notebookLimit, 409);
   if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);
   if (error instanceof z.ZodError || error instanceof SyntaxError) return c.json({ error: 'Please check the information you entered.' }, 400);
   // Never log child content, parent emails, bearer tokens, or webhook bodies.
@@ -79,6 +80,23 @@ const needsPlus = {
   code: 'CHILD_NOTEBOOK_NEEDS_PLUS',
   upgradeUrl: '/upgrade',
 };
+
+// Child notebooks have their own cap and never count toward Family's six people
+// (FAMILY_MAX_MEMBERS). See CHILD_NOTEBOOK_MAX_PER_PARENT and holdsChildNotebookPlace.
+const notebookLimit = {
+  error: childNotebookLimitMessage(CHILD_NOTEBOOK_MAX_PER_PARENT),
+  code: CHILD_NOTEBOOK_LIMIT_CODE,
+  max: CHILD_NOTEBOOK_MAX_PER_PARENT,
+};
+class ChildNotebookLimitError extends Error {}
+
+function notebookPlacesHeld(children: { revokedAt: Date | null }[], now = new Date()) {
+  return children.filter((child) => holdsChildNotebookPlace(child, now)).length;
+}
+async function notebookPlacesHeldIn(tx: FamilyTx, parent: string) {
+  return notebookPlacesHeld(await tx.select({ revokedAt: FamilyChildren.revokedAt }).from(FamilyChildren)
+    .where(eq(FamilyChildren.parentUserId, parent)));
+}
 
 async function canEnrollChild(userId: string): Promise<boolean> {
   if ((await sponsorFeatureKeys(userId)).length > 0) return true;
@@ -97,10 +115,12 @@ route.get(`${base}/status`, requireAuth, async (c) => {
       .from(FamilyVerifications).where(and(eq(FamilyVerifications.parentUserId, parentId(c)),
         gt(FamilyVerifications.expiresAt, new Date()))).orderBy(desc(FamilyVerifications.createdAt));
     const requiresPlus = available && (await sponsorFeatureKeys(parentId(c))).length === 0;
-    return c.json({ available, requiresPlus, children, verifications, ...publicConfig, noticeVersion: CHILD_NOTICE_VERSION });
+    return c.json({ available, requiresPlus, children, verifications, ...publicConfig, noticeVersion: CHILD_NOTICE_VERSION,
+      childNotebookMax: CHILD_NOTEBOOK_MAX_PER_PARENT, childNotebookPlacesHeld: notebookPlacesHeld(children) });
   } catch (error) {
     if (isPgUndefinedRelation(error, 'FamilyChildren') || isPgUndefinedRelation(error, 'FamilyVerifications')) {
-      return c.json({ available: false, requiresPlus: false, children: [], verifications: [], noticeVersion: CHILD_NOTICE_VERSION });
+      return c.json({ available: false, requiresPlus: false, children: [], verifications: [], noticeVersion: CHILD_NOTICE_VERSION,
+        childNotebookMax: CHILD_NOTEBOOK_MAX_PER_PARENT, childNotebookPlacesHeld: 0 });
     }
     throw error;
   }
@@ -120,6 +140,13 @@ route.post(`${base}/verification`, requireAuth, async (c) => {
     const deleting = await tx.select({ id: FamilyVerifications.id }).from(FamilyVerifications).where(and(
       eq(FamilyVerifications.parentUserId, parentId(c)), eq(FamilyVerifications.status, 'parent-deleting')));
     if (deleting.length) throw new HTTPException(409, { message: 'This account is being deleted.' });
+    // Don't start (and pay for) a verification that could never become a notebook. A verified
+    // request not yet used is a place already spoken for, so it counts here too. Pending ones
+    // don't: a parent may be resending a lost email, and creation below is the hard gate anyway.
+    const unused = await tx.select({ id: FamilyVerifications.id }).from(FamilyVerifications).where(and(
+      eq(FamilyVerifications.parentUserId, parentId(c)), eq(FamilyVerifications.status, 'verified'),
+      gt(FamilyVerifications.expiresAt, new Date())));
+    if (await notebookPlacesHeldIn(tx, parentId(c)) + unused.length >= CHILD_NOTEBOOK_MAX_PER_PARENT) throw new ChildNotebookLimitError();
     const recent = await tx.select({ id: FamilyVerifications.id }).from(FamilyVerifications).where(and(
       eq(FamilyVerifications.parentUserId, parentId(c)), gt(FamilyVerifications.createdAt, new Date(Date.now() - 3600_000))));
     if (recent.length >= 3) throw new HTTPException(429, { message: 'Please check your email or try again in an hour.' });
@@ -202,8 +229,9 @@ route.post(`${base}/children`, requireAuth, async (c) => {
     isGuardian: z.literal(true), consent: z.literal(true) }).strict().parse(await c.req.json());
   const child = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${parentId(c)}))`);
-    const existing = await tx.select({ id: FamilyChildren.id }).from(FamilyChildren).where(eq(FamilyChildren.parentUserId, parentId(c)));
-    if (existing.length >= 8) throw new HTTPException(409, { message: 'You can manage up to eight child accounts.' });
+    // Counted under the same per-parent lock that consumes the verification, so two concurrent
+    // creations can't both take the last place.
+    if (await notebookPlacesHeldIn(tx, parentId(c)) >= CHILD_NOTEBOOK_MAX_PER_PARENT) throw new ChildNotebookLimitError();
     const [verification] = await tx.update(FamilyVerifications).set({ status: 'consumed' }).where(and(
       eq(FamilyVerifications.id, input.verificationId), eq(FamilyVerifications.parentUserId, parentId(c)),
       eq(FamilyVerifications.status, 'verified'), eq(FamilyVerifications.environment, config.environment),

@@ -10,6 +10,8 @@ export type ChildNote = { id: string; title: string | null; content: string; upd
 export type FamilyStatus = {
   available: boolean; requiresPlus: boolean; children: FamilyChild[]; noticeVersion: string;
   verifications: { id: string; status: string }[];
+  /** Per-parent child notebook cap and how many places are taken. Absent from older API responses. */
+  childNotebookMax?: number; childNotebookPlacesHeld?: number;
 };
 export type ChildDetail = {
   child: FamilyChild; notes: ChildNote[];
