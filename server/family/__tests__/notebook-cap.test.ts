@@ -7,6 +7,8 @@ import { holdsChildNotebookPlace } from '../retention';
 const database = vi.hoisted(() => ({ update: vi.fn(), transaction: vi.fn(), select: vi.fn() }));
 const sendKwsVerification = vi.hoisted(() => vi.fn());
 vi.mock('../../db/client', () => ({ db: database }));
+const isFamilyParent = vi.hoisted(() => vi.fn(async (_userId: string) => true));
+vi.mock('../family-membership', () => ({ isFamilyParent }));
 vi.mock('../../middleware/auth', () => ({
   requireAuth: async (c: any, next: any) => c.get('auth')?.userId ? next() : c.json({ error: 'Authentication required' }, 401),
   getAuthenticatedAuth: (c: any) => c.get('auth'),
@@ -94,6 +96,25 @@ describe('the per-parent child notebook cap', () => {
       expect(response.status).toBe(202);
       expect(tx.insert).toHaveBeenCalledTimes(1);
       expect(sendKwsVerification).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('outside a family', () => {
+    afterEach(() => isFamilyParent.mockResolvedValue(true));
+    it('refuses to start a verification before any KWS email or database work', async () => {
+      isFamilyParent.mockResolvedValue(false);
+      const response = await app.request('/api/child-accounts/verification', { method: 'POST', headers, body: JSON.stringify({ location: 'US' }) });
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe('CHILD_NOTEBOOK_NEEDS_FAMILY');
+      expect(database.transaction).not.toHaveBeenCalled();
+      expect(sendKwsVerification).not.toHaveBeenCalled();
+    });
+    it('refuses to create a notebook without consuming the verification', async () => {
+      isFamilyParent.mockResolvedValue(false);
+      const response = await app.request('/api/child-accounts/children', { method: 'POST', headers, body: JSON.stringify({
+        verificationId: 'b7bd3862-d943-46d3-9e4a-9cd301375e23', displayName: 'Sam', noticeVersion: CHILD_NOTICE_VERSION, isGuardian: true, consent: true }) });
+      expect(response.status).toBe(409);
+      expect(database.transaction).not.toHaveBeenCalled();
     });
   });
 

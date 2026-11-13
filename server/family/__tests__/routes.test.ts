@@ -5,6 +5,8 @@ import type { SQL } from 'drizzle-orm';
 import { CHILD_NOTICE_VERSION } from '../policy';
 const database = vi.hoisted(() => ({ update: vi.fn(), transaction: vi.fn() }));
 vi.mock('../../db/client', () => ({ db: database }));
+const isFamilyParent = vi.hoisted(() => vi.fn(async (_userId: string) => true));
+vi.mock('../family-membership', () => ({ isFamilyParent }));
 vi.mock('../../middleware/auth', () => ({
   requireAuth: async (c: any, next: any) => c.get('auth')?.userId ? next() : c.json({ error: 'Authentication required' }, 401),
   getAuthenticatedAuth: (c: any) => c.get('auth'),
