@@ -861,9 +861,18 @@ export function FamilyView({ data }: { data: InFamily }) {
         </SettingsIntro>
       ) : null}
       {frozen ? (
-        <SettingsIntro>
-          Harvous support has paused changes to this family while they look into something. You can still leave.
-        </SettingsIntro>
+        // The same shape as "Waiting for a parent to answer": a glyph, what's true, then what's
+        // still possible. Not plain intro text, which read as a page description.
+        <SettingsGroup>
+          <div role="status">
+            <SettingsRow
+              label="Changes are paused"
+              leadingIcon="circle-exclamation"
+              sublabel="Harvous support is looking into something with this family. You can still leave."
+              trailing="none"
+            />
+          </div>
+        </SettingsGroup>
       ) : null}
 
       {isParent
