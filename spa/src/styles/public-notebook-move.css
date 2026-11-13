@@ -29,22 +29,13 @@
   background: linear-gradient(to bottom, transparent, var(--sh-paper));
 }
 
-.public-move__object {
-  position: relative;
-  margin: 8px auto 30px;
-  max-width: 460px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* The child app's book at bookshelf size, standing with its foot inside the plate. */
+/* The child app's book at bookshelf size, its foot standing on the letter below. */
 .public-move__book {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   width: 168px;
   height: 196px;
-  margin-bottom: -46px;
+  margin: 4px auto -58px;
   display: grid;
   place-items: center;
 }
@@ -60,8 +51,8 @@
   from { opacity: 0; transform: translateY(18px) scale(1.82); }
 }
 
-/* Moved: the book lifts a little, as if picked up off the plate, and takes a stamp. */
-.public-move__object--moved .public-move__book .pds-kids-book {
+/* Moved: the book lifts a little off the letter, as if picked up, and takes a stamp. */
+.public-move__book--moved .pds-kids-book {
   animation: public-move-lift 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
@@ -98,84 +89,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   .public-move__book .pds-kids-book,
-  .public-move__object--moved .public-move__book .pds-kids-book,
+  .public-move__book--moved .pds-kids-book,
   .public-move__stamp {
     animation: none;
   }
-  .public-move__object--moved .public-move__book .pds-kids-book {
+  .public-move__book--moved .pds-kids-book {
     transform: scale(1.9);
   }
-}
-
-/* The bookplate: cream card, a tab, the name printed, then fields like the Thread folder's. */
-.public-move__label {
-  position: relative;
-  z-index: 1;
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 62px 22px 20px;
-  border-radius: 18px;
-  text-align: center;
-  background:
-    radial-gradient(rgb(20 18 12 / 0.035) 1px, transparent 1.2px) 0 0 / 6px 6px,
-    linear-gradient(180deg, var(--sh-card), #f8f5ec);
-  border: 0.5px solid var(--sh-rule);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.7),
-    0 1px 2px rgb(20 18 12 / 0.05),
-    0 16px 36px -22px rgb(20 18 12 / 0.28);
-}
-
-.public-move__tab {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--sh-ink-soft);
-}
-
-.public-move__name {
-  font-family: "Google Sans Flex", "Google Sans", system-ui, sans-serif;
-  font-size: clamp(1.45rem, 1.2rem + 1vw, 1.9rem);
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.025em;
-  color: var(--sh-ink);
-  text-wrap: balance;
-}
-
-.public-move__fields {
-  align-self: stretch;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px 32px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--sh-rule);
-}
-
-.public-move__field {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.public-move__field span {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--sh-ink-soft);
-}
-
-.public-move__field b {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--sh-ink);
 }
 
 /* The letter: what moving it does, in short lines with a glyph each. */
@@ -184,15 +104,32 @@
 }
 
 .public-move__sheet {
-  padding: 26px 22px 58px;
+  padding: 74px 22px 58px;
 }
 
 .public-move__heading {
-  margin: 0 0 14px;
+  margin: 0;
+  text-align: center;
   font-family: "Google Sans Flex", "Google Sans", system-ui, sans-serif;
-  font-size: 1.125rem;
+  font-size: clamp(1.35rem, 1.15rem + 0.8vw, 1.7rem);
   font-weight: 600;
-  letter-spacing: -0.01em;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* Counts and dates, quiet, under the name: the letter is the notebook's label now. */
+.public-move__meta {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--sh-ink-soft);
+}
+
+.public-move__lines {
+  margin-top: 22px !important;
+  padding-top: 20px !important;
+  border-top: 1px solid var(--sh-rule);
 }
 
 .public-move__lines {
@@ -269,7 +206,7 @@
 
 @media (min-width: 700px) {
   .public-move__sheet {
-    padding: 36px 44px 64px;
+    padding: 80px 44px 64px;
   }
 }
 

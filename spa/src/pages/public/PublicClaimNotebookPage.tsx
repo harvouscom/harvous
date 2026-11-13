@@ -3,9 +3,9 @@
  *
  * Built on the shared pages (PublicSharedThreadPage): a sky band, who sent it as a sentence
  * with their name marked, then the object itself. A shared Thread is a manila folder; this is
- * the notebook they kept as a kid, drawn with the cover they chose, its name and fields printed
- * under it like the folder's. Nothing from inside a note is on the page. Below it, a cream
- * letter says what moving it does, and the button floats and comes to rest on the letter's edge.
+ * the notebook they kept as a kid, drawn with the cover they chose, standing on a cream letter
+ * that names it, counts it and says what moving it does. Nothing from inside a note is on the
+ * page. The button floats and comes to rest on the letter's edge.
  *
  * The sky is a gradient, not the sign-in photo: the "desk" behind the notebook on harvous.com's
  * child notebooks page (green behind the book, pink and yellow at the corners, pale blue under).
@@ -74,49 +74,35 @@ function kept(from: string | null, to: string | null) {
   return a === b ? a : `${a} – ${b}`;
 }
 
-/** The notebook and its label: the cover they chose, the name, and fields printed like the folder's. */
-function Notebook({ name, preferences, fields, moved = false }: {
+/** The notebook they kept, in the cover they chose, standing on the letter below it. */
+function Notebook({ name, preferences, moved = false }: {
   name: string;
   preferences: ChildNotebookPreferences | null;
-  fields: { label: string; value: string }[];
   moved?: boolean;
 }) {
   return (
-    <figure className={`public-move__object${moved ? ' public-move__object--moved' : ''}`}>
-      <div className="public-move__book">
-        <ChildNotebookCover name={name || 'H'} preferences={preferences} large />
-        {moved ? (
-          <span className="public-move__stamp" aria-hidden>
-            <Icon name="check" size={14} />
-          </span>
-        ) : null}
-      </div>
-      <figcaption className="public-move__label">
-        <span className="public-move__tab">Notebook</span>
-        <b className="public-move__name">{name ? `${name}’s notebook` : 'Your notebook'}</b>
-        {fields.length ? (
-          <span className="public-move__fields">
-            {fields.map((field) => (
-              <span key={field.label} className="public-move__field">
-                <span>{field.label}</span>
-                <b>{field.value}</b>
-              </span>
-            ))}
-          </span>
-        ) : null}
-      </figcaption>
-    </figure>
+    <div className={`public-move__book${moved ? ' public-move__book--moved' : ''}`}>
+      <ChildNotebookCover name={name || 'H'} preferences={preferences} large />
+      {moved ? (
+        <span className="public-move__stamp" aria-hidden>
+          <Icon name="check" size={14} />
+        </span>
+      ) : null}
+    </div>
   );
 }
 
 /** One button floats, as on the shared pages; anything else is a quiet link at the letter's foot. */
-function Letter({ title, lines, note, aside }: { title: string; lines: { icon: IconName; text: string }[]; note?: string; aside?: ReactNode }) {
+function Letter({ title, meta, lines, note, aside }: {
+  title: string; meta?: string | null; lines: { icon: IconName; text: string }[]; note?: string; aside?: ReactNode;
+}) {
   return (
     <div className="public-paper-stack public-shared__stack public-move__letter">
       <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
       <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
       <section className="public-shared__sheet public-move__sheet" aria-label={title}>
         <h2 className="public-move__heading">{title}</h2>
+        {meta ? <p className="public-move__meta">{meta}</p> : null}
         <ul className="public-move__lines" role="list">
           {lines.map((line) => (
             <li key={line.text}>
@@ -182,8 +168,7 @@ export default function PublicClaimNotebookPage() {
     const notes = s.notes + s.familyBibleNotes;
     content = <>
       {opening('It’s yours now', <>Welcome to <span className="public-shared__mark">your own Harvous</span>.</>)}
-      <Notebook name={data?.displayName ?? ''} preferences={data?.preferences ?? null} moved
-        fields={[{ label: 'Notes', value: String(notes) }, ...(s.highlights ? [{ label: 'Highlights', value: String(s.highlights) }] : [])]} />
+      <Notebook name={data?.displayName ?? ''} preferences={data?.preferences ?? null} moved />
       <Letter title="Where everything went" lines={[
         { icon: 'note-sticky', text: `${notes === 1 ? 'Your note is' : `Your ${notes} notes are`} in My Home, with their folders, tags and Threads.` },
         ...(s.highlights ? [{ icon: 'highlighter' as const, text: 'Your highlights are in your Bible.' }] : []),
@@ -200,7 +185,7 @@ export default function PublicClaimNotebookPage() {
     // Nothing about the notebook until they're signed in: no name, no cover, no counts.
     content = <>
       {opening('From your family', 'A notebook is waiting for you.')}
-      <Notebook name="" preferences={WAITING_COVER} fields={[]} />
+      <Notebook name="" preferences={WAITING_COVER} />
       <Letter title="Keep what you wrote" lines={[
         { icon: 'note-sticky', text: 'Your parent sent this so the notebook you kept as a kid can move into your own Harvous account.' },
         { icon: 'circle-user', text: 'Create your account, or sign in, to see it.' },
@@ -219,12 +204,11 @@ export default function PublicClaimNotebookPage() {
       {opening('Turning 13', data.parentFirstName
         ? <><span className="public-shared__mark">{data.parentFirstName}</span> sent you your notebook.</>
         : 'Your notebook is ready to move.')}
-      <Notebook name={data.displayName} preferences={data.preferences} fields={[
-        { label: 'Notes', value: data.notes ? String(data.notes) : 'None yet' },
-        ...(data.highlights ? [{ label: 'Highlights', value: String(data.highlights) }] : []),
-        ...(keptSpan ? [{ label: 'Kept', value: keptSpan }] : []),
-      ]} />
-      <Letter title="Moving it into your account" lines={[
+      <Notebook name={data.displayName} preferences={data.preferences} />
+      <Letter title={`${data.displayName}’s notebook`}
+        meta={[`${data.notes} ${data.notes === 1 ? 'note' : 'notes'}`, data.highlights ? `${data.highlights} ${data.highlights === 1 ? 'highlight' : 'highlights'}` : null, keptSpan]
+          .filter(Boolean).join(' · ')}
+        lines={[
         { icon: 'note-sticky', text: 'Your notes go into My Home, with their folders, tags and Threads.' },
         { icon: 'highlighter', text: 'Your highlights go into your Bible, and Look back becomes Review.' },
         { icon: 'book-open', text: 'Your Family Bible thoughts become notes.' },
