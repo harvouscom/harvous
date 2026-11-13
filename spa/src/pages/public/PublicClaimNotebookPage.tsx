@@ -284,7 +284,7 @@ export default function PublicClaimNotebookPage() {
       ]} note="Afterwards it’s yours alone. Your parent can’t open it, and the child notebook closes." />
       {claim.error ? <p className="public-move__error" role="alert">{claim.error instanceof Error ? claim.error.message : 'Try again in a moment.'}</p> : null}
       {cta(<button type="button" className="public-cta-btn" disabled={claim.isPending} onClick={() => claim.mutate()}>
-        {claim.isPending ? 'Moving…' : 'Move it into my account'}
+        {claim.isPending ? 'Making it yours…' : 'Make it mine'}
       </button>)}
     </>;
   }
