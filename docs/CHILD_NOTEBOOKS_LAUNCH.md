@@ -98,7 +98,8 @@ In order. The person each step needs is in brackets.
    - Set `HARVOUS_CHILD_PILOT_PARENT_ID` to Derek's **production** Clerk user id. Dev and prod
      Clerk ids differ.
    - With enrollment still off, run the real flow in production:
-     1. Plus check.
+     1. Plus check, and a family you're a parent in. Notebooks are added from My Family ›
+        Invite someone › Child under 13, and the server refuses setup outside a family.
      2. KWS verification by card, with the webhook arriving signed.
      3. Notice and consent.
      4. Child link, then the notebook on kids.harvous.com.
