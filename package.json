@@ -130,6 +130,8 @@
     "space-suggestions:schema:apply": "tsx server/scripts/add-space-study-suggestions-schema.ts --apply",
     "thread-copy:schema": "tsx server/scripts/add-thread-copy-attribution-schema.ts",
     "thread-copy:schema:apply": "tsx server/scripts/add-thread-copy-attribution-schema.ts --apply",
+    "verse-stickers:schema": "tsx server/scripts/add-verse-stickers-schema.ts",
+    "verse-stickers:schema:apply": "tsx server/scripts/add-verse-stickers-schema.ts --apply",
     "review-exercises:schema": "tsx server/scripts/add-review-exercise-settings-schema.ts",
     "review-exercises:schema:apply": "tsx server/scripts/add-review-exercise-settings-schema.ts --apply",
     "tradition:schema": "tsx server/scripts/add-tradition-schema.ts",

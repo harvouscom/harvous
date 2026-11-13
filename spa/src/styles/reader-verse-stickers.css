@@ -1,0 +1,159 @@
+/*
+ * Verse stickers in the Harvous Bible reader.
+ *
+ * The die-cut material from the notebook move page (`.public-move__sticker`) and harvous.com's
+ * child notebooks desk: a white edge, a pastel face tinted from the Thread colour, darker ink,
+ * a lifted shadow and a hand-placed tilt. Sized down to sit in the reader's right margin, the
+ * text inset that mirrors the left gutter where the note bars are. Real stickers don't change
+ * colour with the room, so the same face shows on dark paper; the white edge is what reads there.
+ */
+.pds-reader-sticker[data-tone='blue'] { --sticker-c: var(--pds-thread-blue); }
+.pds-reader-sticker[data-tone='green'] { --sticker-c: var(--pds-thread-green); }
+.pds-reader-sticker[data-tone='purple'] { --sticker-c: var(--pds-thread-purple); }
+.pds-reader-sticker[data-tone='pink'] { --sticker-c: var(--pds-thread-pink); }
+.pds-reader-sticker[data-tone='orange'] { --sticker-c: var(--pds-thread-orange); }
+.pds-reader-sticker[data-tone='yellow'] { --sticker-c: var(--pds-thread-yellow); }
+
+.pds-reader-sticker {
+  --sticker-size: 24px;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--sticker-size);
+  height: var(--sticker-size);
+  border: 2px solid oklch(99% 0.004 90);
+  border-radius: 7px;
+  background: oklch(from var(--sticker-c, var(--pds-thread-blue)) 0.9 calc(c * 1.3) h);
+  color: oklch(from var(--sticker-c, var(--pds-thread-blue)) 0.48 calc(c * 2) h);
+  box-shadow: 0 0 0 0.5px rgb(15 23 42 / 0.1), 0 2px 4px -1px rgb(15 23 42 / 0.28);
+  transform: rotate(var(--sticker-tilt, 0deg));
+}
+
+/* ─── In the margin ───────────────────────────────────────────────────────
+   The layer spans the right inset, the way `.pds-reader__margin` spans the left gutter, and
+   is measured against the same origin (the column's border box), so each sticker's `top` is
+   in the same pixels as the note bars'. `pointer-events: none`: a sticker is a mark, and the
+   way to change one is the verse's own Sticker action. */
+.pds-reader__stickers {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: var(--pds-reader-paper-padding-x);
+  width: var(--pds-reader-text-inset);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pds-reader__stickers > .pds-reader-sticker {
+  position: absolute;
+  /* Centred in the inset. On a phone the inset is narrower than the sticker, so it hangs a
+     pixel or two into the paper's own padding, as a child's does in My Bible. */
+  left: calc((100% - var(--sticker-size)) / 2);
+}
+
+.pds-reader__stickers > .pds-reader-sticker[data-fresh='true'] {
+  animation: pds-reader-sticker-on 420ms var(--pds-ease-emphasized);
+}
+
+@keyframes pds-reader-sticker-on {
+  0% { transform: rotate(calc(var(--sticker-tilt) - 14deg)) scale(0.4); opacity: 0; }
+  60% { transform: rotate(calc(var(--sticker-tilt) + 3deg)) scale(1.12); opacity: 1; }
+  100% { transform: rotate(var(--sticker-tilt)); }
+}
+
+@container pds-reader-scroll (max-width: 640px) {
+  .pds-reader__stickers > .pds-reader-sticker {
+    --sticker-size: 22px;
+    border-radius: 6px;
+  }
+}
+
+/* ─── The sheet in the action bar ─────────────────────────────────────────
+   The bar stays the bar (same glass, same 36px buttons) and grows a grid under its head row.
+   Six across fits a phone; three rows hold the set. */
+/* Doubled class: `.pds-native-selection-bar` sets the 36px height at the same specificity, in
+   a stylesheet that loads after this one. */
+.pds-reader-menu.pds-reader-menu--sheet {
+  flex-direction: column;
+  align-items: stretch;
+  height: auto;
+  padding: 2px 2px var(--pds-space-2);
+  gap: 0;
+}
+
+/* The bar is placed for a 36px height. Placed above the verse, the sheet grows up from where
+   the bar's bottom edge would be, so it never covers the verse it is for. */
+.pds-reader-menu.pds-reader-menu--sheet[data-placement='above'] {
+  transform: translate(-50%, calc(-100% + 36px));
+}
+
+.pds-reader-stickers__head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 36px;
+}
+
+.pds-reader-stickers__title {
+  flex: 1;
+  min-width: 0;
+  padding-inline: var(--pds-space-2);
+  color: var(--pds-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pds-reader-stickers__grid {
+  display: grid;
+  grid-template-columns: repeat(6, 36px);
+  gap: 2px;
+  padding-inline: var(--pds-space-1);
+}
+
+.pds-reader-stickers__option {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--pds-radius-row);
+  background: transparent;
+  cursor: pointer;
+}
+
+.pds-reader-sticker--option {
+  --sticker-size: 28px;
+  border-radius: 8px;
+  transition: transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pds-reader-stickers__option:hover > .pds-reader-sticker--option {
+    transform: rotate(0deg) translateY(-2px);
+  }
+}
+
+.pds-reader-stickers__option:active > .pds-reader-sticker--option {
+  transform: rotate(0deg) scale(0.94);
+}
+
+/* The one on this verse: the accent fill and white ink, as every selected thing in Harvous.
+   No tinted ring or glow — the gradient is the accent. */
+.pds-reader-stickers__option[aria-pressed='true'] > .pds-reader-sticker--option {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  transform: rotate(0deg);
+}
+
+.pds-reader-stickers__option:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pds-reader__stickers > .pds-reader-sticker[data-fresh='true'] { animation: none; }
+  .pds-reader-sticker--option { transition: none; }
+}

@@ -363,6 +363,20 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-29-todays-passage',
     // The Home card under each of the day's four skies, and a long Gospel folding.
   },
+  {
+    id: 'ds-30-reader-stickers',
+    title: 'Verse stickers (reader margin)',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/ReaderVerseStickers.tsx',
+      'spa/src/styles/reader-verse-stickers.css',
+      'spa/src/pages/prototype/PrototypeBibleReaderPane.tsx',
+      'spa/src/pages/dev/design-system/ReaderStickersScene.tsx',
+    ],
+    screenshotSlug: 'ds-30-reader-stickers',
+    // The real reader pane with stickers in the right margin, at reading and phone width.
+    // Loads chapter text from the API, so not a stable visual baseline.
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

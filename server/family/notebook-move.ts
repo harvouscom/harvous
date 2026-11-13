@@ -15,10 +15,12 @@
  *   the same thing, the history joins their item instead of making a second one;
  * - My Bible highlights, as reader highlights (`StudyThreadEntries`, the same rows the adult
  *   reader writes), unless the teen already highlighted that verse;
+ * - My Bible stickers, as stickers in the teen's Bible reader (`VerseStickers`, keyed by verse
+ *   like the child's), unless the teen already has a sticker on that verse;
  * - the child's own Family Bible thoughts, as one note per chapter in a "Family Bible" folder.
  *   Those rows are the child's and would otherwise be deleted with the notebook.
  *
- * What doesn't: stickers, the cover and notebook settings (kids-only, in the parent's download),
+ * What doesn't: the cover and notebook settings (kids-only, in the parent's download),
  * links to family readings, and the parent's own Family Bible thoughts (the parent's words).
  */
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
@@ -28,7 +30,7 @@ import { db } from '../db/client';
 import {
   ChildNoteResources, FamilyChildBibleReadings, FamilyChildBibleThoughts, FamilyChildren, FamilyChildTransfers,
   FamilyChildVerseHighlights, FamilyInvites, FamilyVerifications, Notes, NoteTags, NoteThreads, ReviewEvents, ReviewItems,
-  ScriptureMetadata, Spaces, StudyThreadEntries, Tags, Threads, UserMetadata, UserNodeStates,
+  FamilyChildVerseStickers, ScriptureMetadata, Spaces, StudyThreadEntries, Tags, Threads, UserMetadata, UserNodeStates, VerseStickers,
 } from '../db/schema';
 import { generateStudyThreadEntryId } from '@/utils/ids';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
@@ -42,7 +44,7 @@ export const notebookMoveSecret = () => `hvmove_${randomBytes(32).toString('base
 const hashSecret = (value: string) => createHash('sha256').update(value).digest('hex');
 
 export type NotebookMoveSummary = {
-  notes: number; tags: number; threads: number; highlights: number; familyBibleNotes: number; reviewItems: number;
+  notes: number; tags: number; threads: number; highlights: number; stickers: number; familyBibleNotes: number; reviewItems: number;
 };
 
 /** A new link for this notebook. Any earlier open link stops working. */
@@ -115,11 +117,13 @@ export async function previewNotebookMove(token: string, claimer: Claimer) {
       last: sql<Date | null>`max(${Notes.createdAt})` }).from(Notes).where(eq(Notes.userId, child.id));
     const [highlights] = await tx.select({ count: sql<number>`count(*)::int` }).from(FamilyChildVerseHighlights)
       .where(eq(FamilyChildVerseHighlights.childId, child.id));
+    const [stickers] = await tx.select({ count: sql<number>`count(*)::int` }).from(FamilyChildVerseStickers)
+      .where(eq(FamilyChildVerseStickers.childId, child.id));
     const [parent] = await tx.select({ firstName: UserMetadata.firstName }).from(UserMetadata)
       .where(eq(UserMetadata.userId, move.parentUserId));
     // What the page draws: their own cover, and who sent it. Never note content.
     return { displayName: child.displayName, preferences: child.notebookPreferences, parentFirstName: parent?.firstName?.trim() || null,
-      notes: notes.count, highlights: highlights.count, keptFrom: notes.first, keptTo: notes.last, expiresAt: move.expiresAt };
+      notes: notes.count, highlights: highlights.count, stickers: stickers.count, keptFrom: notes.first, keptTo: notes.last, expiresAt: move.expiresAt };
   });
 }
 
@@ -274,6 +278,8 @@ export async function moveNotebookRows(tx: FamilyTx, child: Child, teenId: strin
     movedHighlights++;
   }
 
+  const movedStickers = await moveVerseStickers(tx, child, teenId, now);
+
   // Look back → Review. Same source on both sides: the history joins the teen's item.
   const childItems = await tx.select({ id: ReviewItems.id, sourceKey: ReviewItems.sourceKey }).from(ReviewItems)
     .where(eq(ReviewItems.userId, child.id));
@@ -292,10 +298,37 @@ export async function moveNotebookRows(tx: FamilyTx, child: Child, teenId: strin
   await tx.delete(UserNodeStates).where(eq(UserNodeStates.userId, child.id));
 
   return { notes: notes.length, tags: childTags.length, threads: childThreads.length, highlights: movedHighlights,
-    familyBibleNotes, reviewItems: childItems.length };
+    stickers: movedStickers, familyBibleNotes, reviewItems: childItems.length };
 }
 
-/** Everything left is kids-only. The child record's cascades take sessions, stickers, consents and readings. */
+/**
+ * My Bible stickers become stickers in the teen's Bible reader. Both tables are keyed by book,
+ * chapter and verse with no translation, so this is row for row. The teen's own sticker on a
+ * verse wins (`DO NOTHING` on the shared key); the child's original date is kept.
+ *
+ * In its own savepoint: before `verse-stickers:schema` has run, `VerseStickers` doesn't exist,
+ * and a missing table must not abort the whole move. The stickers then stay behind (the child
+ * record's cascade takes them, as before this existed) and the summary says 0.
+ */
+async function moveVerseStickers(tx: FamilyTx, child: Child, teenId: string, now: Date) {
+  const stickers = await tx.select().from(FamilyChildVerseStickers).where(eq(FamilyChildVerseStickers.childId, child.id));
+  if (!stickers.length) return 0;
+  try {
+    return await tx.transaction(async (inner) => {
+      const inserted = await inner.insert(VerseStickers).values(stickers.map((row) => ({
+        userId: teenId, book: row.book, chapter: row.chapter, verse: row.verse, sticker: row.sticker,
+        createdAt: row.createdAt, updatedAt: now,
+      }))).onConflictDoNothing({ target: [VerseStickers.userId, VerseStickers.book, VerseStickers.chapter, VerseStickers.verse] })
+        .returning({ verse: VerseStickers.verse });
+      return inserted.length;
+    });
+  } catch (error) {
+    if (isPgUndefinedRelation(error, 'VerseStickers')) return 0;
+    throw error;
+  }
+}
+
+/** Everything left is kids-only. The child record's cascades take sessions, the copied stickers, consents and readings. */
 async function deleteMovedChild(tx: FamilyTx, child: Child) {
   const [left] = await tx.select({ count: sql<number>`count(*)::int` }).from(Notes).where(eq(Notes.userId, child.id));
   if (left.count > 0) throw new Error('Notebook move left notes behind.');

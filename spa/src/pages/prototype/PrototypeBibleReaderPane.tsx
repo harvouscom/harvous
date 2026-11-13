@@ -113,6 +113,8 @@ import { useSettledFlag } from '../../hooks/useSettledFlag';
 import { useIsCatholic } from '../../hooks/useTradition';
 import { usePrintedVerseLabels } from '../../hooks/usePrintedVerseLabels';
 import PrototypeReaderChapterStack from './PrototypeReaderChapterStack';
+import { ReaderStickerMargin, ReaderStickerSheet, type PlacedSticker } from './ReaderVerseStickers';
+import { verseStickerLabel, type VerseSticker } from '../../../../shared/verse-stickers';
 import {
   DEUTEROCANON_TRANSLATIONS,
   TRANSLATION_ORDER,
@@ -244,6 +246,7 @@ const VerseSpan = memo(function VerseSpan({
   inFocus,
   roving,
   noteCount,
+  sticker,
   html,
   printedLabel,
   printedTranslation,
@@ -282,6 +285,8 @@ const VerseSpan = memo(function VerseSpan({
   roving: boolean;
   /** How many of your notes cite this verse, 0 for none. See `noteCountLabel` below. */
   noteCount: number;
+  /** The sticker beside this verse, if any — spoken here because the margin mark is `aria-hidden`. */
+  sticker?: VerseSticker;
   html: { __html: string };
   onFocusVerse: (n: number, column: ReaderColumn) => void;
   onActivate: (n: number, e: ReactMouseEvent<HTMLSpanElement>, column: ReaderColumn) => void;
@@ -328,6 +333,9 @@ const VerseSpan = memo(function VerseSpan({
       */}
       {noteCount > 0 ? (
         <span className="proto-visually-hidden">{noteCountLabel(noteCount)}</span>
+      ) : null}
+      {sticker ? (
+        <span className="proto-visually-hidden">, with a {verseStickerLabel(sticker).toLowerCase()} sticker</span>
       ) : null}
       {versionLabel ? <span className="proto-visually-hidden">, {versionLabel}</span> : null}
     </span>
@@ -585,6 +593,14 @@ export interface PrototypeBibleReaderPaneProps {
    * set, and the cache the delete has to invalidate is keyed by it.
    */
   onRemoveHighlight?: (studyThreadEntryId: string, translation?: string) => void;
+  /**
+   * Stickers beside this chapter's verses, by verse number — one set whatever the translation,
+   * because a sticker is on the verse rather than on any version's words. Drawn in the right
+   * margin; absent (with `onSetSticker`) where there is no account to keep them in.
+   */
+  stickers?: ReadonlyMap<number, VerseSticker>;
+  /** Stick one on a verse, swap it, or (with `null`) take it off. Its presence adds Sticker to the bar. */
+  onSetSticker?: (verse: number, sticker: VerseSticker | null) => void;
   /** Open a margin note, with its scripture dock already on the passage the bar marked. */
   onOpenNoteAtReference?: (noteId: string, reference: string) => void;
   /**
@@ -681,6 +697,8 @@ export default function PrototypeBibleReaderPane({
   onHighlight,
   onAnnotate,
   onRemoveHighlight,
+  stickers,
+  onSetSticker,
   onOpenNoteAtReference,
   onPrefetchNote,
   onSaveReference,
@@ -1065,6 +1083,10 @@ export default function PrototypeBibleReaderPane({
   }, [referenceRequest, lookupSavedReferenceId, openReferenceDock]);
   /** The menu is showing colours for the highlight just made, rather than the action list. */
   const [paletteOpen, setPaletteOpen] = useState(false);
+  /** The menu is showing the sticker sheet for the selection's first verse. */
+  const [stickerSheetOpen, setStickerSheetOpen] = useState(false);
+  /** The verse a sticker was just stuck on, so only that one plays its little landing. */
+  const [freshSticker, setFreshSticker] = useState<{ book: string; chapter: number; verse: number } | null>(null);
 
   /**
    * The selected verses: a range, because selection can extend, in one of the two columns.
@@ -1362,6 +1384,61 @@ export default function PrototypeBibleReaderPane({
   }, [anchorLanes, verseLayout, verses, compare, visibleColumn]);
 
   /**
+   * Stickers in the right margin, measured the way the bars are and for the same reason: in
+   * prose a verse has no box of its own to sit beside, so each sticker takes its height from
+   * the verse's first line on screen. Centred on that line, and nudged down when two short
+   * verses start on the same line, so stickers never stack on top of each other.
+   */
+  const [placedStickers, setPlacedStickers] = useState<PlacedSticker[]>([]);
+  useEffect(() => {
+    const column = columnRef.current;
+    if (!column || !stickers || stickers.size === 0) {
+      setPlacedStickers([]);
+      return;
+    }
+    const measure = () => {
+      const columnRect = column.getBoundingClientRect();
+      const scale = column.offsetHeight > 0 ? columnRect.height / column.offsetHeight : 1;
+      const toColumn = (px: number) => (scale > 0 ? px / scale : px);
+      // Read from a drawn sticker, so the CSS (which changes it at phone width) stays the one source.
+      const size =
+        column.querySelector<HTMLElement>('.pds-reader__stickers > .pds-reader-sticker')?.offsetWidth || 24;
+      const next: PlacedSticker[] = [];
+      let floor = -Infinity;
+      for (const [verse, sticker] of [...stickers.entries()].sort((a, b) => a[0] - b[0])) {
+        // The verse as drawn — with a comparison open there are two, and one may be hidden.
+        let line: DOMRect | undefined;
+        for (const el of column.querySelectorAll<HTMLElement>(`[data-reader-verse="${verse}"]`)) {
+          line = el.getClientRects()[0];
+          if (line) break;
+        }
+        if (!line) continue;
+        const centre = toColumn(line.top - columnRect.top + line.height / 2);
+        const top = Math.max(Math.round(centre - size / 2), floor);
+        floor = top + size + 4;
+        next.push({ verse, sticker, top });
+      }
+      setPlacedStickers(next);
+    };
+    const raf = requestAnimationFrame(measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    // A flip in the paper stack is a transform, which no ResizeObserver sees; see the bars above.
+    const stackLayer = column.closest<HTMLElement>('.pds-paper-stack__base');
+    const onLayerSettled = (event: TransitionEvent) => {
+      if (event.target === stackLayer && event.propertyName === 'transform') measure();
+    };
+    stackLayer?.addEventListener('transitionend', onLayerSettled);
+    const settleTimer = stackLayer ? window.setTimeout(measure, STACK_SETTLE_FALLBACK_MS) : 0;
+    return () => {
+      cancelAnimationFrame(raf);
+      observer.disconnect();
+      stackLayer?.removeEventListener('transitionend', onLayerSettled);
+      window.clearTimeout(settleTimer);
+    };
+  }, [stickers, verseLayout, verses, compare, visibleColumn]);
+
+  /**
    * The bar being pointed at or pinned — the note whose card is showing.
    *
    * Hover reveals it and leaving hides it again; a tap pins it, because on touch there is no
@@ -1530,6 +1607,7 @@ export default function PrototypeBibleReaderPane({
       setMenuPos(null);
       // A new selection starts at the action list; the palette belonged to the last highlight.
       setPaletteOpen(false);
+      setStickerSheetOpen(false);
       return;
     }
     const place = () => {
@@ -2116,7 +2194,9 @@ export default function PrototypeBibleReaderPane({
     selection && selectionLabel && menuPos
       ? createPortal(
           <div
-            className="pds-reader-menu pds-native-selection-bar floating-picker-enter"
+            className={`pds-reader-menu pds-native-selection-bar floating-picker-enter${
+              stickerSheetOpen && onSetSticker ? ' pds-reader-menu--sheet' : ''
+            }`}
             role="group"
             aria-label={`Actions for ${selectionLabel}`}
             /* Flipped bars grow from the edge nearest the selection, so the motion still reads as
@@ -2127,7 +2207,20 @@ export default function PrototypeBibleReaderPane({
             // must not read as a press outside the selection.
             onMouseDown={(e) => e.preventDefault()}
           >
-            {paletteOpen && onHighlight ? (
+            {stickerSheetOpen && onSetSticker && data ? (
+              <ReaderStickerSheet
+                reference={`${data.book} ${data.chapter}:${selection.start}`}
+                current={stickers?.get(selection.start) ?? null}
+                onBack={() => setStickerSheetOpen(false)}
+                onPick={(next) => {
+                  onSetSticker(selection.start, next);
+                  setFreshSticker(next ? { book, chapter, verse: selection.start } : null);
+                  // Stuck on: the bar has done its job, and the sticker is the thing to look at.
+                  setSelection(null);
+                  setDragText(null);
+                }}
+              />
+            ) : paletteOpen && onHighlight ? (
               <>
                 {/* Colours for the highlight just made. Back returns to the actions rather
                     than closing, because the verses are still selected and there are three
@@ -2294,6 +2387,20 @@ export default function PrototypeBibleReaderPane({
                     setSelection(null);
       setDragText(null);
                   }}
+                />
+                <Divider />
+              </>
+            ) : null}
+
+            {onSetSticker ? (
+              <>
+                {/* On the selection's first verse: a sticker marks one verse, the way it sits
+                    beside one line in the margin. The dot says this verse already wears one. */}
+                <MenuAction
+                  icon="star"
+                  label="Sticker"
+                  dot={!!stickers?.get(selection.start)}
+                  onClick={() => setStickerSheetOpen(true)}
                 />
                 <Divider />
               </>
@@ -2646,6 +2753,12 @@ export default function PrototypeBibleReaderPane({
             ))}
           </div>
 
+          <ReaderStickerMargin
+            placed={placedStickers}
+            chapter={chapter}
+            fresh={freshSticker?.book === book && freshSticker.chapter === chapter ? freshSticker.verse : null}
+          />
+
           {/* Above the note card. A positioned element paints over in-flow content regardless
               of order, so without this the card would cover the very passage it is holding up. */}
           <div
@@ -2715,6 +2828,7 @@ export default function PrototypeBibleReaderPane({
                         }
                         accent={highlights?.get(row.verse)?.accent}
                         noteCount={noteCountByVerse.get(row.verse) ?? 0}
+                        sticker={stickers?.get(row.verse)}
                         inFocus={
                           focusRange != null && row.verse >= focusRange[0] && row.verse <= focusRange[1]
                         }
@@ -2759,6 +2873,7 @@ export default function PrototypeBibleReaderPane({
                         }
                         accent={compare.highlights?.get(row.verse)?.accent}
                         noteCount={noteCountByVerse.get(row.verse) ?? 0}
+                        sticker={stickers?.get(row.verse)}
                         inFocus={
                           focusRange != null && row.verse >= focusRange[0] && row.verse <= focusRange[1]
                         }
@@ -2803,6 +2918,7 @@ export default function PrototypeBibleReaderPane({
                         }
                         accent={highlights?.get(verse.number)?.accent}
                         noteCount={noteCountByVerse.get(verse.number) ?? 0}
+                        sticker={stickers?.get(verse.number)}
                         inFocus={
                           focusRange != null &&
                           verse.number >= focusRange[0] &&
@@ -2839,6 +2955,7 @@ export default function PrototypeBibleReaderPane({
                       }
                       accent={highlights?.get(verse.number)?.accent}
                       noteCount={noteCountByVerse.get(verse.number) ?? 0}
+                      sticker={stickers?.get(verse.number)}
                       inFocus={
                         focusRange != null &&
                         verse.number >= focusRange[0] &&

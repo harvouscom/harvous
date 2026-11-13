@@ -58,12 +58,12 @@ export default function MoveChildNotebook({ detail, busy, perform }: Props) {
       <SettingsGroup>
         <SettingsRow leadingIcon="note-sticky" trailing="none" label="Notes, folders, tags and Threads"
           sublabel="Into their My Home, with the verses each note mentions" />
-        <SettingsRow leadingIcon="highlighter" trailing="none" label="Highlights and Look back"
-          sublabel="As highlights in their Bible, and their Review history" />
+        <SettingsRow leadingIcon="highlighter" trailing="none" label="Highlights, stickers and Look back"
+          sublabel="Onto the same verses in their Bible, and into their Review history" />
         <SettingsRow leadingIcon="book-open" trailing="none" label="Their Family Bible thoughts"
           sublabel="As notes in a Family Bible folder. Your replies to them aren’t included." />
-        <SettingsRow leadingIcon="download" trailing="none" label="Stickers and the notebook cover don’t move"
-          sublabel="They’re only in child notebooks. Download the backup first to keep them." />
+        <SettingsRow leadingIcon="download" trailing="none" label="The notebook cover doesn’t move"
+          sublabel="It’s only in child notebooks. Download the backup first to keep it." />
       </SettingsGroup>
 
       <h3 className="pds-caption pds-family-enrollment-label">Once they claim it</h3>

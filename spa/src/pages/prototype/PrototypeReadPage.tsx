@@ -53,6 +53,8 @@ import type {
   ChapterHighlight,
   SavedReference,
 } from '../../hooks/queries/usePrototypeChapterHighlights';
+import { useChapterStickers, useSetVerseSticker } from '../../hooks/queries/useChapterStickers';
+import type { VerseSticker } from '../../../../shared/verse-stickers';
 import { useUpdateTranslation } from '../../hooks/mutations/useUpdateTranslation';
 import { TRANSLATIONS } from '@/data/translations';
 import { playSound } from '@/utils/sounds';
@@ -240,6 +242,27 @@ export default function PrototypeReadPage() {
   const { data: chapterHighlights } = usePrototypeChapterHighlights(book, chapter, translation);
   const createHighlight = useCreateChapterHighlight(book, chapter, translation, homeSpaceId);
   const deleteHighlight = useDeleteChapterHighlight(book, chapter, translation, homeSpaceId);
+
+  /*
+   * Stickers in the margin. One set per chapter whatever the translation (or the compared one):
+   * a sticker is on the verse, not on any version's words. Absent for a guest — see the hook.
+   */
+  const { data: chapterStickers } = useChapterStickers(book, chapter);
+  const setSticker = useSetVerseSticker(book, chapter);
+  const stickers = useMemo(
+    () => new Map((chapterStickers ?? []).map((row) => [row.verse, row.sticker] as const)),
+    [chapterStickers],
+  );
+  const handleSetSticker = useCallback(
+    (verse: number, sticker: VerseSticker | null) => {
+      if (sticker) playSound('highlight.created');
+      setSticker.mutate({ verse, sticker }, {
+        onError: (error) => toastError(error, 'Couldn’t save that sticker — try again', { scope: 'reader-sticker' }),
+      });
+    },
+    // `mutate` is stable across renders; the mutation object itself is not.
+    [setSticker.mutate],
+  );
 
   /*
    * The compared version's own set, because a highlight belongs to a translation.
@@ -1074,6 +1097,8 @@ export default function PrototypeReadPage() {
           // dock lifecycle stays with the surface that owns the selection.
           onAnnotate={applyHighlight}
           onRemoveHighlight={handleRemoveHighlight}
+          stickers={isGuest ? undefined : stickers}
+          onSetSticker={isGuest ? undefined : handleSetSticker}
           onOpenNoteAtReference={handleOpenNoteAtReference}
           onPrefetchNote={handlePrefetchNote}
           onSaveReference={handleSaveReference}

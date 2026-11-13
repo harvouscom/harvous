@@ -76,6 +76,7 @@ export {
   NoteConnections,
   StudyThreadMemberOrders,
   StudyThreadShares,
+  VerseStickers,
   VerseTextCache,
   BibleTranslations,
   BibleVerses,

@@ -2863,6 +2863,25 @@ export const StudyThreadShares = pgTable(
   ],
 );
 
+/**
+ * A sticker beside a verse in the Harvous Bible reader. One per (user, book, chapter, verse):
+ * keyed by the verse, not by translation, reference string or span, so it stays put when the
+ * reader switches translations and a verse never wears two. Deliberately not a
+ * `StudyThreadEntries` row: those are highlights and annotations, read by the Highlights list,
+ * Review, the Study Bible layer and sync, and a sticker is none of those. The child notebook's
+ * `FamilyChildVerseStickers` has the same shape, so a notebook moving into a teen's own account
+ * converts row for row. See server/utils/verse-stickers.ts.
+ */
+export const VerseStickers = pgTable('VerseStickers', {
+  userId: text('userId').notNull(),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  verse: integer('verse').notNull(),
+  sticker: text('sticker').notNull(),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt').notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.book, t.chapter, t.verse] })]);
+
 // ─── VerseTextCache (verse text cache, keyed by normalized reference + translation) ─
 
 export const VerseTextCache = pgTable('VerseTextCache', {
