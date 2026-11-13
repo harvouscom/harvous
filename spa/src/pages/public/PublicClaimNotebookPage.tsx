@@ -123,7 +123,7 @@ type ManifestRow = { icon: IconName; tone: Tone; what: string; detail?: string; 
 
 /**
  * The letter is the notebook's label and its packing list. At the top, printed like the Thread
- * folder's front: a tab, the name, and fields. Under it, each thing in the notebook and where it
+ * folder's front: the name and fields. Under it, each thing in the notebook and where it
  * goes, so nothing has to be read as a paragraph. One button floats, as on the shared pages;
  * anything else is a quiet link at the letter's foot.
  */
@@ -142,7 +142,6 @@ function Letter({ name, fields, title, rows, note, aside, moved = false }: {
       <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
       <section className="public-shared__sheet public-move__sheet" aria-label={name}>
         <header className="public-move__plate">
-          <span className="public-move__tab">Notebook</span>
           <h1 className="public-move__name">{name}</h1>
           {fields.length ? (
             <dl className="public-move__fields">
@@ -272,7 +271,7 @@ export default function PublicClaimNotebookPage() {
   } else {
     const keptSpan = kept(data.keptFrom, data.keptTo);
     content = <>
-      {opening('Turning 13', data.parentFirstName
+      {opening('From your family', data.parentFirstName
         ? <><span className="public-shared__mark">{data.parentFirstName}</span> sent you your notebook.</>
         : 'Your notebook is ready to move.')}
       <Notebook name={data.displayName} preferences={data.preferences} />

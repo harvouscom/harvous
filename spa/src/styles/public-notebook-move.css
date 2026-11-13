@@ -5,7 +5,7 @@
  * Inspired by harvous.com's child notebooks page: its "desk" gradient instead of the sign-in
  * photo, die-cut stickers floating around the notebook, and the notebook itself (the child
  * app's `.pds-kids-book`, in the cover they chose) standing on the letter. The letter is the
- * notebook's label (tab, name, fields, as on a shared Thread's folder) and then its packing
+ * notebook's label (name and fields, as on a shared Thread's folder) and then its packing
  * list: each thing in it, and where it goes. Nothing from inside a note is on the page.
  */
 
@@ -165,14 +165,6 @@
   align-items: center;
   gap: 4px;
   text-align: center;
-}
-
-.public-move__tab {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--sh-ink-soft);
 }
 
 .public-page--shared .public-move__name {

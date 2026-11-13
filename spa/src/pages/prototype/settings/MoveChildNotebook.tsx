@@ -50,7 +50,7 @@ export default function MoveChildNotebook({ detail, busy, perform }: Props) {
   return (
     <>
       <SettingsIntro>
-        When {name} turns 13, they can have their own Harvous account and keep what they wrote. They claim it
+        Once {name} is 13, they can have their own Harvous account and keep what they wrote. They claim it
         with a link from you, signed in to their own account.
       </SettingsIntro>
 
