@@ -39,6 +39,8 @@ const DEFAULT_ORIGINS = [
   'https://new.harvous.com',
   'https://status.harvous.com',
   'https://harvous.com',
+  // The child notebook site: its Worker proxies /api/child-accounts/child/* here with this Origin.
+  'https://kids.harvous.com',
   'http://localhost:3000',
   'http://localhost:3001',  // Hono API dev server
   'http://localhost:4321',  // Astro dev

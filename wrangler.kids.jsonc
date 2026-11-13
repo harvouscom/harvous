@@ -1,5 +1,6 @@
-// Deploy separately after KWS testing, privacy review, and enabling the retention job.
-// Attach the child custom domain in Cloudflare only when ready; no production route is declared here.
+// Production child site: kids.harvous.com (KWS Production approved 13 Nov 2026). Deploy with
+// `npm run build:child && npx wrangler deploy -c wrangler.kids.jsonc`; the retention secret is set with
+// `wrangler secret put FAMILY_RETENTION_CRON_SECRET -c wrangler.kids.jsonc`. See docs/CHILD_NOTEBOOKS_LAUNCH.md.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "harvous-kids",
@@ -15,7 +16,9 @@
   "vars": { "API_ORIGIN": "https://harvous.fly.dev" },
   "observability": { "enabled": false },
   "triggers": { "crons": ["17 4 * * *"] },
-  "workers_dev": true,
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "kids.harvous.com", "custom_domain": true }],
   "env": {
     "staging": {
       "name": "harvous-kids-staging",
