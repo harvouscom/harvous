@@ -12,6 +12,8 @@ export type FamilyStatus = {
   /** The parent has Harvous Plus (the check that gates setup), sent even while setup is closed. */
   plus?: boolean;
   verifications: { id: string; status: string }[];
+  /** Per-parent child notebook cap and how many places are taken. Absent from older API responses. */
+  childNotebookMax?: number; childNotebookPlacesHeld?: number;
 };
 export type ChildDetail = {
   child: FamilyChild; notes: ChildNote[];

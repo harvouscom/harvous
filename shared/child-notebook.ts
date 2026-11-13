@@ -29,6 +29,22 @@ export const allChildBibleTranslations = [...childBibleTranslations, ...familyAd
 
 export const CHILD_NOTICE_VERSION = '2026-11-12.3';
 
+/**
+ * How many child notebooks one parent can hold. Separate from Family's six people
+ * (FAMILY_MAX_MEMBERS): child notebooks never count toward that, and this cap is their own.
+ * Six covers almost every real family, keeps paid Kids Web Services verifications bounded, and
+ * stops one account minting notebooks without limit. What counts is `holdsChildNotebookPlace`
+ * in server/family/retention.ts; the server returns this value from the status endpoint so the
+ * UI never hard-codes it.
+ */
+export const CHILD_NOTEBOOK_MAX_PER_PARENT = 6;
+export const CHILD_NOTEBOOK_LIMIT_CODE = 'CHILD_NOTEBOOK_LIMIT';
+const countWords = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+/** The one sentence a parent sees at the cap, on the server's 409 and in place of the start button. */
+export function childNotebookLimitMessage(max: number) {
+  return `You can have up to ${countWords[max] ?? max} child notebooks.`;
+}
+
 export type ChildNotebookPreferences = {
   coverColor: typeof coverColors[number]['id'];
   coverSymbol: typeof coverSymbols[number];
