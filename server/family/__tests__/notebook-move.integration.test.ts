@@ -35,6 +35,7 @@ import {
   BibleTranslations, BibleVerses, ChildNoteResources, FamilyChildBibleReadings, FamilyChildBibleThoughts, FamilyChildConsents,
   FamilyChildren, FamilyChildSessions, FamilyChildTransfers, FamilyChildVerseHighlights, FamilyChildVerseStickers, FamilyVerifications,
   Notes, NoteTags, NoteThreads, ReviewEvents, ReviewItems, ScriptureMetadata, Spaces, StudyThreadEntries, Tags, Threads, UserMetadata,
+  VerseStickers,
 } from '../../db/schema';
 import { childTextToHtml, claimNotebookMove, createNotebookMove, openNotebookMove, previewNotebookMove } from '../notebook-move';
 import { sql } from 'drizzle-orm';
@@ -69,6 +70,7 @@ async function seed() {
   await db.insert(ReviewItems).values({ id: id('teen_item'), userId: teen, kind: 'verse', sourceKey: 'verse:John 3:16', scriptureReference: 'John 3:16', dueAt: now, createdAt: now } as never);
   await db.insert(StudyThreadEntries).values({ id: id('teen_hl'), userId: teen, parentNoteId: null, spaceId: teenHome, entryKindRaw: 'scriptureLink',
     highlightAccentRaw: 'skyBlue', scriptureReference: 'John 3:16', scripturePassageTranslation: 'BSB', createdAt: now } as never);
+  await db.insert(VerseStickers).values({ userId: teen, book: 'John', chapter: 3, verse: 16, sticker: 'heart', createdAt: now, updatedAt: now });
 
   // The child notebook.
   await db.insert(FamilyVerifications).values({ id: id('verification'), parentUserId: parent, parentEmailHash: 'x', environment: 'test',
@@ -112,7 +114,12 @@ async function seed() {
     { childId: child, book: 'John', chapter: 3, verse: 16, color: 'warmAmber', createdAt: now },
     { childId: child, book: 'Psalms', chapter: 23, verse: 1, color: 'mintGreen', createdAt: now },
   ]);
-  await db.insert(FamilyChildVerseStickers).values({ childId: child, book: 'Psalms', chapter: 23, verse: 1, sticker: 'star', createdAt: now });
+  await db.insert(FamilyChildVerseStickers).values([
+    { childId: child, book: 'Psalms', chapter: 23, verse: 1, sticker: 'star', createdAt: new Date('2026-10-03T00:00:00Z') },
+    { childId: child, book: 'Psalms', chapter: 23, verse: 4, sticker: 'sailboat', createdAt: now },
+    // The teen already has a heart here; theirs wins.
+    { childId: child, book: 'John', chapter: 3, verse: 16, sticker: 'dove', createdAt: now },
+  ]);
   await db.insert(FamilyChildBibleReadings).values({ id: id('reading'), childId: child, book: 'Psalms', chapter: 23, translation: 'BSB', sharedAt: now } as never);
   await db.insert(FamilyChildBibleThoughts).values([
     { id: id('th1'), readingId: id('reading'), verse: 1, role: 'child', text: 'Sheep are fluffy', createdAt: now },
@@ -136,6 +143,8 @@ async function childStillIntact(s: Seeded) {
   expect(await db.select().from(ReviewItems).where(eq(ReviewItems.userId, s.child))).toHaveLength(2);
   expect(await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.userId, s.teen))).toHaveLength(1);
   expect(await db.select().from(Notes).where(eq(Notes.userId, s.teen))).toHaveLength(1);
+  expect(await db.select().from(FamilyChildVerseStickers).where(eq(FamilyChildVerseStickers.childId, s.child))).toHaveLength(3);
+  expect(await db.select().from(VerseStickers).where(eq(VerseStickers.userId, s.teen))).toHaveLength(1);
 }
 
 run('moving a child notebook into the teen’s own account', () => {
@@ -170,12 +179,12 @@ run('moving a child notebook into the teen’s own account', () => {
   });
 
   it('shows the teen what they are claiming', async () => {
-    expect(await previewNotebookMove(s.token, { userId: s.teen })).toMatchObject({ displayName: 'Sam', notes: 2, highlights: 2 });
+    expect(await previewNotebookMove(s.token, { userId: s.teen })).toMatchObject({ displayName: 'Sam', notes: 2, highlights: 2, stickers: 3 });
   });
 
   it('moves everything, merges with what the teen has, and deletes the child record', async () => {
     const { summary } = await claimNotebookMove(s.token, { userId: s.teen }, s.teenHome);
-    expect(summary).toEqual({ notes: 2, tags: 2, threads: 2, highlights: 1, familyBibleNotes: 1, reviewItems: 2 });
+    expect(summary).toEqual({ notes: 2, tags: 2, threads: 2, highlights: 1, stickers: 2, familyBibleNotes: 1, reviewItems: 2 });
 
     // Notes: same ids, the teen's, in their home, numbered after their own (highest was 4).
     const notes = await db.select().from(Notes).where(eq(Notes.userId, s.teen));
@@ -224,6 +233,12 @@ run('moving a child notebook into the teen’s own account', () => {
     expect(psalm).toMatchObject({ entryKindRaw: 'scriptureLink', highlightAccentRaw: 'mintGreen', scripturePassageTranslation: 'BSB',
       parentNoteId: null, spaceId: s.teenHome, sourceSnippet: 'The LORD is my shepherd; I shall not want.' });
     expect(highlights.find((h) => h.id === s.id('teen_hl'))?.highlightAccentRaw).toBe('skyBlue');
+
+    // Stickers: same verses in the teen's Bible, the child's date kept; the teen's own heart on John 3:16 wins.
+    const stickers = await db.select().from(VerseStickers).where(eq(VerseStickers.userId, s.teen));
+    expect(stickers.map((r) => `${r.book} ${r.chapter}:${r.verse} ${r.sticker}`).sort())
+      .toEqual(['John 3:16 heart', 'Psalms 23:1 star', 'Psalms 23:4 sailboat']);
+    expect(stickers.find((r) => r.verse === 1)?.createdAt.toISOString()).toBe('2026-10-03T00:00:00.000Z');
 
     // Nothing of the child is left.
     expect(await db.select().from(FamilyChildren).where(eq(FamilyChildren.id, s.child))).toHaveLength(0);
@@ -277,6 +292,18 @@ run('moving a child notebook into the teen’s own account', () => {
     expect(await db.transaction((tx) => openNotebookMove(tx, s.child))).toMatchObject({ familyInviteId: null });
   });
 
+  it('still moves the notebook before the stickers table exists, leaving the stickers behind', async () => {
+    await db.execute(sql`ALTER TABLE "VerseStickers" RENAME TO "VerseStickers_hidden"`);
+    try {
+      const { summary } = await claimNotebookMove(s.token, { userId: s.teen }, s.teenHome);
+      expect(summary).toMatchObject({ notes: 2, highlights: 1, stickers: 0 });
+    } finally {
+      await db.execute(sql`ALTER TABLE "VerseStickers_hidden" RENAME TO "VerseStickers"`);
+    }
+    expect(await db.select().from(Notes).where(eq(Notes.userId, s.teen))).toHaveLength(4);
+    expect(await db.select().from(FamilyChildren).where(eq(FamilyChildren.id, s.child))).toHaveLength(0);
+  });
+
   it('lets two claims race without moving twice', async () => {
     const results = await Promise.allSettled([
       claimNotebookMove(s.token, { userId: s.teen }, s.teenHome),
@@ -284,5 +311,6 @@ run('moving a child notebook into the teen’s own account', () => {
     ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(await db.select().from(Notes).where(eq(Notes.userId, s.teen))).toHaveLength(4);
+    expect(await db.select().from(VerseStickers).where(eq(VerseStickers.userId, s.teen))).toHaveLength(3);
   });
 });

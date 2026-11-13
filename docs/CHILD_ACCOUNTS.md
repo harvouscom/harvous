@@ -170,7 +170,8 @@ When a child turns 13, the parent can move their notebook into the teen's own Ha
 - Look back items and events move into Review. Where the teen already reviews the same source, the history joins their item;
 - My Bible highlights become reader highlights (`StudyThreadEntries`, `scriptureLink`) in the child's first translation, unless the teen already highlighted that verse;
 - the child's own Family Bible thoughts become one note per chapter, in a "Family Bible" folder. The parent's replies aren't included;
-- stickers, the cover and notebook settings don't move. They're only in child notebooks, and the parent's backup download has them;
+- My Bible stickers become stickers in the teen's Bible reader (`VerseStickers`, keyed by book, chapter and verse like the child's), unless the teen already has a sticker on that verse. Until `npm run verse-stickers:schema:apply` has run, the table doesn't exist and the stickers stay behind (the move still succeeds, with 0 stickers in its summary);
+- the cover and notebook settings don't move. They're only in child notebooks, and the parent's backup download has them;
 - the child record is then deleted, which ends child sessions and the parent's access. A row in `FamilyChildTransfers` records the move: who, when and counts, no content.
 
 The parent can't claim their own link, and a child session can't claim one at all. `FamilyChildTransfers` is created by `add-child-account-schema.ts`. Until it exists, the notebook page reads "no open link" rather than failing.

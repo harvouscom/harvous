@@ -37,12 +37,14 @@ type Preview = {
   parentFirstName: string | null;
   notes: number;
   highlights: number;
+  /** Absent from a server that predates stickers moving. */
+  stickers?: number;
   keptFrom: string | null;
   keptTo: string | null;
   expiresAt: string;
 };
 type Claimed = {
-  summary: { notes: number; tags: number; threads: number; highlights: number; familyBibleNotes: number; reviewItems: number };
+  summary: { notes: number; tags: number; threads: number; highlights: number; stickers?: number; familyBibleNotes: number; reviewItems: number };
   homeSpaceId: string;
   familyJoinPath: string | null;
 };
@@ -56,12 +58,12 @@ const WAITING_COVER: ChildNotebookPreferences = { ...defaultChildPreferences, co
  */
 const FIXTURE = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('fixture') : null;
 const FIXTURE_PREVIEW: Preview = {
-  displayName: 'Abby', parentFirstName: 'Derek', notes: 23, highlights: 8, keptFrom: '2025-09-14T00:00:00Z',
+  displayName: 'Abby', parentFirstName: 'Derek', notes: 23, highlights: 8, stickers: 5, keptFrom: '2025-09-14T00:00:00Z',
   keptTo: '2026-11-02T00:00:00Z', expiresAt: '2026-11-20T00:00:00Z',
   preferences: { ...defaultChildPreferences, coverColor: 'purple', coverSymbol: 'dove', coverPattern: 'dots' },
 };
 const FIXTURE_DONE: Claimed = {
-  summary: { notes: 23, tags: 4, threads: 2, highlights: 8, familyBibleNotes: 3, reviewItems: 12 },
+  summary: { notes: 23, tags: 4, threads: 2, highlights: 8, stickers: 5, familyBibleNotes: 3, reviewItems: 12 },
   homeSpaceId: 'space_fixture', familyJoinPath: '/family/join/fixture',
 };
 
@@ -229,10 +231,12 @@ export default function PublicClaimNotebookPage() {
       <Notebook name={data?.displayName ?? ''} preferences={data?.preferences ?? null} moved />
       <Letter moved eyebrow={data?.displayName ? `${data.displayName}’s notebook` : 'Your notebook'}
         heading={<>Welcome to <span className="public-shared__mark">your own Harvous</span>.</>}
-        fields={[{ label: 'Notes', value: String(notes) }, ...(s.highlights ? [{ label: 'Highlights', value: String(s.highlights) }] : [])]}
+        fields={[{ label: 'Notes', value: String(notes) }, ...(s.highlights ? [{ label: 'Highlights', value: String(s.highlights) }] : []),
+          ...(s.stickers ? [{ label: 'Stickers', value: String(s.stickers) }] : [])]}
         title="Where everything went" rows={[
           { icon: 'note-sticky', tone: 'blue', what: notes === 1 ? '1 note' : `${notes} notes`, detail: 'With their folders, tags and Threads', where: 'My Home' },
           ...(s.highlights ? [{ icon: 'highlighter' as const, tone: 'yellow' as const, what: s.highlights === 1 ? '1 highlight' : `${s.highlights} highlights`, where: 'Your Bible' }] : []),
+          ...(s.stickers ? [{ icon: 'star' as const, tone: 'pink' as const, what: s.stickers === 1 ? '1 sticker' : `${s.stickers} stickers`, detail: 'Beside their verses', where: 'Your Bible' }] : []),
           ...(s.reviewItems ? [{ icon: 'arrows-rotate' as const, tone: 'green' as const, what: 'Look back', detail: 'What you were remembering', where: 'Review' }] : []),
           ...(s.familyBibleNotes ? [{ icon: 'book-open' as const, tone: 'orange' as const, what: 'Family Bible thoughts', detail: 'A note for each chapter', where: 'Family Bible folder' }] : []),
         ]}
@@ -274,13 +278,15 @@ export default function PublicClaimNotebookPage() {
         fields={[
         { label: 'Notes', value: data.notes ? String(data.notes) : 'None yet' },
         ...(data.highlights ? [{ label: 'Highlights', value: String(data.highlights) }] : []),
+        ...(data.stickers ? [{ label: 'Stickers', value: String(data.stickers) }] : []),
         ...(keptSpan ? [{ label: 'Kept', value: keptSpan }] : []),
       ]} title="What moves where" rows={[
         { icon: 'note-sticky', tone: 'blue', what: 'Notes', detail: 'With their folders, tags and Threads', where: 'My Home' },
         { icon: 'highlighter', tone: 'yellow', what: 'Highlights', where: 'Your Bible' },
+        { icon: 'star', tone: 'pink', what: 'Stickers', detail: 'Beside the same verses', where: 'Your Bible' },
         { icon: 'arrows-rotate', tone: 'green', what: 'Look back', where: 'Review' },
         { icon: 'book-open', tone: 'orange', what: 'Family Bible thoughts', detail: 'A note for each chapter', where: 'Family Bible folder' },
-        { icon: 'download', tone: (data.preferences?.coverColor ?? defaultChildPreferences.coverColor) as Tone, what: 'Cover and stickers', detail: 'They’re only in child notebooks', where: 'Stay behind', stays: true },
+        { icon: 'download', tone: (data.preferences?.coverColor ?? defaultChildPreferences.coverColor) as Tone, what: 'Notebook cover', detail: 'It’s only in child notebooks', where: 'Stays behind', stays: true },
       ]} note="Afterwards it’s yours alone. Your parent can’t open it, and the child notebook closes." />
       {claim.error ? <p className="public-move__error" role="alert">{claim.error instanceof Error ? claim.error.message : 'Try again in a moment.'}</p> : null}
       {cta(<button type="button" className="public-cta-btn" disabled={claim.isPending} onClick={() => claim.mutate()}>

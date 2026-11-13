@@ -14,6 +14,7 @@ import ReviewCardsScene from './ReviewCardsScene';
 import SoundsScene from './SoundsScene';
 import LibrarySearchRowsScene from './LibrarySearchRowsScene';
 import TodaysPassageScene from './TodaysPassageScene';
+import ReaderStickersScene from './ReaderStickersScene';
 import { ChoiceOptions } from '../../prototype/review-exercises/ChoiceOptions';
 import PrototypeRecallStateChip from '../../prototype/PrototypeRecallStateChip';
 import {
@@ -1870,6 +1871,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <LibrarySearchRowsScene />;
     case 'ds-29-todays-passage':
       return <TodaysPassageScene />;
+    case 'ds-30-reader-stickers':
+      return <ReaderStickersScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }
