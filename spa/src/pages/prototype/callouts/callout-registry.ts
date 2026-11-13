@@ -15,7 +15,9 @@
  * 3. **Not back to back.** After one is put away, nothing for a day — a second card appearing
  *    the moment the first goes reads as a queue, which is rule 1 by another name.
  * 4. **Only for the right people.** Guests see none unless a callout says so; Plus-only features
- *    are announced only to Plus.
+ *    are announced only to Plus. A Plus feature can also have a second card for everyone else
+ *    (`audience: 'free'`), telling the same story as a reason to get Plus — the two audiences
+ *    never overlap, so one account only ever sees one of the pair.
  * 5. **Only to people it is news to.** A change is only a change for an account that had the app
  *    before it shipped (`shippedAt`). Someone who signed up after it never saw the old way, and
  *    gets onboarding instead.
@@ -59,6 +61,8 @@ export interface CalloutActionContext {
   openSettings: (path: string) => void;
   /** Open the My Bible map, over whatever page is showing. */
   openBibleMap: () => void;
+  /** Open the Harvous Plus page (`/upgrade`), in this tab. */
+  openUpgrade: () => void;
 }
 
 export type CalloutAction =
@@ -82,7 +86,11 @@ export interface Callout {
   minVersion?: string;
   /** ISO date; never shown after. Defaults to `shippedAt` plus `CALLOUT_SHELF_MS`. */
   until?: string;
-  audience?: 'all' | 'members' | 'plus';
+  /**
+   * Who it is for. `members` is every signed-in account; `plus` only accounts with Plus (their
+   * own or a family's); `free` only signed-in accounts without it — the upsell half of a pair.
+   */
+  audience?: 'all' | 'members' | 'plus' | 'free';
   /** Higher first. Legal outranks features. */
   priority?: number;
 }
@@ -147,6 +155,34 @@ export const CALLOUTS: readonly Callout[] = [
     shippedAt: '2026-10-15',
     audience: 'members',
   },
+  /*
+   * Child notebooks and the My Family upgrade (#340 family-gated notebooks, #342 the starting
+   * cover, #341 the move at 13). One story, told twice: as an upgrade to people who have Plus,
+   * and as a reason to get it to people who don't. Same date, disjoint audiences, so they never
+   * share a stack — and between them they fold What's new for everyone that week.
+   *
+   * SHIP DATE: placeholder. Set both `shippedAt`s to the real date enrollment opens
+   * (`HARVOUS_CHILD_ACCOUNTS_ENABLED=true` in production) when this merges. A far-future date
+   * keeps the cards asleep if it ever merges early.
+   */
+  {
+    id: 'family-upgrade-2026-11',
+    title: 'My Family got a big upgrade',
+    body: 'Add a notebook for a child under 13 and pick its first cover. At 13, it moves to their own account, notes and all.',
+    illustration: 'family-notebooks',
+    action: { label: 'Take a look', run: (ctx) => ctx.openSettings('settings/family') },
+    shippedAt: '2099-01-01',
+    audience: 'plus',
+  },
+  {
+    id: 'family-upgrade-free-2026-11',
+    title: 'A notebook for your kids',
+    body: 'Harvous Plus now includes notebooks for kids under 13 in the US, set up and looked after by you in My Family.',
+    illustration: 'family-notebooks',
+    action: { label: 'See Plus', run: (ctx) => ctx.openUpgrade() },
+    shippedAt: '2099-01-01',
+    audience: 'free',
+  },
 ];
 
 /** -1, 0 or 1, comparing dotted numeric versions ("3.18.5"). Missing parts count as 0. */
@@ -177,6 +213,7 @@ function forThisAccount(callout: Callout, ctx: CalloutContext): boolean {
   const audience = callout.audience ?? 'members';
   if (audience !== 'all' && ctx.isGuest) return false;
   if (audience === 'plus' && !ctx.isPlus) return false;
+  if (audience === 'free' && ctx.isPlus) return false;
   /* A change is only a change to someone who had the app before it. */
   if (callout.shippedAt) {
     /* And not before it ships: a callout merged ahead of its date waits for it. */
