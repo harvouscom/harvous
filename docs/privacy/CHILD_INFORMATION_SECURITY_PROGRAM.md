@@ -52,7 +52,10 @@ they're added in section 3 before their access starts.
     well, in case a password sign-in exists.
   - **Fly.io:** no password at all; sign-in only through the linked identity (derekj@hey.com, the
     GitHub account's email), so it's protected by that sign-in's two-factor.
-  - **Clerk, Epic:** to confirm in each account's security settings.
+  - **Clerk:** no password; sign-in through the connected GitHub account. It also lists a phone
+    number, which Clerk can send sign-in codes to, so add Clerk's own two-step verification too.
+  - **Epic (KWS):** two-factor on, using email codes. Add an authenticator app as a second
+    method.
 - **No direct reads.** Staff don't open a child's notebook or query children's rows except to fix
   a problem the parent reports, with the parent's permission, or when the law requires it. Each
   such access is noted in the staff access log: iCloud Drive › Harvous Compliance ›
