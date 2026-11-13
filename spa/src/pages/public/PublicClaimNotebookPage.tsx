@@ -234,7 +234,7 @@ export default function PublicClaimNotebookPage() {
           { icon: 'note-sticky', tone: 'blue', what: notes === 1 ? '1 note' : `${notes} notes`, detail: 'With their folders, tags and Threads', where: 'My Home' },
           ...(s.highlights ? [{ icon: 'highlighter' as const, tone: 'yellow' as const, what: s.highlights === 1 ? '1 highlight' : `${s.highlights} highlights`, where: 'Your Bible' }] : []),
           ...(s.reviewItems ? [{ icon: 'arrows-rotate' as const, tone: 'green' as const, what: 'Look back', detail: 'What you were remembering', where: 'Review' }] : []),
-          ...(s.familyBibleNotes ? [{ icon: 'book-open' as const, tone: 'purple' as const, what: 'Family Bible thoughts', detail: 'A note for each chapter', where: 'Family Bible folder' }] : []),
+          ...(s.familyBibleNotes ? [{ icon: 'book-open' as const, tone: 'orange' as const, what: 'Family Bible thoughts', detail: 'A note for each chapter', where: 'Family Bible folder' }] : []),
         ]}
         aside={done.familyJoinPath ? <>Or <button type="button" className="public-move__link" onClick={() => openHome(done.homeSpaceId)}>open My Home</button> first, and come back to the invite.</> : undefined} />
       {done.familyJoinPath
@@ -279,8 +279,8 @@ export default function PublicClaimNotebookPage() {
         { icon: 'note-sticky', tone: 'blue', what: 'Notes', detail: 'With their folders, tags and Threads', where: 'My Home' },
         { icon: 'highlighter', tone: 'yellow', what: 'Highlights', where: 'Your Bible' },
         { icon: 'arrows-rotate', tone: 'green', what: 'Look back', where: 'Review' },
-        { icon: 'book-open', tone: 'purple', what: 'Family Bible thoughts', detail: 'A note for each chapter', where: 'Family Bible folder' },
-        { icon: 'download', tone: 'pink', what: 'Cover and stickers', detail: 'They’re only in child notebooks', where: 'Stay behind', stays: true },
+        { icon: 'book-open', tone: 'orange', what: 'Family Bible thoughts', detail: 'A note for each chapter', where: 'Family Bible folder' },
+        { icon: 'download', tone: (data.preferences?.coverColor ?? defaultChildPreferences.coverColor) as Tone, what: 'Cover and stickers', detail: 'They’re only in child notebooks', where: 'Stay behind', stays: true },
       ]} note="Afterwards it’s yours alone. Your parent can’t open it, and the child notebook closes." />
       {claim.error ? <p className="public-move__error" role="alert">{claim.error instanceof Error ? claim.error.message : 'Try again in a moment.'}</p> : null}
       {cta(<button type="button" className="public-cta-btn" disabled={claim.isPending} onClick={() => claim.mutate()}>

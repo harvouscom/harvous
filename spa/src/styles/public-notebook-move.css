@@ -313,12 +313,8 @@
   fill: var(--sh-ink-soft);
 }
 
-/* What stays behind reads quieter: no arrow, an outline instead of a fill. */
-.public-move__row--stays .public-move__chip {
-  filter: saturate(0.4);
-  opacity: 0.75;
-}
-
+/* What stays behind reads quieter: no arrow, an outline instead of a fill. Its chip is in the
+   notebook's own cover colour (set in the page), since what stays is the cover. */
 .public-move__row--stays .public-move__what b {
   color: var(--sh-ink-soft);
 }
