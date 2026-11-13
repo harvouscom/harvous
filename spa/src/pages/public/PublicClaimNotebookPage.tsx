@@ -25,6 +25,7 @@ import { useAuthReady } from '../../hooks/useAuthReady';
 import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 import { defaultChildPreferences, type ChildNotebookPreferences } from '../../../../shared/child-notebook';
 import { ChildNotebookCover } from '../prototype/ChildNotebookAppearance';
+import ChildCoverSymbol from '../prototype/ChildCoverSymbol';
 import { PublicErrorState, PublicSharedFooter, PublicTopBar } from './public-shared';
 import '../../styles/public-shared-paper.css';
 import '../../styles/child-notebook-preview.css';
@@ -92,22 +93,83 @@ function Notebook({ name, preferences, moved = false }: {
   );
 }
 
-/** One button floats, as on the shared pages; anything else is a quiet link at the letter's foot. */
-function Letter({ title, meta, lines, note, aside }: {
-  title: string; meta?: string | null; lines: { icon: IconName; text: string }[]; note?: string; aside?: ReactNode;
+type Tone = 'blue' | 'green' | 'purple' | 'pink' | 'orange' | 'yellow';
+
+/** Die-cut stickers around the notebook, as on harvous.com's child notebooks desk. */
+const STICKERS: { symbol: 'rainbow' | 'fish' | 'sun' | 'crown' | 'heart' | 'star'; tone: Tone; top: string; left: string; tilt: number }[] = [
+  { symbol: 'rainbow', tone: 'pink', top: '10%', left: '6%', tilt: -10 },
+  { symbol: 'fish', tone: 'blue', top: '52%', left: '3%', tilt: 8 },
+  { symbol: 'sun', tone: 'yellow', top: '6%', left: '84%', tilt: 12 },
+  { symbol: 'heart', tone: 'orange', top: '48%', left: '88%', tilt: -7 },
+  { symbol: 'crown', tone: 'green', top: '30%', left: '18%', tilt: 6 },
+  { symbol: 'star', tone: 'purple', top: '30%', left: '74%', tilt: -12 },
+];
+
+function FloatingStickers() {
+  return (
+    <div className="public-move__stickers" aria-hidden>
+      {STICKERS.map((sticker) => (
+        <span key={sticker.symbol} className="public-move__sticker" data-tone={sticker.tone}
+          style={{ top: sticker.top, left: sticker.left, ['--tilt' as string]: `${sticker.tilt}deg` }}>
+          <ChildCoverSymbol symbol={sticker.symbol} size={22} />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** One line of what goes where: a sticker for the thing, what it is, and where it lands. */
+type ManifestRow = { icon: IconName; tone: Tone; what: string; detail?: string; where: string; stays?: boolean };
+
+/**
+ * The letter is the notebook's label and its packing list. At the top, printed like the Thread
+ * folder's front: a tab, the name, and fields. Under it, each thing in the notebook and where it
+ * goes, so nothing has to be read as a paragraph. One button floats, as on the shared pages;
+ * anything else is a quiet link at the letter's foot.
+ */
+function Letter({ name, fields, title, rows, note, aside, moved = false }: {
+  name: string;
+  fields: { label: string; value: string }[];
+  title: string;
+  rows: ManifestRow[];
+  note?: string;
+  aside?: ReactNode;
+  moved?: boolean;
 }) {
   return (
     <div className="public-paper-stack public-shared__stack public-move__letter">
       <div className="public-paper-stack__leaf public-paper-stack__leaf--back" aria-hidden />
       <div className="public-paper-stack__leaf public-paper-stack__leaf--mid" aria-hidden />
-      <section className="public-shared__sheet public-move__sheet" aria-label={title}>
+      <section className="public-shared__sheet public-move__sheet" aria-label={name}>
+        <header className="public-move__plate">
+          <span className="public-move__tab">Notebook</span>
+          <h1 className="public-move__name">{name}</h1>
+          {fields.length ? (
+            <dl className="public-move__fields">
+              {fields.map((field) => (
+                <div key={field.label} className="public-move__field">
+                  <dt>{field.label}</dt>
+                  <dd>{field.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </header>
         <h2 className="public-move__heading">{title}</h2>
-        {meta ? <p className="public-move__meta">{meta}</p> : null}
-        <ul className="public-move__lines" role="list">
-          {lines.map((line) => (
-            <li key={line.text}>
-              <Icon name={line.icon} size={14} aria-hidden />
-              <span>{line.text}</span>
+        <ul className="public-move__manifest" role="list">
+          {rows.map((row) => (
+            <li key={row.what} className={row.stays ? 'public-move__row public-move__row--stays' : 'public-move__row'}>
+              <span className="public-move__chip" data-tone={row.tone} aria-hidden>
+                <Icon name={row.icon} size={14} />
+              </span>
+              <span className="public-move__what">
+                <b>{row.what}</b>
+                {row.detail ? <small>{row.detail}</small> : null}
+              </span>
+              <span className="public-move__where">
+                {row.stays ? null : <Icon name={moved ? 'check' : 'arrow-right'} size={10} aria-hidden />}
+                {row.where}
+              </span>
             </li>
           ))}
         </ul>
@@ -163,39 +225,48 @@ export default function PublicClaimNotebookPage() {
   );
 
   let content: ReactNode;
+  // The stickers come with the notebook: not over a spinner or a dead link.
+  let staged = true;
   if (done) {
     const s = done.summary;
     const notes = s.notes + s.familyBibleNotes;
     content = <>
       {opening('It’s yours now', <>Welcome to <span className="public-shared__mark">your own Harvous</span>.</>)}
       <Notebook name={data?.displayName ?? ''} preferences={data?.preferences ?? null} moved />
-      <Letter title="Where everything went" lines={[
-        { icon: 'note-sticky', text: `${notes === 1 ? 'Your note is' : `Your ${notes} notes are`} in My Home, with their folders, tags and Threads.` },
-        ...(s.highlights ? [{ icon: 'highlighter' as const, text: 'Your highlights are in your Bible.' }] : []),
-        ...(s.reviewItems ? [{ icon: 'arrows-rotate' as const, text: 'What you were looking back on is in Review now.' }] : []),
-        ...(s.familyBibleNotes ? [{ icon: 'book-open' as const, text: 'Your Family Bible thoughts are notes in a Family Bible folder.' }] : []),
-      ]} aside={done.familyJoinPath ? <>Or <button type="button" className="public-move__link" onClick={() => openHome(done.homeSpaceId)}>open My Home</button> first, and come back to the invite.</> : undefined} />
+      <Letter moved name={data?.displayName ? `${data.displayName}’s notebook` : 'Your notebook'}
+        fields={[{ label: 'Notes', value: String(notes) }, ...(s.highlights ? [{ label: 'Highlights', value: String(s.highlights) }] : [])]}
+        title="Where everything went" rows={[
+          { icon: 'note-sticky', tone: 'blue', what: notes === 1 ? '1 note' : `${notes} notes`, detail: 'With their folders, tags and Threads', where: 'My Home' },
+          ...(s.highlights ? [{ icon: 'highlighter' as const, tone: 'yellow' as const, what: s.highlights === 1 ? '1 highlight' : `${s.highlights} highlights`, where: 'Your Bible' }] : []),
+          ...(s.reviewItems ? [{ icon: 'arrows-rotate' as const, tone: 'green' as const, what: 'Look back', detail: 'What you were remembering', where: 'Review' }] : []),
+          ...(s.familyBibleNotes ? [{ icon: 'book-open' as const, tone: 'purple' as const, what: 'Family Bible thoughts', detail: 'A note for each chapter', where: 'Family Bible folder' }] : []),
+        ]}
+        aside={done.familyJoinPath ? <>Or <button type="button" className="public-move__link" onClick={() => openHome(done.homeSpaceId)}>open My Home</button> first, and come back to the invite.</> : undefined} />
       {done.familyJoinPath
         ? cta(<button type="button" className="public-cta-btn" onClick={() => void navigate({ to: done.familyJoinPath as never })}>See your family invite</button>)
         : cta(<button type="button" className="public-cta-btn" onClick={() => openHome(done.homeSpaceId)}>Open My Home</button>)}
     </>;
   } else if (!isLoaded) {
+    staged = false;
     content = <div className="page-loading" />;
   } else if (!isSignedIn && !FIXTURE) {
     // Nothing about the notebook until they're signed in: no name, no cover, no counts.
     content = <>
       {opening('From your family', 'A notebook is waiting for you.')}
       <Notebook name="" preferences={WAITING_COVER} />
-      <Letter title="Keep what you wrote" lines={[
-        { icon: 'note-sticky', text: 'Your parent sent this so the notebook you kept as a kid can move into your own Harvous account.' },
-        { icon: 'circle-user', text: 'Create your account, or sign in, to see it.' },
-      ]} aside={<>Already have an account? <button type="button" className="public-move__link" onClick={() => goToAuth(true)}>Sign in</button></>} />
+      <Letter name="Your notebook" fields={[]} title="Keep what you wrote" rows={[
+        { icon: 'note-sticky', tone: 'blue', what: 'Your notes', detail: 'With their folders, tags and Threads', where: 'Your account' },
+        { icon: 'highlighter', tone: 'yellow', what: 'Your highlights', where: 'Your Bible' },
+      ]} note="Your parent sent this link. Create your account, or sign in, to see your notebook."
+        aside={<>Already have an account? <button type="button" className="public-move__link" onClick={() => goToAuth(true)}>Sign in</button></>} />
       {cta(<button type="button" className="public-cta-btn" onClick={() => goToAuth(false)}>Create your free account</button>)}
     </>;
   } else if (!FIXTURE && (!ready || preview.isLoading)) {
     // `useAuthReady` is false while signed out, so it only gates the signed-in states.
+    staged = false;
     content = <div className="page-loading" />;
   } else if (!data) {
+    staged = false;
     content = <PublicErrorState icon={<Icon name="link" size={24} />} title="This link isn’t working"
       message={preview.error instanceof Error ? preview.error.message : 'Ask your parent for a new one.'} />;
   } else {
@@ -205,14 +276,16 @@ export default function PublicClaimNotebookPage() {
         ? <><span className="public-shared__mark">{data.parentFirstName}</span> sent you your notebook.</>
         : 'Your notebook is ready to move.')}
       <Notebook name={data.displayName} preferences={data.preferences} />
-      <Letter title={`${data.displayName}’s notebook`}
-        meta={[`${data.notes} ${data.notes === 1 ? 'note' : 'notes'}`, data.highlights ? `${data.highlights} ${data.highlights === 1 ? 'highlight' : 'highlights'}` : null, keptSpan]
-          .filter(Boolean).join(' · ')}
-        lines={[
-        { icon: 'note-sticky', text: 'Your notes go into My Home, with their folders, tags and Threads.' },
-        { icon: 'highlighter', text: 'Your highlights go into your Bible, and Look back becomes Review.' },
-        { icon: 'book-open', text: 'Your Family Bible thoughts become notes.' },
-        { icon: 'download', text: 'The cover and stickers stay behind. They’re only in child notebooks.' },
+      <Letter name={`${data.displayName}’s notebook`} fields={[
+        { label: 'Notes', value: data.notes ? String(data.notes) : 'None yet' },
+        ...(data.highlights ? [{ label: 'Highlights', value: String(data.highlights) }] : []),
+        ...(keptSpan ? [{ label: 'Kept', value: keptSpan }] : []),
+      ]} title="What moves where" rows={[
+        { icon: 'note-sticky', tone: 'blue', what: 'Notes', detail: 'With their folders, tags and Threads', where: 'My Home' },
+        { icon: 'highlighter', tone: 'yellow', what: 'Highlights', where: 'Your Bible' },
+        { icon: 'arrows-rotate', tone: 'green', what: 'Look back', where: 'Review' },
+        { icon: 'book-open', tone: 'purple', what: 'Family Bible thoughts', detail: 'A note for each chapter', where: 'Family Bible folder' },
+        { icon: 'download', tone: 'pink', what: 'Cover and stickers', detail: 'They’re only in child notebooks', where: 'Stay behind', stays: true },
       ]} note="Afterwards it’s yours alone. Your parent can’t open it, and the child notebook closes." />
       {claim.error ? <p className="public-move__error" role="alert">{claim.error instanceof Error ? claim.error.message : 'Try again in a moment.'}</p> : null}
       {cta(<button type="button" className="public-cta-btn" disabled={claim.isPending} onClick={() => claim.mutate()}>
@@ -232,6 +305,7 @@ export default function PublicClaimNotebookPage() {
           <div className="public-shared-host">
             <SubtleContentMount variant="fade">
               <div className="public-shared public-move">
+                {staged ? <FloatingStickers /> : null}
                 {content}
                 <PublicSharedFooter />
               </div>
