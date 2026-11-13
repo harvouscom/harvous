@@ -4,9 +4,8 @@
 **Covers:** personal information collected from children through parent-managed child notebooks.
 **Required by:** 16 CFR 312.8(b), as amended in 2025.
 
-**Status:** Ready to adopt. It's in force once the coordinator signs the table at the end, and
-production enrollment stays closed until `HARVOUS_CHILD_SECURITY_PROGRAM_ADOPTED=true` is set after
-that. Context and sources are in [`COPPA_REVIEW_2026-11.md`](COPPA_REVIEW_2026-11.md).
+**Status:** Adopted 12 November 2026 by Derek J., coordinator (see section 9).
+Production carries `HARVOUS_CHILD_SECURITY_PROGRAM_ADOPTED=true`; turn it off if this program lapses. Context and sources are in [`COPPA_REVIEW_2026-11.md`](COPPA_REVIEW_2026-11.md).
 
 The rule asks for safeguards suited to the sensitivity of the information and to the operator's
 size, complexity and activities. Harvous is a one-person company running a small, private notes
@@ -145,4 +144,4 @@ Each review is recorded below.
 
 | Date | Change | Coordinator |
 |---|---|---|
-| | Program adopted | |
+| 12 Nov 2026 | Program adopted. Two-factor checked on all six accounts; records in iCloud Drive › Harvous Compliance; provider DPAs in force or requested (Fly) | Derek J., Testament Made LLC |
