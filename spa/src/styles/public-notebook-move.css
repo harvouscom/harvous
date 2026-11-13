@@ -156,7 +156,8 @@
 }
 
 .public-move__sheet {
-  padding: 74px 22px 58px;
+  /* The book's foot reaches ~15px into the letter; the name starts a short step below it. */
+  padding: 42px 22px 58px;
 }
 
 .public-move__plate {
@@ -372,7 +373,7 @@
 
 @media (min-width: 700px) {
   .public-move__sheet {
-    padding: 80px 44px 64px;
+    padding: 44px 44px 64px;
   }
 }
 
