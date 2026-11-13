@@ -210,6 +210,15 @@ export const FAMILY_LAUNCHED = true;
  * comes first: a label that never comes off is the old "beta" again.
  */
 export const FAMILY_SHOWS_PREVIEW_NOTE = true;
+
+/**
+ * Whether the Plus list (/upgrade, Settings › Plan) names child notebooks. Enrollment itself is
+ * opened server-side by `HARVOUS_CHILD_ACCOUNTS_ENABLED`, which the price list can't read (the
+ * page is public, and the list is built at compile time), so this is a second switch — flip it
+ * in the same release that opens enrollment, and never before: the list must never sell what
+ * is not switched on. Set to true in the launch-announcement PR at merge.
+ */
+export const CHILD_NOTEBOOKS_ON_PLUS_LIST = false;
 export const FAMILY_COVERED_FEATURES = [
   'review',
   'challenges',
