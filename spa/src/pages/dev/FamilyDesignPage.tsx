@@ -16,9 +16,24 @@ import { FamilyDemoContext, type FamilyDemo } from '../../hooks/queries/family-d
 import type { FamilyMember, FamilyProgressEntry, FamilyRoleRequest } from '../../hooks/queries/useFamily';
 import { FamilyView, type InFamily } from '../prototype/settings/PrototypeFamilyPage';
 import MoveChildNotebook from '../prototype/settings/MoveChildNotebook';
-import { SettingsShell } from '../prototype/settings/SettingsShell';
 import type { ChildDetail } from '../family/types';
+import ChildNotebookStartingCover, { DEFAULT_STARTING_COVER, type StartingCover } from '../prototype/settings/ChildNotebookStartingCover';
+import { SettingsShell } from '../prototype/settings/SettingsShell';
+import '../../styles/family.css';
 
+/** The parent's "Their notebook" choice from notebook setup, with a name to type. */
+function StartingCoverDemo() {
+  const [name, setName] = useState('Abby');
+  const [cover, setCover] = useState<StartingCover>(DEFAULT_STARTING_COVER);
+  return (
+    <SettingsShell>
+      <label className="pds-list-title" style={{ display: 'block', marginBottom: 16 }}>First Name
+        <input className="proto-settings-field__input" value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <ChildNotebookStartingCover name={name} value={cover} onChange={setCover} />
+    </SettingsShell>
+  );
+}
 
 const DAY = 24 * 60 * 60 * 1000;
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY).toISOString();
@@ -188,6 +203,11 @@ export default function FamilyDesignPage() {
       </section>
 
       <section className="dev-family__grid" style={{ marginTop: 32 }}>
+        <div className="dev-family__col">
+          <p className="pds-caption dev-col-label">Setting up a child notebook — how it starts out</p>
+          <p className="pds-caption dev-family__note">The parent picks colour, pattern and style. The cover starts with the initial; stickers are the child’s.</p>
+          <div className="dev-family__pane"><StartingCoverDemo /></div>
+        </div>
         <div className="dev-family__col">
           <p className="pds-caption dev-col-label">Moving a notebook — Abby turns 13</p>
           <p className="pds-caption dev-family__note">

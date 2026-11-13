@@ -148,6 +148,10 @@ See "Moving a notebook into the teen's own account" below for the transition tha
 
 Repeat the shared-device handoff against the production Clerk configuration before opening real enrollment. Verify parent session freshness, browser Back and refresh, and the supported sign-in methods.
 
+## How a notebook starts out
+
+At setup, after the child's first name, the parent picks how the notebook looks the first time it's opened: colour, pattern and style (classic, spiral or stitched), drawn live with the child's initial (`ChildNotebookStartingCover.tsx`). `POST /api/child-accounts/children` takes these as an optional `cover` and saves them over the defaults with `coverSymbol: 'initial'`. A parent can't pick the sticker; the server refuses one. The child can change all of it, stickers included, in their notebook's cover studio.
+
 ## Moving a notebook into the teen's own account
 
 When a child turns 13, the parent can move their notebook into the teen's own Harvous account. `server/family/notebook-move.ts` holds the rules.
