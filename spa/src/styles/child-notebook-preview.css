@@ -242,6 +242,17 @@
 .pds-kids-privacy-dock { flex-shrink: 0; display: flex; justify-content: center; padding: var(--pds-space-2) var(--pds-space-4) max(var(--pds-space-2), env(safe-area-inset-bottom)); }
 .pds-kids-privacy-dock .pds-kids-preview__quiet { padding: 0 var(--pds-space-3); font-size: 12px; }
 .pds-kids-privacy-modal { --kids-cover-ink: color-mix(in oklab, var(--kids-cover-color) 65%, var(--pds-text-primary)); box-sizing: border-box; width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: var(--pds-space-6); border: 1px solid var(--pds-border-soft); border-radius: var(--pds-radius-card); background: var(--pds-bg-page); color: var(--pds-text-primary); box-shadow: var(--pds-shadow-card-elevated); font-family: var(--pds-font-body); overflow-y: auto; }
+/* Signed out (ChildSignedOut): the notebook circle's card on its own, centred on the canvas. */
+.pds-kids-signed-out { display: grid; place-items: center; min-height: 100dvh; box-sizing: border-box; padding: var(--pds-space-4); font-family: var(--pds-font-body); }
+.pds-kids-signed-out .pds-kids-appearance-scope { display: contents; }
+.pds-kids-signed-out__card { display: flex; flex-direction: column; align-items: stretch; gap: var(--pds-space-2); }
+.pds-kids-signed-out__card .pds-kids-review__art { margin-bottom: var(--pds-space-3); }
+.pds-kids-signed-out__card h1 { margin: 0; }
+.pds-kids-signed-out__card > .pds-caption { margin: 0; color: var(--pds-text-secondary); }
+.pds-kids-signed-out__card > .proto-settings-btn { align-self: flex-start; width: auto; min-height: 44px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }
+.pds-kids-signed-out__parent { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--pds-space-2); min-height: 36px; font-size: 14px; font-weight: 500; color: var(--pds-text-secondary); text-decoration: none; }
+.pds-kids-signed-out__parent:hover { color: var(--pds-text-primary); }
+.pds-kids-signed-out__parent:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 3px; border-radius: var(--pds-radius-input); }
 .pds-kids-privacy-modal::backdrop { background: var(--pds-overlay-medium); }
 .pds-kids-privacy-modal__heading { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--pds-space-5); }
 .pds-kids-privacy-modal__heading > button { width: 36px; justify-content: center; }

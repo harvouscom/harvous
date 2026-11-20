@@ -17,7 +17,7 @@ import { ChildNotebookAppearanceProvider, useChildNotebookAppearance } from '../
 import ChildNotebookBibleReader from '../prototype/ChildNotebookBibleReader';
 import ProtoSpaceLoading from '../prototype/ProtoSpaceLoading';
 import ChildNotebookSearchPanel from './ChildNotebookSearchPanel';
-import { ChildPrivacyFootnote } from './ChildPrivacyNotice';
+import ChildSignedOut, { type SignedOutKind } from './ChildSignedOut';
 import '../../styles/prototype-components.css';
 import '../../styles/prototype-tokens.css';
 import '../../styles/prototype-shell.css';
@@ -37,7 +37,7 @@ export type Notebook = {
 const isDesignPreview = import.meta.env.DEV && new URLSearchParams(window.location.search).get('preview') === '1';
 // Remove the one-time credential before rendering or making any requests.
 const handoff = window.location.hash.slice(1);
-window.history.replaceState(null, '', window.location.pathname + (isDesignPreview ? '?preview=1' : ''));
+window.history.replaceState(null, '', window.location.pathname + (isDesignPreview ? window.location.search : ''));
 let sessionToken: string | null = null;
 class ChildRequestError extends Error { constructor(message: string, public status: number) { super(message); } }
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
@@ -56,14 +56,31 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
   return data;
 }
 let bootstrap: Promise<Notebook> | null = null;
+class NoLinkError extends Error {}
 function openNotebook() {
   return bootstrap ??= (async () => {
-    if (!isDesignPreview && !/^hvkid_[\w-]{43}$/.test(handoff)) throw new Error('Ask your parent for a new sign-in link.');
-    const result = await request<{ token: string }>('redeem', 'POST', { token: handoff });
-    sessionToken = result.token;
+    // A retry after the link was already redeemed opens with the session it made; the link itself is single-use.
+    if (!sessionToken) {
+      if (!isDesignPreview && !/^hvkid_[\w-]{43}$/.test(handoff)) throw new NoLinkError('Ask your parent for a new sign-in link.');
+      const result = await request<{ token: string }>('redeem', 'POST', { token: handoff });
+      sessionToken = result.token;
+    }
     return request<Notebook>('notebook');
-  })();
+  })().catch((cause) => { bootstrap = null; throw cause; });
 }
+
+/** Which signed-out page a failure means, in a child's terms (ChildSignedOut). */
+function signedOutKind(cause: unknown): SignedOutKind {
+  if (cause instanceof NoLinkError) return 'link';
+  if (cause instanceof ChildRequestError) {
+    if (cause.status === 401) return 'link';
+    if (cause.status === 403) return /paused right now/i.test(cause.message) ? 'paused' : 'review';
+    if (cause.status === 503) return 'paused';
+  }
+  return 'offline';
+}
+// Dev only: `?preview=1&signedOut=closed|link|review|paused|offline` shows one of the signed-out pages.
+const previewSignedOut = isDesignPreview ? new URLSearchParams(window.location.search).get('signedOut') as SignedOutKind | null : null;
 
 function dateLabel(value: string | null) {
   if (!value) return 'Today';
@@ -195,9 +212,11 @@ function SessionNotebook({ notebook, privacyUrl, request, onEnd, onRefresh, revi
 
 function ChildNotebook() {
   const [notebook, setNotebook] = useState<Notebook | null>(null);
-  const [status, setStatus] = useState<'opening' | 'ended' | null>('opening');
-  const [error, setError] = useState('');
+  const [status, setStatus] = useState<'opening' | 'ended' | null>(previewSignedOut ? null : 'opening');
+  const [signedOut, setSignedOut] = useState<SignedOutKind | null>(previewSignedOut);
+  const [retrying, setRetrying] = useState(false);
   const [privacyUrl, setPrivacyUrl] = useState<string>();
+  const [parentSignInUrl, setParentSignInUrl] = useState<string | undefined>(previewSignedOut ? '#preview-parent-sign-in' : undefined);
   const [revision, setRevision] = useState(0);
   const refreshVersion = useRef(0);
   const applyLocalChange = useCallback((update: (current: Notebook) => Notebook) => {
@@ -209,19 +228,20 @@ function ChildNotebook() {
     catch (cause) {
       if (cause instanceof ChildRequestError && [401, 403].includes(cause.status)) {
         sessionToken = null; refreshVersion.current++;
-        setNotebook(null); setStatus(null); setError(cause.message);
+        setNotebook(null); setStatus(null); setSignedOut(signedOutKind(cause));
       }
       throw cause;
     }
   }, []);
   useEffect(() => {
     let current = true;
-    if (!isDesignPreview) void request<{ privacyUrl: string }>('privacy').then(data => {
-      if (current) setPrivacyUrl(data.privacyUrl);
+    if (!isDesignPreview) void request<{ privacyUrl: string; parentSignInUrl?: string }>('privacy').then(data => {
+      if (current) { setPrivacyUrl(data.privacyUrl); setParentSignInUrl(data.parentSignInUrl); }
     }).catch(() => {});
+    if (previewSignedOut) return () => { current = false; };
     void openNotebook().then(data => {
       if (current) { setNotebook(data); setStatus(null); }
-    }).catch(cause => { if (current) { setError(cause.message); setStatus(null); } });
+    }).catch(cause => { if (current) { setSignedOut(signedOutKind(cause)); setStatus(null); } });
     return () => { current = false; };
   }, []);
   useEffect(() => {
@@ -242,12 +262,14 @@ function ChildNotebook() {
   if (!notebook && status === 'opening') return <main className="pds-child-opening" aria-busy="true">
     <ProtoSpaceLoading label="Opening your notebook" />
   </main>;
-  if (!notebook) return <main className="pds-child-app pds-family-stack">
-    <h1 className="pds-title">My notebook</h1>
-    {status === 'ended' && <p role="status">All done. Ask your parent for a link next time.</p>}
-    {error && <p role="alert">{error}</p>}
-    <ChildPrivacyFootnote url={privacyUrl}>A notebook is just for a child and their parent.</ChildPrivacyFootnote>
-  </main>;
+  if (!notebook) return <ChildSignedOut kind={status === 'ended' ? 'closed' : signedOut ?? 'link'} privacyUrl={privacyUrl}
+    parentSignInUrl={parentSignInUrl} retrying={retrying}
+    onRetry={previewSignedOut ? () => { setRetrying(true); window.setTimeout(() => setRetrying(false), 900); } : () => {
+      setRetrying(true);
+      void openNotebook().then(data => { setNotebook(data); setSignedOut(null); })
+        .catch(cause => setSignedOut(signedOutKind(cause)))
+        .finally(() => setRetrying(false));
+    }} />;
   return <ChildNotebookAppearanceProvider name={notebook.displayName} initial={notebook.preferences}>
     <SessionNotebook notebook={notebook} privacyUrl={notebook.privacyUrl ?? privacyUrl} request={childRequest} revision={revision} onRefresh={applyLocalChange}
       onEnd={async returnToParent => {

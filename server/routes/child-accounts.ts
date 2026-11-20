@@ -426,7 +426,9 @@ route.post(`${base}/child/redeem`, async (c) => {
 route.get(`${base}/child/privacy`, (c) => {
   const config = familyPublicConfig();
   if (!config) throw new HTTPException(404, { message: 'The child privacy notice is unavailable.' });
-  return c.json({ privacyUrl: config.privacyUrl });
+  // The parent's sign-in too, so a signed-out notebook can offer the grown-up a way back. Both are
+  // public addresses; nothing here depends on a session.
+  return c.json({ privacyUrl: config.privacyUrl, parentSignInUrl: config.parentSignInUrl });
 });
 
 route.get(`${base}/child/notebook`, async (c) => c.json(await withChildSession(token(c), async (tx, child) => ({
