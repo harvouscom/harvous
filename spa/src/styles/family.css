@@ -158,7 +158,8 @@
   font-family: var(--pds-font-body);
   box-shadow: var(--pds-paper-shadow-subtle);
 }
-body:has(.pds-child-app) { margin: 0; background: var(--pds-canvas-default); }
+body:has(.pds-child-app, .pds-child-opening) { margin: 0; background: var(--pds-canvas-default); }
+.pds-child-opening { display: grid; place-items: center; min-height: 100dvh; color: var(--pds-text-primary); font-family: var(--pds-font-body); }
 .pds-child-app :is(h1, h2, p) { margin: 0; }
 .pds-child-button { min-height: 44px; padding: var(--pds-space-3) var(--pds-space-4); border-radius: var(--pds-radius-button); border: 1px solid var(--pds-border); background: var(--pds-bg-popover-solid); color: var(--pds-text-primary); font: inherit; cursor: pointer; text-align: left; }
 .pds-child-button:disabled { opacity: 0.5; cursor: default; }
