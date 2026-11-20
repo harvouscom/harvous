@@ -125,7 +125,9 @@ describe('family route boundaries', () => {
     expect(response.status).toBe(503); expect(database.transaction).not.toHaveBeenCalled();
   });
   it.each([
-    { requested: ['ERV', 'CEV', 'NLV'], status: 200, hasText: true },
+    { requested: ['ERV', 'CEV'], status: 200, hasText: true },
+    // NLV is withheld (its text stays in the database, unserved), so it can't be approved.
+    { requested: ['ERV', 'CEV', 'NLV'], status: 400, hasText: true },
     { requested: ['BSB', 'ERV'], status: 200, hasText: true },
     // A parent may add from the wider catalog, as long as this environment has the text.
     { requested: ['NIV', 'ERV'], status: 200, hasText: true },

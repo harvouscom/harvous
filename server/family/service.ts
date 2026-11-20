@@ -9,6 +9,7 @@ import { db } from '../db/client';
 import { FamilyChildren, FamilyChildSessions, FamilySpaceApprovals, FamilyVerifications, Notes, Spaces, SpaceMemberships, SpaceNotes, Tags, Threads } from '../db/schema';
 import { familyEnrollmentConfig, requireFamilyEnrollment } from './kws';
 import { CHILD_SESSION_TTL_MS, hashSecret, hasActiveChildConsent, childSecret } from './policy';
+import { servedChildTranslations, type ChildBibleTranslation } from '../../shared/child-notebook';
 
 export type FamilyTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export type Child = typeof FamilyChildren.$inferSelect;
@@ -18,7 +19,18 @@ export async function ownedChild(tx: FamilyTx, parentId: string, childId: string
     eq(FamilyChildren.id, childId), eq(FamilyChildren.parentUserId, parentId)
   )).for('update');
   if (!child) throw new HTTPException(404, { message: 'Child account not found.' });
-  return child;
+  return servedChild(child);
+}
+
+/**
+ * The notebook row as the app may use it: withheld translations (NLV) dropped from its list. The
+ * same row comes back when there's nothing to drop, which is every notebook made after NLV went.
+ */
+export function servedChild<T extends { bibleTranslations: string[] }>(child: T): T & { bibleTranslations: ChildBibleTranslation[] } {
+  const list = child.bibleTranslations;
+  if (!Array.isArray(list)) return child as T & { bibleTranslations: ChildBibleTranslation[] };
+  const served = servedChildTranslations(list);
+  return served.length === list.length ? child as T & { bibleTranslations: ChildBibleTranslation[] } : { ...child, bibleTranslations: served };
 }
 
 /** Serializing against the child row makes revoke/delete win over all subsequent reads/writes. */
@@ -41,7 +53,7 @@ export async function withChildSession<T>(token: string | undefined, work: (tx: 
     ));
     if (!stillValid) throw new HTTPException(401, { message: 'This study session has ended.' });
     await tx.update(FamilyChildren).set({ lastActiveAt: new Date() }).where(eq(FamilyChildren.id, child.id));
-    return work(tx, child);
+    return work(tx, servedChild(child));
   });
 }
 

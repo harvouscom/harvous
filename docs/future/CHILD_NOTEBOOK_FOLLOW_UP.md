@@ -4,7 +4,9 @@ Production enrollment is off. Use fictional child accounts in [Harvous Staging](
 
 ## Family-selected Bible translations
 
-The child catalog uses **Easy-to-Read Version (ERV)**, **Contemporary English Version (CEV)**, and **New Life Version (NLV)**. New notebooks start with ERV approved. Parents can enable CEV and NLV in Family Bible settings. Existing approvals can remain in place for notebooks that used the staging catalog.
+The child catalog uses **Easy-to-Read Version (ERV)** and **Contemporary English Version (CEV)**. New notebooks start with ERV approved. Parents can enable CEV in Family Bible settings.
+
+**New Life Version (NLV) is withheld (20 Nov 2026).** Its text is in `BibleVerses` but offered and served to no one: the Bolls source is missing Numbers 1:28-54 and Psalm 82:8 (no other open source carries the NLV), and no permission to use it is on record. `withheld: true` in `src/data/translations.ts` makes every verse reader refuse it (chapter and book endpoints, verse text, search, passage identification), and `servedChildTranslations` drops it from a notebook saved with it (ERV if nothing is left). To bring it back: get a complete, licensed text, reseed, fill the gaps, and remove the flag and the `withheldChildBibleTranslations` entry. Existing approvals can remain in place for notebooks that used the staging catalog.
 
 Read Together opens a shared chapter in the edition the parent selected. The Family Bible picker includes the translation so two shares of the same chapter are distinguishable. Each share keeps its own verse thoughts. To read in another edition together, share the chapter again in that edition.
 

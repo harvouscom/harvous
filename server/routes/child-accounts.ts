@@ -19,7 +19,7 @@ import { syncEntitlementsFromProvider } from '../utils/entitlements';
 import { sponsorFeatureKeys } from '../utils/family-entitlements';
 import { CHILD_CAPABILITIES, CHILD_NOTICE_VERSION, HANDOFF_TTL_MS, VERIFICATION_TTL_MS, childSecret, emailDigest, hashSecret, hasActiveChildConsent, kwsWebhookSignatureResult } from '../family/policy';
 import { familyEnrollmentConfig, kwsConfig, requireFamilyEnrollment, sendKwsVerification } from '../family/kws';
-import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, withChildSession, type Child, type FamilyTx } from '../family/service';
+import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, servedChild, withChildSession, type Child, type FamilyTx } from '../family/service';
 import { CHILD_NOTEBOOK_LIMIT_CODE, CHILD_NOTEBOOK_MAX_PER_PARENT, childNotebookLimitMessage, childSchemes, childTextSizes, allChildBibleTranslations, coverBindings, coverColors, coverPatterns, coverSymbols, defaultChildPreferences, notebookPapers } from '../../shared/child-notebook';
 import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, hasTranslationText, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput, startingChildTranslation } from '../family/bible';
 import { searchChildNotebook } from '../family/notebook-search';
@@ -119,7 +119,7 @@ route.get(`${base}/status`, requireAuth, async (c) => {
   const publicConfig = familyPublicConfig();
   const available = !!familyEnrollmentConfig(process.env, parentId(c));
   try {
-    const children = await db.select().from(FamilyChildren).where(eq(FamilyChildren.parentUserId, parentId(c)));
+    const children = (await db.select().from(FamilyChildren).where(eq(FamilyChildren.parentUserId, parentId(c)))).map(servedChild);
     const verifications = await db.select({ id: FamilyVerifications.id, status: FamilyVerifications.status })
       .from(FamilyVerifications).where(and(eq(FamilyVerifications.parentUserId, parentId(c)),
         gt(FamilyVerifications.expiresAt, new Date()))).orderBy(desc(FamilyVerifications.createdAt));

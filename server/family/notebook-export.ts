@@ -44,7 +44,7 @@ export async function exportChildNotebook(tx: FamilyTx, child: Child) {
     displayName: child.displayName,
     preferences: child.notebookPreferences ?? defaultChildPreferences,
     bibleTranslations: child.bibleTranslations,
-    familyBible: await Promise.all((await familyReadings(tx, child)).map(async reading => ({
+    familyBible: await Promise.all((await familyReadings(tx, child, { includeWithheld: true })).map(async reading => ({
       ...reading, thoughts: (await familyThoughts(tx, reading.id)).filter(thought => thought.role === 'child')
     }))),
     verseStickers: await exportVerseStickers(tx, child),

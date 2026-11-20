@@ -7,7 +7,7 @@ Harvous stores full-Bible text as JSON arrays of `{ "book", "chapter", "verse", 
 | Translation | Source | Notes |
 |-------------|--------|-------|
 | **KJV** | Public-domain text (committed) | Clean, no Strong's numbers. Do **not** re-download from Bolls — Bolls serves the Strong's-numbered KJV. |
-| **ERV, CEV, NLV** | Child Notebook editions from Bolls bulk JSON. CEV uses the 66-book portion of CEVD. | `npm run bible:download:bolls -- ERV` (substitute CEV or NLV) |
+| **ERV, CEV, NLV** | Child Notebook editions from Bolls bulk JSON. CEV uses the 66-book portion of CEVD. NLV is seeded but withheld (served to no one): the source lacks Numbers 1:28-54 and Psalm 82:8. | `npm run bible:download:bolls -- ERV` (substitute CEV or NLV) |
 | **ESV, NIV, NLT, NKJV, BSB, NET** | Downloaded from [Bolls.life](https://bolls.life) API | `npm run bible:download:bolls -- ESV` (no API key required) |
 | **NASB 1995, CSB, AMP, MSG** | Downloaded from [Bolls.life](https://bolls.life) API | `npm run bible:download:bolls -- NASB` (no API key required) |
 | **NET** (alt) | [labs.bible.org](https://labs.bible.org) | `node server/data/bibles/_download_net.mjs` (NET only) |
