@@ -1,8 +1,7 @@
 /*
  * The kids' signed-out page (ChildSignedOut). Drawn like the notebook move page and harvous.com's
- * child notebooks desk: a soft gradient desk, die-cut stickers, and the notebook itself.
- *   data-variant="desk": the book stands on a paper letter that carries the words.
- *   data-variant="note": a sticky note stuck to the book's cover carries them.
+ * child notebooks desk: a soft gradient desk, die-cut stickers, and the notebook standing on a
+ * paper letter that carries the words.
  * Light and dark follow the notebook's scheme (the appearance scope sets the tokens).
  */
 
@@ -167,8 +166,8 @@
 .kso__actions .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); text-decoration: none; }
 .kso .pds-kids-privacy-footnote { margin: var(--pds-space-4) 0 0; text-align: center; }
 
-/* ─── Variant: on the desk (the book stands on a paper letter) ─── */
-.kso[data-variant="desk"] .kso__book { margin-bottom: -56px; }
+/* ─── The letter the book stands on ─── */
+.kso__book { margin-bottom: -56px; }
 .kso__letter {
   position: relative;
   z-index: 1;
@@ -182,50 +181,6 @@
   border: 0.5px solid var(--pds-border-soft);
   box-shadow: 0 1px 2px rgb(20 18 12 / 0.05), 0 22px 44px -26px rgb(20 18 12 / 0.4);
 }
-
-/* ─── Variant: a note on the cover ─── */
-.kso[data-variant="note"] .kso__cover { position: relative; display: grid; place-items: center; width: 100%; padding-top: 24px; }
-.kso[data-variant="note"] { --kso-book-scale: 3.2; }
-.kso[data-variant="note"] .kso__book { width: 280px; height: 330px; }
-.kso[data-variant="note"] .kso__book .pds-kids-book { transform: scale(var(--kso-book-scale)); }
-.kso[data-variant="note"] .kso__badge { right: 22px; top: 2px; bottom: auto; }
-.kso__note {
-  position: relative;
-  z-index: 3;
-  width: min(270px, 84%);
-  margin: -170px 0 0;
-  /* Centred on the cover, so the tape sits in the middle of the book: the book is drawn tilted, and
-     its cover's centre sits about 6px (before scaling) left of its box's. */
-  translate: calc(-6px * var(--kso-book-scale, 1)) 0;
-  padding: var(--pds-space-5) var(--pds-space-5) var(--pds-space-6);
-  text-align: left;
-  border-radius: 4px 4px 18px 4px;
-  background: color-mix(in oklab, var(--pds-thread-yellow) 30%, var(--kso-paper));
-  box-shadow: 0 1px 1px rgb(20 18 12 / 0.06), 0 18px 30px -18px rgb(20 18 12 / 0.45);
-  transform: rotate(-3.5deg);
-}
-/* A strip of tape holding it to the cover. */
-.kso__note::before {
-  content: "";
-  position: absolute;
-  top: -12px;
-  left: 50%;
-  width: 92px;
-  height: 24px;
-  border-radius: 3px;
-  background: color-mix(in oklab, var(--kso-paper) 70%, transparent);
-  box-shadow: 0 1px 2px rgb(20 18 12 / 0.12);
-  transform: translateX(-50%) rotate(3deg);
-}
-.kso[data-variant="note"] .kso__title { font-size: 1.35rem; }
-.kso[data-variant="note"] .kso__line { font-size: 0.9rem; }
-@media (max-width: 420px) {
-  .kso[data-variant="note"] { --kso-book-scale: 2.8; }
-  .kso[data-variant="note"] .kso__book { width: 240px; height: 290px; }
-  .kso__note { margin-top: -150px; }
-}
-.kso__below { width: min(380px, 100%); margin-top: var(--pds-space-5); text-align: center; }
-.kso[data-variant="note"] .kso__handoff { background: color-mix(in oklab, var(--kso-paper) 72%, transparent); backdrop-filter: blur(8px); }
 
 /* ─── Motion ─── */
 @media (prefers-reduced-motion: reduce) {

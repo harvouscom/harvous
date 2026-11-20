@@ -17,7 +17,7 @@ import { ChildNotebookAppearanceProvider, useChildNotebookAppearance } from '../
 import ChildNotebookBibleReader from '../prototype/ChildNotebookBibleReader';
 import ProtoSpaceLoading from '../prototype/ProtoSpaceLoading';
 import ChildNotebookSearchPanel from './ChildNotebookSearchPanel';
-import ChildSignedOut, { type SignedOutIdentity, type SignedOutKind, type SignedOutVariant } from './ChildSignedOut';
+import ChildSignedOut, { type SignedOutIdentity, type SignedOutKind } from './ChildSignedOut';
 import '../../styles/prototype-components.css';
 import '../../styles/prototype-tokens.css';
 import '../../styles/prototype-shell.css';
@@ -81,8 +81,6 @@ function signedOutKind(cause: unknown): SignedOutKind {
 }
 // Dev only: `?preview=1&signedOut=closed|link|review|paused|offline` shows one of the signed-out pages.
 const previewSignedOut = isDesignPreview ? new URLSearchParams(window.location.search).get('signedOut') as SignedOutKind | null : null;
-// Dev only, while Derek picks a layout: `&variant=note`.
-const signedOutVariant: SignedOutVariant = isDesignPreview && new URLSearchParams(window.location.search).get('variant') === 'note' ? 'note' : 'desk';
 const previewIdentity: SignedOutIdentity | null = previewSignedOut === 'closed'
   ? { displayName: 'Sam', preferences: { coverColor: 'purple', coverSymbol: 'dove', coverPattern: 'dots', scheme: 'system', textSize: 'standard', reduceMotion: false, sounds: false } }
   : null;
@@ -270,7 +268,7 @@ function ChildNotebook() {
     <ProtoSpaceLoading label="Opening your notebook" />
   </main>;
   if (!notebook) return <ChildSignedOut kind={status === 'ended' || previewSignedOut === 'closed' ? 'closed' : signedOut ?? 'link'}
-    variant={signedOutVariant} identity={closedIdentity} privacyUrl={privacyUrl}
+    identity={closedIdentity} privacyUrl={privacyUrl}
     parentSignInUrl={parentSignInUrl} retrying={retrying}
     onRetry={previewSignedOut ? () => { setRetrying(true); window.setTimeout(() => setRetrying(false), 900); } : () => {
       setRetrying(true);

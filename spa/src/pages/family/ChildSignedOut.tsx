@@ -7,8 +7,8 @@
  * otherwise a plain one with a seedling. The words are a child's. The hand-off to a grown-up is a
  * picture (you, then your parent) and the grown-up gets a real button back to their sign-in.
  *
- * Two layouts while Derek chooses (`variant`): "desk", the book standing on a paper letter, and
- * "note", a sticky note stuck to the cover. In dev, `?preview=1&signedOut=<kind>&variant=note`.
+ * The book stands on a paper letter that carries the words, as on the move page (Derek chose this
+ * over a note taped to the cover). In dev, `?preview=1&signedOut=<kind>` shows each case.
  */
 import type { CSSProperties } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
@@ -20,7 +20,6 @@ import { ChildPrivacyFootnote } from './ChildPrivacyNotice';
 import '../../styles/kids-signed-out.css';
 
 export type SignedOutKind = 'closed' | 'link' | 'review' | 'paused' | 'offline';
-export type SignedOutVariant = 'desk' | 'note';
 /** The notebook that was open, when there was one: its name and cover. */
 export type SignedOutIdentity = { displayName: string; preferences: ChildNotebookPreferences | null };
 
@@ -74,7 +73,6 @@ const STICKERS: { symbol: 'rainbow' | 'fish' | 'sun' | 'heart' | 'star' | 'dove'
 
 type Props = {
   kind: SignedOutKind;
-  variant?: SignedOutVariant;
   identity?: SignedOutIdentity | null;
   privacyUrl?: string;
   parentSignInUrl?: string;
@@ -144,7 +142,7 @@ function Retry({ retrying, onRetry }: Pick<Props, 'retrying' | 'onRetry'>) {
   );
 }
 
-function SignedOutPage({ kind, variant = 'desk', privacyUrl, parentSignInUrl, retrying, onRetry }: Props) {
+function SignedOutPage({ kind, privacyUrl, parentSignInUrl, retrying, onRetry }: Props) {
   const { name, themeStyle, appearance } = useChildNotebookAppearance();
   const page = pages[kind];
   const title = page.title(name);
@@ -160,24 +158,14 @@ function SignedOutPage({ kind, variant = 'desk', privacyUrl, parentSignInUrl, re
     <ChildPrivacyFootnote url={privacyUrl}>A notebook is just for a child and their parent.</ChildPrivacyFootnote>
   </>;
   return (
-    <section className="kso proto-theme" data-variant={variant} data-kind={kind} data-reduce-motion={appearance.reduceMotion || undefined}
+    <section className="kso proto-theme" data-kind={kind} data-reduce-motion={appearance.reduceMotion || undefined}
       style={themeStyle} aria-labelledby="kids-signed-out-title">
       <div className="kso__desk" aria-hidden="true" />
       <Stickers />
-      {variant === 'note' ? (
-        <div className="kso__stage">
-          <div className="kso__cover">
-            <Book badge={page.badge} />
-            <div className="kso__note">{words}</div>
-          </div>
-          <div className="kso__below">{after}</div>
-        </div>
-      ) : (
-        <div className="kso__stage">
-          <Book badge={page.badge} />
-          <div className="kso__letter">{words}{after}</div>
-        </div>
-      )}
+      <div className="kso__stage">
+        <Book badge={page.badge} />
+        <div className="kso__letter">{words}{after}</div>
+      </div>
     </section>
   );
 }
