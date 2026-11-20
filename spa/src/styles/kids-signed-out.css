@@ -26,10 +26,10 @@
 /* The desk and stickers are ChildDesk (kids-desk.css). On a phone, four smaller stickers at the edges. */
 @media (max-width: 560px) {
   .kso .kids-desk__sticker:nth-child(n + 5) { display: none; }
-  .kso .kids-desk__sticker:nth-child(1) { top: 70px !important; left: 4% !important; }
-  .kso .kids-desk__sticker:nth-child(2) { top: 64px !important; left: 82% !important; }
-  .kso .kids-desk__sticker:nth-child(3) { top: 190px !important; left: 6% !important; }
-  .kso .kids-desk__sticker:nth-child(4) { top: 182px !important; left: 80% !important; }
+  .kso .kids-desk__sticker:nth-child(1) { top: 62px !important; left: 5% !important; }
+  .kso .kids-desk__sticker:nth-child(2) { top: 104px !important; left: 84% !important; }
+  .kso .kids-desk__sticker:nth-child(3) { top: 216px !important; left: 3% !important; }
+  .kso .kids-desk__sticker:nth-child(4) { top: 176px !important; left: 82% !important; }
 }
 
 .kso__stage { position: relative; width: min(460px, 100%); display: flex; flex-direction: column; align-items: center; }

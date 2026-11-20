@@ -387,29 +387,53 @@
 .pds-kids-settings-modal .proto-settings__detail { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .pds-kids-settings-modal .pds-kids-settings-pane { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 /* Adult sheets' footer band (hairline, ghost fill), pinned under the pane so Done never needs a scroll. */
-/* First open: "Make it yours". The kids' desk (ChildDesk) runs behind the lettering and the cover
-   studio's book, as one scene, the same as the signed-out page. Sized to its content: the kids'
-   dialog is pinned to every edge, so `fit-content` keeps it from stretching into an empty band. */
-.pds-kids-welcome-modal { width: min(560px, calc(100vw - 32px)); height: fit-content; max-height: min(92dvh, 820px); display: flex; flex-direction: column; }
-.pds-kids-welcome__body { position: relative; isolation: isolate; flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-.pds-kids-welcome__scene { position: absolute; inset: 0 0 auto; height: 430px; z-index: -1; }
-.pds-kids-welcome__scene::after { content: ""; position: absolute; inset: auto 0 0; height: 120px; background: linear-gradient(to bottom, transparent, var(--pds-bg-page)); }
-.pds-kids-welcome__header { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: var(--pds-space-7, 32px) var(--pds-space-6) 0; text-align: center; }
+/* First open: "Make it yours". One column, as the studio is in Settings: the book stands on the
+   kids' desk (ChildDesk), a rounded card that is the studio's own stage, so nothing fades or clips;
+   the words sit under it, then the steps. Sized to its content: the kids' dialog is pinned to every
+   edge, so `fit-content` keeps it from stretching into an empty band. The studio's own rules come
+   later in this file, hence the doubled class. */
+.pds-kids-welcome-modal { width: min(520px, calc(100vw - 32px)); height: fit-content; max-height: min(92dvh, 820px); display: flex; flex-direction: column; }
+.pds-kids-welcome__body { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.pds-kids-welcome__body .pds-kids-inside-settings { padding: var(--pds-space-5) var(--pds-space-5) var(--pds-space-4); }
+.pds-kids-studio.pds-kids-studio--welcome { gap: var(--pds-space-4); }
+/* The desk runs to the dialog's top and side edges, as its header art; the dialog clips the corners.
+   The words and steps are a sheet laid over the desk's lower edge (`--welcome-overlap`): the header's
+   ::before draws the sheet's rounded top, edge to edge, and the dialog's own page colour carries it
+   down to the footer. */
+.pds-kids-studio.pds-kids-studio--welcome { --welcome-overlap: 24px; }
+.pds-kids-studio.pds-kids-studio--welcome .pds-kids-studio__stage {
+  isolation: isolate;
+  min-height: calc(232px + var(--welcome-overlap));
+  margin: calc(-1 * var(--pds-space-5)) calc(-1 * var(--pds-space-5)) 0;
+  padding-block: var(--pds-space-5) calc(var(--pds-space-4) + var(--welcome-overlap));
+  border-radius: 0;
+  background: none;
+}
+.pds-kids-studio.pds-kids-studio--welcome .pds-kids-welcome__header {
+  position: relative;
+  z-index: 1;
+  margin-top: calc(-1 * (var(--pds-space-4) + var(--welcome-overlap)));
+  padding-top: calc(var(--welcome-overlap) + var(--pds-space-1));
+}
+.pds-kids-studio.pds-kids-studio--welcome .pds-kids-welcome__header::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0 calc(-1 * var(--pds-space-5)) auto;
+  height: 48px;
+  border-radius: 24px 24px 0 0;
+  background: var(--pds-bg-page);
+  box-shadow: 0 -0.5px 0 var(--pds-border-soft), 0 -10px 24px -12px rgb(15 23 42 / 0.28);
+}
+.pds-kids-studio.pds-kids-studio--welcome .pds-kids-studio__book { filter: drop-shadow(0 12px 16px rgb(20 18 12 / 0.2)); }
+.pds-kids-studio.pds-kids-studio--welcome .pds-kids-book--settings { transform: scale(1.2); }
+.pds-kids-welcome__header { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
 .pds-kids-welcome__eyebrow { margin: 0; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pds-text-secondary); }
-.pds-kids-welcome__title { margin: 0; font-family: var(--pds-font-display); font-size: clamp(1.6rem, 1.3rem + 1.2vw, 2rem); font-weight: 620; line-height: 1.12; letter-spacing: -0.02em; color: var(--pds-text-primary); text-wrap: balance; }
-.pds-kids-welcome__line { margin: 0; max-width: 34ch; font-size: 0.95rem; line-height: 1.45; color: var(--pds-text-secondary); text-wrap: balance; }
-/* The scene is a backdrop behind the lettering and the book; the body's own stacking keeps it under both. */
-.pds-kids-welcome__body { display: flex; flex-direction: column; }
-.pds-kids-welcome__body .pds-kids-inside-settings { position: relative; padding: var(--pds-space-2) var(--pds-space-5) var(--pds-space-5); }
-/* The studio's own tinted box gives way to the desk: the book stands right on it. */
-.pds-kids-welcome-modal .pds-kids-studio__stage { background: transparent; padding-block: var(--pds-space-4) var(--pds-space-2); }
-.pds-kids-welcome-modal .pds-kids-studio__book { filter: drop-shadow(0 10px 14px rgb(20 18 12 / 0.18)); }
-.pds-kids-welcome-modal .pds-kids-settings-footer { background: var(--pds-bg-page); }
-/* On a phone the lettering fills the width: two stickers only, beside the book. */
+.pds-kids-welcome__title { margin: 0; font-family: var(--pds-font-display); font-size: clamp(1.5rem, 1.3rem + 0.8vw, 1.75rem); font-weight: 620; line-height: 1.12; letter-spacing: -0.02em; color: var(--pds-text-primary); text-wrap: balance; }
+.pds-kids-welcome__line { margin: 2px 0 0; max-width: 34ch; font-size: 0.9375rem; line-height: 1.45; color: var(--pds-text-secondary); text-wrap: balance; }
 @media (max-width: 560px) {
-  .pds-kids-welcome__scene .kids-desk__sticker:nth-child(-n + 2) { display: none; }
-  .pds-kids-welcome__scene .kids-desk__sticker:nth-child(3) { top: 46% !important; left: 9% !important; }
-  .pds-kids-welcome__scene .kids-desk__sticker:nth-child(4) { top: 42% !important; left: 79% !important; }
+  .pds-kids-studio.pds-kids-studio--welcome .pds-kids-studio__stage { min-height: calc(200px + var(--welcome-overlap)); }
+  .pds-kids-studio.pds-kids-studio--welcome .pds-kids-book--settings { transform: scale(1.1); }
 }
 .pds-kids-settings-footer { flex-shrink: 0; padding: 10px var(--pds-space-5) 14px; border-top: 0.5px solid var(--pds-border-control); background: var(--pds-bg-ghost); }
 .pds-kids-settings-footer .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }

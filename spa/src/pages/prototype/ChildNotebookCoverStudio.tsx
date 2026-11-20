@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ComponentProps, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
 import { ChildNotebookCover, coverBindings, coverColors, coverPatterns, notebookPapers, useChildNotebookAppearance, type CoverSymbol } from './ChildNotebookAppearance';
 import ChildCoverSymbol from './ChildCoverSymbol';
@@ -66,7 +66,11 @@ function useScrollRow() {
   return { ref, more, nudge };
 }
 
-export default function ChildNotebookCoverStudio() {
+/**
+ * `stage` draws behind the book (the welcome puts the kids' desk there); `intro` sits between the book
+ * and the steps (the welcome's "Make it yours"). Settings uses neither.
+ */
+export default function ChildNotebookCoverStudio({ stage, intro, className }: { stage?: ReactNode; intro?: ReactNode; className?: string } = {}) {
   const { name, preferences, coverColor, setCoverColor, coverPattern, setCoverPattern, coverSymbol, setCoverSymbol, coverBinding, setCoverBinding, paper, setPaper, playCue } = useChildNotebookAppearance();
   const [step, setStep] = useState(0);
   const stickerRow = useScrollRow();
@@ -136,8 +140,9 @@ export default function ChildNotebookCoverStudio() {
 
   const options: Record<Group, ReactElement> = { color: colorOptions, pattern: patternOptions, symbol: symbolOptions, binding: bindingOptions, paper: paperOptions };
 
-  return <div className="pds-kids-studio" style={{ '--kids-cover-color': coverColor.color } as CSSProperties}>
+  return <div className={className ? `pds-kids-studio ${className}` : 'pds-kids-studio'} style={{ '--kids-cover-color': coverColor.color } as CSSProperties}>
     <div className="pds-kids-studio__stage pds-kids-studio__stage--center">
+      {stage}
       {groups[step]?.id === 'paper'
         // On the pages step the notebook lies open, so the choice is the paper you'll write on.
         ? <span key={`open-${paper}`} className="pds-kids-studio__book pds-kids-spread" data-binding={coverBinding} aria-hidden="true">
@@ -146,6 +151,7 @@ export default function ChildNotebookCoverStudio() {
           </span>
         : <span key={coverKey} className="pds-kids-studio__book"><ChildNotebookCover name={name} preferences={preferences} large /></span>}
     </div>
+    {intro}
     {/* The progress is the way around: each step is a stop you can tap, and the one you're on
         opens up to say its name, so you can see where you are and jump to any part. */}
     <nav className="pds-kids-studio__progress" aria-label="Cover steps">
