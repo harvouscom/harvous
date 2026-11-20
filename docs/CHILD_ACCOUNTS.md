@@ -98,7 +98,7 @@ Workers, their domains, the Clerk test application and the KWS Test webhook stil
 staging back:
 1. Create a Supabase project, ideally in a Free-plan organization (pause it when idle).
 2. Create the full schema on it (`drizzle-kit push` with `SUPABASE_DIRECT_URL` pointing at it), then
-   run `add-child-account-schema.ts --apply` and the other family scripts against it.
+   run `server/scripts/add-child-account-schema.ts --apply` and `server/scripts/add-verse-stickers-schema.ts` against it.
 3. Set the staging Fly app's `SUPABASE_DATABASE_URL` / `SUPABASE_DIRECT_URL` to the new project
    and resume the app.
 4. Rebuild and deploy the staging sites as below, then walk the flow with fictional children.
