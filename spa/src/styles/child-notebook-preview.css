@@ -515,8 +515,12 @@
 .pds-kids-welcome-modal { --morph-ease: cubic-bezier(0.22, 1.08, 0.36, 1); }
 .pds-kids-welcome-modal:is([data-phase='present'], [data-phase='morphing'], [data-phase='leaving']) .pds-kids-welcome__body { overflow-y: hidden; }
 .pds-kids-welcome-modal[data-phase='present'] :is(.pds-kids-welcome__sheet, .pds-kids-settings-footer) { transform: translateY(100vh); }
-/* The card's shadow waits for the card: under the full-screen scene it has nothing to sit on. */
-.pds-kids-welcome-modal[data-phase='present'] { box-shadow: none; }
+/* While presenting, the card isn't there yet: its box and everything in it stay hidden (still laid
+   out, so the morph can measure them), so the scene fades in over the app, never over the card.
+   The card appears when the morph starts, under the full-screen desk, and is uncovered as it
+   contracts. */
+.pds-kids-welcome-modal[data-phase='present'] { background: transparent; border-color: transparent; box-shadow: none; }
+.pds-kids-welcome-modal[data-phase='present'] :is(.pds-kids-welcome__body, .pds-kids-settings-footer) { visibility: hidden; }
 .pds-kids-welcome-modal[data-phase='morphing'] { animation: kids-welcome-shadow-in 500ms ease-out 400ms backwards; }
 
 .pds-kids-welcome-modal[data-phase='present']::backdrop { animation: kids-welcome-fade 300ms ease-out backwards; }
