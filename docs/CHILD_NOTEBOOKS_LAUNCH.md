@@ -22,8 +22,7 @@ soon. Epic approved KWS Production on 13 November.
 - `HARVOUS_CHILD_PILOT_PARENT_ID` was removed when enrollment opened.
 - The release note, the Plus and non-Plus announcement cards and the Plus list line went out in
   #344; the harvous.com page changes in harvous.com#88.
-- Staging is kept for a few weeks as a place to test fixes while the first parents sign up
-  (Derek, 20 Nov). See After launch.
+- Staging's database is gone, so staging is retired; see After launch.
 
 ## Done
 
@@ -41,7 +40,8 @@ soon. Epic approved KWS Production on 13 November.
     that run, and applied 13 Nov 2026 (`add-child-account-schema.ts --apply --production`).
   - `VerseStickers` (reader stickers, which a moved notebook's stickers become) was applied
     13 Nov 2026 (`verse-stickers:schema:apply --production`).
-- Staging (family-test / kids-test) runs main and is how changes are checked before production.
+- Staging (family-test / kids-test) ran main and was how changes were checked before production,
+  until its database was deleted on 20 Nov 2026.
 
 **Privacy and COPPA**
 - The children's privacy policy is live at https://harvous.com/privacy/children/.
@@ -56,8 +56,7 @@ soon. Epic approved KWS Production on 13 November.
 - Provider DPAs:
   - Supabase, Cloudflare, Clerk and KWS: incorporated in their terms.
   - PostHog: signed.
-  - Fly.io: requested from compliance@fly.io. Countersign it when it arrives and save it in the
-    records folder.
+  - Fly.io: signed by both sides (Derek confirmed 20 Nov 2026), copy in the records folder.
 - Cloudflare Web Analytics is in manual-snippet mode, so nothing is injected on the child or app
   hosts. Never switch it back to automatic.
 
@@ -136,16 +135,22 @@ In order. The person each step needs is in brackets.
 
 ## After launch
 
-- **Delete the staging setup** once it's no longer needed for testing. Derek chose on 20 Nov 2026
-  to keep it a few weeks after launch; revisit in mid-December. Ask before each deletion;
-  none of it can be undone:
-  - the staging Supabase project (`wglzcxyk…`, fictional notebooks only);
-  - Fly app `harvous-family-staging`;
+- **Staging is retired (20 Nov 2026).** Its Supabase project (`wglzcxyk…`, fictional notebooks
+  only) is deleted, so nothing staging-related is billed. The free pieces are kept, so bringing it
+  back is a database away:
+  - Fly app `harvous-family-staging`, suspended;
   - Workers `harvous-family-parent-staging` and `harvous-kids-staging`, with their family-test and
     kids-test domains;
   - the Clerk application "Harvous Child Staging" (`many-collie-1580`, the staging parent
     sign-in);
   - the KWS Test webhook that points at the staging API.
+
+  Without staging, check child notebook changes with unit tests, the kids design preview
+  (`?preview=1`) and the gallery. Don't test the child flow from a local dev server: local dev uses
+  the production database, and KWS can't send its webhook to localhost. For anything touching
+  verification, consent, sign-in links or retention, either revive staging (see "Isolated staging
+  setup" in `CHILD_ACCOUNTS.md`) or run a production check like the launch rehearsal, with your own
+  account and test data deleted afterwards.
 - **Yearly:** review the security program, including a fresh risk assessment and the two-factor
   check, and record it in its table.
 - **Any change to what's collected or shared:**

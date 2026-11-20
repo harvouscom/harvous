@@ -93,6 +93,17 @@ Purge restored records for deleted notebooks using the normal child deletion cas
 
 ## Isolated staging setup
 
+**Retired 20 Nov 2026: the staging Supabase project is deleted.** The Fly app (suspended), both
+Workers, their domains, the Clerk test application and the KWS Test webhook still exist. To bring
+staging back:
+1. Create a Supabase project, ideally in a Free-plan organization (pause it when idle).
+2. Create the full schema on it (`drizzle-kit push` with `SUPABASE_DIRECT_URL` pointing at it), then
+   run `server/scripts/add-child-account-schema.ts --apply` and `server/scripts/add-verse-stickers-schema.ts` against it.
+3. Set the staging Fly app's `SUPABASE_DATABASE_URL` / `SUPABASE_DIRECT_URL` to the new project
+   and resume the app.
+4. Rebuild and deploy the staging sites as below, then walk the flow with fictional children.
+
+
 The existing `new.harvous.com` frontend uses the live Fly API. The isolated staging configuration uses `fly.child-staging.toml` for `harvous-family-staging`, `wrangler.child-parent-staging.jsonc` for `family-test.harvous.com`, and `wrangler.kids.jsonc --env staging` for `kids-test.harvous.com`. Both Workers use the isolated Fly API. The parent app needs the Clerk test publishable key at build time and the API needs the matching test secret. Leave analytics keys unset for the build. The isolated Fly API skips the adult scheduler and stops at startup if its database or Clerk configuration fails the staging checks.
 
 Use the explicit configs in the deploy commands. Run `node scripts/build-child-staging.mjs` with `HARVOUS_STAGING_CLERK_PUBLISHABLE_KEY` supplied from the isolated Clerk application. It builds parent assets to `dist-child-staging` with the development Clerk CSP and child assets to `dist-kids-staging`. Both production output directories stay separate. Stage Fly secrets against `harvous-family-staging` only. Keep `HARVOUS_CHILD_ACCOUNTS_ENABLED` and `HARVOUS_CHILD_RETENTION_READY` unset until the staging deployment and retention job are verified.
