@@ -4,8 +4,26 @@ Where the launch of parent-managed child notebooks stands, and the exact steps t
 How the feature works is in [`CHILD_ACCOUNTS.md`](CHILD_ACCOUNTS.md). The COPPA work is in
 [`privacy/`](privacy/): the review, the security program and the publication checklist.
 
-**Status on 12 November 2026:** in production with enrollment closed, shown as **Coming soon**,
-waiting on Epic's review of KWS Production (up to seven business days).
+**Status on 20 November 2026:** launched. Enrollment is open in production
+(`HARVOUS_CHILD_ACCOUNTS_ENABLED=true`, Fly release v288), and harvous.com no longer says Coming
+soon. Epic approved KWS Production on 13 November.
+
+**Launch day, 20 November 2026:**
+- Derek ran the production rehearsal end to end as the pilot parent: card verification with the
+  signed webhook, notice and consent, starting cover, child link, the notebook on kids.harvous.com,
+  a note, a highlight, Look back, export, withdraw and delete. Every step worked.
+- It turned up two rough edges, both fixed and deployed the same day:
+  - Coming back from KWS, setup still said "Check your email" until the parent pressed Check
+    verification status. Setup now re-reads the status every 3 seconds while a verification is
+    pending, and on every return to the tab (#346).
+  - The kids site opened on a bare title and privacy line; it now shows only the loading dots,
+    like adult Home (#347). The kids Worker is deployed by hand, not by CI: `npm run build:child`
+    then `npx wrangler deploy -c wrangler.kids.jsonc`.
+- `HARVOUS_CHILD_PILOT_PARENT_ID` was removed when enrollment opened.
+- The release note, the Plus and non-Plus announcement cards and the Plus list line went out in
+  #344; the harvous.com page changes in harvous.com#88.
+- Staging is kept for a few weeks as a place to test fixes while the first parents sign up
+  (Derek, 20 Nov). See After launch.
 
 ## Done
 
@@ -66,7 +84,7 @@ Why the webhook goes to `harvous.fly.dev` and not `app.harvous.com`: Cloudflare'
 already blocks automated clients there (GitHub's runners get a 403). Calling Fly directly keeps
 Epic's calls out of it, the same as staging.
 
-## When Epic approves
+## When Epic approves (done 20 November 2026; kept as the record)
 
 In order. The person each step needs is in brackets.
 
@@ -118,7 +136,8 @@ In order. The person each step needs is in brackets.
 
 ## After launch
 
-- **Delete the staging setup** once it's no longer needed for testing. Ask before each deletion;
+- **Delete the staging setup** once it's no longer needed for testing. Derek chose on 20 Nov 2026
+  to keep it a few weeks after launch; revisit in mid-December. Ask before each deletion;
   none of it can be undone:
   - the staging Supabase project (`wglzcxyk…`, fictional notebooks only);
   - Fly app `harvous-family-staging`;

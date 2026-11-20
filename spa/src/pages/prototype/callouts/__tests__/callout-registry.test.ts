@@ -72,6 +72,21 @@ describe('pickCallout', () => {
     expect(pickCallout([callout('a', { audience: 'plus' })], {}, ctx({ isPlus: true }))?.id).toBe('a');
   });
 
+  it('shows a free-audience callout only to members without Plus', () => {
+    expect(pickCallout([callout('a', { audience: 'free' })], {}, ctx())?.id).toBe('a');
+    expect(pickCallout([callout('a', { audience: 'free' })], {}, ctx({ isPlus: true }))).toBeNull();
+    expect(pickCallout([callout('a', { audience: 'free' })], {}, ctx({ isGuest: true }))).toBeNull();
+  });
+
+  it('gives each account exactly one half of a Plus / free pair', () => {
+    const plus = callout('plus', { audience: 'plus', shippedAt: '2026-10-05' });
+    const free = callout('free', { audience: 'free', shippedAt: '2026-10-05' });
+    const forPlus = pickCalloutWithSuperseded([plus, free], {}, ctx({ isPlus: true }));
+    expect([forPlus.callout?.id, forPlus.companion?.id]).toEqual(['plus', undefined]);
+    const forFree = pickCalloutWithSuperseded([plus, free], {}, ctx());
+    expect([forFree.callout?.id, forFree.companion?.id]).toEqual(['free', undefined]);
+  });
+
   it('lets a callout that is due by its own rule through the quiet period, ahead of the rest', () => {
     const justNow = new Date(NOW - 60_000).toISOString();
     const legal = callout('legal', { priority: 100 });

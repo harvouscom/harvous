@@ -3,7 +3,7 @@
  * Keep in sync with server/utils/tier-limits.ts.
  */
 
-import { FAMILY_LAUNCHED, FAMILY_MAX_MEMBERS, UNLIMITED, isUnlimited } from './billing-plans';
+import { CHILD_NOTEBOOKS_ON_PLUS_LIST, FAMILY_LAUNCHED, FAMILY_MAX_MEMBERS, UNLIMITED, isUnlimited } from './billing-plans';
 
 export { UNLIMITED, isUnlimited };
 
@@ -41,7 +41,16 @@ export const MEMBERS_PER_SPACE_CAP = 12;
  */
 export const FAMILY_PLUS_BULLET = `Family sharing with up to ${FAMILY_MAX_MEMBERS - 1} more people`;
 
-const FAMILY_BULLETS: readonly string[] = FAMILY_LAUNCHED ? [FAMILY_PLUS_BULLET] : [];
+/**
+ * Child notebooks, right after the family line they belong to. US-only, so the line says so —
+ * this list is a promise to whoever is reading it, wherever they are.
+ */
+export const CHILD_NOTEBOOKS_PLUS_BULLET = 'Notebooks for kids under 13, in the US';
+
+const FAMILY_BULLETS: readonly string[] = [
+  ...(FAMILY_LAUNCHED ? [FAMILY_PLUS_BULLET] : []),
+  ...(CHILD_NOTEBOOKS_ON_PLUS_LIST ? [CHILD_NOTEBOOKS_PLUS_BULLET] : []),
+];
 
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Everything in free',
