@@ -37,7 +37,7 @@ import {
   Notes, NoteTags, NoteThreads, ReviewEvents, ReviewItems, ScriptureMetadata, Spaces, StudyThreadEntries, Tags, Threads, UserMetadata,
   VerseStickers,
 } from '../../db/schema';
-import { childTextToHtml, claimNotebookMove, createNotebookMove, openNotebookMove, previewNotebookMove } from '../notebook-move';
+import { adultReadingTranslation, childTextToHtml, claimNotebookMove, createNotebookMove, openNotebookMove, previewNotebookMove } from '../notebook-move';
 import { sql } from 'drizzle-orm';
 import { deleteChildData } from '../service';
 
@@ -276,6 +276,36 @@ run('moving a child notebook into the teen’s own account', () => {
   it('closes the link when the parent deletes the notebook instead', async () => {
     await db.transaction((tx) => deleteChildData(tx, s.childRow));
     await expect(claimNotebookMove(s.token, { userId: s.teen }, s.teenHome)).rejects.toMatchObject({ status: 410 });
+  });
+
+  it('moves a notebook read in a kids-only translation into the teen’s own translation', async () => {
+    // The child read in ERV (adult Harvous offers it nowhere); the teen reads NIV.
+    await db.update(FamilyChildren).set({ bibleTranslations: ['ERV'] } as never).where(eq(FamilyChildren.id, s.child));
+    await db.update(UserMetadata).set({ defaultTranslation: 'NIV' } as never).where(eq(UserMetadata.userId, s.teen));
+    await db.update(ReviewItems).set({ translation: 'CEV' } as never).where(eq(ReviewItems.id, s.id('child_item_note')));
+    await db.insert(BibleTranslations).values({ id: 'NIV', name: 'New International Version', abbreviation: 'NIV', publisher: 'x', copyrightNotice: 'x', createdAt: now } as never)
+      .onConflictDoNothing();
+    await db.insert(BibleVerses).values({ id: s.id('niv'), translationId: 'NIV', book: 'Psalms', chapter: 23, verse: 1, text: 'The LORD is my shepherd, I lack nothing.' } as never)
+      .onConflictDoNothing();
+    const [childRow] = await db.select().from(FamilyChildren).where(eq(FamilyChildren.id, s.child));
+    const link = await db.transaction((tx) => createNotebookMove(tx, childRow, null));
+
+    await claimNotebookMove(link.token, { userId: s.teen }, s.teenHome);
+
+    const highlights = await db.select().from(StudyThreadEntries).where(eq(StudyThreadEntries.userId, s.teen));
+    const moved = highlights.filter((h) => h.id !== s.id('teen_hl'));
+    expect(moved.map((h) => h.scripturePassageTranslation)).toEqual(['NIV', 'NIV']);
+    expect(moved.find((h) => h.scriptureReference?.startsWith('Psalm'))?.sourceSnippet).toBe('The LORD is my shepherd, I lack nothing.');
+    const [item] = await db.select().from(ReviewItems).where(eq(ReviewItems.id, s.id('child_item_note')));
+    expect(item.translation).toBe('NIV');
+  });
+
+  it('keeps a translation adult Harvous offers, and falls back to NET for a kids-only one', async () => {
+    await db.transaction(async (tx) => {
+      expect(await adultReadingTranslation(tx, s.teen, 'BSB')).toBe('BSB');
+      expect(await adultReadingTranslation(tx, s.teen, 'ERV')).toBe('NET'); // the teen hasn't picked one
+      expect(await adultReadingTranslation(tx, 'user_with_no_metadata', 'NLV')).toBe('NET');
+    });
   });
 
   it('reads no open link, and keeps the page working, before the table exists', async () => {

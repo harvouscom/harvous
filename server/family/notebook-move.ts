@@ -36,6 +36,7 @@ import { generateStudyThreadEntryId } from '@/utils/ids';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { CHILD_ACCOUNT_ID_PREFIX } from './identity';
 import { readChapter } from './bible';
+import { getTranslation } from '../../src/data/translations';
 import { isPgUndefinedRelation } from '../utils/pg-undefined-relation';
 import type { Child, FamilyTx } from './service';
 
@@ -174,6 +175,21 @@ async function nextNoteNumber(tx: FamilyTx, userId: string) {
   return Math.max(fromNotes.max, meta?.highest ?? 0) + 1;
 }
 
+/**
+ * The translation a moved notebook's highlights and Review use in the teen's own account.
+ * ERV, CEV and NLV are kids-only: adult Harvous offers them in no picker, and the reader shows
+ * highlights only for the translation on screen, so anything left in one would be invisible. Those
+ * become the teen's reading translation (their default, NET for a new account). Others stay put.
+ * Note text keeps its "(ERV)" labels: that's a record of what the child read.
+ */
+export async function adultReadingTranslation(tx: Pick<FamilyTx, 'select'>, teenId: string, translation: string) {
+  if (!getTranslation(translation)?.childNotebookOnly) return translation;
+  const [meta] = await tx.select({ defaultTranslation: UserMetadata.defaultTranslation }).from(UserMetadata)
+    .where(eq(UserMetadata.userId, teenId));
+  const own = meta?.defaultTranslation;
+  return own && !getTranslation(own)?.childNotebookOnly ? own : 'NET';
+}
+
 export async function moveNotebookRows(tx: FamilyTx, child: Child, teenId: string, teenHome: string): Promise<NotebookMoveSummary> {
   const now = new Date();
   const notes = await tx.select({ id: Notes.id, content: Notes.content, threadId: Notes.threadId }).from(Notes)
@@ -250,8 +266,9 @@ export async function moveNotebookRows(tx: FamilyTx, child: Child, teenId: strin
   await tx.update(UserMetadata).set({ highestSimpleNoteId: sql`greatest(${UserMetadata.highestSimpleNoteId}, ${highestNumber})` })
     .where(eq(UserMetadata.userId, teenId));
 
-  // My Bible highlights become reader highlights, in the translation the child reads.
-  const translation = child.bibleTranslations?.[0] ?? 'BSB';
+  // My Bible highlights become reader highlights. A child's highlight is a whole verse, so it can
+  // sit in any translation; a kids-only edition (ERV, CEV, NLV) becomes the teen's own.
+  const translation = await adultReadingTranslation(tx, teenId, child.bibleTranslations?.[0] ?? 'BSB');
   const highlights = await tx.select().from(FamilyChildVerseHighlights).where(eq(FamilyChildVerseHighlights.childId, child.id));
   const chapterText = new Map<string, Map<number, string>>();
   let movedHighlights = 0;
@@ -281,8 +298,8 @@ export async function moveNotebookRows(tx: FamilyTx, child: Child, teenId: strin
   const movedStickers = await moveVerseStickers(tx, child, teenId, now);
 
   // Look back → Review. Same source on both sides: the history joins the teen's item.
-  const childItems = await tx.select({ id: ReviewItems.id, sourceKey: ReviewItems.sourceKey }).from(ReviewItems)
-    .where(eq(ReviewItems.userId, child.id));
+  const childItems = await tx.select({ id: ReviewItems.id, sourceKey: ReviewItems.sourceKey, translation: ReviewItems.translation })
+    .from(ReviewItems).where(eq(ReviewItems.userId, child.id));
   const teenItems = childItems.length ? await tx.select({ id: ReviewItems.id, sourceKey: ReviewItems.sourceKey }).from(ReviewItems)
     .where(and(eq(ReviewItems.userId, teenId), inArray(ReviewItems.sourceKey, childItems.map((i) => i.sourceKey)))) : [];
   for (const item of childItems) {
@@ -291,7 +308,9 @@ export async function moveNotebookRows(tx: FamilyTx, child: Child, teenId: strin
       await tx.update(ReviewEvents).set({ reviewItemId: same.id }).where(eq(ReviewEvents.reviewItemId, item.id));
       await tx.delete(ReviewItems).where(eq(ReviewItems.id, item.id));
     } else {
-      await tx.update(ReviewItems).set({ userId: teenId, updatedAt: now }).where(eq(ReviewItems.id, item.id));
+      // A verse asked in a kids-only edition is asked in the teen's own translation from now on.
+      const itemTranslation = item.translation ? await adultReadingTranslation(tx, teenId, item.translation) : item.translation;
+      await tx.update(ReviewItems).set({ userId: teenId, translation: itemTranslation, updatedAt: now }).where(eq(ReviewItems.id, item.id));
     }
   }
   await tx.update(ReviewEvents).set({ userId: teenId }).where(eq(ReviewEvents.userId, child.id));

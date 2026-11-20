@@ -180,6 +180,7 @@ When a child turns 13, the parent can move their notebook into the teen's own Ha
 - Scripture metadata moves with its note;
 - Look back items and events move into Review. Where the teen already reviews the same source, the history joins their item;
 - My Bible highlights become reader highlights (`StudyThreadEntries`, `scriptureLink`) in the child's first translation, unless the teen already highlighted that verse;
+- kids-only translations (ERV, CEV, NLV) aren't offered in adult Harvous, so highlights and Review items in one move to the teen's own reading translation (their default, NET for a new account). Note text keeps its "(ERV)" labels as a record of what the child read;
 - the child's own Family Bible thoughts become one note per chapter, in a "Family Bible" folder. The parent's replies aren't included;
 - My Bible stickers become stickers in the teen's Bible reader (`VerseStickers`, keyed by book, chapter and verse like the child's), unless the teen already has a sticker on that verse. Until `npm run verse-stickers:schema:apply` has run, the table doesn't exist and the stickers stay behind (the move still succeeds, with 0 stickers in its summary);
 - the cover and notebook settings don't move. They're only in child notebooks, and the parent's backup download has them;
