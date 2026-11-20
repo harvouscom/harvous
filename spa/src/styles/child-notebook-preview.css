@@ -501,8 +501,8 @@
 }
 
 /* ─── Motion (data-phase on the dialog; ChildNotebookView) ───
-   present:  full screen. The desk fades in; the notebook arrives alone, close up, pulling back to
-             the middle of the screen; then it glides up as the title, the stickers and what comes
+   present:  full screen. The desk fades in; the notebook arrives alone and shut, close, pulling
+             back to the middle of the screen; its cover peeks open to show the pages; then it glides up as the title, the stickers and what comes
              with it (popping out of the book one at a time) come in under it; then "Make it mine".
    morphing: the page stickers lift away and the gifts fly back into the book; the desk contracts
              from the screen into the card's header art (its corners rounding to the card's) while
@@ -525,17 +525,22 @@
 
 .pds-kids-welcome-modal[data-phase='present']::backdrop { animation: kids-welcome-fade 300ms ease-out backwards; }
 .kids-present__desk { animation: kids-welcome-fade 240ms ease-out backwards; }
-/* First just the book: close (the whole book and its pages in view), the view opening a little to
-   its framing, alone in the middle of the screen;
+/* First just the book, shut: close (the whole book in view), the view opening a little to its
+   framing, alone in the middle of the screen; its cover peeks open to show the pages;
    then it glides up to its place as the title, the stickers, what comes with it and the button
    come in under it. The present book's own studio pop is off (it's already the hero). */
 .kids-present .pds-kids-studio__book { animation: none; }
-.kids-present__book { animation: kids-present-book-zoom 1100ms cubic-bezier(0.16, 1, 0.3, 1) 260ms backwards, kids-present-book-settle 700ms cubic-bezier(0.3, 0.8, 0.25, 1) 1300ms backwards; }
-.kids-present__title { animation: kids-present-rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) 1450ms backwards; }
-.kids-present .kids-desk__sticker { animation: kids-welcome-stick 460ms cubic-bezier(0.3, 1.35, 0.5, 1) calc(1500ms + var(--i, 0) * 90ms) backwards, kids-desk-bob 6s ease-in-out calc(2550ms + var(--i, 0) * 0.8s) infinite; }
-.kids-present__gifts-label { animation: kids-present-rise 420ms ease-out 1700ms backwards; }
-.kids-present__gifts li { animation: kids-present-gift-out 540ms cubic-bezier(0.3, 1.3, 0.5, 1) calc(1800ms + var(--i, 0) * 120ms) backwards; }
-.kids-present__start { animation: kids-present-rise 480ms cubic-bezier(0.2, 0.8, 0.2, 1) 2500ms backwards; }
+.kids-present__book { animation: kids-present-book-zoom 900ms cubic-bezier(0.16, 1, 0.3, 1) 260ms backwards, kids-present-book-settle 700ms cubic-bezier(0.3, 0.8, 0.25, 1) 1450ms backwards; }
+/* It arrives shut; then the cover swings open a little (a touch past, then back) to its resting
+   angle in the studio, so the pages peek out, the top pages fanning just behind it. */
+.kids-present .pds-kids-book__front { animation: kids-present-cover-peek 720ms cubic-bezier(0.3, 0.7, 0.3, 1) 820ms backwards; }
+.kids-present .pds-kids-book__page[data-page='3'] { animation: kids-present-page-3 680ms cubic-bezier(0.3, 0.7, 0.3, 1) 880ms backwards; }
+.kids-present .pds-kids-book__page[data-page='2'] { animation: kids-present-page-2 640ms cubic-bezier(0.3, 0.7, 0.3, 1) 920ms backwards; }
+.kids-present__title { animation: kids-present-rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) 1600ms backwards; }
+.kids-present .kids-desk__sticker { animation: kids-welcome-stick 460ms cubic-bezier(0.3, 1.35, 0.5, 1) calc(1650ms + var(--i, 0) * 90ms) backwards, kids-desk-bob 6s ease-in-out calc(2700ms + var(--i, 0) * 0.8s) infinite; }
+.kids-present__gifts-label { animation: kids-present-rise 420ms ease-out 1850ms backwards; }
+.kids-present__gifts li { animation: kids-present-gift-out 540ms cubic-bezier(0.3, 1.3, 0.5, 1) calc(1950ms + var(--i, 0) * 120ms) backwards; }
+.kids-present__start { animation: kids-present-rise 480ms cubic-bezier(0.2, 0.8, 0.2, 1) 2650ms backwards; }
 
 .pds-kids-welcome-modal[data-phase='morphing'] :is(.kids-present__title, .kids-present__gifts-label, .kids-present__start) { animation: kids-present-away 200ms ease-in forwards; }
 .pds-kids-welcome-modal[data-phase='morphing'] .kids-present .kids-desk__sticker { animation: kids-present-lift 260ms ease-in calc(var(--i, 0) * 30ms) forwards; }
@@ -561,6 +566,15 @@
   100% { scale: 1; rotate: 0deg; translate: 0 var(--solo-offset, 0px); }
 }
 @keyframes kids-present-book-settle { from { translate: 0 var(--solo-offset, 0px); } }
+/* The studio's resting angles (.pds-kids-studio__book .pds-kids-book--settings): cover -34deg,
+   top page -12deg, next -6deg. */
+@keyframes kids-present-cover-peek {
+  0% { transform: rotateY(0deg); }
+  70% { transform: rotateY(-42deg); }
+  100% { transform: rotateY(-34deg); }
+}
+@keyframes kids-present-page-3 { 0% { transform: rotateY(0deg); } 70% { transform: rotateY(-15deg); } 100% { transform: rotateY(-12deg); } }
+@keyframes kids-present-page-2 { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(-6deg); } }
 /* From the whole screen to the studio's desk, the card's top corners rounding in. */
 @keyframes kids-present-desk-in {
   to {
