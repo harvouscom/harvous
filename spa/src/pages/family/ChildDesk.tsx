@@ -2,7 +2,8 @@
  * The kids' desk: a soft gradient tinted by the notebook's cover colour, with die-cut stickers
  * around it. The same scene as harvous.com's child notebooks page and the notebook move page.
  * Used behind the signed-out page and the first-open "Make it yours" welcome, so the two feel
- * like one place. It fills its positioned parent and sits behind its content.
+ * like one place. It fills its positioned parent and sits behind its content. Each sticker carries
+ * its place in the list as `--i`, so motion can take them one at a time.
  */
 import type { CSSProperties } from 'react';
 import ChildCoverSymbol from '../prototype/ChildCoverSymbol';
@@ -25,9 +26,9 @@ export const PAGE_STICKERS: DeskSticker[] = [
 export default function ChildDesk({ stickers = PAGE_STICKERS, className }: { stickers?: DeskSticker[]; className?: string }) {
   return (
     <div className={className ? `kids-desk ${className}` : 'kids-desk'} aria-hidden="true">
-      {stickers.map(sticker => (
+      {stickers.map((sticker, index) => (
         <span key={sticker.symbol} className="kids-desk__sticker" data-tone={sticker.tone}
-          style={{ top: sticker.top, left: sticker.left, '--tilt': `${sticker.tilt}deg`, '--size': sticker.size ?? 1 } as CSSProperties}>
+          style={{ top: sticker.top, left: sticker.left, '--tilt': `${sticker.tilt}deg`, '--size': sticker.size ?? 1, '--i': index } as CSSProperties}>
           <ChildCoverSymbol symbol={sticker.symbol} size={20} />
         </span>
       ))}

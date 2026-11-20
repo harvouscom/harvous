@@ -106,14 +106,16 @@ function lookBackReadyTitle(nextDueAt: string, now = new Date()) {
 
 /**
  * Stickers scattered on the welcome's desk card the way a child would stick them: uneven, a big
- * one and some small ones, nothing mirrored across the book.
+ * one and some small ones, nothing mirrored across the book. Listed in the order they're pressed
+ * down when the welcome arrives, side to side. Tops are of the whole desk, including the part
+ * tucked under the sheet, so they stay in its upper ~75%.
  */
 const WELCOME_STICKERS: DeskSticker[] = [
-  { symbol: 'rainbow', tone: 'pink', top: '12%', left: '9%', tilt: -14, size: 1.2 },
-  { symbol: 'star', tone: 'purple', top: '31%', left: '23%', tilt: 9, size: 0.7 },
-  { symbol: 'sun', tone: 'yellow', top: '30%', left: '80%', tilt: 16, size: 1.05 },
-  { symbol: 'heart', tone: 'orange', top: '72%', left: '73%', tilt: -5, size: 0.75 },
-  { symbol: 'fish', tone: 'blue', top: '68%', left: '6%', tilt: 6, size: 0.95 },
+  { symbol: 'rainbow', tone: 'pink', top: '10%', left: '9%', tilt: -14, size: 1.2 },
+  { symbol: 'sun', tone: 'yellow', top: '24%', left: '80%', tilt: 16, size: 1.05 },
+  { symbol: 'fish', tone: 'blue', top: '55%', left: '6%', tilt: 6, size: 0.95 },
+  { symbol: 'heart', tone: 'orange', top: '58%', left: '73%', tilt: -5, size: 0.75 },
+  { symbol: 'star', tone: 'purple', top: '25%', left: '23%', tilt: 9, size: 0.7 },
 ];
 
 export default function ChildNotebookView({ preview = false, privacyUrl, initial, renderBible, renderAttachment, renderSearch, onSaveNote, onReadResource, onSavePreferences, onFamilyReading, onParentSignIn, onEndSession, lookBack }: Props) {
@@ -137,6 +139,10 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
   const welcomeDialogRef = useRef<HTMLDialogElement>(null);
   const [welcoming, setWelcoming] = useState(false);
+  /* The welcome's motion (child-notebook-preview.css): arriving, settled, or saying goodbye. */
+  const [welcomePhase, setWelcomePhase] = useState<'entering' | 'idle' | 'leaving'>('entering');
+  const welcomeTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(welcomeTimer.current), []);
   const [customizing, setCustomizing] = useState(false);
   const [studioPage, setStudioPage] = useState<'settings' | 'appearance' | 'feedback'>('settings');
   // Below the adult shell's breakpoint, Settings is a bottom sheet like the adult one: it opens on
@@ -240,7 +246,13 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   }, []);
   useEffect(() => {
     const dialog = welcomeDialogRef.current;
-    if (welcoming && dialog && !dialog.open) dialog.showModal();
+    if (welcoming && dialog && !dialog.open) {
+      dialog.showModal();
+      // The arrival runs ~1.4s (the last sticker lands at about 1.46s); then it settles.
+      setWelcomePhase('entering');
+      window.clearTimeout(welcomeTimer.current);
+      welcomeTimer.current = window.setTimeout(() => setWelcomePhase('idle'), 1500);
+    }
     if (!welcoming && dialog?.open) dialog.close();
   }, [welcoming]);
   useEffect(() => {
@@ -313,13 +325,17 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   }
 
   async function finishWelcome() {
-    if (saving) return;
+    if (saving || welcomePhase === 'leaving') return;
     setSaving(true); setSaveError('');
     try {
       await onSavePreferences?.({ ...preferences, welcomed: true });
       setWelcomed(true);
-      setWelcoming(false);
       playCue('organize.filed');
+      if (reducedMotion) { setWelcoming(false); return; }
+      // The book hops, the sheet drops back down, the dialog fades (~440ms), then it closes.
+      setWelcomePhase('leaving');
+      window.clearTimeout(welcomeTimer.current);
+      welcomeTimer.current = window.setTimeout(() => setWelcoming(false), 460);
     } catch (error) { setSaveError(error instanceof Error ? error.message : 'Could not save your notebook.'); }
     finally { setSaving(false); }
   }
@@ -708,7 +724,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       </div></div>
     </dialog>, document.body)}
 
-    {createPortal(<dialog ref={welcomeDialogRef} className="proto-settings-modal pds-kids-settings-modal pds-kids-welcome-modal proto-theme" data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby="kids-welcome-title" aria-describedby="kids-welcome-description" style={themeStyle} onCancel={event => { event.preventDefault(); void finishWelcome(); }}>
+    {createPortal(<dialog ref={welcomeDialogRef} className="proto-settings-modal pds-kids-settings-modal pds-kids-welcome-modal proto-theme" data-phase={welcomePhase} data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby="kids-welcome-title" aria-describedby="kids-welcome-description" style={themeStyle} onCancel={event => { event.preventDefault(); void finishWelcome(); }}>
       {/* The book stands on the kids' desk, as on the signed-out page; the words and the steps sit
           beside it on a wide screen, under it on a phone. */}
       <div className="proto-settings-modal__body pds-kids-welcome__body">
