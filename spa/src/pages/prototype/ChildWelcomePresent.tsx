@@ -103,7 +103,7 @@ export default function ChildWelcomePresent({ dialogRef, onBegin, inert }: Props
           <span className="pds-kids-studio__book"><ChildNotebookCover name={name} preferences={preferences} large /></span>
         </div>
       </div>
-      <h2 id="kids-present-title" className="pds-kids-welcome__title kids-present__title">{name ? `Here’s your notebook, ${name}!` : 'Here’s your notebook!'}</h2>
+      <h2 id="kids-present-title" className="pds-kids-welcome__title kids-present__title" tabIndex={-1}>{name ? `Here’s your notebook, ${name}!` : 'Here’s your notebook!'}</h2>
       <section className="kids-present__gifts" aria-labelledby="kids-present-gifts-label">
         <p id="kids-present-gifts-label" className="kids-present__gifts-label">It comes with</p>
         <ul>

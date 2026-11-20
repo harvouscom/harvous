@@ -254,6 +254,9 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       setWelcomePhase('present');
       setPresenting(true);
       dialog.showModal();
+      // Start on the scene's title, not its button: showModal would focus the button, and a
+      // programmatic focus draws its keyboard ring before anyone has touched anything.
+      document.getElementById('kids-present-title')?.focus({ preventScroll: true });
     }
     if (!welcoming && dialog?.open) dialog.close();
   }, [welcoming]);

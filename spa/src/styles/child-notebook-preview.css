@@ -431,7 +431,7 @@
 .pds-kids-studio.pds-kids-studio--welcome .pds-kids-studio__book { filter: drop-shadow(0 12px 16px rgb(20 18 12 / 0.2)); }
 .pds-kids-studio.pds-kids-studio--welcome .pds-kids-book--settings { transform: scale(1.2); }
 .pds-kids-welcome__header { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
-.pds-kids-welcome__header h2:focus { outline: none; }
+.pds-kids-welcome__header h2:focus, .kids-present__title:focus { outline: none; }
 .pds-kids-welcome__eyebrow { margin: 0; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pds-text-secondary); }
 .pds-kids-welcome__title { margin: 0; font-family: var(--pds-font-display); font-size: clamp(1.5rem, 1.3rem + 0.8vw, 1.75rem); font-weight: 620; line-height: 1.12; letter-spacing: -0.02em; color: var(--pds-text-primary); text-wrap: balance; }
 .pds-kids-welcome__line { margin: 2px 0 0; max-width: 34ch; font-size: 0.9375rem; line-height: 1.45; color: var(--pds-text-secondary); text-wrap: balance; }
