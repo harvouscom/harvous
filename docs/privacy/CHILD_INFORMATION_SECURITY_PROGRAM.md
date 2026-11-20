@@ -129,7 +129,8 @@ see "§312.8: security program and provider assurances" in the review. Copies an
 in iCloud Drive › Harvous Compliance › Provider agreements. Status on 12 November 2026:
 - **Supabase, Cloudflare, Clerk and KWS:** DPAs incorporated in their terms, so they're in force.
 - **PostHog:** DPA signed.
-- **Fly.io:** DPA requested from compliance@fly.io; countersign it when it arrives.
+- **Fly.io:** DPA requested from compliance@fly.io; countersign it when it arrives. *Update 20 November
+  2026: countersigned, so every provider DPA is now in force.*
 
 ## 9. Annual review (§312.8(b)(5))
 

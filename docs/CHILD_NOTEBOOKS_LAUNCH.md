@@ -56,8 +56,7 @@ soon. Epic approved KWS Production on 13 November.
 - Provider DPAs:
   - Supabase, Cloudflare, Clerk and KWS: incorporated in their terms.
   - PostHog: signed.
-  - Fly.io: requested from compliance@fly.io. Countersign it when it arrives and save it in the
-    records folder.
+  - Fly.io: signed by both sides (Derek confirmed 20 Nov 2026), copy in the records folder.
 - Cloudflare Web Analytics is in manual-snippet mode, so nothing is injected on the child or app
   hosts. Never switch it back to automatic.
 
