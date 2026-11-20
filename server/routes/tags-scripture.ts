@@ -20,6 +20,7 @@ import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, SpaceNotes, NoteTh
 import { passageSpanFromParsed, selectPassageNotes } from '../utils/passage-notes';
 import { bibleVersesBookName } from '@/utils/bible-verses-book-name';
 import { bookChapterCount } from '@/utils/bible-book-chapters';
+import { isWithheldTranslation } from '@/data/translations';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
@@ -346,6 +347,8 @@ app.get('/api/scripture/book', async (c) => {
     const translation = (c.req.query('translation') ?? 'NET').trim().toUpperCase();
 
     if (!bookParam) return c.json({ error: 'book is required', code: 'BOOK_REQUIRED' }, 400);
+    // A withheld translation answers as one with no text.
+    if (isWithheldTranslation(translation)) return c.json({ error: 'No verses found for this book', code: 'BOOK_NOT_FOUND' }, 404);
 
     const parsed = parseScriptureReference(`${bookParam} 1`);
     if (!parsed) return c.json({ error: 'Unknown book', code: 'INVALID_BOOK' }, 400);
@@ -439,6 +442,8 @@ app.get('/api/scripture/chapter', async (c) => {
     const translation = (c.req.query('translation') ?? 'NET').trim().toUpperCase();
 
     if (!bookParam) return c.json({ error: 'book is required', code: 'BOOK_REQUIRED' }, 400);
+    // A withheld translation answers as one with no text.
+    if (isWithheldTranslation(translation)) return c.json({ error: 'No verses found for this chapter', code: 'CHAPTER_NOT_FOUND' }, 404);
 
     const chapter = Number.parseInt(chapterParam, 10);
     if (!Number.isInteger(chapter) || chapter < 1) {

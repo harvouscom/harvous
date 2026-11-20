@@ -18,6 +18,11 @@ export interface TranslationInfo {
    */
   deuterocanon?: boolean;
   childNotebookOnly?: boolean;
+  /**
+   * In BibleVerses but served to no one: no picker offers it and every verse reader refuses it.
+   * Kept for later, e.g. a text with known gaps waiting for a complete licensed copy.
+   */
+  withheld?: boolean;
 }
 
 export const TRANSLATIONS: Record<string, TranslationInfo> = {
@@ -53,6 +58,9 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
     isPublicDomain: false,
     sortOrder: 17,
     childNotebookOnly: true,
+    // Withheld Nov 2026: the source is missing Numbers 1:28-54 and Psalm 82:8, and no permission is
+    // on record. The text stays in BibleVerses for when a complete, licensed copy arrives.
+    withheld: true,
   },
   KJV: {
     id: 'KJV',
@@ -230,6 +238,14 @@ export const TRANSLATION_ORDER = Object.values(TRANSLATIONS)
   .map((t) => t.id);
 
 /** Get translation info by ID, returns undefined if not found */
+/** Whether verse text in this translation may be served at all (see `withheld`). */
+export function isWithheldTranslation(id: string | null | undefined): boolean {
+  return !!id && TRANSLATIONS[id.toUpperCase()]?.withheld === true;
+}
+
+/** Translations the verse readers must skip when they read across all of them. */
+export const WITHHELD_TRANSLATIONS = Object.values(TRANSLATIONS).filter(translation => translation.withheld).map(translation => translation.id);
+
 export function getTranslation(id: string): TranslationInfo | undefined {
   return TRANSLATIONS[id];
 }

@@ -8,7 +8,7 @@
  * connections for no real gain (see supabase_pool_exhaustion in the team notes).
  */
 import { db, and, eq, sql, BibleVerses } from '../db';
-import { getTranslation } from '@/data/translations';
+import { getTranslation, isWithheldTranslation } from '@/data/translations';
 import {
   NO_PASSAGE,
   PASSAGE_IDENTIFY_MAX_CHARS,
@@ -85,6 +85,7 @@ export async function identifyPassage(params: {
       .orderBy(BibleVerses.translationId, BibleVerses.verse);
     const byTranslation = new Map<string, PassageVerse[]>();
     for (const row of rows) {
+      if (isWithheldTranslation(row.translationId)) continue;
       const list = byTranslation.get(row.translationId) ?? [];
       list.push(row);
       byTranslation.set(row.translationId, list);

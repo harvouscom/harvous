@@ -15,8 +15,14 @@ export const notebookPapers = ['plain', 'lined', 'dotted', 'grid'] as const;
 export const coverPatterns = ['plain', 'dots', 'stripes', 'gingham'] as const;
 export const childSchemes = ['system', 'light', 'dark'] as const;
 export const childTextSizes = ['standard', 'bigger'] as const;
-/** Written for young readers. New notebooks start with ERV; these three are offered first. */
-export const childBibleTranslations = ['ERV', 'CEV', 'NLV'] as const;
+/** Written for young readers. New notebooks start with ERV; these are offered first. */
+export const childBibleTranslations = ['ERV', 'CEV'] as const;
+/**
+ * In the database, offered and served to no one (Nov 2026): the NLV source text is missing verses
+ * (Numbers 1:28-54, Psalm 82:8) and no permission to use it is on record. Kept for when a complete,
+ * licensed text arrives; the server's verse readers refuse it (`withheld` in src/data/translations.ts).
+ */
+export const withheldChildBibleTranslations = ['NLV'] as const;
 export const legacyChildBibleTranslations = ['BSB', 'NIV', 'NLT'] as const;
 /**
  * The rest of the Harvous catalog, which a parent may add instead ("Add translation" in Family Bible
@@ -26,6 +32,16 @@ export const legacyChildBibleTranslations = ['BSB', 'NIV', 'NLT'] as const;
 export const familyAddableBibleTranslations = ['BSB', 'NIV', 'NLT', 'KJV', 'NKJV', 'ESV', 'NET', 'NASB', 'CSB', 'AMP', 'MSG', 'NABRE', 'DRB', 'RSV2CE', 'NRSVCE'] as const;
 export type ChildBibleTranslation = typeof childBibleTranslations[number] | typeof familyAddableBibleTranslations[number];
 export const allChildBibleTranslations = [...childBibleTranslations, ...familyAddableBibleTranslations] as const;
+
+/**
+ * A notebook's translations as anyone may see or use them: withheld ones dropped, ERV if none are
+ * left. A notebook saved with NLV before it was withheld reads as if NLV were never approved.
+ */
+export function servedChildTranslations(list: readonly string[]): ChildBibleTranslation[] {
+  const withheld: readonly string[] = withheldChildBibleTranslations;
+  const served = list.filter(translation => !withheld.includes(translation)) as ChildBibleTranslation[];
+  return served.length ? served : ['ERV'];
+}
 
 export const CHILD_NOTICE_VERSION = '2026-11-12.3';
 
@@ -75,7 +91,9 @@ export type ChildFamilyReading = ChildPassage & { id: string };
 
 /** What the parent's toggles list: the young-reader set, then anything already approved or shared. */
 export function childBibleTranslationChoices(approved: ChildBibleTranslation[], readings: ChildFamilyReading[]) {
-  return [...new Set([...childBibleTranslations, ...approved, ...readings.map(reading => reading.translation)])];
+  const withheld: readonly string[] = withheldChildBibleTranslations;
+  return [...new Set([...childBibleTranslations, ...approved, ...readings.map(reading => reading.translation)])]
+    .filter(translation => !withheld.includes(translation));
 }
 export type ChildFamilyThought = { id: string; verse: number; role: 'parent' | 'child'; text: string };
 export type ChildBibleChapter = { verses: { verse: number; text: string }[] };

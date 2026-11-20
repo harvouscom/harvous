@@ -5,6 +5,7 @@
  * Results are cached in VerseTextCache so each reference+translation is formatted at most once.
  */
 
+import { isWithheldTranslation } from '@/data/translations';
 import {
   parseScriptureReference,
   parseVerseGroups,
@@ -60,6 +61,8 @@ const TEXT_CACHE_MAX = 400;
 const textMemo = new Map<string, { at: number; value: Promise<string> }>();
 
 export async function fetchVerseText(reference: string, translation: string = 'NET'): Promise<string> {
+  // A withheld translation reads as one with no text, cached copies included.
+  if (isWithheldTranslation(translation)) return '';
   const memoKey = `${reference}|${translation}`;
   const now = Date.now();
   const hit = textMemo.get(memoKey);

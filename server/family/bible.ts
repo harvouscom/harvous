@@ -2,6 +2,7 @@ import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import { bookChapterCount } from '../../src/utils/bible-book-chapters';
+import { isWithheldTranslation } from '@/data/translations';
 import { allChildBibleTranslations, childBibleTranslations, legacyChildBibleTranslations, type ChildBibleTranslation, type ChildPassage } from '../../shared/child-notebook';
 import { BibleVerses, FamilyChildBibleReadings, FamilyChildBibleThoughts } from '../db/schema';
 import type { Child, FamilyTx } from './service';
@@ -10,6 +11,8 @@ export const translationInput = z.enum(allChildBibleTranslations);
 
 /** Whether this environment's database has text for a translation at all (Genesis 1 is enough). */
 export async function hasTranslationText(tx: FamilyTx, translation: string) {
+  // A withheld translation has text but may not be used, so it counts as having none.
+  if (isWithheldTranslation(translation)) return false;
   const [row] = await tx.select({ verse: BibleVerses.verse }).from(BibleVerses)
     .where(and(eq(BibleVerses.translationId, translation), eq(BibleVerses.book, 'Genesis'), eq(BibleVerses.chapter, 1))).limit(1);
   return !!row;
@@ -56,17 +59,22 @@ const thoughtFields = {
   role: FamilyChildBibleThoughts.role, text: FamilyChildBibleThoughts.text
 };
 
-export function familyReadings(tx: FamilyTx, child: Child) {
-  return tx.select(readingFields).from(FamilyChildBibleReadings)
+/**
+ * Shared chapters, newest first. One shared in a withheld translation (NLV) isn't listed, since its
+ * text can't be read; the backup export asks for it anyway, because the child's thoughts are theirs.
+ */
+export async function familyReadings(tx: FamilyTx, child: Child, { includeWithheld = false } = {}) {
+  const readings = await tx.select(readingFields).from(FamilyChildBibleReadings)
     .where(eq(FamilyChildBibleReadings.childId, child.id))
     .orderBy(desc(FamilyChildBibleReadings.sharedAt), asc(FamilyChildBibleReadings.id));
+  return includeWithheld ? readings : readings.filter(reading => !isWithheldTranslation(reading.translation));
 }
 
 export async function getFamilyReading(tx: FamilyTx, child: Child, readingId: string) {
   const [reading] = await tx.select(readingFields).from(FamilyChildBibleReadings).where(and(
     eq(FamilyChildBibleReadings.id, readingId), eq(FamilyChildBibleReadings.childId, child.id)
   ));
-  if (!reading) throw new HTTPException(404, { message: 'This reading is no longer shared.' });
+  if (!reading || isWithheldTranslation(reading.translation)) throw new HTTPException(404, { message: 'This reading is no longer shared.' });
   return reading;
 }
 

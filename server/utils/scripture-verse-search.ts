@@ -13,7 +13,7 @@
 import { db, and, eq, sql, BibleVerses } from '../db';
 import { PRAYER_OF_AZARIAH, orderedCanonBooks } from '@/utils/bible-book-chapters';
 import { DEUTEROCANON_TRANSLATIONS } from '@/data/translations';
-import { getTranslation } from '@/data/translations';
+import { getTranslation, isWithheldTranslation } from '@/data/translations';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { VERSE_MATCH_END, VERSE_MATCH_START } from '@/utils/verse-search-snippet';
 
@@ -120,7 +120,7 @@ export async function searchBibleVerses(params: {
   limit: number;
 }): Promise<VerseSearchResult> {
   const { query, translation, limit } = params;
-  if (!hasSearchableWord(query)) return { query, translation, hasMore: false, results: [] };
+  if (!hasSearchableWord(query) || isWithheldTranslation(translation)) return { query, translation, hasMore: false, results: [] };
 
   /*
    * `websearch_to_tsquery`, not `plainto_`: a quoted phrase stays a phrase and `-word` excludes,
