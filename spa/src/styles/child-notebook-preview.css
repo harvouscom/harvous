@@ -455,7 +455,7 @@
   align-items: center;
   justify-content: safe center;
   gap: var(--pds-space-6);
-  padding: var(--pds-space-8, 40px) var(--pds-space-5);
+  padding: var(--pds-space-8) var(--pds-space-5);
   overflow: hidden;
   text-align: center;
 }
@@ -487,7 +487,7 @@
 .kids-present__gifts li:nth-child(2n) { rotate: 1.5deg; }
 .kids-present__gift-icon { display: grid; flex: none; place-items: center; width: 28px; height: 28px; border-radius: 999px; color: var(--kids-cover-ink); background: color-mix(in oklab, var(--kids-cover-color) 28%, var(--pds-bg-page)); }
 .kids-present__gift-icon svg, .kids-present__gift-icon path { fill: currentColor; }
-.kids-present__start { width: auto; min-height: 52px; gap: var(--pds-space-2); padding-inline: var(--pds-space-7, 28px); font-size: 1rem; }
+.kids-present__start { width: auto; min-height: 52px; gap: var(--pds-space-2); padding-inline: var(--pds-space-8); font-size: 1rem; }
 @media (max-width: 520px) {
   /* The studio's book is smaller at this width (84 × 104, scaled 1.1); reserve its presented size. */
   .kids-present { gap: var(--pds-space-5); padding-block: var(--pds-space-6); }
@@ -1046,7 +1046,7 @@
     color-mix(in oklab, var(--kids-cover-color) 10%, var(--pds-bg-page));
   transition: background var(--pds-duration-home-row) var(--pds-ease-standard);
 }
-.pds-kids-studio__stage--center { justify-content: center; padding-block: var(--pds-space-8, 40px); }
+.pds-kids-studio__stage--center { justify-content: center; padding-block: var(--pds-space-8); }
 .pds-kids-studio__book { display: inline-grid; flex: none; animation: pds-kids-studio-pop 380ms var(--pds-ease-emphasized); }
 .pds-kids-studio .pds-kids-book--settings { flex-basis: 112px; width: 112px; height: 136px; }
 .pds-kids-studio .pds-kids-book--settings .pds-kids-book__volume { width: 100px; height: 126px; }
