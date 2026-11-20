@@ -21,6 +21,7 @@ import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { TypedLine } from './PrototypeFeedComposePrompt';
 import ChildNotebookCoverStudio from './ChildNotebookCoverStudio';
+import ChildDesk, { type DeskSticker } from '../family/ChildDesk';
 import ChildLookBackDock, { type LookBackApi, type LookBackSitting } from './ChildLookBackDock';
 import type { ChildNotebookPreferences } from '../../../../shared/child-notebook';
 
@@ -102,6 +103,14 @@ function lookBackReadyTitle(nextDueAt: string, now = new Date()) {
   if (days === 1) return 'Ready again tomorrow';
   return `Ready again on ${due.toLocaleDateString(undefined, { weekday: 'long' })}`;
 }
+
+/** Four stickers around the welcome's book, clear of the lettering. */
+const WELCOME_STICKERS: DeskSticker[] = [
+  { symbol: 'rainbow', tone: 'pink', top: '12%', left: '9%', tilt: -10 },
+  { symbol: 'sun', tone: 'yellow', top: '10%', left: '82%', tilt: 12 },
+  { symbol: 'fish', tone: 'blue', top: '62%', left: '8%', tilt: 8 },
+  { symbol: 'heart', tone: 'orange', top: '60%', left: '83%', tilt: -7 },
+];
 
 export default function ChildNotebookView({ preview = false, privacyUrl, initial, renderBible, renderAttachment, renderSearch, onSaveNote, onReadResource, onSavePreferences, onFamilyReading, onParentSignIn, onEndSession, lookBack }: Props) {
   const [saveError, setSaveError] = useState('');
@@ -696,12 +705,15 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
     </dialog>, document.body)}
 
     {createPortal(<dialog ref={welcomeDialogRef} className="proto-settings-modal pds-kids-settings-modal pds-kids-welcome-modal proto-theme" data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby="kids-welcome-title" aria-describedby="kids-welcome-description" style={themeStyle} onCancel={event => { event.preventDefault(); void finishWelcome(); }}>
-      <header className="proto-settings-modal__header pds-kids-welcome__header">
-        <h2 id="kids-welcome-title" className="proto-settings-modal__title">Make it yours, {name}</h2>
-        <p id="kids-welcome-description" className="pds-caption">Pick how your notebook looks. You can change it any time in Settings.</p>
-      </header>
-      {welcoming && saveError && <p className="pds-caption pds-kids-status" role="alert">{saveError}</p>}
+      {/* One scene, the same desk as the signed-out page: the lettering and the book sit on it. */}
       <div className="proto-settings-modal__body pds-kids-welcome__body">
+        <div className="pds-kids-welcome__scene"><ChildDesk stickers={WELCOME_STICKERS} /></div>
+        <header className="pds-kids-welcome__header">
+            <p className="pds-kids-welcome__eyebrow">{name ? `${name}’s notebook` : 'Your notebook'}</p>
+            <h2 id="kids-welcome-title" className="pds-kids-welcome__title">Make it yours{name ? `, ${name}` : ''}</h2>
+            <p id="kids-welcome-description" className="pds-kids-welcome__line">Pick how your notebook looks. You can change it any time in Settings.</p>
+        </header>
+        {welcoming && saveError && <p className="pds-caption pds-kids-status" role="alert">{saveError}</p>}
         <div className="pds-kids-inside-settings pds-kids-notebook-settings" data-pattern={coverPattern}>
           {welcoming && <ChildNotebookCoverStudio />}
         </div>

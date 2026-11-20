@@ -10,11 +10,10 @@
  * The book stands on a paper letter that carries the words, as on the move page (Derek chose this
  * over a note taped to the cover). In dev, `?preview=1&signedOut=<kind>` shows each case.
  */
-import type { CSSProperties } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { defaultChildPreferences, type ChildNotebookPreferences } from '../../../../shared/child-notebook';
 import { ChildNotebookAppearanceProvider, ChildNotebookAvatar, ChildNotebookCover, useChildNotebookAppearance } from '../prototype/ChildNotebookAppearance';
-import ChildCoverSymbol from '../prototype/ChildCoverSymbol';
+import ChildDesk from './ChildDesk';
 import ProtoLoadingDots from '../prototype/ProtoLoadingDots';
 import { ChildPrivacyFootnote } from './ChildPrivacyNotice';
 import '../../styles/kids-signed-out.css';
@@ -61,16 +60,6 @@ const pages: Record<SignedOutKind, Page> = {
 /** Before sign-in there's no notebook to show: a plain one with a seedling, as on the move page. */
 const WAITING_COVER: ChildNotebookPreferences = { ...defaultChildPreferences, coverColor: 'green', coverSymbol: 'seedling' };
 
-type Tone = 'blue' | 'green' | 'purple' | 'pink' | 'orange' | 'yellow';
-const STICKERS: { symbol: 'rainbow' | 'fish' | 'sun' | 'heart' | 'star' | 'dove'; tone: Tone; top: string; left: string; tilt: number }[] = [
-  { symbol: 'rainbow', tone: 'pink', top: '9%', left: '9%', tilt: -10 },
-  { symbol: 'sun', tone: 'yellow', top: '6%', left: '82%', tilt: 12 },
-  { symbol: 'fish', tone: 'blue', top: '34%', left: '4%', tilt: 8 },
-  { symbol: 'heart', tone: 'orange', top: '30%', left: '90%', tilt: -7 },
-  { symbol: 'star', tone: 'purple', top: '76%', left: '7%', tilt: -12 },
-  { symbol: 'dove', tone: 'green', top: '80%', left: '86%', tilt: 6 },
-];
-
 type Props = {
   kind: SignedOutKind;
   identity?: SignedOutIdentity | null;
@@ -79,19 +68,6 @@ type Props = {
   retrying?: boolean;
   onRetry?: () => void;
 };
-
-function Stickers() {
-  return (
-    <div className="kso__stickers" aria-hidden="true">
-      {STICKERS.map(sticker => (
-        <span key={sticker.symbol} className="kso__sticker" data-tone={sticker.tone}
-          style={{ top: sticker.top, left: sticker.left, '--tilt': `${sticker.tilt}deg` } as CSSProperties}>
-          <ChildCoverSymbol symbol={sticker.symbol} size={20} />
-        </span>
-      ))}
-    </div>
-  );
-}
 
 /** The notebook, with a round sticker on its corner that says what happened (a key, a check…). */
 function Book({ badge }: { badge: IconName }) {
@@ -160,8 +136,7 @@ function SignedOutPage({ kind, privacyUrl, parentSignInUrl, retrying, onRetry }:
   return (
     <section className="kso proto-theme" data-kind={kind} data-reduce-motion={appearance.reduceMotion || undefined}
       style={themeStyle} aria-labelledby="kids-signed-out-title">
-      <div className="kso__desk" aria-hidden="true" />
-      <Stickers />
+      <ChildDesk />
       <div className="kso__stage">
         <Book badge={page.badge} />
         <div className="kso__letter">{words}{after}</div>
