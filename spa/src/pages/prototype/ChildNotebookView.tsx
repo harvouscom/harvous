@@ -21,6 +21,7 @@ import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { TypedLine } from './PrototypeFeedComposePrompt';
 import ChildNotebookCoverStudio from './ChildNotebookCoverStudio';
+import ChildWelcomePresent from './ChildWelcomePresent';
 import ChildDesk, { type DeskSticker } from '../family/ChildDesk';
 import ChildLookBackDock, { type LookBackApi, type LookBackSitting } from './ChildLookBackDock';
 import type { ChildNotebookPreferences } from '../../../../shared/child-notebook';
@@ -139,10 +140,13 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
   const welcomeDialogRef = useRef<HTMLDialogElement>(null);
   const [welcoming, setWelcoming] = useState(false);
-  /* The welcome's motion (child-notebook-preview.css): arriving, settled, or saying goodbye. */
-  const [welcomePhase, setWelcomePhase] = useState<'entering' | 'idle' | 'leaving'>('entering');
-  const welcomeTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(welcomeTimer.current), []);
+  /* The welcome's phases (motion in child-notebook-preview.css): the notebook presented on its own
+     (ChildWelcomePresent), morphing into the studio, settled, or saying goodbye. */
+  const [welcomePhase, setWelcomePhase] = useState<'present' | 'morphing' | 'idle' | 'leaving'>('present');
+  const [presenting, setPresenting] = useState(true);
+  const welcomeTimers = useRef<number[]>([]);
+  const clearWelcomeTimers = () => { welcomeTimers.current.forEach(window.clearTimeout); welcomeTimers.current = []; };
+  useEffect(() => clearWelcomeTimers, []);
   const [customizing, setCustomizing] = useState(false);
   const [studioPage, setStudioPage] = useState<'settings' | 'appearance' | 'feedback'>('settings');
   // Below the adult shell's breakpoint, Settings is a bottom sheet like the adult one: it opens on
@@ -247,11 +251,9 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   useEffect(() => {
     const dialog = welcomeDialogRef.current;
     if (welcoming && dialog && !dialog.open) {
+      setWelcomePhase('present');
+      setPresenting(true);
       dialog.showModal();
-      // The arrival runs ~1.4s (the last sticker lands at about 1.46s); then it settles.
-      setWelcomePhase('entering');
-      window.clearTimeout(welcomeTimer.current);
-      welcomeTimer.current = window.setTimeout(() => setWelcomePhase('idle'), 1500);
     }
     if (!welcoming && dialog?.open) dialog.close();
   }, [welcoming]);
@@ -324,6 +326,20 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
     }
   }
 
+  /* "Make it mine": the presented book lands on the studio's, the desk pulls up, the sheet slides up
+     (~0.85s), then the layer goes and the stickers are pressed down (done by ~1.9s). */
+  function beginWelcomeMorph() {
+    playCue('nav.forward');
+    const settle = () => {
+      setPresenting(false);
+      window.requestAnimationFrame(() => document.getElementById('kids-welcome-title')?.focus({ preventScroll: true }));
+    };
+    clearWelcomeTimers();
+    if (reducedMotion) { settle(); setWelcomePhase('idle'); return; }
+    setWelcomePhase('morphing');
+    welcomeTimers.current.push(window.setTimeout(settle, 880), window.setTimeout(() => setWelcomePhase('idle'), 1950));
+  }
+
   async function finishWelcome() {
     if (saving || welcomePhase === 'leaving') return;
     setSaving(true); setSaveError('');
@@ -333,9 +349,9 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       playCue('organize.filed');
       if (reducedMotion) { setWelcoming(false); return; }
       // The book hops, the sheet drops back down, the dialog fades (~440ms), then it closes.
+      clearWelcomeTimers();
       setWelcomePhase('leaving');
-      window.clearTimeout(welcomeTimer.current);
-      welcomeTimer.current = window.setTimeout(() => setWelcoming(false), 460);
+      welcomeTimers.current.push(window.setTimeout(() => setWelcoming(false), 460));
     } catch (error) { setSaveError(error instanceof Error ? error.message : 'Could not save your notebook.'); }
     finally { setSaving(false); }
   }
@@ -724,22 +740,23 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       </div></div>
     </dialog>, document.body)}
 
-    {createPortal(<dialog ref={welcomeDialogRef} className="proto-settings-modal pds-kids-settings-modal pds-kids-welcome-modal proto-theme" data-phase={welcomePhase} data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby="kids-welcome-title" aria-describedby="kids-welcome-description" style={themeStyle} onCancel={event => { event.preventDefault(); void finishWelcome(); }}>
+    {createPortal(<dialog ref={welcomeDialogRef} className="proto-settings-modal pds-kids-settings-modal pds-kids-welcome-modal proto-theme" data-phase={welcomePhase} data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby={presenting ? 'kids-present-title' : 'kids-welcome-title'} aria-describedby={presenting ? undefined : 'kids-welcome-description'} style={themeStyle} onCancel={event => { event.preventDefault(); void finishWelcome(); }}>
       {/* The book stands on the kids' desk, as on the signed-out page; the words and the steps sit
           beside it on a wide screen, under it on a phone. */}
-      <div className="proto-settings-modal__body pds-kids-welcome__body">
+      {welcoming && presenting && <ChildWelcomePresent dialogRef={welcomeDialogRef} onBegin={beginWelcomeMorph} inert={welcomePhase !== 'present'} />}
+      <div className="proto-settings-modal__body pds-kids-welcome__body" inert={presenting}>
         {welcoming && saveError && <p className="pds-caption pds-kids-status" role="alert">{saveError}</p>}
         <div className="pds-kids-inside-settings pds-kids-notebook-settings" data-pattern={coverPattern}>
-          {welcoming && <ChildNotebookCoverStudio className="pds-kids-studio--welcome"
+          {welcoming && <ChildNotebookCoverStudio className="pds-kids-studio--welcome" sheetClassName="pds-kids-welcome__sheet"
             stage={<ChildDesk stickers={WELCOME_STICKERS} />}
             intro={<header className="pds-kids-welcome__header">
               <p className="pds-kids-welcome__eyebrow">{name ? `${name}’s notebook` : 'Your notebook'}</p>
-              <h2 id="kids-welcome-title" className="pds-kids-welcome__title">Make it yours{name ? `, ${name}` : ''}</h2>
+              <h2 id="kids-welcome-title" className="pds-kids-welcome__title" tabIndex={-1}>Make it yours{name ? `, ${name}` : ''}</h2>
               <p id="kids-welcome-description" className="pds-kids-welcome__line">Pick how your notebook looks. You can change it any time in Settings.</p>
             </header>} />}
         </div>
       </div>
-      <div className="pds-kids-settings-footer proto-sheet-footer--stacked"><button className="proto-settings-btn" disabled={saving} onClick={() => void finishWelcome()}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Start my notebook</button></div>
+      <div className="pds-kids-settings-footer proto-sheet-footer--stacked" inert={presenting}><button className="proto-settings-btn" disabled={saving} onClick={() => void finishWelcome()}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Start my notebook</button></div>
     </dialog>, document.body)}
 
     {createPortal(<dialog ref={parentDialogRef} className="pds-kids-privacy-modal proto-theme pds-kids-parent-gate" aria-labelledby="parent-gate-title" aria-describedby="parent-gate-description" style={themeStyle} onCancel={event => { if (parentBusy) event.preventDefault(); else setParentGate(false); }} onClose={() => { if (!parentBusy) { setParentGate(false); document.getElementById('child-notebook-mode-trigger')?.focus(); } }}>

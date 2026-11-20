@@ -387,22 +387,22 @@
 .pds-kids-settings-modal .proto-settings__detail { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .pds-kids-settings-modal .pds-kids-settings-pane { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 /* Adult sheets' footer band (hairline, ghost fill), pinned under the pane so Done never needs a scroll. */
-/* First open: "Make it yours". One column, as the studio is in Settings: the book stands on the
-   kids' desk (ChildDesk), a rounded card that is the studio's own stage, so nothing fades or clips;
-   the words sit under it, then the steps. Sized to its content: the kids' dialog is pinned to every
-   edge, so `fit-content` keeps it from stretching into an empty band. The studio's own rules come
-   later in this file, hence the doubled class. */
+/* First open. Two scenes in one dialog: the notebook presented on the kids' desk with what comes
+   with it (ChildWelcomePresent), which morphs into "Make it yours", the cover studio. One column,
+   as the studio is in Settings. Sized to its content: the kids' dialog is pinned to every edge, so
+   `fit-content` keeps it from stretching into an empty band; the present layer covers the same box,
+   so the dialog never changes size between the two. The studio's own rules come later in this
+   file, hence the doubled class. */
 .pds-kids-welcome-modal { width: min(520px, calc(100vw - 32px)); height: fit-content; max-height: min(92dvh, 820px); display: flex; flex-direction: column; }
 .pds-kids-welcome__body { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .pds-kids-welcome__body .pds-kids-inside-settings { padding: var(--pds-space-5) var(--pds-space-5) var(--pds-space-4); }
 .pds-kids-studio.pds-kids-studio--welcome { gap: var(--pds-space-4); }
 /* The desk runs to the dialog's top and side edges, as its header art; the dialog clips the corners.
-   The words and steps are a sheet laid over the desk's lower edge: the header's ::before draws the
-   sheet's rounded top, edge to edge, and the dialog's own page colour carries it down to the footer.
+   The words and steps are one sheet (the studio's sheetClassName) laid over the desk's lower edge.
    `--welcome-overlap` is how far the sheet visibly covers the desk; `--welcome-tuck` is more desk
-   hidden under it, so the sheet can rise into place (and drop away) without opening a gap. The
-   stage is content-box, so the tuck lives in its bottom padding, not its min-height. */
-.pds-kids-studio.pds-kids-studio--welcome { --welcome-overlap: 24px; --welcome-tuck: 72px; --welcome-rise: 88px; }
+   hidden under it, so the sheet can slide over desk without opening a gap. The stage is
+   content-box, so the tuck lives in its bottom padding, not its min-height. */
+.pds-kids-studio.pds-kids-studio--welcome { --welcome-overlap: 24px; --welcome-tuck: 72px; }
 .pds-kids-studio.pds-kids-studio--welcome .pds-kids-studio__stage {
   isolation: isolate;
   min-height: calc(232px + var(--welcome-overlap));
@@ -411,29 +411,27 @@
   border-radius: 0;
   background: none;
 }
-.pds-kids-studio.pds-kids-studio--welcome .pds-kids-welcome__header {
+/* The sheet: opaque, edge to edge, rounded on top, a soft shadow up onto the desk. */
+.pds-kids-welcome__sheet {
   position: relative;
   z-index: 1;
-  margin-top: calc(-1 * (var(--pds-space-4) + var(--welcome-overlap) + var(--welcome-tuck)));
-  padding-top: calc(var(--welcome-overlap) + var(--pds-space-1));
-}
-.pds-kids-studio.pds-kids-studio--welcome .pds-kids-welcome__header::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: 0 calc(-1 * var(--pds-space-5)) auto;
-  height: calc(var(--welcome-overlap) + var(--welcome-tuck) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-4);
+  margin: calc(-1 * (var(--pds-space-4) + var(--welcome-overlap) + var(--welcome-tuck))) calc(-1 * var(--pds-space-5)) calc(-1 * var(--pds-space-4));
+  padding: calc(var(--welcome-overlap) + var(--pds-space-1)) var(--pds-space-5) var(--pds-space-4);
   border-radius: 24px 24px 0 0;
   background: var(--pds-bg-page);
   box-shadow: 0 -0.5px 0 var(--pds-border-soft), 0 -10px 24px -12px rgb(15 23 42 / 0.28);
 }
-/* The rest of the sheet paints above the header's backing. */
-.pds-kids-studio.pds-kids-studio--welcome > :not(.pds-kids-studio__stage, .pds-kids-welcome__header) { position: relative; z-index: 1; }
-/* Stickers bob from rest, one after another, so nothing jumps when the entrance hands over. */
+/* The footer goes with the sheet, so it's opaque too (the same ghost tint, over the page). */
+.pds-kids-welcome-modal .pds-kids-settings-footer { position: relative; z-index: 1; background: linear-gradient(var(--pds-bg-ghost), var(--pds-bg-ghost)), var(--pds-bg-page); }
+/* Stickers bob from rest, one after another, so nothing jumps when they're first pressed down. */
 .pds-kids-studio.pds-kids-studio--welcome .kids-desk__sticker { animation-delay: calc(var(--i, 0) * 0.8s); }
 .pds-kids-studio.pds-kids-studio--welcome .pds-kids-studio__book { filter: drop-shadow(0 12px 16px rgb(20 18 12 / 0.2)); }
 .pds-kids-studio.pds-kids-studio--welcome .pds-kids-book--settings { transform: scale(1.2); }
 .pds-kids-welcome__header { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.pds-kids-welcome__header h2:focus { outline: none; }
 .pds-kids-welcome__eyebrow { margin: 0; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pds-text-secondary); }
 .pds-kids-welcome__title { margin: 0; font-family: var(--pds-font-display); font-size: clamp(1.5rem, 1.3rem + 0.8vw, 1.75rem); font-weight: 620; line-height: 1.12; letter-spacing: -0.02em; color: var(--pds-text-primary); text-wrap: balance; }
 .pds-kids-welcome__line { margin: 2px 0 0; max-width: 34ch; font-size: 0.9375rem; line-height: 1.45; color: var(--pds-text-secondary); text-wrap: balance; }
@@ -442,43 +440,148 @@
   .pds-kids-studio.pds-kids-studio--welcome .pds-kids-book--settings { transform: scale(1.1); }
 }
 
-/* ─── The welcome's arrival and goodbye (data-phase on the dialog; ChildNotebookView) ───
-   Arriving: the dialog settles in, the notebook plops onto the desk, the sheet of choices slides up
-   and tucks over the desk's edge, then the stickers get pressed down one at a time around the book.
-   Leaving ("Start my notebook"): the book does a happy hop, the sheet drops back down, and the
-   dialog fades. The sheet moves as one piece: every part of it (the studio's words and steps, and
-   the footer) takes the same transform. Reduced motion skips all of it. */
-.pds-kids-welcome-modal[data-phase='entering'] { animation: kids-welcome-in 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
-.pds-kids-welcome-modal[data-phase='entering']::backdrop { animation: kids-welcome-fade 300ms ease-out backwards; }
-.pds-kids-welcome-modal[data-phase='entering'] .pds-kids-welcome__body { overflow-y: hidden; }
-.pds-kids-welcome-modal[data-phase='entering'] .pds-kids-studio--welcome .pds-kids-studio__book { animation: kids-welcome-plop 680ms cubic-bezier(0.3, 0.7, 0.3, 1) 90ms backwards; }
-.pds-kids-welcome-modal[data-phase='entering'] :is(.pds-kids-studio--welcome > :not(.pds-kids-studio__stage), .pds-kids-settings-footer) {
-  animation: kids-welcome-sheet-rise 640ms cubic-bezier(0.22, 1.15, 0.36, 1) 260ms backwards;
+/* ─── The present (ChildWelcomePresent): the notebook and what comes with it, full screen ───
+   A fixed layer over the whole viewport (the dialog has no transform then, so the viewport is its
+   containing block), above the studio's desk and under its sheet. Its desk is the kids' desk with
+   the page stickers, as on the signed-out page. Its book is the studio's book (same classes, so the
+   same size and scale) shown `--present-scale` bigger. */
+.kids-present {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: var(--pds-space-6);
+  padding: var(--pds-space-8, 40px) var(--pds-space-5);
+  overflow: hidden;
+  text-align: center;
 }
-.pds-kids-welcome-modal[data-phase='entering'] .pds-kids-studio--welcome .kids-desk__sticker {
-  animation: kids-welcome-stick 460ms cubic-bezier(0.3, 1.35, 0.5, 1) calc(560ms + var(--i, 0) * 110ms) backwards;
+.kids-present__desk { position: fixed; top: 0; left: 0; z-index: -1; width: 100vw; height: 100dvh; overflow: hidden; isolation: isolate; }
+/* The book is the hero, then the title under it, then what comes with it, then the button. The
+   book's cover is drawn tilted, so its box keeps a little extra room around it. */
+.kids-present__title.pds-kids-welcome__title { margin-top: calc(-1 * var(--pds-space-2)); font-size: clamp(2rem, 1.4rem + 2vw, 3rem); }
+.kids-present__book { --present-scale: 2.2; display: grid; flex: none; place-items: center; width: calc(112px * 1.2 * var(--present-scale)); height: calc(136px * 1.2 * var(--present-scale)); margin-block: var(--pds-space-3); }
+@media (max-height: 900px) { .kids-present__book { --present-scale: 1.85; } }
+@media (max-height: 760px) { .kids-present__book { --present-scale: 1.55; } }
+.kids-present__scope { scale: var(--present-scale); }
+.kids-present__gifts { display: flex; flex-direction: column; align-items: center; gap: var(--pds-space-3); margin-top: calc(-1 * var(--pds-space-2)); }
+/* In the title's voice, as its follow-on: "It comes with", then the tags. */
+.kids-present__gifts-label { margin: 0; font-size: 1.0625rem; font-weight: 500; line-height: 1.4; color: var(--pds-text-secondary); }
+.kids-present__gifts ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 560px; margin: 0; padding: 0; list-style: none; }
+.kids-present__gifts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 999px;
+  background: var(--pds-bg-page);
+  box-shadow: 0 0 0 0.5px var(--pds-border-soft), 0 8px 18px -10px rgb(15 23 42 / 0.4);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+  rotate: -1.5deg;
 }
+.kids-present__gifts li:nth-child(2n) { rotate: 1.5deg; }
+.kids-present__gift-icon { display: grid; flex: none; place-items: center; width: 28px; height: 28px; border-radius: 999px; color: var(--kids-cover-ink); background: color-mix(in oklab, var(--kids-cover-color) 28%, var(--pds-bg-page)); }
+.kids-present__gift-icon svg, .kids-present__gift-icon path { fill: currentColor; }
+.kids-present__start { width: auto; min-height: 52px; gap: var(--pds-space-2); padding-inline: var(--pds-space-7, 28px); font-size: 1rem; }
+@media (max-width: 520px) {
+  /* The studio's book is smaller at this width (84 × 104, scaled 1.1); reserve its presented size. */
+  .kids-present { gap: var(--pds-space-5); padding-block: var(--pds-space-6); }
+  .kids-present__book { --present-scale: 1.8; width: calc(84px * 1.1 * var(--present-scale)); height: calc(104px * 1.1 * var(--present-scale)); }
+  .kids-present__title.pds-kids-welcome__title { font-size: 1.875rem; }
+  .kids-present__gifts li { font-size: 0.875rem; }
+  /* Four page stickers at the screen's edges, clear of the words and the book. */
+  .kids-present .kids-desk__sticker:nth-child(n + 5) { display: none; }
+  .kids-present .kids-desk__sticker:nth-child(3) { top: 58% !important; }
+  .kids-present .kids-desk__sticker:nth-child(4) { top: 52% !important; }
+}
+
+/* ─── Motion (data-phase on the dialog; ChildNotebookView) ───
+   present:  full screen. The desk fades in; the notebook arrives alone, close up, pulling back to
+             the middle of the screen; then it glides up as the title, the stickers and what comes
+             with it (popping out of the book one at a time) come in under it; then "Make it mine".
+   morphing: the page stickers lift away and the gifts fly back into the book; the desk contracts
+             from the screen into the card's header art (its corners rounding to the card's) while
+             the book glides and shrinks onto the studio's book and the sheet slides up into the
+             card; once the layer is gone, the card's stickers are pressed down one at a time.
+   leaving:  the book hops, the sheet drops back down, the dialog fades.
+   The desk and the sheet share one duration and easing, and the sheet travels further than the
+   desk's bottom edge, so the sheet's top never rises past the desk's bottom: no gap opens.
+   Reduced motion (system or the notebook's own setting) skips all of it. */
+.pds-kids-welcome-modal { --morph-ease: cubic-bezier(0.22, 1.08, 0.36, 1); }
+.pds-kids-welcome-modal:is([data-phase='present'], [data-phase='morphing'], [data-phase='leaving']) .pds-kids-welcome__body { overflow-y: hidden; }
+.pds-kids-welcome-modal[data-phase='present'] :is(.pds-kids-welcome__sheet, .pds-kids-settings-footer) { transform: translateY(100vh); }
+/* The card's shadow waits for the card: under the full-screen scene it has nothing to sit on. */
+.pds-kids-welcome-modal[data-phase='present'] { box-shadow: none; }
+.pds-kids-welcome-modal[data-phase='morphing'] { animation: kids-welcome-shadow-in 500ms ease-out 400ms backwards; }
+
+.pds-kids-welcome-modal[data-phase='present']::backdrop { animation: kids-welcome-fade 300ms ease-out backwards; }
+.kids-present__desk { animation: kids-welcome-fade 240ms ease-out backwards; }
+/* First just the book: close (the whole book and its pages in view), the view opening a little to
+   its framing, alone in the middle of the screen;
+   then it glides up to its place as the title, the stickers, what comes with it and the button
+   come in under it. The present book's own studio pop is off (it's already the hero). */
+.kids-present .pds-kids-studio__book { animation: none; }
+.kids-present__book { animation: kids-present-book-zoom 1100ms cubic-bezier(0.16, 1, 0.3, 1) 260ms backwards, kids-present-book-settle 700ms cubic-bezier(0.3, 0.8, 0.25, 1) 1300ms backwards; }
+.kids-present__title { animation: kids-present-rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) 1450ms backwards; }
+.kids-present .kids-desk__sticker { animation: kids-welcome-stick 460ms cubic-bezier(0.3, 1.35, 0.5, 1) calc(1500ms + var(--i, 0) * 90ms) backwards, kids-desk-bob 6s ease-in-out calc(2550ms + var(--i, 0) * 0.8s) infinite; }
+.kids-present__gifts-label { animation: kids-present-rise 420ms ease-out 1700ms backwards; }
+.kids-present__gifts li { animation: kids-present-gift-out 540ms cubic-bezier(0.3, 1.3, 0.5, 1) calc(1800ms + var(--i, 0) * 120ms) backwards; }
+.kids-present__start { animation: kids-present-rise 480ms cubic-bezier(0.2, 0.8, 0.2, 1) 2500ms backwards; }
+
+.pds-kids-welcome-modal[data-phase='morphing'] :is(.kids-present__title, .kids-present__gifts-label, .kids-present__start) { animation: kids-present-away 200ms ease-in forwards; }
+.pds-kids-welcome-modal[data-phase='morphing'] .kids-present .kids-desk__sticker { animation: kids-present-lift 260ms ease-in calc(var(--i, 0) * 30ms) forwards; }
+.pds-kids-welcome-modal[data-phase='morphing'] .kids-present__gifts li { animation: kids-present-gift-in 260ms cubic-bezier(0.5, 0, 0.75, 0) calc((4 - var(--i, 0)) * 35ms) forwards; }
+.pds-kids-welcome-modal[data-phase='morphing'] .kids-present__book { transform-origin: var(--flip-ox, 50%) var(--flip-oy, 50%); animation: kids-present-book-land 760ms var(--morph-ease) 180ms forwards; }
+.pds-kids-welcome-modal[data-phase='morphing'] .kids-present__desk { animation: kids-present-desk-in 760ms var(--morph-ease) 180ms forwards; }
+.pds-kids-welcome-modal[data-phase='morphing'] :is(.pds-kids-welcome__sheet, .pds-kids-settings-footer) { animation: kids-present-sheet-up 760ms var(--morph-ease) 180ms backwards; }
+.pds-kids-welcome-modal[data-phase='morphing'] .pds-kids-studio--welcome .kids-desk__sticker {
+  animation: kids-welcome-stick 460ms cubic-bezier(0.3, 1.35, 0.5, 1) calc(1000ms + var(--i, 0) * 110ms) backwards;
+}
+
 .pds-kids-welcome-modal[data-phase='leaving'] { animation: kids-welcome-out 240ms ease-in 200ms forwards; }
 .pds-kids-welcome-modal[data-phase='leaving']::backdrop { animation: kids-welcome-out-fade 240ms ease-in 200ms forwards; }
-.pds-kids-welcome-modal[data-phase='leaving'] .pds-kids-welcome__body { overflow-y: hidden; }
-.pds-kids-welcome-modal[data-phase='leaving'] .pds-kids-studio--welcome .pds-kids-studio__book { animation: kids-welcome-hop 420ms cubic-bezier(0.3, 0.7, 0.3, 1); }
-.pds-kids-welcome-modal[data-phase='leaving'] :is(.pds-kids-studio--welcome > :not(.pds-kids-studio__stage), .pds-kids-settings-footer) {
-  animation: kids-welcome-sheet-drop 300ms cubic-bezier(0.5, 0, 0.75, 0) 60ms forwards;
+.pds-kids-welcome-modal[data-phase='leaving'] .pds-kids-studio__stage .pds-kids-studio__book { animation: kids-welcome-hop 420ms cubic-bezier(0.3, 0.7, 0.3, 1); }
+.pds-kids-welcome-modal[data-phase='leaving'] :is(.pds-kids-welcome__sheet, .pds-kids-settings-footer) { animation: kids-welcome-sheet-drop 300ms cubic-bezier(0.5, 0, 0.75, 0) 60ms forwards; }
+
+@keyframes kids-welcome-shadow-in { from { box-shadow: none; } }
+@keyframes kids-present-lift { to { opacity: 0; scale: 1.3; } }
+/* Close, but the whole book in view, its pages showing; then the view opens a little to its framing. */
+@keyframes kids-present-book-zoom {
+  0% { opacity: 0; scale: 1.7; rotate: -5deg; translate: 0 var(--solo-offset, 0px); }
+  35% { opacity: 1; }
+  100% { scale: 1; rotate: 0deg; translate: 0 var(--solo-offset, 0px); }
 }
-@keyframes kids-welcome-in { from { opacity: 0; translate: 0 14px; scale: 0.97; } }
+@keyframes kids-present-book-settle { from { translate: 0 var(--solo-offset, 0px); } }
+/* From the whole screen to the studio's desk, the card's top corners rounding in. */
+@keyframes kids-present-desk-in {
+  to {
+    top: var(--desk-to-top, 0px);
+    left: var(--desk-to-left, 0px);
+    width: var(--desk-to-width, 100vw);
+    height: var(--desk-to, 100dvh);
+    border-radius: var(--card-radius, 18px) var(--card-radius, 18px) 0 0;
+  }
+}
 @keyframes kids-welcome-fade { from { opacity: 0; } }
 @keyframes kids-welcome-out { to { opacity: 0; translate: 0 10px; scale: 0.98; } }
 @keyframes kids-welcome-out-fade { to { opacity: 0; } }
-@keyframes kids-welcome-sheet-rise { from { transform: translateY(var(--welcome-rise, 88px)); } }
-@keyframes kids-welcome-sheet-drop { to { transform: translateY(var(--welcome-rise, 88px)); } }
-/* Dropped from a little above, a squash as it lands, one small bounce. */
-@keyframes kids-welcome-plop {
-  0% { opacity: 0; translate: 0 -54px; rotate: -9deg; scale: 0.92; }
-  45% { opacity: 1; translate: 0 2px; rotate: 2deg; scale: 1.07 0.93; }
-  65% { translate: 0 -8px; rotate: -1deg; scale: 0.98 1.03; }
-  82% { translate: 0 0; scale: 1.02 0.98; }
-  100% { translate: 0 0; rotate: 0deg; scale: 1; }
+@keyframes kids-present-rise { from { opacity: 0; translate: 0 10px; } }
+@keyframes kids-present-away { to { opacity: 0; translate: 0 -8px; } }
+/* Out of the book (it sits above them): small and high, then down into place with a little pop. */
+@keyframes kids-present-gift-out {
+  0% { opacity: 0; translate: 0 -72px; scale: 0.3; }
+  60% { opacity: 1; translate: 0 4px; scale: 1.06; }
+  100% { translate: 0 0; scale: 1; }
 }
+@keyframes kids-present-gift-in { to { opacity: 0; translate: 0 -72px; scale: 0.3; } }
+@keyframes kids-present-book-land { to { transform: translate(var(--flip-x, 0px), var(--flip-y, 0px)) scale(var(--flip-s, 1)); } }
+@keyframes kids-present-sheet-up { from { transform: translateY(var(--sheet-drop, 100vh)); } }
+@keyframes kids-welcome-sheet-drop { to { transform: translateY(88px); } }
 /* Held above the desk (bigger, with a long shadow), then pressed flat with a little squish. */
 @keyframes kids-welcome-stick {
   0% { opacity: 0; scale: 1.9; rotate: -16deg; box-shadow: 0 0 0 1px rgb(15 23 42 / 0.06), 0 24px 28px -10px rgb(15 23 42 / 0.25); }
@@ -494,7 +597,7 @@
 }
 .pds-kids-welcome-modal[data-reduce-motion],
 .pds-kids-welcome-modal[data-reduce-motion]::backdrop,
-.pds-kids-welcome-modal[data-reduce-motion] .pds-kids-settings-footer { animation: none !important; }
+.pds-kids-welcome-modal[data-reduce-motion] :is(.pds-kids-settings-footer, .pds-kids-welcome__sheet, .kids-present, .kids-present *) { animation: none !important; }
 .pds-kids-settings-footer { flex-shrink: 0; padding: 10px var(--pds-space-5) 14px; border-top: 0.5px solid var(--pds-border-control); background: var(--pds-bg-ghost); }
 .pds-kids-settings-footer .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); }
 /* Scrollbars are hidden page-wide in the kids bundle by kids-entry.css, as adult's global.css does. */
