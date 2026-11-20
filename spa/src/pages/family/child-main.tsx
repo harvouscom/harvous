@@ -17,7 +17,7 @@ import { ChildNotebookAppearanceProvider, useChildNotebookAppearance } from '../
 import ChildNotebookBibleReader from '../prototype/ChildNotebookBibleReader';
 import ProtoSpaceLoading from '../prototype/ProtoSpaceLoading';
 import ChildNotebookSearchPanel from './ChildNotebookSearchPanel';
-import ChildSignedOut, { type SignedOutKind } from './ChildSignedOut';
+import ChildSignedOut, { type SignedOutIdentity, type SignedOutKind, type SignedOutVariant } from './ChildSignedOut';
 import '../../styles/prototype-components.css';
 import '../../styles/prototype-tokens.css';
 import '../../styles/prototype-shell.css';
@@ -81,6 +81,11 @@ function signedOutKind(cause: unknown): SignedOutKind {
 }
 // Dev only: `?preview=1&signedOut=closed|link|review|paused|offline` shows one of the signed-out pages.
 const previewSignedOut = isDesignPreview ? new URLSearchParams(window.location.search).get('signedOut') as SignedOutKind | null : null;
+// Dev only, while Derek picks a layout: `&variant=note`.
+const signedOutVariant: SignedOutVariant = isDesignPreview && new URLSearchParams(window.location.search).get('variant') === 'note' ? 'note' : 'desk';
+const previewIdentity: SignedOutIdentity | null = previewSignedOut === 'closed'
+  ? { displayName: 'Sam', preferences: { coverColor: 'purple', coverSymbol: 'dove', coverPattern: 'dots', scheme: 'system', textSize: 'standard', reduceMotion: false, sounds: false } }
+  : null;
 
 function dateLabel(value: string | null) {
   if (!value) return 'Today';
@@ -215,6 +220,8 @@ function ChildNotebook() {
   const [status, setStatus] = useState<'opening' | 'ended' | null>(previewSignedOut ? null : 'opening');
   const [signedOut, setSignedOut] = useState<SignedOutKind | null>(previewSignedOut);
   const [retrying, setRetrying] = useState(false);
+  // The notebook that was just closed, so the goodbye can show its own cover and name.
+  const [closedIdentity, setClosedIdentity] = useState<SignedOutIdentity | null>(previewIdentity);
   const [privacyUrl, setPrivacyUrl] = useState<string>();
   const [parentSignInUrl, setParentSignInUrl] = useState<string | undefined>(previewSignedOut ? '#preview-parent-sign-in' : undefined);
   const [revision, setRevision] = useState(0);
@@ -262,7 +269,8 @@ function ChildNotebook() {
   if (!notebook && status === 'opening') return <main className="pds-child-opening" aria-busy="true">
     <ProtoSpaceLoading label="Opening your notebook" />
   </main>;
-  if (!notebook) return <ChildSignedOut kind={status === 'ended' ? 'closed' : signedOut ?? 'link'} privacyUrl={privacyUrl}
+  if (!notebook) return <ChildSignedOut kind={status === 'ended' || previewSignedOut === 'closed' ? 'closed' : signedOut ?? 'link'}
+    variant={signedOutVariant} identity={closedIdentity} privacyUrl={privacyUrl}
     parentSignInUrl={parentSignInUrl} retrying={retrying}
     onRetry={previewSignedOut ? () => { setRetrying(true); window.setTimeout(() => setRetrying(false), 900); } : () => {
       setRetrying(true);
@@ -275,7 +283,7 @@ function ChildNotebook() {
       onEnd={async returnToParent => {
         if (returnToParent && !notebook.parentSignInUrl) throw new Error('Parent sign-in is unavailable in the design preview.');
         await childRequest('session', 'DELETE');
-        sessionToken = null; setNotebook(null);
+        sessionToken = null; setClosedIdentity({ displayName: notebook.displayName, preferences: notebook.preferences }); setNotebook(null);
         if (returnToParent && notebook.parentSignInUrl) window.location.assign(notebook.parentSignInUrl);
         else setStatus('ended');
       }} />

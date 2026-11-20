@@ -1,89 +1,194 @@
 /**
- * What a child sees when their notebook isn't open: they closed it, the link wore out, a grown-up
- * needs to look at something, notebooks are paused, or the device couldn't reach Harvous.
+ * What a child sees when their notebook isn't open: they closed it, the link was already used, a
+ * grown-up needs to look at something, notebooks are resting, or the device couldn't reach Harvous.
  *
- * Built from the notebook circle's pieces (the soft card, the cover-coloured art tile, the tip rows)
- * so it reads as part of the same notebook, not a bare error. Every case says what happened and what
- * to do next in a child's words; the grown-up gets a quiet way back to their own sign-in.
+ * It's drawn in the notebook's own language, the way the move page is: the desk gradient, die-cut
+ * stickers, and the notebook itself, the child's own when we know it (after "Close my notebook"),
+ * otherwise a plain one with a seedling. The words are a child's. The hand-off to a grown-up is a
+ * picture (you, then your parent) and the grown-up gets a real button back to their sign-in.
+ *
+ * Two layouts while Derek chooses (`variant`): "desk", the book standing on a paper letter, and
+ * "note", a sticky note stuck to the cover. In dev, `?preview=1&signedOut=<kind>&variant=note`.
  */
+import type { CSSProperties } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
-import { ChildNotebookAppearanceProvider, useChildNotebookAppearance } from '../prototype/ChildNotebookAppearance';
+import { defaultChildPreferences, type ChildNotebookPreferences } from '../../../../shared/child-notebook';
+import { ChildNotebookAppearanceProvider, ChildNotebookAvatar, ChildNotebookCover, useChildNotebookAppearance } from '../prototype/ChildNotebookAppearance';
+import ChildCoverSymbol from '../prototype/ChildCoverSymbol';
 import ProtoLoadingDots from '../prototype/ProtoLoadingDots';
 import { ChildPrivacyFootnote } from './ChildPrivacyNotice';
+import '../../styles/kids-signed-out.css';
 
 export type SignedOutKind = 'closed' | 'link' | 'review' | 'paused' | 'offline';
+export type SignedOutVariant = 'desk' | 'note';
+/** The notebook that was open, when there was one: its name and cover. */
+export type SignedOutIdentity = { displayName: string; preferences: ChildNotebookPreferences | null };
 
-type Tip = { icon: IconName; title: string; text: string };
-const safe: Tip = { icon: 'lock', title: 'Your notes are safe', text: 'Only you and your parent can read them.' };
+type Page = { badge: IconName; title: (name: string) => string; line: string; handoff?: string; retry?: boolean };
 
-const copy: Record<SignedOutKind, { icon: IconName; title: string; caption: string; tips: Tip[]; retry?: boolean; parent?: boolean }> = {
+const pages: Record<SignedOutKind, Page> = {
   closed: {
-    icon: 'book-open', title: 'See you next time', caption: 'Your notebook is closed, and everything you wrote is saved.',
-    tips: [{ icon: 'user-shield', title: 'Want to keep going?', text: 'Ask your parent to open your notebook again.' }, safe],
-    parent: true,
+    badge: 'check',
+    title: name => (name ? `See you next time, ${name}!` : 'See you next time!'),
+    line: 'Your notebook is tucked away, safe and sound.',
+    handoff: 'Want to keep going? Ask your parent to open it again.',
   },
   link: {
-    icon: 'key', title: 'This link has worn out', caption: 'Each link opens your notebook once, for a little while.',
-    tips: [{ icon: 'user-shield', title: 'Ask your parent', text: 'They can open your notebook on this device, or send you a new link.' }, safe],
-    parent: true,
+    badge: 'key',
+    title: () => 'Let’s open your notebook again',
+    line: 'Each link opens your notebook just once.',
+    handoff: 'Ask your parent to open it for you, or to send a new link.',
   },
   review: {
-    icon: 'user-shield', title: 'Your parent needs to look first', caption: 'Something in your notebook needs a grown-up before it opens.',
-    tips: [{ icon: 'house', title: 'Let your parent know', text: 'They’ll find it in My Family, in their own Harvous.' }, safe],
-    parent: true,
+    badge: 'user-shield',
+    title: () => 'Your parent needs to take a peek',
+    line: 'Something needs a grown-up before your notebook opens.',
+    handoff: 'Ask your parent to look in My Family, in their Harvous.',
   },
   paused: {
-    icon: 'clock', title: 'Taking a short break', caption: 'Notebooks are resting for a little while.',
-    tips: [{ icon: 'arrows-rotate', title: 'Try again soon', text: 'Your notebook will be right where you left it.' }, safe],
+    badge: 'clock',
+    title: () => 'Your notebook is taking a little rest',
+    line: 'It’ll be ready again soon. Everything you wrote is safe.',
     retry: true,
   },
   offline: {
-    icon: 'wifi', title: 'Your notebook can’t open right now', caption: 'This device couldn’t reach Harvous.',
-    tips: [{ icon: 'wifi', title: 'Check the internet', text: 'Make sure this device is online, then try again.' }, safe],
+    badge: 'wifi',
+    title: () => 'We can’t reach your notebook',
+    line: 'Check that you’re connected to the internet, then try again.',
     retry: true,
   },
 };
 
-function SignedOutCard({ kind, privacyUrl, parentSignInUrl, retrying, onRetry }: Props) {
-  const { themeStyle } = useChildNotebookAppearance();
-  const page = copy[kind];
+/** Before sign-in there's no notebook to show: a plain one with a seedling, as on the move page. */
+const WAITING_COVER: ChildNotebookPreferences = { ...defaultChildPreferences, coverColor: 'green', coverSymbol: 'seedling' };
+
+type Tone = 'blue' | 'green' | 'purple' | 'pink' | 'orange' | 'yellow';
+const STICKERS: { symbol: 'rainbow' | 'fish' | 'sun' | 'heart' | 'star' | 'dove'; tone: Tone; top: string; left: string; tilt: number }[] = [
+  { symbol: 'rainbow', tone: 'pink', top: '9%', left: '9%', tilt: -10 },
+  { symbol: 'sun', tone: 'yellow', top: '6%', left: '82%', tilt: 12 },
+  { symbol: 'fish', tone: 'blue', top: '34%', left: '4%', tilt: 8 },
+  { symbol: 'heart', tone: 'orange', top: '30%', left: '90%', tilt: -7 },
+  { symbol: 'star', tone: 'purple', top: '76%', left: '7%', tilt: -12 },
+  { symbol: 'dove', tone: 'green', top: '80%', left: '86%', tilt: 6 },
+];
+
+type Props = {
+  kind: SignedOutKind;
+  variant?: SignedOutVariant;
+  identity?: SignedOutIdentity | null;
+  privacyUrl?: string;
+  parentSignInUrl?: string;
+  retrying?: boolean;
+  onRetry?: () => void;
+};
+
+function Stickers() {
   return (
-    <section className="pds-kids-privacy-modal pds-kids-signed-out__card proto-theme" style={themeStyle} aria-labelledby="kids-signed-out-title" aria-describedby="kids-signed-out-caption">
-      <span className="pds-kids-review__art" aria-hidden="true"><Icon name={page.icon} size={25} /></span>
-      <h1 id="kids-signed-out-title" className="pds-title-xl">{page.title}</h1>
-      <p id="kids-signed-out-caption" className="pds-caption">{page.caption}</p>
-      <div className="pds-kids-circle">
-        {page.tips.map(tip => (
-          <div key={tip.title} className="pds-kids-circle__tip">
-            <span aria-hidden="true"><Icon name={tip.icon} size={17} /></span>
-            <div><strong>{tip.title}</strong><span>{tip.text}</span></div>
-          </div>
-        ))}
+    <div className="kso__stickers" aria-hidden="true">
+      {STICKERS.map(sticker => (
+        <span key={sticker.symbol} className="kso__sticker" data-tone={sticker.tone}
+          style={{ top: sticker.top, left: sticker.left, '--tilt': `${sticker.tilt}deg` } as CSSProperties}>
+          <ChildCoverSymbol symbol={sticker.symbol} size={20} />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** The notebook, with a round sticker on its corner that says what happened (a key, a check…). */
+function Book({ badge }: { badge: IconName }) {
+  const { name, preferences } = useChildNotebookAppearance();
+  return (
+    <div className="kso__book" aria-hidden="true">
+      <ChildNotebookCover name={name || 'H'} preferences={preferences} large />
+      <span className="kso__badge"><Icon name={badge} size={16} /></span>
+    </div>
+  );
+}
+
+/**
+ * You, then your parent: the hand-off as a picture, with one line under it. The grown-up's way in is
+ * the card's own last row, the end of the same hand-off, not a separate button underneath.
+ */
+function Handoff({ text, parentSignInUrl }: { text: string; parentSignInUrl?: string }) {
+  const { name } = useChildNotebookAppearance();
+  return (
+    <div className="kso__handoff">
+      <div className="kso__people" aria-hidden="true">
+        <span className="kso__person"><ChildNotebookAvatar /><small>You</small></span>
+        <span className="kso__arrow"><Icon name="arrow-right" size={14} /></span>
+        <span className="kso__person"><span className="kso__parent"><Icon name="user-shield" size={18} /></span><small>Your parent</small></span>
       </div>
-      {page.retry && onRetry ? (
-        <button type="button" className="proto-settings-btn" disabled={retrying} onClick={onRetry}>
-          {retrying ? <ProtoLoadingDots /> : <Icon name="arrows-rotate" size={13} aria-hidden />} Try again
-        </button>
-      ) : null}
-      {page.parent && parentSignInUrl ? (
-        <a className="pds-kids-signed-out__parent" href={parentSignInUrl}>
-          <Icon name="user-shield" size={13} aria-hidden /> I’m the parent
+      <p>{text}</p>
+      {parentSignInUrl ? (
+        <a className="kso__parent-row" href={parentSignInUrl}>
+          <span className="kso__parent-row-icon" aria-hidden="true"><Icon name="user-shield" size={14} /></span>
+          <span className="kso__parent-row-text">
+            <b>{name ? `Are you ${name}’s parent?` : 'Are you the parent?'}</b>
+            <small>Sign in to open it again</small>
+          </span>
+          <Icon name="caret-right" size={12} aria-hidden />
         </a>
       ) : null}
-      <ChildPrivacyFootnote url={privacyUrl}>A notebook is just for a child and their parent.</ChildPrivacyFootnote>
+    </div>
+  );
+}
+
+function Retry({ retrying, onRetry }: Pick<Props, 'retrying' | 'onRetry'>) {
+  return (
+    <div className="kso__actions">
+      <button type="button" className="proto-settings-btn proto-ink-on-accent" disabled={retrying} onClick={onRetry}>
+        {retrying ? <ProtoLoadingDots /> : <Icon name="arrows-rotate" size={13} aria-hidden />} Try again
+      </button>
+    </div>
+  );
+}
+
+function SignedOutPage({ kind, variant = 'desk', privacyUrl, parentSignInUrl, retrying, onRetry }: Props) {
+  const { name, themeStyle, appearance } = useChildNotebookAppearance();
+  const page = pages[kind];
+  const title = page.title(name);
+  const eyebrow = name ? `${name}’s notebook` : 'Your notebook';
+  const words = <>
+    <p className="kso__eyebrow">{eyebrow}</p>
+    <h1 id="kids-signed-out-title" className="kso__title">{title}</h1>
+    <p className="kso__line">{page.line}</p>
+  </>;
+  const after = <>
+    {page.handoff ? <Handoff text={page.handoff} parentSignInUrl={parentSignInUrl} /> : null}
+    {page.retry && onRetry ? <Retry retrying={retrying} onRetry={onRetry} /> : null}
+    <ChildPrivacyFootnote url={privacyUrl}>A notebook is just for a child and their parent.</ChildPrivacyFootnote>
+  </>;
+  return (
+    <section className="kso proto-theme" data-variant={variant} data-kind={kind} data-reduce-motion={appearance.reduceMotion || undefined}
+      style={themeStyle} aria-labelledby="kids-signed-out-title">
+      <div className="kso__desk" aria-hidden="true" />
+      <Stickers />
+      {variant === 'note' ? (
+        <div className="kso__stage">
+          <div className="kso__cover">
+            <Book badge={page.badge} />
+            <div className="kso__note">{words}</div>
+          </div>
+          <div className="kso__below">{after}</div>
+        </div>
+      ) : (
+        <div className="kso__stage">
+          <Book badge={page.badge} />
+          <div className="kso__letter">{words}{after}</div>
+        </div>
+      )}
     </section>
   );
 }
 
-type Props = { kind: SignedOutKind; privacyUrl?: string; parentSignInUrl?: string; retrying?: boolean; onRetry?: () => void };
-
 export default function ChildSignedOut(props: Props) {
-  // No notebook, so no preferences: the default cover colour and the device's light or dark.
+  const identity = props.kind === 'closed' ? props.identity : null;
   return (
     // Polite: it's the whole screen, and it can replace an open notebook when a session ends.
     <main className="pds-kids-signed-out" aria-live="polite">
-      <ChildNotebookAppearanceProvider name="">
-        <SignedOutCard {...props} />
+      <ChildNotebookAppearanceProvider name={identity?.displayName ?? ''} initial={identity?.preferences ?? WAITING_COVER}>
+        <SignedOutPage {...props} />
       </ChildNotebookAppearanceProvider>
     </main>
   );
