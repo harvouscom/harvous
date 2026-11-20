@@ -1085,6 +1085,8 @@ export default function PrototypeBibleReaderPane({
   const [paletteOpen, setPaletteOpen] = useState(false);
   /** The menu is showing the sticker sheet for the selection's first verse. */
   const [stickerSheetOpen, setStickerSheetOpen] = useState(false);
+  /** The sheet was opened from a margin sticker, so focus moves into it (nothing else holds it). */
+  const [stickerSheetFromMargin, setStickerSheetFromMargin] = useState(false);
   /** The verse a sticker was just stuck on, so only that one plays its little landing. */
   const [freshSticker, setFreshSticker] = useState<{ book: string; chapter: number; verse: number } | null>(null);
 
@@ -1468,6 +1470,8 @@ export default function PrototypeBibleReaderPane({
       '.pds-reader__verse',
       '.pds-reader-menu',
       '.pds-reader__bar',
+      // A margin sticker opens the sheet for its verse; its press must not clear that first.
+      '.pds-reader__stickers',
       '.pds-reader__note-card',
       '.proto-shell__study-dock-layer',
       '.proto-inspector-desktop',
@@ -2219,13 +2223,17 @@ export default function PrototypeBibleReaderPane({
           >
             {stickerSheetOpen && onSetSticker && data ? (
               <ReaderStickerSheet
+                // Remounted per verse, so it focuses afresh when a margin sticker opens it.
+                key={selection.start}
+                autoFocus={stickerSheetFromMargin}
                 reference={`${data.book} ${data.chapter}:${selection.start}`}
                 current={stickers?.get(selection.start) ?? null}
                 onBack={() => setStickerSheetOpen(false)}
                 onPick={(next) => {
                   onSetSticker(selection.start, next);
                   setFreshSticker(next ? { book, chapter, verse: selection.start } : null);
-                  // Stuck on: the bar has done its job, and the sticker is the thing to look at.
+                  // Stuck on or taken off: the bar has done its job, and the margin is the thing
+                  // to look at. Only a new sticker plays the landing; a removal just goes.
                   setSelection(null);
                   setDragText(null);
                 }}
@@ -2410,7 +2418,10 @@ export default function PrototypeBibleReaderPane({
                   icon="star"
                   label="Sticker"
                   dot={!!stickers?.get(selection.start)}
-                  onClick={() => setStickerSheetOpen(true)}
+                  onClick={() => {
+                    setStickerSheetFromMargin(false);
+                    setStickerSheetOpen(true);
+                  }}
                 />
                 <Divider />
               </>
@@ -2767,6 +2778,19 @@ export default function PrototypeBibleReaderPane({
             placed={placedStickers}
             chapter={chapter}
             fresh={freshSticker?.book === book && freshSticker.chapter === chapter ? freshSticker.verse : null}
+            onOpen={
+              onSetSticker
+                ? (verse) => {
+                    // The verse it sits beside, in the version on screen (with a comparison
+                    // stacked, only one is), and straight to the sheet: change or remove.
+                    setSelection({ start: verse, end: verse, column: compare ? visibleColumn : 'primary' });
+                    setDragText(null);
+                    setPaletteOpen(false);
+                    setStickerSheetFromMargin(true);
+                    setStickerSheetOpen(true);
+                  }
+                : undefined
+            }
           />
 
           {/* Above the note card. A positioned element paints over in-flow content regardless

@@ -6,7 +6,7 @@
  * into a teen's own account keeps them. A child's take the notebook cover's colour; here each
  * sticker carries its own from the Thread palette, as on the notebook move page.
  */
-import type { CSSProperties } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import Icon from '@/components/react/Icon';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import scaleBalancedSvg from '@fortawesome/fontawesome-free/svgs/solid/scale-balanced.svg?raw';
@@ -66,43 +66,85 @@ function StickerGlyph({ sticker, size }: { sticker: ReaderSticker; size: number 
 
 /**
  * The margin layer. Positions are measured by the pane (a verse in prose layout has no box of
- * its own to sit beside), so this only draws. `aria-hidden`: each verse already says it has a
- * sticker in its own accessible name, so the marks would only be heard twice.
+ * its own to sit beside), so this only draws them. With `onOpen` each sticker is a button that
+ * opens the sheet for its own verse, which is where you change it or take it off; without it
+ * (no account to keep a change in) they are marks only, and `aria-hidden`, because each verse
+ * already says it has a sticker in its own accessible name.
  */
-export function ReaderStickerMargin({ placed, chapter, fresh }: { placed: PlacedSticker[]; chapter: number; fresh: number | null }) {
+export function ReaderStickerMargin({
+  placed,
+  chapter,
+  fresh,
+  onOpen,
+}: {
+  placed: PlacedSticker[];
+  chapter: number;
+  fresh: number | null;
+  onOpen?: (verse: number) => void;
+}) {
   if (!placed.length) return null;
   return (
-    <div className="pds-reader__stickers" aria-hidden>
-      {placed.map(({ verse, sticker, top }) => (
-        <span
-          key={`${verse}:${sticker}`}
-          className="pds-reader-sticker"
-          data-tone={verseStickerTones[sticker]}
-          data-fresh={fresh === verse ? 'true' : undefined}
-          style={{ top, '--sticker-tilt': `${verseStickerTilt(verse, chapter)}deg` } as CSSProperties}
-        >
-          <StickerGlyph sticker={sticker} size={13} />
-        </span>
-      ))}
+    <div className="pds-reader__stickers" aria-hidden={onOpen ? undefined : true}>
+      {placed.map(({ verse, sticker, top }) => {
+        const props = {
+          className: 'pds-reader-sticker',
+          'data-tone': verseStickerTones[sticker],
+          'data-fresh': fresh === verse ? 'true' : undefined,
+          style: { top, '--sticker-tilt': `${verseStickerTilt(verse, chapter)}deg` } as CSSProperties,
+        };
+        return onOpen ? (
+          <button
+            key={`${verse}:${sticker}`}
+            type="button"
+            {...props}
+            aria-label={`Sticker on verse ${verse}: ${verseStickerLabel(sticker).toLowerCase()}. Change or remove`}
+            title="Change or remove sticker"
+            onClick={() => onOpen(verse)}
+          >
+            <StickerGlyph sticker={sticker} size={13} />
+          </button>
+        ) : (
+          <span key={`${verse}:${sticker}`} {...props}>
+            <StickerGlyph sticker={sticker} size={13} />
+          </span>
+        );
+      })}
     </div>
   );
 }
 
 /**
  * What the action bar becomes after Sticker: back to the actions, which verse it's for, the
- * sheet, and Remove when there's one on already. Picking one sticks it on and closes the bar.
+ * sheet, and Remove sticker under it when there's one on already. Picking one sticks it on and
+ * closes the bar; picking the one already on takes it off, as Remove does.
  */
 export function ReaderStickerSheet({
   reference,
   current,
   onBack,
   onPick,
+  autoFocus = false,
 }: {
   reference: string;
   current: ReaderSticker | null;
   onBack: () => void;
   onPick: (sticker: ReaderSticker | null) => void;
+  /** Move focus into the sheet on open (the chosen sticker, else the first), as when it was
+   *  opened from the margin rather than from the bar's own Sticker button. */
+  autoFocus?: boolean;
 }) {
+  const groups = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!autoFocus) return;
+    // Two lookups, not one selector list: a list matches in document order, not by preference.
+    const root = groups.current;
+    (
+      root?.querySelector<HTMLButtonElement>('[aria-pressed="true"]') ??
+      root?.querySelector<HTMLButtonElement>('.pds-reader-stickers__option')
+    )?.focus();
+    // Mount only: the sheet is remounted for each verse it opens on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const option = (sticker: ReaderSticker, index: number) => {
     const selected = current === sticker;
     return (
@@ -110,10 +152,11 @@ export function ReaderStickerSheet({
         key={sticker}
         type="button"
         className="pds-reader-stickers__option"
-        title={verseStickerLabel(sticker)}
+        title={selected ? `Remove the ${verseStickerLabel(sticker).toLowerCase()} sticker` : verseStickerLabel(sticker)}
         aria-label={`${verseStickerLabel(sticker)} sticker`}
         aria-pressed={selected}
-        onClick={() => onPick(sticker)}
+        // The chosen one toggles off, so tapping it again can't re-stick (and re-announce) it.
+        onClick={() => onPick(selected ? null : sticker)}
       >
         <span
           className={`pds-reader-sticker pds-reader-sticker--option${selected ? ' proto-ink-on-accent' : ''}`}
@@ -127,7 +170,8 @@ export function ReaderStickerSheet({
     );
   };
   return (
-    <>
+    // `display: contents`: the bar lays these out as its own rows; the wrapper is only a scope.
+    <div ref={groups} className="pds-reader-stickers">
       <div className="pds-reader-stickers__head">
         <button
           type="button"
@@ -140,17 +184,6 @@ export function ReaderStickerSheet({
         </button>
         <span className="pds-native-selection-bar__rule" aria-hidden />
         <span className="pds-reader-stickers__title pds-caption">{reference}</span>
-        {current ? (
-          <button
-            type="button"
-            className="pds-native-selection-bar__btn"
-            title={`Remove the sticker from ${reference}`}
-            aria-label={`Remove the ${verseStickerLabel(current)} sticker from ${reference}`}
-            onClick={() => onPick(null)}
-          >
-            <Icon name="xmark" size={14} aria-hidden />
-          </button>
-        ) : null}
       </div>
       {/* Themes first (the deeper things a verse is about), then the pictures child notebooks
           share. Two labelled groups, so the sheet reads as two kinds rather than one long grid. */}
@@ -162,6 +195,16 @@ export function ReaderStickerSheet({
         <p className="pds-reader-stickers__label pds-footnote" aria-hidden>Pictures</p>
         <div className="pds-reader-stickers__grid">{verseStickers.map(option)}</div>
       </div>
-    </>
+      {current ? (
+        <button
+          type="button"
+          className="proto-settings-btn proto-settings-btn--secondary pds-reader-stickers__remove"
+          aria-label={`Remove the ${verseStickerLabel(current).toLowerCase()} sticker from ${reference}`}
+          onClick={() => onPick(null)}
+        >
+          <Icon name="xmark" size={13} aria-hidden /> Remove sticker
+        </button>
+      ) : null}
+    </div>
   );
 }
