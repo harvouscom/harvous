@@ -39,7 +39,7 @@ export default function PrototypeChildAccountsPage() {
   const [noticeAccepted, setNoticeAccepted] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [startingCover, setStartingCover] = useState<StartingCover>(DEFAULT_STARTING_COVER);
-  const status = useChildAccountsStatus();
+  const status = useChildAccountsStatus({ watchVerification: true });
   const requestedChild = search.get('child');
   const feedbackScope = requestedChild ?? (search.get('setup') === 'true' ? 'setup' : '');
   const visibleFeedback = feedback?.scope === feedbackScope ? feedback : null;
