@@ -22,7 +22,7 @@ const GIFTS: { icon: IconName; label: string }[] = [
   { icon: 'pen-to-square', label: 'Pages to write on' },
   { icon: 'star', label: 'Stickers for verses' },
   { icon: 'rotate-left', label: 'Look back questions' },
-  { icon: 'people-roof', label: 'Reading with your parent' },
+  { icon: 'user-group', label: 'Reading with your parent' },
 ];
 
 type Props = {
