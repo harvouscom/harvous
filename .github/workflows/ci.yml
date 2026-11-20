@@ -93,7 +93,11 @@ jobs:
   # can run here while the rest of the Playwright suite deliberately does not.
   marquee-width:
     name: Marquee labels have width
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: in Nov 2026 ubuntu-latest moved to 26.04 and Playwright 1.58
+    # refuses to install there ("Playwright does not support chromium on ubuntu26.04-x64"), so
+    # the job failed before running a single test. Move to ubuntu-latest again once the installed
+    # @playwright/test supports the runner's Ubuntu release.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
