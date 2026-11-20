@@ -20,8 +20,8 @@ import { sponsorFeatureKeys } from '../utils/family-entitlements';
 import { CHILD_CAPABILITIES, CHILD_NOTICE_VERSION, HANDOFF_TTL_MS, VERIFICATION_TTL_MS, childSecret, emailDigest, hashSecret, hasActiveChildConsent, kwsWebhookSignatureResult } from '../family/policy';
 import { familyEnrollmentConfig, kwsConfig, requireFamilyEnrollment, sendKwsVerification } from '../family/kws';
 import { availableMinistries, childNoteSelection, deleteChildData, ministryMaterials, ownedChild, redeemHandoff, withChildSession, type Child, type FamilyTx } from '../family/service';
-import { CHILD_NOTEBOOK_LIMIT_CODE, CHILD_NOTEBOOK_MAX_PER_PARENT, childNotebookLimitMessage, childBibleTranslations, childSchemes, childTextSizes, allChildBibleTranslations, coverBindings, coverColors, coverPatterns, coverSymbols, defaultChildPreferences, notebookPapers } from '../../shared/child-notebook';
-import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, hasTranslationText, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput } from '../family/bible';
+import { CHILD_NOTEBOOK_LIMIT_CODE, CHILD_NOTEBOOK_MAX_PER_PARENT, childNotebookLimitMessage, childSchemes, childTextSizes, allChildBibleTranslations, coverBindings, coverColors, coverPatterns, coverSymbols, defaultChildPreferences, notebookPapers } from '../../shared/child-notebook';
+import { addFamilyThought, familyReadings, familyThoughts, getFamilyReading, passageInput, hasTranslationText, readChapter, requireApprovedTranslation, shareFamilyReading, thoughtInput, translationInput, startingChildTranslation } from '../family/bible';
 import { searchChildNotebook } from '../family/notebook-search';
 import { chapterStickers, setVerseSticker, verseStickerInput } from '../family/stickers';
 import { chapterHighlights, setVerseHighlight, verseHighlightInput } from '../family/highlights';
@@ -247,6 +247,7 @@ route.post(`${base}/children`, requireAuth, async (c) => {
     // child's initial; the child can change all of it, sticker included, in their notebook.
     cover: z.object({ coverColor: z.enum(coverColors.map(color => color.id)), coverPattern: z.enum(coverPatterns),
       coverBinding: z.enum(coverBindings) }).strict().optional() }).strict().parse(await c.req.json());
+  const startingTranslation = await startingChildTranslation(db as unknown as FamilyTx);
   const child = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${parentId(c)}))`);
     // Counted under the same per-parent lock that consumes the verification, so two concurrent
@@ -263,7 +264,7 @@ route.post(`${base}/children`, requireAuth, async (c) => {
     await tx.insert(Spaces).values({ id: homeSpaceId, title: 'My Home', userId: id, type: 'personal', createdAt: new Date() });
     const [created] = await tx.insert(FamilyChildren).values({ id, homeSpaceId, parentUserId: parentId(c), displayName: input.displayName,
       ageBand: 'under-13', verificationId: verification.id, noticeVersion: input.noticeVersion, consentedAt: new Date(),
-      status: 'active', createdAt: new Date(), lastActiveAt: new Date(), bibleTranslations: [childBibleTranslations[0]],
+      status: 'active', createdAt: new Date(), lastActiveAt: new Date(), bibleTranslations: [startingTranslation],
       notebookPreferences: input.cover ? { ...defaultChildPreferences, ...input.cover, coverSymbol: 'initial' } : null }).returning();
     await tx.insert(FamilyChildConsents).values({ id: `consent_${randomUUID()}`, childId: created.id, parentUserId: parentId(c),
       noticeVersion: created.noticeVersion, consentedAt: created.consentedAt, kind: 'created' });
@@ -425,7 +426,9 @@ route.post(`${base}/child/redeem`, async (c) => {
 route.get(`${base}/child/privacy`, (c) => {
   const config = familyPublicConfig();
   if (!config) throw new HTTPException(404, { message: 'The child privacy notice is unavailable.' });
-  return c.json({ privacyUrl: config.privacyUrl });
+  // The parent's sign-in too, so a signed-out notebook can offer the grown-up a way back. Both are
+  // public addresses; nothing here depends on a session.
+  return c.json({ privacyUrl: config.privacyUrl, parentSignInUrl: config.parentSignInUrl });
 });
 
 route.get(`${base}/child/notebook`, async (c) => c.json(await withChildSession(token(c), async (tx, child) => ({
@@ -445,7 +448,8 @@ const preferencesInput = z.object({
   reduceMotion: z.boolean(), sounds: z.boolean(),
   soundMode: z.enum(['everywhere', 'moments', 'off']).optional(),
   canvas: z.string().refine(value => value === 'device' || imagePresets.presets.some(image => image.mode === 'light' && value === `image:${image.id}`)).optional(),
-  darkCanvas: z.string().refine(value => value === 'device' || imagePresets.presets.some(image => image.mode === 'dark' && value === `image:${image.id}`)).optional()
+  darkCanvas: z.string().refine(value => value === 'device' || imagePresets.presets.some(image => image.mode === 'dark' && value === `image:${image.id}`)).optional(),
+  welcomed: z.boolean().optional()
 }).strict();
 route.put(`${base}/child/preferences`, async (c) => {
   const preferences = preferencesInput.parse(await c.req.json());

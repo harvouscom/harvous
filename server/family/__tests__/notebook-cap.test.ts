@@ -20,6 +20,8 @@ vi.mock('@clerk/backend', () => ({ createClerkClient: () => ({ users: { getUser:
 vi.mock('../../utils/family-entitlements', () => ({ sponsorFeatureKeys: async () => ['plus'] }));
 vi.mock('../../utils/entitlements', () => ({ syncEntitlementsFromProvider: async () => undefined }));
 vi.mock('../kws', async (original) => ({ ...await original<typeof import('../kws')>(), sendKwsVerification }));
+const startingChildTranslation = vi.hoisted(() => vi.fn(async () => 'ERV'));
+vi.mock('../bible', async (original) => ({ ...await original<typeof import('../bible')>(), startingChildTranslation }));
 import family from '../../routes/child-accounts';
 
 const app = new Hono();
@@ -141,6 +143,12 @@ describe('the per-parent child notebook cap', () => {
       const response = await createWith({ cover: { coverColor: 'purple', coverPattern: 'dots', coverBinding: 'spiral' } });
       expect(response.status).toBe(201);
       expect(childValues(tx).notebookPreferences).toMatchObject({ coverColor: 'purple', coverPattern: 'dots', coverBinding: 'spiral', coverSymbol: 'initial' });
+    });
+    it('starts the notebook on a translation this database has text for', async () => {
+      startingChildTranslation.mockResolvedValueOnce('BSB');
+      const tx = transactionAnswering([]);
+      expect((await createWith({})).status).toBe(201);
+      expect(childValues(tx).bibleTranslations).toEqual(['BSB']);
     });
     it('leaves the defaults when the parent picked nothing', async () => {
       const tx = transactionAnswering([]);

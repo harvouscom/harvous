@@ -21,6 +21,8 @@ import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { TypedLine } from './PrototypeFeedComposePrompt';
 import ChildNotebookCoverStudio from './ChildNotebookCoverStudio';
+import ChildWelcomePresent from './ChildWelcomePresent';
+import ChildDesk, { type DeskSticker } from '../family/ChildDesk';
 import ChildLookBackDock, { type LookBackApi, type LookBackSitting } from './ChildLookBackDock';
 import type { ChildNotebookPreferences } from '../../../../shared/child-notebook';
 
@@ -103,6 +105,20 @@ function lookBackReadyTitle(nextDueAt: string, now = new Date()) {
   return `Ready again on ${due.toLocaleDateString(undefined, { weekday: 'long' })}`;
 }
 
+/**
+ * Stickers scattered on the welcome's desk card the way a child would stick them: uneven, a big
+ * one and some small ones, nothing mirrored across the book. Listed in the order they're pressed
+ * down when the welcome arrives, side to side. Tops are of the whole desk, including the part
+ * tucked under the sheet, so they stay in its upper ~75%.
+ */
+const WELCOME_STICKERS: DeskSticker[] = [
+  { symbol: 'rainbow', tone: 'pink', top: '10%', left: '9%', tilt: -14, size: 1.2 },
+  { symbol: 'sun', tone: 'yellow', top: '24%', left: '80%', tilt: 16, size: 1.05 },
+  { symbol: 'fish', tone: 'blue', top: '55%', left: '6%', tilt: 6, size: 0.95 },
+  { symbol: 'heart', tone: 'orange', top: '58%', left: '73%', tilt: -5, size: 0.75 },
+  { symbol: 'star', tone: 'purple', top: '25%', left: '23%', tilt: 9, size: 0.7 },
+];
+
 export default function ChildNotebookView({ preview = false, privacyUrl, initial, renderBible, renderAttachment, renderSearch, onSaveNote, onReadResource, onSavePreferences, onFamilyReading, onParentSignIn, onEndSession, lookBack }: Props) {
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -117,11 +133,20 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   const [parentBusy, setParentBusy] = useState(false);
   const [parentError, setParentError] = useState('');
   const parentDialogRef = useRef<HTMLDialogElement>(null);
-  const { name, preferences, coverColor, coverPattern, appearance, setAppearance, resolvedScheme, themeStyle, soundPreference, setSoundPreference, playCue } = useChildNotebookAppearance();
+  const { name, preferences, coverColor, coverPattern, appearance, setAppearance, resolvedScheme, themeStyle, soundPreference, setSoundPreference, playCue, welcomed, setWelcomed } = useChildNotebookAppearance();
   const settingsPaneRef = useRef<HTMLElement>(null);
   const privacyDialogRef = useRef<HTMLDialogElement>(null);
   const previousCustomizing = useRef(false);
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
+  const welcomeDialogRef = useRef<HTMLDialogElement>(null);
+  const [welcoming, setWelcoming] = useState(false);
+  /* The welcome's phases (motion in child-notebook-preview.css): the notebook presented on its own
+     (ChildWelcomePresent), morphing into the studio, settled, or saying goodbye. */
+  const [welcomePhase, setWelcomePhase] = useState<'present' | 'morphing' | 'idle' | 'leaving'>('present');
+  const [presenting, setPresenting] = useState(true);
+  const welcomeTimers = useRef<number[]>([]);
+  const clearWelcomeTimers = () => { welcomeTimers.current.forEach(window.clearTimeout); welcomeTimers.current = []; };
+  useEffect(() => clearWelcomeTimers, []);
   const [customizing, setCustomizing] = useState(false);
   const [studioPage, setStudioPage] = useState<'settings' | 'appearance' | 'feedback'>('settings');
   // Below the adult shell's breakpoint, Settings is a bottom sheet like the adult one: it opens on
@@ -214,6 +239,27 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
     if (privacy && dialog && !dialog.open) dialog.showModal();
     if (!privacy && dialog?.open) dialog.close();
   }, [privacy]);
+  /* The first time a child opens their notebook, the cover studio comes to them: "Make it yours".
+     Seen once per notebook (`welcomed` in its preferences, saved with them), never on a device. */
+  useEffect(() => {
+    if (welcomed) return;
+    setWelcoming(true);
+    playCue('nav.open');
+    // Once, on the first render of a notebook that hasn't been welcomed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const dialog = welcomeDialogRef.current;
+    if (welcoming && dialog && !dialog.open) {
+      setWelcomePhase('present');
+      setPresenting(true);
+      dialog.showModal();
+      // Start on the scene's title, not its button: showModal would focus the button, and a
+      // programmatic focus draws its keyboard ring before anyone has touched anything.
+      document.getElementById('kids-present-title')?.focus({ preventScroll: true });
+    }
+    if (!welcoming && dialog?.open) dialog.close();
+  }, [welcoming]);
   useEffect(() => {
     if (customizing) { if (!settingsDialogRef.current?.open) { setSheetPaneOpen(false); settingsDialogRef.current?.showModal(); } settingsPaneRef.current?.focus({ preventScroll: true }); }
     else if (settingsDialogRef.current?.open) settingsDialogRef.current.close();
@@ -281,6 +327,36 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       setSaveError(error instanceof Error ? error.message : 'Could not open this reading.');
       return false;
     }
+  }
+
+  /* "Make it mine": the presented book lands on the studio's, the desk pulls up, the sheet slides up
+     (~0.85s), then the layer goes and the stickers are pressed down (done by ~1.9s). */
+  function beginWelcomeMorph() {
+    playCue('nav.forward');
+    const settle = () => {
+      setPresenting(false);
+      window.requestAnimationFrame(() => document.getElementById('kids-welcome-title')?.focus({ preventScroll: true }));
+    };
+    clearWelcomeTimers();
+    if (reducedMotion) { settle(); setWelcomePhase('idle'); return; }
+    setWelcomePhase('morphing');
+    welcomeTimers.current.push(window.setTimeout(settle, 880), window.setTimeout(() => setWelcomePhase('idle'), 1950));
+  }
+
+  async function finishWelcome() {
+    if (saving || welcomePhase === 'leaving') return;
+    setSaving(true); setSaveError('');
+    try {
+      await onSavePreferences?.({ ...preferences, welcomed: true });
+      setWelcomed(true);
+      playCue('organize.filed');
+      if (reducedMotion) { setWelcoming(false); return; }
+      // The book hops, the sheet drops back down, the dialog fades (~440ms), then it closes.
+      clearWelcomeTimers();
+      setWelcomePhase('leaving');
+      welcomeTimers.current.push(window.setTimeout(() => setWelcoming(false), 460));
+    } catch (error) { setSaveError(error instanceof Error ? error.message : 'Could not save your notebook.'); }
+    finally { setSaving(false); }
   }
 
   async function closeSettings() {
@@ -667,6 +743,25 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       </div></div>
     </dialog>, document.body)}
 
+    {createPortal(<dialog ref={welcomeDialogRef} className="proto-settings-modal pds-kids-settings-modal pds-kids-welcome-modal proto-theme" data-phase={welcomePhase} data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby={presenting ? 'kids-present-title' : 'kids-welcome-title'} aria-describedby={presenting ? undefined : 'kids-welcome-description'} style={themeStyle} onCancel={event => { event.preventDefault(); void finishWelcome(); }}>
+      {/* The book stands on the kids' desk, as on the signed-out page; the words and the steps sit
+          beside it on a wide screen, under it on a phone. */}
+      {welcoming && presenting && <ChildWelcomePresent dialogRef={welcomeDialogRef} onBegin={beginWelcomeMorph} inert={welcomePhase !== 'present'} />}
+      <div className="proto-settings-modal__body pds-kids-welcome__body" inert={presenting}>
+        {welcoming && saveError && <p className="pds-caption pds-kids-status" role="alert">{saveError}</p>}
+        <div className="pds-kids-inside-settings pds-kids-notebook-settings" data-pattern={coverPattern}>
+          {welcoming && <ChildNotebookCoverStudio className="pds-kids-studio--welcome" sheetClassName="pds-kids-welcome__sheet"
+            stage={<ChildDesk stickers={WELCOME_STICKERS} />}
+            intro={<header className="pds-kids-welcome__header">
+              <p className="pds-kids-welcome__eyebrow">{name ? `${name}’s notebook` : 'Your notebook'}</p>
+              <h2 id="kids-welcome-title" className="pds-kids-welcome__title" tabIndex={-1}>Make it yours{name ? `, ${name}` : ''}</h2>
+              <p id="kids-welcome-description" className="pds-kids-welcome__line">Pick how your notebook looks. You can change it any time in Settings.</p>
+            </header>} />}
+        </div>
+      </div>
+      <div className="pds-kids-settings-footer proto-sheet-footer--stacked" inert={presenting}><button className="proto-settings-btn" disabled={saving} onClick={() => void finishWelcome()}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Start my notebook</button></div>
+    </dialog>, document.body)}
+
     {createPortal(<dialog ref={parentDialogRef} className="pds-kids-privacy-modal proto-theme pds-kids-parent-gate" aria-labelledby="parent-gate-title" aria-describedby="parent-gate-description" style={themeStyle} onCancel={event => { if (parentBusy) event.preventDefault(); else setParentGate(false); }} onClose={() => { if (!parentBusy) { setParentGate(false); document.getElementById('child-notebook-mode-trigger')?.focus(); } }}>
       {parentGate === 'export' ? <>
         <span className="pds-kids-review__art" aria-hidden="true"><Icon name="lock" size={22} /></span>
@@ -705,7 +800,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
                     {!initial && picturedGuardians.map(guardian => <span key={guardian.id}>{guardian.name.charAt(0)}</span>)}
                     {!initial && additionalGuardians > 0 && <span className="pds-kids-circle__more">+{additionalGuardians}</span>}
                   </div>
-                  <strong>{initial ? `${name} and your parent` : circleNames}</strong>
+                  <strong>{initial ? `You, ${name}, and your parent` : circleNames}</strong>
                   <span className="pds-kids-circle__access"><Icon name="check" size={12} /> Can read your notes</span>
                 </div>
                 <div className="pds-kids-circle__group" data-access="no">

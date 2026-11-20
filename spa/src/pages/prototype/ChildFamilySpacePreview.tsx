@@ -56,7 +56,7 @@ export default function ChildFamilySpacePreview({
             </div>
             <div className="proto-sidebar-scroll proto-shared-thread-drilldown__scroll">
               <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
-                {resources.map(resource => <PrototypeHomeRow key={resource.id} icon="book-open" title={resource.title} meta={[resource.source, 'Shared by your family']} onClick={() => onOpenReading(resource)} />)}
+                {resources.map(resource => <PrototypeHomeRow key={resource.id} icon="book-open" title={resource.title} meta={[resource.source, 'Shared by your parent']} onClick={() => onOpenReading(resource)} />)}
               </div>
             </div>
           </>
@@ -76,9 +76,10 @@ export default function ChildFamilySpacePreview({
             />
             <div className="proto-sidebar-scroll">
               <div className="proto-home-view">
-                <PrototypeHomeSection title="Current Thread">
+                {/* Only once there's something in it: an empty Thread opened onto a blank panel. */}
+                {resources.length > 0 && <PrototypeHomeSection title="Current Thread">
                   <PrototypeHomeRow icon="arrow-right-arrow-left" title={threadTitle} meta={[`${resources.length} ${resources.length === 1 ? 'reading' : 'readings'}`]} onClick={onOpenThread} />
-                </PrototypeHomeSection>
+                </PrototypeHomeSection>}
                 <PrototypeHomeSection title="Scripture">
                   <PrototypeHomeRow icon="book-open" title="Family Bible" meta={[readingLabel, 'Read together']} onClick={onOpenBible} />
                 </PrototypeHomeSection>

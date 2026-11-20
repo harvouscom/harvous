@@ -1,0 +1,138 @@
+/*
+ * The kids' signed-out page (ChildSignedOut). Drawn like the notebook move page and harvous.com's
+ * child notebooks desk: a soft gradient desk, die-cut stickers, and the notebook standing on a
+ * paper letter that carries the words.
+ * Light and dark follow the notebook's scheme (the appearance scope sets the tokens).
+ */
+
+.pds-kids-signed-out { min-height: 100dvh; margin: 0; }
+.pds-kids-signed-out > .pds-kids-appearance-scope { display: contents; }
+
+.kso {
+  --kso-paper: var(--pds-bg-page);
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: 72px var(--pds-space-4) var(--pds-space-8);
+  overflow: hidden;
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  background: var(--pds-canvas-default);
+}
+
+/* The desk and stickers are ChildDesk (kids-desk.css). On a phone, four smaller stickers at the edges. */
+@media (max-width: 560px) {
+  .kso .kids-desk__sticker:nth-child(n + 5) { display: none; }
+  .kso .kids-desk__sticker:nth-child(1) { top: 62px !important; left: 5% !important; }
+  .kso .kids-desk__sticker:nth-child(2) { top: 104px !important; left: 84% !important; }
+  .kso .kids-desk__sticker:nth-child(3) { top: 216px !important; left: 3% !important; }
+  .kso .kids-desk__sticker:nth-child(4) { top: 176px !important; left: 82% !important; }
+}
+
+.kso__stage { position: relative; width: min(460px, 100%); display: flex; flex-direction: column; align-items: center; }
+
+/* ─── The book and its badge ─── */
+.kso__book { position: relative; z-index: 2; display: grid; place-items: center; width: 168px; height: 196px; }
+.kso__book .pds-kids-book {
+  transform: scale(1.9);
+  transform-origin: 50% 60%;
+  filter: drop-shadow(0 10px 14px rgb(20 18 12 / 0.18));
+  animation: kso-arrive 600ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+@keyframes kso-arrive { from { opacity: 0; transform: translateY(16px) scale(1.82); } }
+.kso__badge {
+  position: absolute;
+  right: 4px;
+  bottom: 36px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 3px solid var(--kso-paper);
+  background: var(--kso-paper);
+  color: var(--kids-cover-ink);
+  box-shadow: 0 6px 14px -6px rgb(15 23 42 / 0.45);
+  animation: kso-stamp 420ms 360ms cubic-bezier(0.2, 0.8, 0.2, 1.4) backwards;
+}
+.kso[data-kind="closed"] .kso__badge { color: #fff; background: var(--pds-bg-accent-button); }
+.kso__badge svg, .kso__badge path { fill: currentColor; }
+@keyframes kso-stamp { from { opacity: 0; transform: scale(0.4); } }
+
+/* ─── Words ─── */
+.kso__eyebrow { margin: 0; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pds-text-secondary); }
+.kso__title {
+  margin: 6px 0 0;
+  font-family: var(--pds-font-display);
+  font-size: clamp(1.6rem, 1.25rem + 1.4vw, 2.1rem);
+  font-weight: 620;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.kso__line { margin: 8px 0 0; font-size: 1rem; line-height: 1.5; color: var(--pds-text-secondary); text-wrap: pretty; }
+
+/* ─── You → your parent ─── */
+.kso__handoff { display: flex; flex-direction: column; align-items: center; gap: var(--pds-space-3); margin-top: var(--pds-space-5); padding: var(--pds-space-4); border-radius: var(--pds-radius-card); background: color-mix(in oklab, var(--kids-cover-color) 12%, var(--kso-paper)); }
+.kso__people { display: flex; align-items: flex-start; justify-content: center; gap: var(--pds-space-3); }
+.kso__person { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.kso__person small { font-size: 12px; font-weight: 500; color: var(--pds-text-secondary); }
+.kso__person .pds-kids-avatar { width: 48px; height: 48px; }
+.kso__person .pds-kids-avatar .pds-kids-avatar__cover { width: 48px; height: 48px; font-size: 22px; }
+.kso__parent { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 999px; background: var(--pds-bg-control-strong); color: var(--pds-text-primary); }
+.kso__arrow { display: grid; place-items: center; height: 48px; color: var(--pds-text-tertiary); }
+.kso__arrow svg, .kso__parent svg { fill: currentColor; }
+.kso__handoff p { margin: 0; text-align: center; font-size: 0.9375rem; line-height: 1.45; color: var(--pds-text-primary); text-wrap: balance; }
+
+/* The parent's way in: the hand-off card's last row, a quiet link with a chevron. */
+.kso__parent-row {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-3);
+  margin: var(--pds-space-1) calc(-1 * var(--pds-space-2)) calc(-1 * var(--pds-space-2));
+  padding: var(--pds-space-3);
+  border-top: 0.5px solid var(--pds-border-control);
+  border-radius: 0 0 calc(var(--pds-radius-card) - 6px) calc(var(--pds-radius-card) - 6px);
+  color: var(--pds-text-primary);
+  text-align: left;
+  text-decoration: none;
+}
+.kso__parent-row:hover { background: color-mix(in oklab, var(--pds-text-primary) 4%, transparent); }
+.kso__parent-row:focus-visible { outline: 2px solid var(--pds-accent); outline-offset: 2px; }
+.kso__parent-row-icon { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 999px; background: var(--pds-bg-control-strong); }
+.kso__parent-row-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.kso__parent-row-text b { font-size: 0.875rem; font-weight: 600; }
+.kso__parent-row-text small { font-size: 0.8125rem; color: var(--pds-text-secondary); }
+.kso__parent-row svg { flex: none; fill: currentColor; }
+.kso__parent-row > svg:last-child, .kso__parent-row > span:last-child { color: var(--pds-text-tertiary); }
+
+.kso__actions { display: flex; justify-content: center; margin-top: var(--pds-space-4); }
+.kso__actions .proto-settings-btn { width: auto; min-height: 44px; gap: var(--pds-space-2); padding-inline: var(--pds-space-5); text-decoration: none; }
+.kso .pds-kids-privacy-footnote { margin: var(--pds-space-4) 0 0; text-align: center; }
+
+/* ─── The letter the book stands on ─── */
+.kso__book { margin-bottom: -56px; }
+.kso__letter {
+  position: relative;
+  z-index: 1;
+  align-self: stretch;
+  padding: 72px var(--pds-space-6) var(--pds-space-6);
+  border-radius: 20px;
+  text-align: center;
+  background:
+    radial-gradient(color-mix(in oklab, var(--pds-text-primary) 5%, transparent) 1px, transparent 1.2px) 0 0 / 7px 7px,
+    var(--kso-paper);
+  border: 0.5px solid var(--pds-border-soft);
+  box-shadow: 0 1px 2px rgb(20 18 12 / 0.05), 0 22px 44px -26px rgb(20 18 12 / 0.4);
+}
+
+/* ─── Motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  .kso__book .pds-kids-book, .kso__badge { animation: none; }
+}
+.kso[data-reduce-motion] :is(.kso__book .pds-kids-book, .kso__badge) { animation: none; }

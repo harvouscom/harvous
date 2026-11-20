@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ComponentProps, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
 import { ChildNotebookCover, coverBindings, coverColors, coverPatterns, notebookPapers, useChildNotebookAppearance, type CoverSymbol } from './ChildNotebookAppearance';
 import ChildCoverSymbol from './ChildCoverSymbol';
@@ -66,7 +66,11 @@ function useScrollRow() {
   return { ref, more, nudge };
 }
 
-export default function ChildNotebookCoverStudio() {
+/**
+ * `stage` draws behind the book (the welcome puts the kids' desk there); `intro` sits between the book
+ * and the steps (the welcome's "Make it yours"). Settings uses neither.
+ */
+export default function ChildNotebookCoverStudio({ stage, intro, className, sheetClassName }: { stage?: ReactNode; intro?: ReactNode; className?: string; sheetClassName?: string } = {}) {
   const { name, preferences, coverColor, setCoverColor, coverPattern, setCoverPattern, coverSymbol, setCoverSymbol, coverBinding, setCoverBinding, paper, setPaper, playCue } = useChildNotebookAppearance();
   const [step, setStep] = useState(0);
   const stickerRow = useScrollRow();
@@ -136,16 +140,10 @@ export default function ChildNotebookCoverStudio() {
 
   const options: Record<Group, ReactElement> = { color: colorOptions, pattern: patternOptions, symbol: symbolOptions, binding: bindingOptions, paper: paperOptions };
 
-  return <div className="pds-kids-studio" style={{ '--kids-cover-color': coverColor.color } as CSSProperties}>
-    <div className="pds-kids-studio__stage pds-kids-studio__stage--center">
-      {groups[step]?.id === 'paper'
-        // On the pages step the notebook lies open, so the choice is the paper you'll write on.
-        ? <span key={`open-${paper}`} className="pds-kids-studio__book pds-kids-spread" data-binding={coverBinding} aria-hidden="true">
-            <span className="pds-kids-spread__page" data-paper={paper} />
-            <span className="pds-kids-spread__page" data-paper={paper} />
-          </span>
-        : <span key={coverKey} className="pds-kids-studio__book"><ChildNotebookCover name={name} preferences={preferences} large /></span>}
-    </div>
+  /* Everything under the stage. The first-open welcome asks for it as one sheet (sheetClassName),
+     an opaque card laid over the desk that can slide as a piece; Settings leaves it unwrapped. */
+  const sheet = <>
+    {intro}
     {/* The progress is the way around: each step is a stop you can tap, and the one you're on
         opens up to say its name, so you can see where you are and jump to any part. */}
     <nav className="pds-kids-studio__progress" aria-label="Cover steps">
@@ -169,8 +167,23 @@ export default function ChildNotebookCoverStudio() {
       {step > 0 && <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => { playCue('nav.back'); setStep(step - 1); }}><Icon name="arrow-left" size={13} aria-hidden /> Back</button>}
       <button type="button" className="proto-settings-btn proto-settings-btn--secondary pds-kids-studio__surprise" onClick={surprise}><Icon name="shuffle" size={14} aria-hidden /> Surprise me</button>
       {step < groups.length
-        ? <button type="button" className="proto-settings-btn" onClick={() => { playCue('nav.forward'); setStep(step + 1); }}>Next <Icon name="arrow-right" size={13} aria-hidden /></button>
-        : <button type="button" className="proto-settings-btn" onClick={() => { playCue('nav.back'); setStep(0); }}><Icon name="rotate-left" size={13} aria-hidden /> Start over</button>}
+        // Secondary, like Surprise me: the dialog's footer (Done, Start my notebook) is the one primary.
+        ? <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => { playCue('nav.forward'); setStep(step + 1); }}>Next <Icon name="arrow-right" size={13} aria-hidden /></button>
+        : <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => { playCue('nav.back'); setStep(0); }}><Icon name="rotate-left" size={13} aria-hidden /> Start over</button>}
     </div>
+  </>;
+
+  return <div className={className ? `pds-kids-studio ${className}` : 'pds-kids-studio'} style={{ '--kids-cover-color': coverColor.color } as CSSProperties}>
+    <div className="pds-kids-studio__stage pds-kids-studio__stage--center">
+      {stage}
+      {groups[step]?.id === 'paper'
+        // On the pages step the notebook lies open, so the choice is the paper you'll write on.
+        ? <span key={`open-${paper}`} className="pds-kids-studio__book pds-kids-spread" data-binding={coverBinding} aria-hidden="true">
+            <span className="pds-kids-spread__page" data-paper={paper} />
+            <span className="pds-kids-spread__page" data-paper={paper} />
+          </span>
+        : <span key={coverKey} className="pds-kids-studio__book"><ChildNotebookCover name={name} preferences={preferences} large /></span>}
+    </div>
+    {sheetClassName ? <div className={sheetClassName}>{sheet}</div> : sheet}
   </div>;
 }

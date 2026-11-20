@@ -1,0 +1,62 @@
+/*
+ * ChildDesk: the kids' desk, a soft gradient tinted by the notebook's cover colour, with die-cut
+ * stickers. Shared by the signed-out page and the first-open welcome. Light and dark follow the
+ * notebook's scheme (the appearance scope sets the tokens).
+ */
+
+/* Thread colours, as the stickers and the website name them. */
+.kids-desk [data-tone="blue"] { --c: var(--pds-thread-blue); }
+.kids-desk [data-tone="green"] { --c: var(--pds-thread-green); }
+.kids-desk [data-tone="purple"] { --c: var(--pds-thread-purple); }
+.kids-desk [data-tone="pink"] { --c: var(--pds-thread-pink); }
+.kids-desk [data-tone="orange"] { --c: var(--pds-thread-orange); }
+.kids-desk [data-tone="yellow"] { --c: var(--pds-thread-yellow); }
+
+/* ─── The desk ─── */
+.kids-desk {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(45% 50% at 50% 38%, color-mix(in oklab, var(--kids-cover-color) 34%, transparent), transparent 72%),
+    radial-gradient(40% 45% at 6% 4%, color-mix(in oklab, var(--pds-thread-pink) 40%, transparent), transparent 70%),
+    radial-gradient(40% 45% at 96% 92%, color-mix(in oklab, var(--pds-thread-yellow) 45%, transparent), transparent 70%),
+    color-mix(in oklab, var(--pds-thread-blue) 18%, var(--pds-canvas-default));
+}
+[data-color-scheme="dark"] .kids-desk {
+  background:
+    radial-gradient(45% 50% at 50% 38%, color-mix(in oklab, var(--kids-cover-color) 22%, transparent), transparent 72%),
+    radial-gradient(40% 45% at 6% 4%, color-mix(in oklab, var(--pds-thread-pink) 16%, transparent), transparent 70%),
+    radial-gradient(40% 45% at 96% 92%, color-mix(in oklab, var(--pds-thread-yellow) 14%, transparent), transparent 70%),
+    var(--pds-canvas-default);
+}
+
+/* ─── Stickers ─── */
+.kids-desk__sticker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  aspect-ratio: 1;
+  border: 3px solid #fff;
+  border-radius: 13px;
+  color: oklch(from var(--c) 0.48 calc(c * 2) h);
+  background: oklch(from var(--c) 0.9 calc(c * 1.3) h);
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.08), 0 6px 12px -4px rgb(15 23 42 / 0.3);
+  transform: rotate(var(--tilt, 0deg)) scale(var(--size, 1));
+  animation: kids-desk-bob 6s ease-in-out infinite;
+}
+.kids-desk__sticker:nth-child(2n) { animation-delay: -2s; }
+.kids-desk__sticker:nth-child(3n) { animation-delay: -4s; }
+.kids-desk__sticker svg, .kids-desk__sticker path { fill: currentColor; }
+[data-color-scheme="dark"] .kids-desk__sticker { border-color: color-mix(in oklab, #fff 85%, transparent); opacity: 0.85; }
+@keyframes kids-desk-bob {
+  0%, 100% { transform: translateY(0) rotate(var(--tilt)) scale(var(--size, 1)); }
+  50% { transform: translateY(-8px) rotate(calc(var(--tilt) + 3deg)) scale(var(--size, 1)); }
+}
+@media (max-width: 560px) {
+  .kids-desk__sticker { width: 36px; border-radius: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .kids-desk__sticker { animation: none; } }
+[data-reduce-motion] .kids-desk__sticker { animation: none; }

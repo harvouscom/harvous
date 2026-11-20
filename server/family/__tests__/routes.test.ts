@@ -192,7 +192,8 @@ describe('family route boundaries', () => {
   it('serves the public child privacy URL without a session or database access', async () => {
     const response = await app.request('/api/child-accounts/child/privacy', { headers: { Origin: 'http://localhost:4322' } });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ privacyUrl: 'https://example.com/privacy' });
+    expect(await response.json()).toEqual({ privacyUrl: 'https://example.com/privacy',
+      parentSignInUrl: 'https://app.harvous.com/sign-in?redirect_url=%2Fsettings%2Fchild-accounts&child_return=1' });
     expect(database.transaction).not.toHaveBeenCalled();
   });
   it('rejects forged callbacks without touching the database', async () => {

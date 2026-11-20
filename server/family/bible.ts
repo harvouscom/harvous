@@ -2,7 +2,7 @@ import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import { bookChapterCount } from '../../src/utils/bible-book-chapters';
-import { allChildBibleTranslations, type ChildPassage } from '../../shared/child-notebook';
+import { allChildBibleTranslations, childBibleTranslations, legacyChildBibleTranslations, type ChildBibleTranslation, type ChildPassage } from '../../shared/child-notebook';
 import { BibleVerses, FamilyChildBibleReadings, FamilyChildBibleThoughts } from '../db/schema';
 import type { Child, FamilyTx } from './service';
 
@@ -13,6 +13,17 @@ export async function hasTranslationText(tx: FamilyTx, translation: string) {
   const [row] = await tx.select({ verse: BibleVerses.verse }).from(BibleVerses)
     .where(and(eq(BibleVerses.translationId, translation), eq(BibleVerses.book, 'Genesis'), eq(BibleVerses.chapter, 1))).limit(1);
   return !!row;
+}
+/**
+ * The translation a new notebook starts on: the first young-reader edition this database has text
+ * for, then the older defaults. Production went live without ERV/CEV/NLV loaded, which left the first
+ * notebook unable to open a single chapter; never start a child on a translation with no text.
+ */
+export async function startingChildTranslation(tx: FamilyTx): Promise<ChildBibleTranslation> {
+  for (const translation of [...childBibleTranslations, ...legacyChildBibleTranslations]) {
+    if (await hasTranslationText(tx, translation)) return translation;
+  }
+  return 'BSB';
 }
 export const passageInput = z.object({
   book: z.string().max(35), chapter: z.number().int().positive(), translation: translationInput

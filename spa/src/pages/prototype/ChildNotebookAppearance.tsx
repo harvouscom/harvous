@@ -27,6 +27,9 @@ type Identity = { name: string; preferences: ChildNotebookPreferences;
   soundPreference: SoundPreference;
   setSoundPreference: Dispatch<SetStateAction<SoundPreference>>;
   playCue: (moment: SoundMoment) => void;
+  /** Whether the first-open "Make it yours" studio has been seen. Carried so every save keeps it. */
+  welcomed: boolean;
+  setWelcomed: Dispatch<SetStateAction<boolean>>;
 };
 const ChildAppearanceContext = createContext<Identity | null>(null);
 
@@ -48,6 +51,7 @@ export function ChildNotebookAppearanceProvider({ children, name = 'Sam', initia
   const [paper, setPaper] = useState<NotebookPaper>(initial?.paper ?? 'plain');
   const [appearance, setAppearance] = useState<ChildAppearance>({ scheme: initial?.scheme ?? 'system', canvas: initial?.canvas ?? 'device', darkCanvas: initial?.darkCanvas ?? 'device', textSize: initial?.textSize ?? 'standard', reduceMotion: initial?.reduceMotion ?? false });
   const [soundPreference, setSoundPreference] = useState<SoundPreference>(initial?.soundMode ?? (initial ? initial.sounds ? 'everywhere' : 'off' : DEFAULT_SOUND_PREFERENCE));
+  const [welcomed, setWelcomed] = useState(initial?.welcomed === true);
   const playCue = useCallback((moment: SoundMoment) => playSound(moment, { preference: soundPreference }), [soundPreference]);
   useEffect(() => {
     if (soundPreference !== 'off') warmSounds({ force: true });
@@ -68,8 +72,10 @@ export function ChildNotebookAppearanceProvider({ children, name = 'Sam', initia
   const themeStyle = { ...childThemeTokens(resolvedScheme), ...coverStyle(coverColor), '--kids-canvas': canvas, '--kids-canvas-image': selectedImage ? `url("${childImageUrl(selectedImage)}")` : 'none' } as CSSProperties;
   const preferences: ChildNotebookPreferences = { coverColor: coverColor.id, coverPattern, coverSymbol, coverBinding, paper,
     scheme: appearance.scheme, canvas: appearance.canvas, darkCanvas: appearance.darkCanvas, textSize: appearance.textSize,
-    reduceMotion: appearance.reduceMotion, sounds: soundPreference !== 'off', soundMode: soundPreference };
-  return <ChildAppearanceContext.Provider value={{ name, preferences, coverColor, setCoverColor, coverSymbol, setCoverSymbol, coverPattern, setCoverPattern, coverBinding, setCoverBinding, paper, setPaper, resolvedScheme, themeStyle, appearance, setAppearance, soundPreference, setSoundPreference, playCue }}>
+    reduceMotion: appearance.reduceMotion, sounds: soundPreference !== 'off', soundMode: soundPreference,
+    // The preferences save replaces the whole object, so the welcome flag has to ride along with it.
+    ...(welcomed ? { welcomed: true } : {}) };
+  return <ChildAppearanceContext.Provider value={{ name, preferences, coverColor, setCoverColor, coverSymbol, setCoverSymbol, coverPattern, setCoverPattern, coverBinding, setCoverBinding, paper, setPaper, resolvedScheme, themeStyle, appearance, setAppearance, soundPreference, setSoundPreference, playCue, welcomed, setWelcomed }}>
     <div className="pds-kids-appearance-scope" data-color-scheme={resolvedScheme} data-canvas={selectedId} data-text-size={appearance.textSize} data-paper={paper} data-reduce-motion={appearance.reduceMotion ? 'true' : undefined} style={themeStyle}>{children}</div>
   </ChildAppearanceContext.Provider>;
 

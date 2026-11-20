@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import Icon from '@/components/react/Icon';
 import { bookChapterCount, orderedCanonBooks } from '@/utils/bible-book-chapters';
+import { getTranslation } from '@/data/translations';
 import { useChildNotebookAppearance } from './ChildNotebookAppearance';
 import type { ChildBibleTranslation } from '../../../../shared/child-notebook';
 import { approvedTranslations, familyBibleBookmark } from './ChildNotebookBibleReader';
@@ -64,7 +65,7 @@ export default function ChildNoteAttachmentPicker({ kind, resource, resources = 
               {data?.verses.map(item => <option key={item.number}>{item.number}</option>)}
             </select></label>
             <label>Translation<select className="proto-settings-field__input" value={translation} onChange={event => setPassage(current => ({ ...current, translation: event.target.value }))}>
-              {translations.map(translation => <option key={translation} value={translation}>{translation}</option>)}
+              {translations.map(translation => <option key={translation} value={translation}>{getTranslation(translation)?.name ?? translation}</option>)}
             </select></label>
           </div>}
           {isLoading && <ProtoSpaceLoading label="Opening Scripture" />}
