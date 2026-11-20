@@ -161,9 +161,7 @@ export const CALLOUTS: readonly Callout[] = [
    * and as a reason to get it to people who don't. Same date, disjoint audiences, so they never
    * share a stack — and between them they fold What's new for everyone that week.
    *
-   * SHIP DATE: placeholder. Set both `shippedAt`s to the real date enrollment opens
-   * (`HARVOUS_CHILD_ACCOUNTS_ENABLED=true` in production) when this merges. A far-future date
-   * keeps the cards asleep if it ever merges early.
+   * Shipped the day enrollment opened (`HARVOUS_CHILD_ACCOUNTS_ENABLED=true` in production).
    */
   {
     id: 'family-upgrade-2026-11',
@@ -171,7 +169,7 @@ export const CALLOUTS: readonly Callout[] = [
     body: 'Add a notebook for a child under 13 and pick its first cover. At 13, it moves to their own account, notes and all.',
     illustration: 'family-notebooks',
     action: { label: 'Take a look', run: (ctx) => ctx.openSettings('settings/family') },
-    shippedAt: '2099-01-01',
+    shippedAt: '2026-11-20',
     audience: 'plus',
   },
   {
@@ -180,7 +178,7 @@ export const CALLOUTS: readonly Callout[] = [
     body: 'Harvous Plus now includes notebooks for kids under 13 in the US, set up and looked after by you in My Family.',
     illustration: 'family-notebooks',
     action: { label: 'See Plus', run: (ctx) => ctx.openUpgrade() },
-    shippedAt: '2099-01-01',
+    shippedAt: '2026-11-20',
     audience: 'free',
   },
 ];

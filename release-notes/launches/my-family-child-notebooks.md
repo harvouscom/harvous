@@ -1,17 +1,7 @@
 # My Family: a notebook for every child
 
-**Launched:** [set on the day enrollment opens]
+**Launched:** November 20, 2026
 **Included with:** Harvous Plus
-
-<!--
-  Ship-day checklist (remove this comment when the note goes out):
-  - Fill in the Launched date: the day HARVOUS_CHILD_ACCOUNTS_ENABLED=true in production.
-  - Confirm #340, #341 and #342 are merged and deployed. The "Moving it on at 13" section needs
-    #341's FamilyChildTransfers migration applied in production.
-  - If #343 (verse stickers in the Bible reader) has merged and its VerseStickers table is applied,
-    move "stickers" from "What stays behind" into the list of what moves. Until then stickers stay
-    behind, and this note says so.
--->
 
 My Family started in October as a quiet way to study at home together: a shared Family Space, your Plus covering the rest of the household, and a progress view that never shows anyone's notes.
 
@@ -60,11 +50,12 @@ Child notebooks are available in the United States.
 **What moves:**
 - Their notes, folders, tags and Threads. Where they already have a tag or Thread with the same name, the two are joined.
 - Their highlights, which appear in the Bible reader.
+- Their verse stickers, which appear in the margin of the Bible reader. Where they already have a sticker on a verse, theirs stays.
 - Their Look back history, which becomes Review. Anything they had already been asked carries on from where it was.
 - What they wrote in your Family Bible, as notes in a folder called Family Bible.
 
 **What stays behind:**
-- The notebook cover and its settings, and their verse stickers. All of these are in the backup you can download from My Family before the move.
+- The notebook cover and its settings. Both are in the backup you can download from My Family before the move.
 
 **How it helps you:**
 - Growing up does not mean starting over. Years of notes and highlights carry on in the account your teen will keep.
@@ -94,7 +85,7 @@ Child notebooks sit alongside all of this. They are looked after by the parent w
 
 ### Moving a notebook at 13:
 - **Quick tip:** Ask your teen to make their own Harvous account first, with an email they will keep.
-- **Pro tip:** Download a backup of the notebook from My Family before the move, if you want to keep the cover and the parts that stay behind.
+- **Pro tip:** Download a backup of the notebook from My Family before the move, if you want to keep the cover and its settings.
 
 ---
 
