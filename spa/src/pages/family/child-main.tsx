@@ -237,9 +237,13 @@ function ChildNotebook() {
     return () => { current = false; document.removeEventListener('visibilitychange', check); };
   }, [childRequest]);
 
+  // While it opens, only the loading dots, centred on the canvas, as adult shows opening Home.
+  // The title and privacy line belong to the screens a child actually reads: ended or an error.
+  if (!notebook && status === 'opening') return <main className="pds-child-opening" aria-busy="true">
+    <ProtoSpaceLoading label="Opening your notebook" />
+  </main>;
   if (!notebook) return <main className="pds-child-app pds-family-stack">
     <h1 className="pds-title">My notebook</h1>
-    {status === 'opening' && <ProtoSpaceLoading label="Opening your notebook" />}
     {status === 'ended' && <p role="status">All done. Ask your parent for a link next time.</p>}
     {error && <p role="alert">{error}</p>}
     <ChildPrivacyFootnote url={privacyUrl}>A notebook is just for a child and their parent.</ChildPrivacyFootnote>
