@@ -14,7 +14,9 @@ const stickers = new Map<string, string>([['Psalms:23:1', 'star'], ['John:1:5', 
 const highlights = new Map<string, string>([['John:1:4', 'mintGreen']]);
 const thoughts: ChildFamilyThought[] = [{ id: 'preview-thought', verse: 1, role: 'parent', text: 'Which words would you like to remember?' }];
 const notebook: Notebook = {
-  displayName: 'Sam', privacyUrl: '#preview-privacy-policy', preferences: { ...defaultChildPreferences }, translations: ['BSB', 'NIV', 'NLT'], readings: [reading],
+  displayName: 'Sam', privacyUrl: '#preview-privacy-policy',
+  // The first-open "Make it yours" studio shows on every preview load; `&welcome=0` skips it.
+  preferences: { ...defaultChildPreferences, ...(new URLSearchParams(window.location.search).get('welcome') === '0' ? { welcomed: true } : {}) }, translations: ['BSB', 'NIV', 'NLT'], readings: [reading],
   catalog: structuredClone(initialCatalog),
   notes: initialNotes.map(({ date, ...note }) => ({ ...note, updatedAt: date })),
   materials: [{ id: 'preview-reading', spaceId: 'preview-ministry', title: 'This week’s reading', content: 'What’s one kind thing you could do for someone this week?', spaceTitle: 'Kids ministry', updatedAt: null }]

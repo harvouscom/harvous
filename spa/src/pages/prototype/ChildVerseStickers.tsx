@@ -17,7 +17,7 @@ export function VerseStickerMark({ sticker, verse, chapter, fresh }: { sticker: 
   </span>;
 }
 
-/** A small sheet of die-cut stickers under the verse's actions. Tapping one sticks it on. */
+/** A small sheet of die-cut stickers under the verse's actions. Tapping one sticks it on; tapping the one already on takes it off, like the highlight colours. */
 export function VerseStickerPicker({ current, reference, onPick, onClose }: {
   current: VerseSticker | null; reference: string; onPick: (sticker: VerseSticker | null) => void; onClose: () => void;
 }) {
@@ -29,9 +29,9 @@ export function VerseStickerPicker({ current, reference, onPick, onClose }: {
     onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); onClose(); } }}>
     <div className="pds-kids-verse-stickers__sheet">
       {verseStickers.map((sticker, index) => <button key={sticker} type="button" className="pds-kids-verse-stickers__option"
-        aria-label={`${verseStickerLabel(sticker)} sticker`} aria-pressed={current === sticker}
+        aria-label={current === sticker ? `${verseStickerLabel(sticker)} sticker, tap to take it off` : `${verseStickerLabel(sticker)} sticker`} aria-pressed={current === sticker}
         style={{ '--kids-tilt': `${tilts[index % tilts.length]}deg` } as CSSProperties}
-        onClick={() => onPick(sticker)}>
+        onClick={() => onPick(current === sticker ? null : sticker)}>
         <span aria-hidden="true"><ChildCoverSymbol symbol={sticker} size={18} /></span>
       </button>)}
     </div>

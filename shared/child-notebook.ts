@@ -59,6 +59,11 @@ export type ChildNotebookPreferences = {
   soundMode?: 'everywhere' | 'moments' | 'off';
   canvas?: string;
   darkCanvas?: string;
+  /**
+   * The child has seen the first-open "Make it yours" studio. Unset at creation (even when the
+   * parent picked a starting cover), so every new notebook gets the welcome once.
+   */
+  welcomed?: boolean;
 };
 export const defaultChildPreferences: ChildNotebookPreferences = {
   coverColor: 'blue', coverSymbol: 'initial', coverPattern: 'plain',

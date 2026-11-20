@@ -117,11 +117,13 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
   const [parentBusy, setParentBusy] = useState(false);
   const [parentError, setParentError] = useState('');
   const parentDialogRef = useRef<HTMLDialogElement>(null);
-  const { name, preferences, coverColor, coverPattern, appearance, setAppearance, resolvedScheme, themeStyle, soundPreference, setSoundPreference, playCue } = useChildNotebookAppearance();
+  const { name, preferences, coverColor, coverPattern, appearance, setAppearance, resolvedScheme, themeStyle, soundPreference, setSoundPreference, playCue, welcomed, setWelcomed } = useChildNotebookAppearance();
   const settingsPaneRef = useRef<HTMLElement>(null);
   const privacyDialogRef = useRef<HTMLDialogElement>(null);
   const previousCustomizing = useRef(false);
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
+  const welcomeDialogRef = useRef<HTMLDialogElement>(null);
+  const [welcoming, setWelcoming] = useState(false);
   const [customizing, setCustomizing] = useState(false);
   const [studioPage, setStudioPage] = useState<'settings' | 'appearance' | 'feedback'>('settings');
   // Below the adult shell's breakpoint, Settings is a bottom sheet like the adult one: it opens on
@@ -214,6 +216,20 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
     if (privacy && dialog && !dialog.open) dialog.showModal();
     if (!privacy && dialog?.open) dialog.close();
   }, [privacy]);
+  /* The first time a child opens their notebook, the cover studio comes to them: "Make it yours".
+     Seen once per notebook (`welcomed` in its preferences, saved with them), never on a device. */
+  useEffect(() => {
+    if (welcomed) return;
+    setWelcoming(true);
+    playCue('nav.open');
+    // Once, on the first render of a notebook that hasn't been welcomed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const dialog = welcomeDialogRef.current;
+    if (welcoming && dialog && !dialog.open) dialog.showModal();
+    if (!welcoming && dialog?.open) dialog.close();
+  }, [welcoming]);
   useEffect(() => {
     if (customizing) { if (!settingsDialogRef.current?.open) { setSheetPaneOpen(false); settingsDialogRef.current?.showModal(); } settingsPaneRef.current?.focus({ preventScroll: true }); }
     else if (settingsDialogRef.current?.open) settingsDialogRef.current.close();
@@ -281,6 +297,18 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       setSaveError(error instanceof Error ? error.message : 'Could not open this reading.');
       return false;
     }
+  }
+
+  async function finishWelcome() {
+    if (saving) return;
+    setSaving(true); setSaveError('');
+    try {
+      await onSavePreferences?.({ ...preferences, welcomed: true });
+      setWelcomed(true);
+      setWelcoming(false);
+      playCue('organize.filed');
+    } catch (error) { setSaveError(error instanceof Error ? error.message : 'Could not save your notebook.'); }
+    finally { setSaving(false); }
   }
 
   async function closeSettings() {
@@ -667,6 +695,20 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
       </div></div>
     </dialog>, document.body)}
 
+    {createPortal(<dialog ref={welcomeDialogRef} className="proto-settings-modal pds-kids-settings-modal pds-kids-welcome-modal proto-theme" data-reduce-motion={reducedMotion ? 'true' : undefined} aria-labelledby="kids-welcome-title" aria-describedby="kids-welcome-description" style={themeStyle} onCancel={event => { event.preventDefault(); void finishWelcome(); }}>
+      <header className="proto-settings-modal__header pds-kids-welcome__header">
+        <h2 id="kids-welcome-title" className="proto-settings-modal__title">Make it yours, {name}</h2>
+        <p id="kids-welcome-description" className="pds-caption">Pick how your notebook looks. You can change it any time in Settings.</p>
+      </header>
+      {welcoming && saveError && <p className="pds-caption pds-kids-status" role="alert">{saveError}</p>}
+      <div className="proto-settings-modal__body pds-kids-welcome__body">
+        <div className="pds-kids-inside-settings pds-kids-notebook-settings" data-pattern={coverPattern}>
+          {welcoming && <ChildNotebookCoverStudio />}
+        </div>
+      </div>
+      <div className="pds-kids-settings-footer proto-sheet-footer--stacked"><button className="proto-settings-btn" disabled={saving} onClick={() => void finishWelcome()}>{saving ? <ProtoLoadingDots /> : <Icon name="check" size={12} />} Start my notebook</button></div>
+    </dialog>, document.body)}
+
     {createPortal(<dialog ref={parentDialogRef} className="pds-kids-privacy-modal proto-theme pds-kids-parent-gate" aria-labelledby="parent-gate-title" aria-describedby="parent-gate-description" style={themeStyle} onCancel={event => { if (parentBusy) event.preventDefault(); else setParentGate(false); }} onClose={() => { if (!parentBusy) { setParentGate(false); document.getElementById('child-notebook-mode-trigger')?.focus(); } }}>
       {parentGate === 'export' ? <>
         <span className="pds-kids-review__art" aria-hidden="true"><Icon name="lock" size={22} /></span>
@@ -705,7 +747,7 @@ export default function ChildNotebookView({ preview = false, privacyUrl, initial
                     {!initial && picturedGuardians.map(guardian => <span key={guardian.id}>{guardian.name.charAt(0)}</span>)}
                     {!initial && additionalGuardians > 0 && <span className="pds-kids-circle__more">+{additionalGuardians}</span>}
                   </div>
-                  <strong>{initial ? `${name} and your parent` : circleNames}</strong>
+                  <strong>{initial ? `You, ${name}, and your parent` : circleNames}</strong>
                   <span className="pds-kids-circle__access"><Icon name="check" size={12} /> Can read your notes</span>
                 </div>
                 <div className="pds-kids-circle__group" data-access="no">
