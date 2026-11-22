@@ -13,10 +13,11 @@ jobs:
       - name: Trigger backup exports
         env:
           # Calls Fly directly rather than app.harvous.com. Exporting every user
-          # takes longer than Netlify's proxy will wait, so going through the
-          # proxy returns 504 while the job runs on happily to completion — a
-          # failed workflow for a backup that actually worked. Fly imposes no
-          # such ceiling. Only long-running admin jobs need this; ordinary API
+          # takes longer than the Cloudflare Worker's proxy will wait
+          # (API_UPSTREAM_TIMEOUT_MS, 20s, in cloudflare/worker.ts), so going
+          # through it returns 504 while the job runs on happily to completion —
+          # a failed workflow for a backup that actually worked. Netlify had the
+          # same problem at ~28s. Fly imposes no such ceiling. Only long-running admin jobs need this; ordinary API
           # traffic should keep using app.harvous.com.
           SITE_URL: ${{ secrets.BACKUP_SITE_URL || 'https://harvous.fly.dev' }}
           BACKUP_CRON_SECRET: ${{ secrets.BACKUP_CRON_SECRET }}

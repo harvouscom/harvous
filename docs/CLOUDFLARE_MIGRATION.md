@@ -1,6 +1,6 @@
 # Phase A: Netlify → Cloudflare (app.harvous.com)
 
-**Status: STAGE 4 COMPLETE — all three hosts (app, new, status) serve the Worker; authenticated smoke test passed; Netlify serves nothing. Next: freeze Netlify auto-publish, soak one week, then cleanup (CSRF first).** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
+**Status: STAGE 4 COMPLETE — all three hosts (app, new, status) serve the Worker; Netlify serves nothing. Cleanup steps 2 and 3 done 2026-11-22 (repo carries no Netlify build, functions or packages). Remaining: step 1 (CSRF is on in observe mode; enforcing is a Fly secret, `CSRF_ENFORCE=true`) and step 4 (delete the Netlify site).** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
 
 Moves everything Netlify still does for app.harvous.com onto Cloudflare Workers:
 static SPA hosting, the `/api/*` → Fly proxy, headers/CSP, the crawler OG rewrite,
@@ -789,3 +789,25 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
   Also fixed in passing: the recovery screens' "Reload App" button rendered dark-on-dark.
   `global.css` carries `button { color: var(--color-deep-grey) !important }`, which beats a
   plain inline colour — the pre-existing chunk-error screen in `main.tsx` had the same defect.
+
+- 2026-11-22 (**cleanup steps 2 and 3 — Netlify is out of the repo**) — Deleted `netlify.toml`,
+  `netlify/` (edge function and the four bundled functions), `server/netlify.ts`,
+  `server/og-image-function.ts`, `public/_redirects`, `scripts/netlify-skip-build.sh`,
+  `scripts/fly-secrets-from-netlify.sh`, the `build:api` script, and the `@netlify/blobs`,
+  `@netlify/functions`, `@netlify/edge-functions` and `@sparticuz/chromium` packages.
+  `puppeteer-core` stays: Fly's OG renderer uses it with the Debian Chromium
+  (`CHROME_EXECUTABLE_PATH=/usr/bin/chromium`), and `server/utils/og-screenshot.ts` no longer
+  has a serverless branch. The two scheduled-job modules Fly's scheduler imports lost their
+  `netlify-` prefix (`server/purge-shared-spaces.ts`, `server/audienceful-activity-sync.ts`).
+
+  Step 2: `backup-user-exports.yml` **stays direct-to-Fly**. The Worker's own proxy ceiling
+  (`API_UPSTREAM_TIMEOUT_MS`, 20s) is shorter than Netlify's ~28s was, so routing the backup
+  through `app.harvous.com` would bring the false 504 back. Comment updated to say so.
+
+  `status.harvous.com` has been on the Worker since 2026-09-02 (entry above); the earlier
+  "still on Netlify" line is superseded. Still outside the repo: delete the Netlify site
+  (step 4). Until then, if it still builds `main`, its scheduled functions may still be firing
+  against the production database alongside Fly's scheduler. With this change its build fails
+  (no `netlify.toml`, no `build:api`), so nothing new deploys there, but the last good deploy's
+  functions keep their schedule until the site is deleted.
+

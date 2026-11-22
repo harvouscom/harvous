@@ -5,8 +5,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../netlify-audienceful-activity-sync', () => ({ runAudiencefulActivitySync: vi.fn() }));
-vi.mock('../netlify-purge-shared-spaces', () => ({ createPurgeSharedSpacesHandler: () => vi.fn() }));
+vi.mock('../audienceful-activity-sync', () => ({ runAudiencefulActivitySync: vi.fn() }));
+vi.mock('../purge-shared-spaces', () => ({ createPurgeSharedSpacesHandler: () => vi.fn() }));
 vi.mock('../utils/push-reminders', () => ({ runReminderTick: vi.fn() }));
 
 const { msUntilNextHourlyRun, msUntilNextRun } = await import('../scheduler');

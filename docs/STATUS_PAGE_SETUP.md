@@ -17,14 +17,14 @@ Local dev falls back to `https://harvous.betteruptime.com/index.json` when the e
 BETTERSTACK_STATUS_JSON_URL=https://harvous.betteruptime.com/index.json
 ```
 
-**Do not** use a bare hostname after `status.harvous.com` DNS points at Netlify — that would loop. Use Better Stack's native URL from the dashboard instead.
+**Do not** use a bare hostname: `status.harvous.com` is served by our own Cloudflare Worker, so pointing the API at it would loop. Use Better Stack's native URL from the dashboard instead.
 
 ### Troubleshooting "Status unavailable" / HTTP 502
 
 1. Restart the API dev server after changing `.env` (`npm run dev` picks up env on start).
 2. Confirm the URL returns JSON: `curl -sI 'https://YOUR-URL/index.json'` should show `content-type: application/json`, not a redirect to `betterstack.com/uptime`.
 3. If `status.harvous.com/index.json` redirects away, the custom domain was removed from Better Stack or the page is unpublished. In Better Stack → **Status pages** → your page, copy the **native** page URL (not the custom domain) and set `BETTERSTACK_STATUS_JSON_URL` to `{that-url}/index.json`.
-4. Keep the Better Stack custom domain active until Netlify serves `status.harvous.com`, then switch the env var to the native URL before removing the custom domain from Better Stack.
+4. `status.harvous.com` is ours (the Cloudflare Worker), not Better Stack's, so the env var must always be the native URL.
 
 ## Better Stack dashboard
 
@@ -88,13 +88,18 @@ broken." That distinction earns its keep when alerts route to different teams; i
 solo operator who opens the dashboard anyway.
 4. **Subscribe / RSS** links on the custom page point at the Better Stack hosted URL (`/rss` for feed).
 
-## DNS cutover (Netlify)
+## Hosting
 
-1. In Better Stack: copy the native JSON URL; optionally remove `status.harvous.com` custom domain when ready.
-2. In Netlify (app site): **Domain management** → add `status.harvous.com` as a domain alias.
-3. DNS: CNAME `status.harvous.com` → your Netlify site (replace Better Stack CNAME).
-4. Set `BETTERSTACK_STATUS_JSON_URL` in Netlify environment variables.
-5. Deploy; verify `https://status.harvous.com` shows the Harvous-styled page and `https://app.harvous.com/api/status/public` returns JSON.
+`status.harvous.com` is a custom domain on the production Cloudflare Worker (`wrangler.jsonc`
+`routes`), the same Worker and build as `app.harvous.com`. The SPA renders the status page at `/`
+when `isStatusHost()` (`src/lib/status-page-host.ts`) matches. Moved off Netlify 2026-09-02; see
+`docs/CLOUDFLARE_MIGRATION.md`.
+
+`/api/status/public` reaches Fly through the Worker's `/api/*` proxy, and
+`BETTERSTACK_STATUS_JSON_URL` is a Fly secret (`fly secrets set ...`).
+
+Verify: `https://status.harvous.com` shows the Harvous-styled page with `server: cloudflare`, and
+`https://app.harvous.com/api/status/public` returns JSON.
 
 ## Local verification
 

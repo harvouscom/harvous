@@ -16,8 +16,8 @@
  * future daily job inheriting a reason to think about hours.
  */
 
-import { runAudiencefulActivitySync } from './netlify-audienceful-activity-sync';
-import { createPurgeSharedSpacesHandler } from './netlify-purge-shared-spaces';
+import { runAudiencefulActivitySync } from './audienceful-activity-sync';
+import { createPurgeSharedSpacesHandler } from './purge-shared-spaces';
 import { runReminderTick } from './utils/push-reminders';
 import { runChurchPublishTick } from './utils/church-publish-push';
 import { runChurchContentTick } from './utils/church-content';

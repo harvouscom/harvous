@@ -142,13 +142,12 @@ describe('Generation 2B data architecture route contracts', () => {
 
   it('preserves recoverable deleted-space associations and schedules bounded purge', () => {
     const verifier = source('server/scripts/verify-canonical-space-notes.ts');
-    const config = source('netlify.toml');
-    const pkg = source('package.json');
+    const scheduler = source('server/scheduler.ts');
     expect(verifier).toContain('s."recoveryUntil" <= now()');
     expect(verifier).toContain('s."isActive" = true');
-    expect(config).toContain('[functions."purge-shared-spaces"]');
-    expect(config).toContain('schedule = "@daily"');
-    expect(pkg).toContain('netlify/functions/purge-shared-spaces.cjs');
+    expect(scheduler).toContain("import { createPurgeSharedSpacesHandler } from './purge-shared-spaces';");
+    expect(scheduler).toContain("name: 'purge-shared-spaces'");
+    expect(scheduler).toContain('const DAILY_UTC_HOUR = 0;');
   });
 
   it('stores safe copy attribution and hides unpinned Threads from members', () => {

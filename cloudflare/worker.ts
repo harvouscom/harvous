@@ -21,8 +21,8 @@ interface Env {
 
 /**
  * Case-insensitive substrings matched against User-Agent.
- * Ported verbatim from netlify/edge-functions/shared-og.ts — keep the two in sync
- * until that file is deleted in cleanup.
+ * Ported verbatim from netlify/edge-functions/shared-og.ts (deleted in the Netlify
+ * cleanup, Nov 2026). This is now the only copy.
  *
  * Note what does NOT come across: Netlify's declaration-level `config` matchers, which
  * existed as a *billing gate* (Aug 2026 bot floods burned ~772K of 1M free invocations
