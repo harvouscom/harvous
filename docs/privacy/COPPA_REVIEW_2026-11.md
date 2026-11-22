@@ -152,7 +152,7 @@ needed before launch, and none are on file in this repo. Keep a copy of each:
 |---|---|
 | Supabase | Data Processing Addendum. Note the plan's backup retention |
 | Fly.io | Data Processing Agreement |
-| Cloudflare | Data Processing Addendum (self-serve in the dashboard) |
+| Cloudflare | Data Processing Addendum (self-serve in the dashboard). Also covers Email Sending, which delivers the notice-change email (parent addresses only) |
 | Clerk | DPA. It handles only the parent, but the parent's account is linked to the child |
 | Epic (KWS) | KWS terms and DPA. Confirm how long SSN and card data are held and that they're deleted promptly |
 
@@ -284,7 +284,7 @@ holds Look back's current progress; and the wording about adult Harvous is tight
 3. **The written assurances (DPAs)** and the signed security program, including the staff-access log the
    policy promises. Then set `HARVOUS_CHILD_SECURITY_PROGRAM_ADOPTED=true`.
 4. **Email parents when the notice changes** (§312.4(b)). Built: `server/scripts/child-notice-change-email.ts`
-   prepares it and Derek sends it (steps in `CHILD_NOTEBOOKS_LAUNCH.md`).
+   sends it through Cloudflare Email Sending and keeps a `sent.csv` record (steps in `CHILD_NOTEBOOKS_LAUNCH.md`).
 5. **The child-return hop** still lands on a sign-in page that links to sign-up. Consider a sign-in-only
    page for `child_return`.
 6. **A COPPA Safe Harbor program** (kidSAFE, PRIVO, iKeepSafe and others, §312.11) is the practical stand-in

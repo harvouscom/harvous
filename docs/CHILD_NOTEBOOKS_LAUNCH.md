@@ -158,10 +158,18 @@ In order. The person each step needs is in brackets.
   2. Update the public policy to match, in the same release.
   3. Once that release is live, email parents (§312.4(b)). Write the changes for a parent, one per
      line, in a file outside the checkout, then run
-     `npx tsx server/scripts/child-notice-change-email.ts --changes=<file> --out=<folder outside the checkout>`.
-     It lists every parent with a paused notebook and writes the email for one notebook and for
-     several. Send one email per parent from derek@harvous.com, then delete the folder. The email
+     `npx tsx server/scripts/child-notice-change-email.ts --changes=<file> --out=<folder outside the checkout> --send`.
+     It finds every parent with a paused notebook, writes the email to the folder, asks you to type
+     "send", and sends one email per parent from derek@harvous.com through Cloudflare Email Sending.
+     Keep `sent.csv` from the folder as the record; re-running skips anyone already sent. Without
+     `--send` nothing goes out, and the folder's email is the fallback to send by hand. The email
      never names the child. Copy: `server/family/notice-change-email.ts`.
+
+     One-time setup: in the Cloudflare dashboard, Compute > Email Service > Email Sending > Onboard
+     Domain for harvous.com (adds SPF, DKIM, DMARC and a bounce MX on `cf-bounce`). Create an API
+     token with "Email Sending: Edit", and put `CLOUDFLARE_ACCOUNT_ID` and
+     `CLOUDFLARE_EMAIL_API_TOKEN` in your local `.env`. Email Sending is in public beta (Nov 2026)
+     and new accounts start on a small daily quota; a throttled run stops and can be re-run.
 
 ## Moving a notebook at 13
 

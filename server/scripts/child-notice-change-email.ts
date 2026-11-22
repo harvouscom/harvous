@@ -5,31 +5,39 @@
  * Run it after the release that bumps CHILD_NOTICE_VERSION is live, so every notebook it lists is
  * already paused and the renewal screen is there when the parent arrives.
  *
- * Read-only: it reads FamilyChildren and each parent's verified primary email from Clerk, and sends
- * nothing. Harvous has no transactional sender, so Derek sends the result from his own mailbox, one
- * email per parent (not one email with everyone in To or CC).
+ * It reads FamilyChildren and each parent's verified primary email from Clerk, and never writes to
+ * the database. With --send it sends one email per parent through Cloudflare Email Sending, from
+ * derek@harvous.com (server/family/cloudflare-email.ts). Without it, nothing is sent, and the folder
+ * it writes is the fallback: send those emails yourself, one per parent.
  *
  * Usage (needs the API's Supabase env and CLERK_SECRET_KEY):
  *   npx tsx server/scripts/child-notice-change-email.ts --changes=changes.txt
  *       Counts only. Prints the email with no addresses.
  *   npx tsx server/scripts/child-notice-change-email.ts --changes=changes.txt --out=~/Desktop/notice-2026-12
  *       Writes recipients.csv plus the email (text and HTML) for one notebook and for several.
+ *   ... --out=~/Desktop/notice-2026-12 --send
+ *       Same, then asks you to type "send" and sends. Needs CLOUDFLARE_ACCOUNT_ID and
+ *       CLOUDFLARE_EMAIL_API_TOKEN. Each result goes into sent.csv in the folder; running it again
+ *       skips everyone already sent, so after a failure fix the cause and re-run.
  *
  * changes.txt: one change per line, written for a parent ("We now keep ... so that ..."). Blank lines
  * and a leading "- " are ignored.
  *
- * --out must be outside this checkout: recipients.csv holds parent email addresses. Delete the folder
- * once the emails are sent; your sent mail is the record of the notice.
+ * --out must be outside this checkout: recipients.csv and sent.csv hold parent email addresses. Keep
+ * sent.csv as the record that each parent was sent the notice (when, and Cloudflare's message ID);
+ * delete the rest once everyone has it.
  */
 import 'dotenv/config';
 import { createClerkClient } from '@clerk/backend';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { familyPublicConfig } from '../family/config';
 import { CHILD_NOTICE_VERSION } from '../family/policy';
 import { noticeChangeEmail, noticeChangeRecipients } from '../family/notice-change-email';
+import { cloudflareEmailConfig, sendCloudflareEmail, type OutgoingEmail, type SendResult } from '../family/cloudflare-email';
 import { requireDbTarget } from '../utils/require-db-target';
 
 const arg = (argv: readonly string[], name: string) => argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -42,6 +50,33 @@ export function parseChanges(raw: string) {
 export function renewUrlFor(env: NodeJS.ProcessEnv) {
   const url = new URL('/settings/child-accounts', env.HARVOUS_PARENT_APP_URL ?? 'https://app.harvous.com');
   return url.href;
+}
+
+export interface NoticeRecipient { email: string; notebookCount: number }
+
+/**
+ * Sends to each recipient not already marked sent in sentLog, one at a time, appending every result.
+ * Stops at the first failure that would fail for everyone (bad token, throttled, Cloudflare down);
+ * a bounce for one address is logged and the rest carry on.
+ */
+export async function sendNotices(recipients: readonly NoticeRecipient[], emailFor: (r: NoticeRecipient) => Omit<OutgoingEmail, 'to'>,
+  sentLog: string, send: (email: OutgoingEmail) => Promise<SendResult>, now = () => new Date()) {
+  const already = new Set(existsSync(sentLog)
+    ? readFileSync(sentLog, 'utf8').split('\n').slice(1).map((line) => line.split(',')).filter((c) => c[2] === 'sent').map((c) => c[0])
+    : []);
+  if (!existsSync(sentLog)) writeFileSync(sentLog, 'email,at,status,detail\n', { mode: 0o600 });
+  const tally = { sent: 0, skipped: 0, failed: 0, stopped: false };
+  for (const r of recipients) {
+    if (already.has(r.email)) { tally.skipped++; continue; }
+    const result = await send({ to: r.email, ...emailFor(r) });
+    const row = result.ok ? [r.email, now().toISOString(), 'sent', result.messageId + (result.queued ? ' (queued)' : '')]
+      : [r.email, now().toISOString(), 'failed', result.code];
+    appendFileSync(sentLog, row.map(csvCell).join(',') + '\n');
+    if (result.ok) { tally.sent++; continue; }
+    tally.failed++;
+    if (result.retryable || result.status === 401 || result.status === 403) { tally.stopped = true; break; }
+  }
+  return tally;
 }
 
 const csvCell = (value: string | number) => /[",\n]/.test(String(value)) ? `"${String(value).replace(/"/g, '""')}"` : String(value);
@@ -74,13 +109,19 @@ export async function run(argv: readonly string[], env = process.env) {
     return;
   }
 
+  const sending = argv.includes('--send');
+  const cloudflare = cloudflareEmailConfig(env);
+  if (sending && !cloudflare) throw new Error('--send needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN.');
+
   const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY! });
   const rows: string[] = ['email,notebooks,variant'];
+  const resolved: NoticeRecipient[] = [];
   const missing: string[] = [];
   for (const r of recipients) {
     const user = await clerk.users.getUser(r.parentUserId).catch(() => null);
     const email = user?.emailAddresses.find((e) => e.id === user.primaryEmailAddressId && e.verification?.status === 'verified')?.emailAddress;
     if (!email) { missing.push(r.parentUserId); continue; }
+    resolved.push({ email, notebookCount: r.notebookCount });
     rows.push([email, r.notebookCount, r.notebookCount > 1 ? 'several' : 'one'].map(csvCell).join(','));
   }
 
@@ -95,6 +136,17 @@ export async function run(argv: readonly string[], env = process.env) {
     console.warn(`\n${missing.length} parent(s) have no verified primary email in Clerk. Reach them another way and note how:`);
     for (const id of missing) console.warn(`  ${id}`);
   }
+
+  if (!sending || resolved.length === 0) return;
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await rl.question(`\nSend the notice to ${resolved.length} parent(s) from derek@harvous.com? Type "send" to go ahead: `);
+  rl.close();
+  if (answer.trim() !== 'send') { console.log('Nothing sent.'); return; }
+  const tally = await sendNotices(resolved, (r) => r.notebookCount > 1 ? several : one, join(outDir, 'sent.csv'),
+    (email) => sendCloudflareEmail(cloudflare!, email));
+  console.log(`\nSent ${tally.sent}, already sent before ${tally.skipped}, failed ${tally.failed}. Details in sent.csv.`);
+  if (tally.stopped) console.warn('Stopped early: the last failure would hit everyone. Fix it, then run the same command again; it skips anyone already sent.');
+  else if (tally.failed) console.warn('Some addresses bounced or are suppressed. Reach those parents another way, using the files in the folder.');
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
