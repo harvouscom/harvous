@@ -161,6 +161,7 @@ In order. The person each step needs is in brackets.
      `npx tsx server/scripts/child-notice-change-email.ts --changes=<file> --out=<folder outside the checkout> --send`.
      It finds every parent with a paused notebook, writes the email to the folder, asks you to type
      "send", and sends one email per parent from derek@harvous.com through Cloudflare Email Sending.
+     Run it first with `--test-to=derek@harvous.com` in place of `--send` to get both versions yourself.
      Keep `sent.csv` from the folder as the record; re-running skips anyone already sent. Without
      `--send` nothing goes out, and the folder's email is the fallback to send by hand. The email
      never names the child. Copy: `server/family/notice-change-email.ts`.

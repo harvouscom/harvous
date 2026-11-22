@@ -15,6 +15,8 @@
  *       Counts only. Prints the email with no addresses.
  *   npx tsx server/scripts/child-notice-change-email.ts --changes=changes.txt --out=~/Desktop/notice-2026-12
  *       Writes recipients.csv plus the email (text and HTML) for one notebook and for several.
+ *   ... --out=~/Desktop/notice-2026-12 --test-to=derek@harvous.com
+ *       Sends both versions (one notebook, several) to that address only, marked [Test]. Do this first.
  *   ... --out=~/Desktop/notice-2026-12 --send
  *       Same, then asks you to type "send" and sends. Needs CLOUDFLARE_ACCOUNT_ID and
  *       CLOUDFLARE_EMAIL_API_TOKEN. Each result goes into sent.csv in the folder; running it again
@@ -137,6 +139,16 @@ export async function run(argv: readonly string[], env = process.env) {
     for (const id of missing) console.warn(`  ${id}`);
   }
 
+  const testTo = arg(argv, 'test-to');
+  if (testTo) {
+    // One copy of each version to yourself, to check Cloudflare accepts it and how it looks. Not logged in sent.csv.
+    if (!cloudflare) throw new Error('--test-to needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN.');
+    for (const email of [one, several]) {
+      const result = await sendCloudflareEmail(cloudflare, { to: testTo, subject: `[Test] ${email.subject}`, html: email.html, text: email.text });
+      console.log(result.ok ? `Test sent to ${testTo} (${result.messageId}).` : `Test failed: ${result.code} (HTTP ${result.status}).`);
+    }
+    return;
+  }
   if (!sending || resolved.length === 0) return;
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const answer = await rl.question(`\nSend the notice to ${resolved.length} parent(s) from derek@harvous.com? Type "send" to go ahead: `);
