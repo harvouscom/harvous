@@ -1,8 +1,8 @@
 # Infra Endgame: Cloudflare + Fly + Clerk + Polar
 
 **Status: Phase A (Cloudflare front + Fly API) cut over — see CLOUDFLARE_MIGRATION.md for its
-remaining cleanup (Netlify files removed from the repo 2026-11-22; CSRF still observe-only;
-Netlify site itself still to delete). Phases B–D not started.** Drafted
+cleanup, all done as of 2026-11-22: Netlify site deleted, Netlify files out of the repo, CSRF
+enforcing. Phases B–D not started.** Drafted
 2026-08-27.
 
 This is the strategy doc for retiring Netlify and Supabase without rewriting the

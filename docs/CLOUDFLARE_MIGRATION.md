@@ -1,6 +1,6 @@
 # Phase A: Netlify → Cloudflare (app.harvous.com)
 
-**Status: STAGE 4 COMPLETE — all three hosts (app, new, status) serve the Worker; Netlify serves nothing. Cleanup steps 2 and 3 done 2026-11-22 (repo carries no Netlify build, functions or packages). Remaining: step 1 (CSRF is on in observe mode; enforcing is a Fly secret, `CSRF_ENFORCE=true`) and step 4 (delete the Netlify site).** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
+**Status: STAGE 4 COMPLETE — all three hosts (app, new, status) serve the Worker; Netlify serves nothing. Cleanup steps 2 and 3 done 2026-11-22 (repo carries no Netlify build, functions or packages). Step 1 done too: CSRF has enforced in production since 2026-09-04 (`CSRF_ENFORCE=true` on Fly, verified 2026-11-22). Step 4 done: the Netlify site is deleted. Phase A is finished.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
 
 Moves everything Netlify still does for app.harvous.com onto Cloudflare Workers:
 static SPA hosting, the `/api/*` → Fly proxy, headers/CSP, the crawler OG rewrite,
@@ -810,4 +810,11 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
   against the production database alongside Fly's scheduler. With this change its build fails
   (no `netlify.toml`, no `build:api`), so nothing new deploys there, but the last good deploy's
   functions keep their schedule until the site is deleted.
+
+- 2026-11-22 (**Phase A closed**) — The Netlify site is gone from the Netlify dashboard (Derek
+  deleted it earlier), so its scheduled functions went with it. And cleanup step 1 turned out to
+  be done already: the Fly secret `CSRF_ENFORCE` was created 2026-09-04 13:43 UTC with the same
+  digest as the app's other `true` flags, and a `POST /api/notes/create` sent from
+  `https://example.com` returns `403 {"code":"CSRF_REJECTED"}`. The "observe mode" comments in
+  `server/app.ts` and these docs were stale; corrected.
 

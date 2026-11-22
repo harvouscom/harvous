@@ -9,14 +9,14 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { requestId } from 'hono/request-id';
 import { clerkAuth } from './middleware/auth';
-// CSRF re-enabled 2026-09-04, in OBSERVE mode. It was disabled from ~2025 after
-// false 403s caused by Netlify's proxy duplicating the Origin header — that proxy
-// is gone (the app now sits behind a Cloudflare Worker), and csrf.ts additionally
-// dedupes comma-joined header values now.
+// CSRF re-enabled 2026-09-04 and ENFORCING in production: the Fly secret
+// CSRF_ENFORCE=true was set the same day (verified 2026-11-22 — a POST from an
+// unlisted origin gets 403 CSRF_REJECTED). It was disabled from ~2025 after false
+// 403s caused by Netlify's proxy duplicating the Origin header; that proxy is gone
+// and csrf.ts dedupes comma-joined header values anyway.
 //
-// It does NOT reject yet: set CSRF_ENFORCE=true on Fly to switch from logging to
-// 403s, once the observe logs show an empty or understood rejection set. Grep Fly
-// logs for `[csrf][observe]`.
+// Unsetting CSRF_ENFORCE drops back to observe mode (logs `[csrf][observe]`, rejects
+// nothing). Grep Fly logs for `[csrf] Rejected` to see what is being refused.
 import { csrfProtection } from './middleware/csrf';
 
 // Routes
@@ -95,7 +95,7 @@ const app = new Hono();
 // Global middleware
 app.use('/api/*', requestId());
 app.use('/api/*', cors());
-app.use('/api/*', csrfProtection); // observe-only until CSRF_ENFORCE=true — see import comment
+app.use('/api/*', csrfProtection); // enforcing via CSRF_ENFORCE=true on Fly — see import comment
 app.use('/api/*', clerkAuth);
 
 // Default cache headers for GET responses — individual endpoints can override
