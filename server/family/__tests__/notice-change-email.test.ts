@@ -19,6 +19,8 @@ describe('notice-change email', () => {
     expect(email.text).toContain('Agree and resume notebook');
     expect(email.text).toContain(`Notice version ${CHILD_NOTICE_VERSION}`);
     expect(email.html).toContain(`<a href="${base.privacyUrl}">`);
+    expect(email.text.startsWith('Hey,')).toBe(true);
+    expect(email.html).toContain('alt="Harvous"');
   });
 
   it('carries the policy contact details', () => {

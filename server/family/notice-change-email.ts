@@ -27,6 +27,9 @@ export const CHILD_PRIVACY_CONTACT = Object.freeze({
   mail: '2190 SE Tahoe Ln, Waukee, IA 50263'
 });
 
+/** The app icon at the top of the HTML email. 96px, shown at 48 for sharp retina rendering. Served by harvous.com. */
+export const APP_ICON_URL = 'https://harvous.com/images/harvous-2-icon-sm.png';
+
 export interface NoticeChangeEmailInput {
   /** Plain sentences, one per change, written for a parent. Required: the email exists to say what changed. */
   changes: readonly string[];
@@ -62,7 +65,7 @@ export function noticeChangeEmail(input: NoticeChangeEmailInput): NoticeChangeEm
   // One list of paragraphs, rendered twice, so the text and HTML parts can't drift apart.
   type Block = { p: string } | { list: string[] } | { steps: string[] };
   const blocks: Block[] = [
-    { p: 'Hi,' },
+    { p: 'Hey,' },
     { p: `We've changed what Harvous collects from children, how we use it, or who we share it with. You agreed to our earlier notice, so ${notebook} paused until you read the new one and decide.` },
     { p: 'Here is what changed:' },
     { list: changes },
@@ -87,6 +90,8 @@ export function noticeChangeEmail(input: NoticeChangeEmailInput): NoticeChangeEm
   const linkify = (value: string) => escapeHtml(value).replace(/https:\/\/[^\s<]+/g, (url) => `<a href="${url}">${url}</a>`);
   const html = [
     '<!doctype html><html><body style="font-family: -apple-system, system-ui, sans-serif; font-size: 16px; line-height: 1.5; color: #1a1a1a; max-width: 560px;">',
+    // Linked, not attached, so it's never a stray attachment; alt text stands in when images are off.
+    `<img src="${APP_ICON_URL}" width="48" height="48" alt="Harvous" style="display: block; border: 0; margin: 0 0 16px;">`,
     ...blocks.map((b) => 'p' in b ? `<p>${linkify(b.p).replace(/\n/g, '<br>')}</p>`
       : 'list' in b ? `<ul>${b.list.map((l) => `<li>${linkify(l)}</li>`).join('')}</ul>`
       : `<ol>${b.steps.map((s) => `<li>${linkify(s)}</li>`).join('')}</ol>`),
