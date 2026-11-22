@@ -91,7 +91,7 @@ export function noticeChangeEmail(input: NoticeChangeEmailInput): NoticeChangeEm
   const html = [
     '<!doctype html><html><body style="font-family: -apple-system, system-ui, sans-serif; font-size: 16px; line-height: 1.5; color: #1a1a1a; max-width: 560px;">',
     // Linked, not attached, so it's never a stray attachment; alt text stands in when images are off.
-    `<img src="${APP_ICON_URL}" width="48" height="48" alt="Harvous" style="display: block; border: 0; margin: 0 0 16px;">`,
+    `<img src="${APP_ICON_URL}" width="48" height="48" alt="Harvous" style="display: block; border: 0; border-radius: 11px; margin: 0 0 16px;">`,
     ...blocks.map((b) => 'p' in b ? `<p>${linkify(b.p).replace(/\n/g, '<br>')}</p>`
       : 'list' in b ? `<ul>${b.list.map((l) => `<li>${linkify(l)}</li>`).join('')}</ul>`
       : `<ol>${b.steps.map((s) => `<li>${linkify(s)}</li>`).join('')}</ol>`),
