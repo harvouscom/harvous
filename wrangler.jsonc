@@ -58,20 +58,18 @@
   // app has exactly one public origin.
   "workers_dev": true,
 
-  // STAGE 4 ONLY — uncomment when attaching the custom domains, NOT before.
-  // harvous.com becomes a Cloudflare zone in stage 3; until then wrangler cannot resolve
-  // these routes and every deploy fails. Attaching them is the moment traffic actually
-  // moves, and the rollback is re-pointing the records back at Netlify.
+  // Attached at stage 4 (2026-09-02). Netlify is retired, so there is no DNS rollback
+  // target any more: a bad deploy rolls back with `wrangler rollback`.
   //
-  // status.harvous.com belongs on THIS Worker, not on a separate one: it is a Netlify
-  // domain alias of the same site today, serving the same dist-spa, with the SPA branching
+  // status.harvous.com belongs on THIS Worker, not on a separate one: it was a Netlify
+  // domain alias of the same site, serving the same dist-spa, with the SPA branching
   // on hostname (src/lib/status-page-host.ts, spa/src/router.tsx buildStatusHostRoutes).
   // Same build, same Worker. It is also the reason legacyRedirect() is host-gated — see
   // cloudflare/worker.ts; /prototype is a LIVE route on the status host.
   "routes": [
     { "pattern": "app.harvous.com", "custom_domain": true },
-    // status.harvous.com is the same build and the same Worker — a Netlify domain alias
-    // historically, with isStatusHost() (src/lib/status-page-host.ts) making the SPA render
+    // status.harvous.com is the same build and the same Worker (a Netlify domain alias
+    // until 2026-09-02), with isStatusHost() (src/lib/status-page-host.ts) making the SPA render
     // the status page at /. It is NOT in DEDICATED_PROTOTYPE_HOSTS, which is why
     // legacyRedirect() in cloudflare/worker.ts is host-gated: /prototype is a live route here.
     { "pattern": "status.harvous.com", "custom_domain": true }

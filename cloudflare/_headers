@@ -3,8 +3,9 @@
 # NOT in public/ on purpose. Vite copies public/ verbatim into dist-spa, so a file
 # there would ALSO be served by Netlify — layering a second header source onto the live
 # site during the rollback soak. The deploy workflow copies this into dist-spa/ for
-# Cloudflare only, which keeps netlify.toml and public/_redirects byte-identical until
-# cleanup.
+# Cloudflare only, which kept netlify.toml and public/_redirects byte-identical until
+# cleanup. Both are deleted now (Nov 2026); this file staying out of public/ is history,
+# not a constraint any more.
 #
 # ORDERING WARNING — the one thing that does not port cleanly. Netlify applies every
 # matching rule and lets the LATER one win, which is why the cache tiers below sit after

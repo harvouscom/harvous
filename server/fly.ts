@@ -1,8 +1,8 @@
 /**
  * Production server entry point (Fly.io).
  *
- * The long-lived counterpart to server/netlify.ts: instead of wrapping the Hono
- * app in a per-request function handler, it serves the app from one Node process
+ * Replaced the old Netlify Function entry (server/netlify.ts, now deleted): instead
+ * of wrapping the Hono app in a per-request function handler, it serves the app from one Node process
  * and runs the daily jobs in-process (see server/scheduler.ts).
  *
  * Secrets come from the platform, so there is no dotenv step — but the dynamic

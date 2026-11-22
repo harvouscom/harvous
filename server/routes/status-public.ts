@@ -17,7 +17,7 @@ const route = new Hono();
 const CACHE_MS = 30_000;
 let cached: { data: PublicStatusResponse; fetchedAt: number } | null = null;
 
-/** status.harvous.com redirects to marketing HTML; native JSON lives on betteruptime.com. */
+/** status.harvous.com is our own page on the Worker (it would loop); native JSON lives on betteruptime.com. */
 const NATIVE_JSON_BY_HOST: Record<string, string> = {
   'status.harvous.com': 'https://harvous.betteruptime.com/index.json',
 };
@@ -37,7 +37,7 @@ function resolveUpstreamUrl(): string | null {
     }
     return normalized;
   }
-  // Pre-cutover fallback while status.harvous.com still points at Better Stack.
+  // Local dev fallback. Production must set the env var (see docs/STATUS_PAGE_SETUP.md).
   if (process.env.NODE_ENV !== 'production') {
     return 'https://harvous.betteruptime.com/index.json';
   }

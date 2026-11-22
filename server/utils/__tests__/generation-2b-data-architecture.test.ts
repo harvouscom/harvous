@@ -17,7 +17,7 @@ import {
   canReadSharedThread,
 } from '../shared-space-lifecycle';
 import { visibleSharedThreadsForViewer } from '../dashboard-data';
-import { createPurgeSharedSpacesHandler } from '../../netlify-purge-shared-spaces';
+import { createPurgeSharedSpacesHandler } from '../../purge-shared-spaces';
 import { classifyLegacyCanonicalRepair } from '../../scripts/backfill-canonical-space-notes';
 
 describe('Generation 2B data architecture policies', () => {

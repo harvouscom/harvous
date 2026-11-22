@@ -6,8 +6,8 @@
 npm run dev              # Hono API (3001) + SPA (4322) — full-stack dev (API must be running for /api)
 npm run dev:spa          # SPA only on port 4322 (proxies /api to 3001). API must be running or /api returns 500.
 npm run dev:all          # Same as dev: API + SPA
-npm run build            # Production build: inject SW version + build:api + build:spa (no Astro)
-npm run build:api        # Bundle Hono API to netlify/functions/api.cjs
+npm run build            # SPA build: inject SW version + build:spa (no Astro)
+npm run build:fly        # Bundle Hono API to dist-server/api.cjs (what the Fly Dockerfile runs)
 npm run db:sync          # Drizzle Kit push (sync schema to Supabase) + auto-enable RLS
 npm run db:push          # Drizzle Kit push (apply server/db/schema.ts to Supabase) + auto-enable RLS
 npm run db:rls           # Enable RLS on all public tables (dynamic; runs automatically after db:push)
@@ -41,13 +41,13 @@ production; see `docs/SHARED_SPACES_TESTING.md`.
 
 - **Production frontend**: React SPA in `spa/src/`, built with Vite. Uses TanStack Router, React Query, Clerk React. Deployed as static `index.html` + hashed JS/CSS. This is what users see in production and in the PWA.
 - **Marketing site**: [harvous.com](https://harvous.com) — separate repo [harvouscom/harvous.com](https://github.com/harvouscom/harvous.com) (Astro). Not in this monorepo.
-- **API backend**: Hono server in `server/` bundled as a single Netlify Function (`netlify/functions/api.cjs`). All `/api/*` requests are routed there by `public/_redirects`.
+- **API backend**: Hono server in `server/`, run as one long-lived Node process on Fly (`server/fly.ts`, `fly.toml`). The Cloudflare Worker (`cloudflare/worker.ts`) serves the SPA and proxies `/api/*` to Fly.
 - **Shared React components**: `src/components/react/` are imported by the SPA. UI changes that must ship to production should be made in `spa/src/` or these shared components.
 - **Auth**: Clerk. In the SPA, `@clerk/clerk-react`; env var `VITE_CLERK_PUBLISHABLE_KEY`.
 - **Rich Text**: Tiptap editor in `src/components/react/TiptapEditor.tsx`.
 - **Mobile bottom sheet**: [Vaul](https://github.com/emilkowalski/vaul) via `src/components/ui/drawer.tsx` (`BottomSheet.tsx`, `MobileNavigation.tsx`). Harvous keeps existing overlay/sheet CSS. Toast UI uses [Sonner](https://github.com/emilkowalski/sonner). Motion direction credits **[Emil Kowalski](https://emilkowal.ski/)**.
 
-**Production API contract:** The API is built as a single file (`netlify/functions/api.cjs`); Netlify uses `node_bundler = "none"`, so there is no `node_modules` at function runtime. All dependencies must be bundled (do not add `--packages=external` to `build:api`). The DB client uses `postgres.js` which bundles cleanly for Netlify Functions. Before merging API-affecting branches, see [docs/CLEAR_SPLIT_MERGE_DELTA.md](docs/CLEAR_SPLIT_MERGE_DELTA.md) (pre-merge checklist).
+**Production API contract:** The API is built as a single file (`dist-server/api.cjs`, via `build:fly`), and the Fly image ships no `node_modules`. All dependencies must be bundled (do not add `--packages=external` to `build:fly`). Before merging API-affecting branches, see [docs/CLEAR_SPLIT_MERGE_DELTA.md](docs/CLEAR_SPLIT_MERGE_DELTA.md) (pre-merge checklist).
 
 ## Project Structure
 
@@ -82,8 +82,8 @@ public/                      # Static assets, sw.js, manifest.json
 ## Key Patterns
 
 - **CRITICAL — Production = SPA + Hono API.** For UI changes that must appear in production, edit `spa/src/` or shared `src/components/react/`.
-- **Netlify build**: `npm run build` = inject SW + build:api + build:spa. Publish directory is `dist-spa/`.
-- **Production routing** (`public/_redirects`): List SPA routes (e.g. `/`, `/note/*`, `/thread/*`, `/dashboard`, …) → `/index.html` 200. Include the root `/` so the dashboard at `/` loads the SPA. Do **not** add a rule for `/api/*` — leave it unmatched so the Netlify SSR function (path: `/*`) handles API requests. A catch-all `/*` → `/index.html` would make API calls return HTML and break the app.
+- **Deploy**: `.github/workflows/cloudflare-deploy.yml` builds `dist-spa/` and deploys the Worker; the API deploys to Fly separately. Netlify is retired (docs/CLOUDFLARE_MIGRATION.md).
+- **Production routing**: `cloudflare/worker.ts` owns `/api/*` (proxy to Fly), the crawler OG rewrite and legacy redirects; `wrangler.jsonc` `not_found_handling` serves the SPA shell; `cloudflare/_headers` and `cloudflare/_redirects` are copied into `dist-spa/` at deploy.
 - **Routing**: TanStack Router in `spa/src/router.tsx`. Use `router.navigate()`. Shared code that calls `safeNavigate()` uses the shim in `spa/src/shims/astro-transitions.ts` to drive the router. **Simplified prototype** (native-like shell): on dedicated hosts (`localhost`, `new.harvous.com`, `app.harvous.com`) routes live at **`/`** (e.g. `/`, `/{id}`, `/settings`) — **not** `/prototype`. Compose stays on `/` until first persist, then idle-replaces to `/{id}`. Legacy `/n/{id}` forever-redirects to `/{id}`. Local dev: open `http://localhost:4322/`. Legacy `/prototype` prefix remains only on non-dedicated hosts; see `src/lib/prototype-path.ts`. Architecture: [docs/SIMPLIFIED_WEB_PROTOTYPE.md](docs/SIMPLIFIED_WEB_PROTOTYPE.md), [docs/PROTOTYPE_2_0_ARCHITECTURE.md](docs/PROTOTYPE_2_0_ARCHITECTURE.md).
 - **Data fetching**: React Query hooks in `spa/src/hooks/queries/`. API calls via `spa/src/lib/api.ts`.
 - **Note IDs**: Never reuse deleted IDs; track highest via `UserMetadata.highestSimpleNoteId`.
@@ -191,7 +191,7 @@ db:push` remains general project tooling and is not approved for the Shared Spac
 
 **Cross-device instant sync (Realtime):** After mutations, the API broadcasts on Supabase Realtime channel `sync-{userId}` when `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set. Web uses `useRealtimeSync` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, Clerk template `supabase`). Native uses `HarvousRealtimeSync` (`HARVOUS_SUPABASE_*` in xcconfig). See [docs/SUPABASE_REALTIME_SETUP.md](docs/SUPABASE_REALTIME_SETUP.md). HTTP sync remains authoritative; 5-minute background poll is still a fallback.
 
-**Production data verification (no user data showing):** The API reads from the same Supabase DB. If the app shows no data: (1) In Netlify, confirm `SUPABASE_DATABASE_URL` is set and points to the correct Supabase project. (2) Check Netlify function logs for `[api/content/load-more]` and `[api/user/get-profile]`: 401 = auth (cookies not sent or invalid), 0 items = DB empty or wrong user, 500 = exception. (3) Ensure Clerk cookies are valid for the production domain and that Netlify forwards the `Cookie` header to the function.
+**Production data verification (no user data showing):** The API reads from the same Supabase DB. If the app shows no data: (1) On Fly, confirm `SUPABASE_DATABASE_URL` is set (`fly secrets list`) and points to the correct Supabase project. (2) Check Fly logs (`fly logs`) for `[api/content/load-more]` and `[api/user/get-profile]`: 401 = auth (cookies not sent or invalid), 0 items = DB empty or wrong user, 500 = exception. (3) Ensure Clerk cookies are valid for the production domain.
 
 ## Auth (Clerk)
 

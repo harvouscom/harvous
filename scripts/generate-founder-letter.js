@@ -2,7 +2,7 @@
  * Writes server/routes/founder-letter.inline.generated.ts from
  * src/data/about/founder-letter.md so the API bundle can include the letter
  * without runtime dynamic import (which fails in single-file Netlify deploy).
- * Run before build:api and at dev:api start.
+ * Run before build:fly and at dev:api start.
  */
 
 import fs from 'fs';

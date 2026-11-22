@@ -2,7 +2,7 @@
  * Hono application setup.
  *
  * Central app with middleware and route registration.
- * Used by both the dev server (server/dev.ts) and Netlify Function (server/netlify.ts).
+ * Used by both the dev server (server/dev.ts) and production on Fly (server/fly.ts).
  */
 
 import { Hono } from 'hono';

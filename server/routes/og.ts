@@ -7,9 +7,8 @@
  *   GET /api/og/image/note/:shareToken    — 1200×630 PNG (screenshot only)
  *   GET /api/og/image/thread/:shareToken  — 1200×630 PNG (screenshot only)
  *
- * Production Netlify prefers the dedicated `og-image` function (Chromium) via
- * public/_redirects. These Hono routes power local `dev:api`, and become the
- * production path once /api/* proxies to Fly.
+ * These routes are the production path: the Cloudflare Worker proxies /api/* to
+ * Fly, which renders with system Chromium. They also power local `dev:api`.
  *
  * Origins here come from getPublicAppOrigin(), never from the request URL: every
  * URL these routes emit or screenshot belongs to the SPA, which is served by a
@@ -20,7 +19,7 @@
  * No generated-card fallback — if the screenshot fails, the image route 404s
  * (crawlers unfurl title/description without a preview image).
  *
- * Rollout for unfurls: Netlify edge function `shared-og` rewrites crawler
+ * Rollout for unfurls: the Cloudflare Worker (cloudflare/worker.ts) rewrites crawler
  * user-agents on `/shared/note|thread/:token` to `/api/og/share/...` routes.
  */
 

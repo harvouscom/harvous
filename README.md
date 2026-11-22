@@ -96,7 +96,7 @@ Oh and... animation in Harvous takes inspiration from Emil Kowalski of [Animatio
 ## Technologies
 
 - **Frontend**: [React](https://react.dev) SPA ([Vite](https://vite.dev), [TanStack Router](https://tanstack.com/router), [TanStack Query](https://tanstack.com/query/latest), [Clerk](https://clerk.com))
-- **Backend**: [Hono](https://hono.dev) API in `server/`, deployed as one [Netlify](https://netlify.com) serverless function for `/api/*`
+- **Backend**: [Hono](https://hono.dev) API in `server/`, on [Fly.io](https://fly.io), behind a [Cloudflare](https://workers.cloudflare.com) Worker that serves the SPA and proxies `/api/*`
 - **Database**: [Supabase](https://supabase.com) PostgreSQL with [Drizzle](https://orm.drizzle.team) ORM
 - **UI**: [Tiptap](https://tiptap.dev), [Radix UI](https://radix-ui.com), vanilla CSS
 - **Tooling**: TypeScript, [Vitest](https://vitest.dev), [Playwright](https://playwright.dev), [Capacitor](https://capacitorjs.com) (PWA/native)

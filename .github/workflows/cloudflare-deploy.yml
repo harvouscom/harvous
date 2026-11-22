@@ -1,14 +1,13 @@
 # Deploy the SPA + Worker to Cloudflare (Phase A — docs/CLOUDFLARE_MIGRATION.md).
 #
 # Cloudflare has no git integration, so this replaces what Netlify's build hook did.
-# Netlify keeps building `main` in parallel during the cutover soak; it is the rollback
-# path and is not touched here.
+# Netlify is retired: this workflow is the only deploy path for app/new/status.harvous.com.
 name: Deploy to Cloudflare
 
 on:
   push:
     branches: [main, staging]
-    # Mirrors scripts/netlify-skip-build.sh, which skips only when EVERY changed file is
+    # Mirrors the retired scripts/netlify-skip-build.sh, which skipped only when EVERY changed file was
     # doc-only. paths-ignore reproduces that exactly; a `paths` allowlist would instead
     # silently skip deploys for any path nobody remembered to list.
     paths-ignore:

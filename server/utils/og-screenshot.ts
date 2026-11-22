@@ -5,12 +5,6 @@
  * browser is kept alive between renders — booting one per request cost several
  * seconds and is the single largest slice of a render.
  *
- * Netlify function (still the production path until the /api/* cutover):
- * puppeteer-core + @sparticuz/chromium, one browser per invocation as before.
- * Reuse is deliberately not applied there — the process is short-lived, and
- * changing behavior on the host currently serving production is not worth the
- * risk during the migration.
- *
  * Failure contract: this throws rather than returning a placeholder. Callers
  * (server/routes/og.ts) turn that into a 404 with X-Og-Source: none, because a
  * wrong preview image is worse than none.
@@ -35,29 +29,7 @@ const MAX_CONCURRENT_RENDERS = 1;
  */
 const RENDERS_BEFORE_RECYCLE = 100;
 
-function isServerlessRuntime(): boolean {
-  return !!(
-    process.env.NETLIFY ||
-    process.env.AWS_LAMBDA_FUNCTION_NAME ||
-    process.env.AWS_EXECUTION_ENV
-  );
-}
-
 async function launchBrowser(): Promise<Browser> {
-  if (isServerlessRuntime()) {
-    const chromium = (await import('@sparticuz/chromium')).default;
-    return puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: {
-        width: OG_SHOT_WIDTH,
-        height: OG_SHOT_HEIGHT,
-        deviceScaleFactor: 1,
-      },
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    });
-  }
-
   const executablePath =
     process.env.CHROME_EXECUTABLE_PATH ||
     process.env.PUPPETEER_EXECUTABLE_PATH ||
@@ -105,7 +77,6 @@ async function launchBrowser(): Promise<Browser> {
  * Never throws: warming is an optimization, not a startup requirement.
  */
 export async function prewarmOgRenderer(pageUrl: string): Promise<void> {
-  if (isServerlessRuntime()) return;
   // Log on entry as well as exit: a warm takes ~34s, so without this an absent
   // completion line is ambiguous between skipped, still running, and died.
   console.log('[og-screenshot] prewarm starting');
@@ -181,56 +152,51 @@ export async function captureShareOgScreenshot(pageUrl: string): Promise<Buffer>
   // the browser: a throw there would otherwise leak the slot, and after
   // MAX_CONCURRENT_RENDERS failures the route would wedge for good.
   try {
-    const reuseBrowser = !isServerlessRuntime();
-    const browser = reuseBrowser ? await getRetainedBrowser() : await launchBrowser();
-    if (reuseBrowser) rendersOnCurrentBrowser++;
+    const browser = await getRetainedBrowser();
+    rendersOnCurrentBrowser++;
 
+    const page = await browser.newPage();
     try {
-      const page = await browser.newPage();
-      try {
-        await page.setViewport({
-          width: OG_SHOT_WIDTH,
-          height: OG_SHOT_HEIGHT,
-          deviceScaleFactor: 1,
-        });
+      await page.setViewport({
+        width: OG_SHOT_WIDTH,
+        height: OG_SHOT_HEIGHT,
+        deviceScaleFactor: 1,
+      });
 
-        // Emulate a normal browser so edge bot-rewrite does not intercept.
-        await page.setUserAgent(
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 HarvousOgCapture/1.0',
-        );
+      // Emulate a normal browser so edge bot-rewrite does not intercept.
+      await page.setUserAgent(
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 HarvousOgCapture/1.0',
+      );
 
-        // domcontentloaded, not networkidle2: the SPA keeps connections busy
-        // well past the point the card is on screen, and waitForSelector below
-        // is the real readiness signal.
-        await page.goto(pageUrl, {
-          waitUntil: 'domcontentloaded',
-          timeout: 25_000,
-        });
+      // domcontentloaded, not networkidle2: the SPA keeps connections busy
+      // well past the point the card is on screen, and waitForSelector below
+      // is the real readiness signal.
+      await page.goto(pageUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 25_000,
+      });
 
-        await page.waitForSelector(
-          '.public-paper-stack, .public-card, .public-error-card, .public-content',
-          { timeout: 15_000 },
-        );
+      await page.waitForSelector(
+        '.public-paper-stack, .public-card, .public-error-card, .public-content',
+        { timeout: 15_000 },
+      );
 
-        // Webfonts settle. Waiting on the font set beats a blind sleep — it
-        // returns as soon as the faces are ready instead of always costing
-        // 400ms, and it is correct on a slow render where 400ms was not.
-        await page
-          .evaluate(() => document.fonts.ready.then(() => undefined))
-          .catch(() => {});
+      // Webfonts settle. Waiting on the font set beats a blind sleep — it
+      // returns as soon as the faces are ready instead of always costing
+      // 400ms, and it is correct on a slow render where 400ms was not.
+      await page
+        .evaluate(() => document.fonts.ready.then(() => undefined))
+        .catch(() => {});
 
-        const png = await page.screenshot({
-          type: 'png',
-          clip: { x: 0, y: 0, width: OG_SHOT_WIDTH, height: OG_SHOT_HEIGHT },
-          captureBeyondViewport: false,
-        });
+      const png = await page.screenshot({
+        type: 'png',
+        clip: { x: 0, y: 0, width: OG_SHOT_WIDTH, height: OG_SHOT_HEIGHT },
+        captureBeyondViewport: false,
+      });
 
-        return Buffer.from(png);
-      } finally {
-        await page.close().catch(() => {});
-      }
+      return Buffer.from(png);
     } finally {
-      if (!reuseBrowser) await browser.close().catch(() => {});
+      await page.close().catch(() => {});
     }
   } finally {
     releaseRenderSlot();
