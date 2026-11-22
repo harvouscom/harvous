@@ -156,7 +156,12 @@ In order. The person each step needs is in brackets.
 - **Any change to what's collected or shared:**
   1. Bump `CHILD_NOTICE_VERSION`, which pauses notebooks until parents renew.
   2. Update the public policy to match, in the same release.
-  3. Email parents (§312.4(b)). That email isn't built yet.
+  3. Once that release is live, email parents (§312.4(b)). Write the changes for a parent, one per
+     line, in a file outside the checkout, then run
+     `npx tsx server/scripts/child-notice-change-email.ts --changes=<file> --out=<folder outside the checkout>`.
+     It lists every parent with a paused notebook and writes the email for one notebook and for
+     several. Send one email per parent from derek@harvous.com, then delete the folder. The email
+     never names the child. Copy: `server/family/notice-change-email.ts`.
 
 ## Moving a notebook at 13
 
