@@ -53,6 +53,7 @@ import { buildIndependentCopyAttribution } from './note-versioning';
 import { isNoteTemplateIconColor } from '@/utils/note-template-icon';
 import { validateResourceUrl, extractDomain } from '@/utils/validation';
 import { ensurePersonalLibrary } from './ensure-personal-library';
+import { serializeSequenceNoteIds } from './thread-sequence';
 import type {
   NotePayload,
   PackPayload,
@@ -415,6 +416,13 @@ export async function preparePackInstall(
   const sourceToNew = new Map<string, string>();
   const createdNoteIds: string[] = [];
 
+  /* A study plan's steps join the plan; anything else the pack carried (scripture a
+     step references) still installs, into Home, but outside the plan — a member the
+     order doesn't list would be appended as an extra step. See PackPayload.sequence. */
+  const planSteps = payload.sequence?.stepSourceIds?.length
+    ? new Set(payload.sequence.stepSourceIds)
+    : null;
+
   payload.notes.forEach((note, index) => {
     const newNoteId = generateNoteId();
     sourceToNew.set(note.sourceId, newNoteId);
@@ -422,7 +430,7 @@ export async function preparePackInstall(
     const { row } = buildNoteRow({
       note,
       newNoteId,
-      threadId: newThreadId,
+      threadId: !planSteps || planSteps.has(note.sourceId) ? newThreadId : 'thread_unorganized',
       spaceId,
       userId,
       authorDisplayName,
@@ -430,12 +438,14 @@ export async function preparePackInstall(
       simpleNoteId: effectiveHighest + 1 + index,
     });
     noteRows.push(row);
-    junctionRows.push({
-      id: `note-thread-${newNoteId}-${base + index}-${crypto.randomUUID().slice(0, 9)}`,
-      noteId: newNoteId,
-      threadId: newThreadId,
-      createdAt: ts,
-    } as typeof NoteThreads.$inferInsert);
+    if (!planSteps || planSteps.has(note.sourceId)) {
+      junctionRows.push({
+        id: `note-thread-${newNoteId}-${base + index}-${crypto.randomUUID().slice(0, 9)}`,
+        noteId: newNoteId,
+        threadId: newThreadId,
+        createdAt: ts,
+      } as typeof NoteThreads.$inferInsert);
+    }
     const sidecars = sidecarRows(note, newNoteId, ts);
     scriptureRows.push(...sidecars.scripture);
     resourceRows.push(...sidecars.resource);
@@ -459,6 +469,21 @@ export async function preparePackInstall(
     } as typeof NoteScriptureReferences.$inferInsert);
   }
 
+  const stepIds = planSteps
+    ? payload.sequence!.stepSourceIds
+        .map((id) => sourceToNew.get(id))
+        .filter((id): id is string => Boolean(id))
+    : [];
+  /* Lands as a personal reading plan, at its first step: the same shape
+     `copyStudyPlanThread` gives a church plan copied into Home. */
+  const planColumns = stepIds.length > 0
+    ? {
+        mode: 'sequence',
+        sequenceNoteIds: serializeSequenceNoteIds(stepIds),
+        sequenceCurrentNoteId: stepIds[0],
+      }
+    : {};
+
   return {
     kind: 'pack',
     primaryRefId: newThreadId,
@@ -472,6 +497,7 @@ export async function preparePackInstall(
       userId,
       isPublic: false,
       color: payload.thread.color || 'paper',
+      ...planColumns,
       createdAt: ts,
       updatedAt: ts,
       lastVisited: ts,

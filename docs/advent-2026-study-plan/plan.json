@@ -1,0 +1,34 @@
+{
+  "sourceId": "harvous-plan-advent-2026",
+  "slug": "advent-hope-peace-joy-love",
+  "title": "Advent: Hope, Peace, Joy, Love",
+  "description": "Four weeks of Advent: a passage, daily readings and questions each week. Start any day.",
+  "category": "topical-study",
+  "thread": {
+    "title": "Advent: Hope, Peace, Joy, Love",
+    "subtitle": "Four weeks to Christmas, one step a week",
+    "color": "paper"
+  },
+  "steps": [
+    {
+      "title": "Week 1: Hope",
+      "contentFile": "01-week-1-hope.html"
+    },
+    {
+      "title": "Week 2: Peace",
+      "contentFile": "02-week-2-peace.html"
+    },
+    {
+      "title": "Week 3: Joy",
+      "contentFile": "03-week-3-joy.html"
+    },
+    {
+      "title": "Week 4: Love",
+      "contentFile": "04-week-4-love.html"
+    },
+    {
+      "title": "Christmas: The Word became flesh",
+      "contentFile": "05-christmas-day.html"
+    }
+  ]
+}
