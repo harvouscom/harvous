@@ -272,6 +272,10 @@ There is **no attendance and no RSVP**. That is ChMS work.
 - **Tags** for age group, topic and book.
 - **Church-wide search**, for staff and for congregants.
 - **A plan repository** reusable across years and channels, alongside series re-runs.
+- **Built (Nov 26 2026): publish a plan from your own study into a channel.** Staff add a plan to My Home (from
+  Discover, a shared link, or their own) and use "Publish to a channel" on it. The channel gets an independent
+  copy with every step live at once; members walk it at their own pace. One publish per plan per person, content
+  approval honoured. `POST /api/threads/:threadId/publish-to-channel`, `server/utils/study-plan-publish.ts`.
 - **`thread_ref` and `pack` library items**, which have no writers today.
 - **Per-item counts:** opens, copies, "used in N groups". Counts only.
 
