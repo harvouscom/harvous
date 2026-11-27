@@ -12765,26 +12765,58 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   line-height: 1.45;
 }
 
-/* The church join link — the QR on a white tile whatever the theme (a code only
-   scans dark-on-light), the link under it, and the actions in a row. */
-.proto-church-join__lede {
-  margin: 0 2px 12px;
-  line-height: 1.45;
-}
+/* The church join link (Nov 27 2026 redesign).
 
-.proto-church-join__card {
+   Borrows the child notebook's calm page shape: one preview of the real thing,
+   one primary action, then labelled groups of quiet rows. The preview is a sheet
+   of paper with the church's name in display type above the code, so staff see
+   what a bulletin or slide will carry. The QR stays on white whatever the theme
+   (a code only scans dark-on-light). Replace and Turn off are rows at the end,
+   not buttons as loud as Copy link. */
+.proto-church-join__poster {
+  margin: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 16px;
+  gap: var(--pds-space-4);
+  padding: var(--pds-space-6) var(--pds-space-5) var(--pds-space-5);
+  border-radius: var(--pds-radius-card);
+  border: 1px solid var(--pds-border-soft);
+  background: var(--pds-bg-main);
+  box-shadow: var(--pds-shadow-paper-panel);
+  text-align: center;
+}
+
+.proto-church-join__poster-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-1);
+  max-width: 100%;
+}
+
+.proto-church-join__eyebrow {
+  color: var(--pds-text-secondary);
+}
+
+.proto-church-join__church {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.25;
+  color: var(--pds-text-primary);
+  text-wrap: balance;
 }
 
 .proto-church-join__qr {
   display: block;
-  width: 176px;
-  height: 176px;
-  border-radius: 12px;
+  width: 184px;
+  height: 184px;
+  padding: 10px;
+  box-sizing: content-box;
+  border-radius: var(--pds-radius-input);
+  border: 1px solid var(--pds-border-soft);
   background: #fff;
 }
 
@@ -12793,36 +12825,42 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--pds-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
-.proto-church-join__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-}
-
-.proto-church-join__actions .proto-settings-btn {
+.proto-church-join__copy {
   gap: 6px;
+  margin-top: var(--pds-space-4);
+}
+
+.proto-church-join__lede {
+  margin: var(--pds-space-3) 2px 0;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+  text-wrap: pretty;
+}
+
+.proto-church-join__label {
+  margin: var(--pds-space-6) 2px var(--pds-space-2);
+}
+
+/* Red on the words only, on approach: turning the link off is reversible (make a
+   new one), so it gets the quiet-action weight, not the red slab. */
+@media (hover: hover) and (pointer: fine) {
+  .proto-church-join__danger:not(:disabled):hover .proto-church-tools__row-title {
+    color: var(--pds-destructive);
+  }
+}
+
+.proto-church-join__danger:focus-visible .proto-church-tools__row-title {
+  color: var(--pds-destructive);
 }
 
 .proto-church-join__count {
   margin: 12px 2px 0;
   opacity: 0.72;
   line-height: 1.45;
-}
-
-.proto-church-join__manage {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-/* The app reset sets `flex-shrink: 0` everywhere and these buttons are full-width,
-   so without this the second one is pushed off the pane. */
-.proto-church-join__manage .proto-settings-btn {
-  flex: 1 1 0;
-  min-width: 0;
 }
 
 /* ── Church review questions (hub pane + editor) ──────────────────────────── */

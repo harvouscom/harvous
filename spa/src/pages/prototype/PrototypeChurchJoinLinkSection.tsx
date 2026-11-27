@@ -11,6 +11,10 @@
  * printed copy.
  *
  * The count is the whole of what it reports — how many joined through a link, never who.
+ *
+ * Laid out like the child notebook's calm pages (Nov 27 2026): one preview of the printed
+ * thing, one primary action, then labelled groups of quiet rows. The destructive actions
+ * sit last, as rows, instead of as buttons the same size as Copy link.
  */
 import { useState } from 'react';
 import Icon from '@/components/react/Icon';
@@ -19,6 +23,7 @@ import { useChurchJoinLink, useChurchJoinLinkActions } from '../../hooks/queries
 import { filenameSlug, saveBlob, svgToPngBlob } from '../../lib/svg-to-png';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import PrototypeSectionHeader from './design-system/PrototypeSectionHeader';
 
 type PendingConfirm = { action: 'rotate' | 'revoke'; rect: DOMRect };
 
@@ -94,75 +99,137 @@ export default function PrototypeChurchJoinLinkSection({
     }
   }
 
+  const joinedLine =
+    totalJoined === 0
+      ? 'Nobody has joined yet'
+      : totalJoined === 1
+        ? '1 person has joined'
+        : `${totalJoined} people have joined`;
+
   return (
     <div className="proto-home-section proto-church-join">
-      <p className="proto-caption proto-church-join__lede">
-        One link for your whole church. Anyone who opens it can make a free account, connect to{' '}
-        {churchName}, and choose what to follow.
-      </p>
-
       {link && qrSvg ? (
         <>
-          <div className="proto-glass-surface proto-glass-surface--panel proto-church-join__card">
+          {/* A preview of the thing itself: what a bulletin, slide or poster will carry.
+              Paper, the church's name in display type, the code, and the address under it. */}
+          <figure className="proto-church-join__poster">
+            <figcaption className="proto-church-join__poster-head">
+              <span className="pds-caption proto-church-join__eyebrow">Scan to join on Harvous</span>
+              <span className="proto-church-join__church">{churchName}</span>
+            </figcaption>
             {/* Always black on white, whatever the app's theme: that is the code that scans. */}
             <img
               className="proto-church-join__qr"
               src={`data:image/svg+xml;utf8,${encodeURIComponent(qrSvg)}`}
               alt={`QR code for ${churchName}'s Harvous link`}
-              width={176}
-              height={176}
+              width={184}
+              height={184}
             />
-            <p className="proto-caption proto-church-join__url" title={link.url}>
+            <span className="pds-caption proto-church-join__url" title={link.url}>
               {link.url.replace(/^https?:\/\//, '')}
-            </p>
-            <div className="proto-church-join__actions">
-              <button type="button" className="proto-settings-btn" onClick={copyLink}>
-                <Icon name={copied ? 'check' : 'copy'} size={12} />
-                {copied ? 'Copied' : 'Copy link'}
-              </button>
-              {/* PNG for slides and email; SVG for anything printed at any size. */}
-              <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={() => void downloadPng()}>
-                Download PNG
-              </button>
-              <button type="button" className="proto-settings-btn proto-settings-btn--secondary" onClick={downloadSvg}>
-                Download SVG
-              </button>
+            </span>
+          </figure>
+
+          <button type="button" className="proto-settings-btn proto-church-join__copy" onClick={copyLink}>
+            <Icon name={copied ? 'check' : 'link'} size={12} />
+            {copied ? 'Copied' : 'Copy link'}
+          </button>
+          <p className="pds-caption proto-church-join__lede">
+            One link for your whole church. Anyone who opens it can make a free account, connect, and choose
+            what to follow.
+          </p>
+
+          <PrototypeSectionHeader variant="list" className="proto-church-join__label">
+            Print or share
+          </PrototypeSectionHeader>
+          <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+            {/* PNG for slides and email; SVG for anything printed at any size. */}
+            <button type="button" className="proto-church-tools__row" onClick={() => void downloadPng()}>
+              <span className="proto-church-tools__row-icon" aria-hidden>
+                <Icon name="file-image" size={13} />
+              </span>
+              <span className="proto-church-tools__row-text">
+                <span className="pds-list-title proto-church-tools__row-title">Download PNG</span>
+                <span className="proto-caption proto-church-tools__row-meta">For slides, screens and email</span>
+              </span>
+              <span className="proto-church-tools__row-chevron" aria-hidden>
+                <Icon name="cloud-arrow-down" size={12} />
+              </span>
+            </button>
+            <button type="button" className="proto-church-tools__row" onClick={downloadSvg}>
+              <span className="proto-church-tools__row-icon" aria-hidden>
+                <Icon name="file-lines" size={13} />
+              </span>
+              <span className="proto-church-tools__row-text">
+                <span className="pds-list-title proto-church-tools__row-title">Download SVG</span>
+                <span className="proto-caption proto-church-tools__row-meta">Stays sharp at any print size</span>
+              </span>
+              <span className="proto-church-tools__row-chevron" aria-hidden>
+                <Icon name="cloud-arrow-down" size={12} />
+              </span>
+            </button>
+          </div>
+
+          <PrototypeSectionHeader variant="list" className="proto-church-join__label">
+            Through this link
+          </PrototypeSectionHeader>
+          <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+            <div className="proto-church-tools__row proto-church-tools__row--status" role="status">
+              <span className="proto-church-tools__row-icon" aria-hidden>
+                <Icon name="user-group" size={13} />
+              </span>
+              <span className="proto-church-tools__row-text">
+                <span className="pds-list-title proto-church-tools__row-title">{joinedLine}</span>
+                <span className="proto-caption proto-church-tools__row-meta">A count only. Harvous never shows who.</span>
+              </span>
             </div>
           </div>
 
-          <p className="proto-caption proto-church-join__count">
-            {totalJoined === 0
-              ? 'Nobody has joined through a link yet.'
-              : totalJoined === 1
-                ? '1 person has joined through a link.'
-                : `${totalJoined} people have joined through a link.`}{' '}
-            A count, never who.
-          </p>
-
           {canManage ? (
-            <div className="proto-church-join__manage">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary"
-                disabled={busy || lapsed}
-                title={lapsed ? 'Your church’s plan has ended' : undefined}
-                onClick={(event) => setConfirm({ action: 'rotate', rect: event.currentTarget.getBoundingClientRect() })}
-              >
-                Replace link
-              </button>
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary"
-                disabled={busy}
-                onClick={(event) => setConfirm({ action: 'revoke', rect: event.currentTarget.getBoundingClientRect() })}
-              >
-                Turn off
-              </button>
-            </div>
+            <>
+              <PrototypeSectionHeader variant="list" className="proto-church-join__label">
+                Manage
+              </PrototypeSectionHeader>
+              <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+                <button
+                  type="button"
+                  className="proto-church-tools__row"
+                  disabled={busy || lapsed}
+                  title={lapsed ? 'Your church’s plan has ended' : undefined}
+                  onClick={(event) => setConfirm({ action: 'rotate', rect: event.currentTarget.getBoundingClientRect() })}
+                >
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="arrows-rotate" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    <span className="pds-list-title proto-church-tools__row-title">Replace link</span>
+                    <span className="proto-caption proto-church-tools__row-meta">Printed copies stop working</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="proto-church-tools__row proto-church-join__danger"
+                  disabled={busy}
+                  onClick={(event) => setConfirm({ action: 'revoke', rect: event.currentTarget.getBoundingClientRect() })}
+                >
+                  <span className="proto-church-tools__row-icon" aria-hidden>
+                    <Icon name="circle-stop" size={13} />
+                  </span>
+                  <span className="proto-church-tools__row-text">
+                    <span className="pds-list-title proto-church-tools__row-title">Turn off link</span>
+                    <span className="proto-caption proto-church-tools__row-meta">You can make a new one later</span>
+                  </span>
+                </button>
+              </div>
+            </>
           ) : null}
         </>
       ) : canManage ? (
         <>
+          <p className="pds-caption proto-church-join__lede">
+            One link and QR for your whole church. Anyone who opens it can make a free account, connect to{' '}
+            {churchName}, and choose what to follow.
+          </p>
           <button
             type="button"
             className="proto-settings-btn"
