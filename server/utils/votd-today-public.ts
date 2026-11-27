@@ -141,6 +141,14 @@ export async function votdTodayPublicHandler(c: Context) {
       c.res.headers.append('Vary', 'Authorization, Cookie');
     } else {
       c.res.headers.set('Cache-Control', `public, max-age=${maxAge}`);
+      /*
+       * Varied here too, not only on a member's answer. A member's request that reached the server
+       * without its session (an expired `__session` cookie on resume, before Clerk refreshed it)
+       * got this guest answer — reference only, no words — and with no `Vary` the browser could
+       * hand that same response back to the member's next, signed-in request for the rest of the
+       * hour. No words means no card: today's passage was only a row at the back of Suggestions.
+       */
+      c.res.headers.append('Vary', 'Authorization, Cookie');
     }
 
     /*
@@ -194,6 +202,13 @@ export async function votdTodayPublicHandler(c: Context) {
      * the request it happened on and nothing else.
      */
     c.res.headers.set('Cache-Control', 'private, no-store');
-    return c.json({ reference: null });
+    /*
+     * And never as a success. A 200 saying "no passage today" is an answer the client has to
+     * believe: it held it for an hour of `staleTime` with nothing to retry, so a blip while Home
+     * was loading still cost the card until the next hour or a reload. A 503 is a failed fetch,
+     * which React Query retries and refetches on the next focus. Native treats any non-2xx as
+     * "no passage", exactly as it treated the empty body.
+     */
+    return c.json({ reference: null, error: 'votd_unavailable' }, 503);
   }
 }

@@ -57,7 +57,12 @@ export function useNoticeItems(): {
 } {
   const navigate = useNavigate();
   const { isGuest } = useHarvousIdentity();
-  const { state: onboardingState, ready: onboardingReady } = useOnboardingState();
+  /*
+   * The account's answer, not this device's cached copy: a card put away on another device since
+   * the cache was written would otherwise show here and then vanish when the account answers.
+   * See `useActiveCallouts`.
+   */
+  const { state: onboardingState, hydrated: onboardingReady } = useOnboardingState();
   const seen = onboardingState.calloutsSeen ?? {};
   const account = useAccountCreatedAt();
   const plus = useHasFeature('review');
@@ -74,6 +79,8 @@ export function useNoticeItems(): {
   const whatsNewEligible =
     onboardingReady &&
     account.ready &&
+    /* Whether a feature callout speaks for the release can turn on Plus, so wait for it. */
+    (isGuest || plus.ready) &&
     !isGuest &&
     account.createdAt !== undefined &&
     now - account.createdAt >= NEW_ACCOUNT_MS &&
@@ -104,6 +111,7 @@ export function useNoticeItems(): {
   const importPrompt = useDismissibleImportPrompt();
   const importVisible =
     !isGuest &&
+    onboardingReady &&
     importPrompt.ready &&
     !importPrompt.dismissed &&
     !onboardingOwnsOffer(onboardingState, 'import', isGuest);

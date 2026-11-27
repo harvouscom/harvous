@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@clerk/clerk-react';
 import { fetchVotdToday, todayCalendarDayKey } from '../../lib/votd-today';
 import { useTradition } from '../useTradition';
 import { useLocalDay } from '../useLocalDay';
@@ -6,9 +7,9 @@ import { useLocalDay } from '../useLocalDay';
 /** Prefix for every day's entry — invalidate and `setQueriesData` with this. */
 export const votdTodayQueryKey = ['votd', 'today'] as const;
 
-/** One local day's entry. */
-export function votdTodayKeyFor(day: string = todayCalendarDayKey()) {
-  return [...votdTodayQueryKey, day] as const;
+/** One local day's entry, for one reader: a member's carries the words, a guest's does not. */
+export function votdTodayKeyFor(day: string = todayCalendarDayKey(), userId?: string | null) {
+  return [...votdTodayQueryKey, day, userId ?? 'guest'] as const;
 }
 
 /**
@@ -22,9 +23,16 @@ export function votdTodayKeyFor(day: string = todayCalendarDayKey()) {
 export function useVotdToday(options?: { enabled?: boolean }) {
   const tradition = useTradition();
   const day = useLocalDay();
+  /*
+   * Waits for Clerk, and is keyed by who is asking. Asked before Clerk had loaded, the request
+   * went out without a session and came back as a guest's answer — the reference, no words —
+   * which the card cannot show, and the query then held that for its hour even once the member
+   * was plainly signed in. A guest's answer is never a member's.
+   */
+  const { isLoaded, userId } = useAuth();
   return useQuery({
-    queryKey: votdTodayKeyFor(day),
-    enabled: options?.enabled !== false,
+    queryKey: votdTodayKeyFor(day, userId),
+    enabled: options?.enabled !== false && isLoaded,
     queryFn: () => fetchVotdToday(tradition, day),
     staleTime: 60 * 60 * 1000,
     retry: 1,

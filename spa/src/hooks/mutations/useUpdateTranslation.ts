@@ -57,7 +57,7 @@ export function useUpdateTranslation() {
       await queryClient.cancelQueries({ queryKey: key });
 
       const previousProfile = queryClient.getQueryData<UserProfile>(key);
-      const votdKey = votdTodayKeyFor();
+      const votdKey = votdTodayKeyFor(undefined, userId);
       const previousVotd = queryClient.getQueryData<VotdToday | null>(votdKey);
       const previousDefault =
         previousProfile?.defaultTranslation ??

@@ -280,3 +280,29 @@ describe('votdTodayPublicHandler caching', () => {
     expect(cacheControl(ctx)).toBe('public, max-age=60');
   });
 });
+
+describe('votdTodayPublicHandler failure', () => {
+  it('fails as a failure, uncached, so the client retries instead of believing "no passage"', async () => {
+    vi.clearAllMocks();
+    mockGetAuth.mockReturnValue({ userId: 'user_abc' });
+    mockSelect.mockImplementationOnce(() => {
+      throw new Error('pool timeout');
+    });
+    const json = vi.fn((body: unknown, status?: number) => ({ body, status }));
+    const ctx = makeContext({ tz: 'UTC' }) as unknown as { json: typeof json; res: { headers: { set: ReturnType<typeof vi.fn> } } };
+    ctx.json = json;
+    const result = (await votdTodayPublicHandler(ctx as unknown as Context)) as unknown as { status?: number };
+    expect(result.status).toBe(503);
+    expect(ctx.res.headers.set).toHaveBeenCalledWith('Cache-Control', 'private, no-store');
+  });
+
+  it('varies a guest’s answer on the session, so a member is never handed it from cache', async () => {
+    vi.clearAllMocks();
+    mockFirst.mockImplementation((rows: unknown) => (Array.isArray(rows) ? rows[0] : undefined));
+    mockGetAuth.mockReturnValue({ userId: null });
+    mockExactVotdRow({ reference: 'Romans 8:28', translation: 'NET' });
+    const ctx = makeContext({ tz: 'UTC' }) as unknown as { res: { headers: { append: ReturnType<typeof vi.fn> } } };
+    await votdTodayPublicHandler(ctx as unknown as Context);
+    expect(ctx.res.headers.append).toHaveBeenCalledWith('Vary', 'Authorization, Cookie');
+  });
+});
