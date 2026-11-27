@@ -17166,7 +17166,7 @@ html.harvous-prototype-route
      Long channel names ellipsise, and the menu carries the full list anyway.
      It shrinks before the header's gutter does — a narrow panel should cost
      the channel name a few characters, not collide two chip groups. */
-  flex: 0 1 196px;
+  flex: 0 1 164px;
   min-width: 108px;
 }
 
@@ -17190,6 +17190,12 @@ html.harvous-prototype-route
   flex: 1 1 0;
   min-width: 0;
 }
+/* The one-off add beside the primary: a quieter pill, never wrapped. */
+.proto-planner__secondary-add {
+  white-space: nowrap;
+  color: var(--pds-text-secondary);
+}
+
 .proto-planner__readonly {
   padding: 14px;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
