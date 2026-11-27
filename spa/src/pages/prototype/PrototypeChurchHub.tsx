@@ -47,7 +47,7 @@ import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSec
 import PrototypeChurchEngagementSection from './PrototypeChurchEngagementSection';
 import PrototypeChurchJoinLinkSection from './PrototypeChurchJoinLinkSection';
 import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
-import PrototypeChurchSetupCard from './PrototypeChurchSetupCard';
+import PrototypeChurchSetupCard, { useChurchSetupDismissed } from './PrototypeChurchSetupCard';
 import { churchSetupSteps, type ChurchSetupStepId } from '../../lib/church-setup-steps';
 import { useChurchSettings } from '../../hooks/queries/useChurchSettings';
 import { useChurchJoinLink } from '../../hooks/queries/useChurchJoin';
@@ -320,6 +320,7 @@ export default function PrototypeChurchHub() {
     | 'settings'
     | 'engagement'
     | 'join-link'
+    | 'setup'
   >('catalog');
   const pendingFollowId = followChannel.isPending
     ? followChannel.variables?.spaceId ?? null
@@ -515,6 +516,25 @@ export default function PrototypeChurchHub() {
       setupJoinLinkQuery.data?.link?.useCount,
     ],
   );
+  /* Put away, but not finished: the steps stay one tap away at the top of Tools. */
+  const setupDismissed = useChurchSetupDismissed();
+  const setupLeft = setupSteps.filter((step) => !step.done).length;
+  const toolRows = useMemo<ProtoToolRow[]>(
+    () =>
+      setupDismissed && setupLeft > 0
+        ? [
+            {
+              key: 'setup',
+              icon: 'list-check',
+              title: 'Get set up',
+              meta: `${setupSteps.length - setupLeft} of ${setupSteps.length} done`,
+              onSelect: () => setToolsView('setup'),
+            },
+            ...churchToolRows,
+          ]
+        : churchToolRows,
+    [setupDismissed, setupLeft, setupSteps.length, churchToolRows],
+  );
   const openSetupStep = (id: ChurchSetupStepId) => {
     if (id === 'times') setToolsView('settings');
     else if (id === 'channel') openCreateSheet('ministry');
@@ -593,7 +613,9 @@ export default function PrototypeChurchHub() {
               ? 'Engagement'
               : toolsView === 'join-link'
                 ? 'Invite link'
-                : churchName;
+                : toolsView === 'setup'
+                  ? 'Get set up'
+                  : churchName;
 
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
@@ -735,6 +757,8 @@ export default function PrototypeChurchHub() {
               canView={canCreateChurchContent}
               lapsed={churchPlanLapsed}
             />
+          ) : toolsView === 'setup' ? (
+            <PrototypeChurchSetupCard steps={setupSteps} onSelect={openSetupStep} mode="pane" />
           ) : toolsView === 'settings' ? (
             <PrototypeChurchSettingsSection
               orgId={orgId}
@@ -931,7 +955,7 @@ export default function PrototypeChurchHub() {
             canManageChurchSettings ? (
               <div className="proto-home-section">
                 <p className="proto-caption proto-home-section__eyebrow">Tools</p>
-                <ProtoToolsRowList rows={churchToolRows} cascade>
+                <ProtoToolsRowList rows={toolRows} cascade>
                   {/* Silent while the church is paid and healthy. */}
                   <PrototypeChurchPlanRow orgId={orgId} canManageBilling={billingEnabled} />
                 </ProtoToolsRowList>
