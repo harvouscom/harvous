@@ -21,6 +21,7 @@ import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 import { useChurchJoinLink, useChurchJoinLinkActions } from '../../hooks/queries/useChurchJoin';
 import { filenameSlug, saveBlob, svgToPngBlob } from '../../lib/svg-to-png';
+import { JOIN_POSTER_HEIGHT, JOIN_POSTER_WIDTH, joinPosterSvg } from '../../lib/church-join-poster';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeSectionHeader from './design-system/PrototypeSectionHeader';
@@ -61,7 +62,9 @@ export default function PrototypeChurchJoinLinkSection({
 
   const { link, qrSvg, totalJoined, canManage } = data;
   const busy = actions.isPending;
-  const fileBase = `${filenameSlug(churchName)}-harvous-qr`;
+  const fileBase = `${filenameSlug(churchName)}-harvous`;
+  /* The poster files are the card previewed above, so what gets printed is what staff saw. */
+  const posterSvg = link && qrSvg ? joinPosterSvg({ churchName, qrSvg, url: link.url }) : null;
 
   function run(action: 'create' | 'rotate' | 'revoke') {
     actions.mutate(action, {
@@ -85,17 +88,31 @@ export default function PrototypeChurchJoinLinkSection({
     }
   }
 
-  function downloadSvg() {
-    if (!qrSvg) return;
-    saveBlob(new Blob([qrSvg], { type: 'image/svg+xml' }), `${fileBase}.svg`);
+  function downloadPosterSvg() {
+    if (!posterSvg) return;
+    saveBlob(new Blob([posterSvg], { type: 'image/svg+xml' }), `${fileBase}-poster.svg`);
   }
 
-  async function downloadPng() {
-    if (!qrSvg) return;
+  async function downloadPosterPng() {
+    if (!posterSvg) return;
     try {
-      saveBlob(await svgToPngBlob(qrSvg), `${fileBase}.png`);
+      /* Twice the drawing's size: crisp on a projector, and on paper up to about letter size. */
+      saveBlob(
+        await svgToPngBlob(posterSvg, JOIN_POSTER_WIDTH * 2, JOIN_POSTER_HEIGHT * 2),
+        `${fileBase}-poster.png`,
+      );
     } catch {
       toast.error('Could not make the PNG — try the SVG');
+    }
+  }
+
+  /* The bare code, for staff dropping it into a design of their own. */
+  async function downloadQrPng() {
+    if (!qrSvg) return;
+    try {
+      saveBlob(await svgToPngBlob(qrSvg), `${fileBase}-qr.png`);
+    } catch {
+      toast.error('Could not make the PNG');
     }
   }
 
@@ -143,26 +160,38 @@ export default function PrototypeChurchJoinLinkSection({
             Print or share
           </PrototypeSectionHeader>
           <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
-            {/* PNG for slides and email; SVG for anything printed at any size. */}
-            <button type="button" className="proto-church-tools__row" onClick={() => void downloadPng()}>
+            {/* The poster as shown, PNG for slides and email, SVG for anything printed. */}
+            <button type="button" className="proto-church-tools__row" onClick={() => void downloadPosterPng()}>
               <span className="proto-church-tools__row-icon" aria-hidden>
                 <Icon name="file-image" size={13} />
               </span>
               <span className="proto-church-tools__row-text">
-                <span className="pds-list-title proto-church-tools__row-title">Download PNG</span>
-                <span className="proto-caption proto-church-tools__row-meta">For slides, screens and email</span>
+                <span className="pds-list-title proto-church-tools__row-title">Poster as PNG</span>
+                <span className="proto-caption proto-church-tools__row-meta">The card above, for slides, screens and email</span>
               </span>
               <span className="proto-church-tools__row-chevron" aria-hidden>
                 <Icon name="cloud-arrow-down" size={12} />
               </span>
             </button>
-            <button type="button" className="proto-church-tools__row" onClick={downloadSvg}>
+            <button type="button" className="proto-church-tools__row" onClick={downloadPosterSvg}>
               <span className="proto-church-tools__row-icon" aria-hidden>
                 <Icon name="file-lines" size={13} />
               </span>
               <span className="proto-church-tools__row-text">
-                <span className="pds-list-title proto-church-tools__row-title">Download SVG</span>
+                <span className="pds-list-title proto-church-tools__row-title">Poster as SVG</span>
                 <span className="proto-caption proto-church-tools__row-meta">Stays sharp at any print size</span>
+              </span>
+              <span className="proto-church-tools__row-chevron" aria-hidden>
+                <Icon name="cloud-arrow-down" size={12} />
+              </span>
+            </button>
+            <button type="button" className="proto-church-tools__row" onClick={() => void downloadQrPng()}>
+              <span className="proto-church-tools__row-icon" aria-hidden>
+                <Icon name="table-cells" size={13} />
+              </span>
+              <span className="proto-church-tools__row-text">
+                <span className="pds-list-title proto-church-tools__row-title">QR code only</span>
+                <span className="proto-caption proto-church-tools__row-meta">Just the code, for a design of your own</span>
               </span>
               <span className="proto-church-tools__row-chevron" aria-hidden>
                 <Icon name="cloud-arrow-down" size={12} />
