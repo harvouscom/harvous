@@ -18,7 +18,10 @@ Themes follow a common Protestant Advent pattern (hope, peace, joy, love) and sa
 
 ```bash
 npm run discover:publish-plan -- docs/advent-2026-study-plan            # dry run
-npm run discover:publish-plan -- docs/advent-2026-study-plan --apply --production
+npm run discover:publish-plan -- docs/advent-2026-study-plan --apply --submit --production   # review queue
+npm run discover:publish-plan -- docs/advent-2026-study-plan --apply --production            # straight to listed
 ```
+
+With `--submit` the plan waits in admin Discover; approving it there (category topical-study, official on) assigns the slug and lists it.
 
 Idempotent on `plan.json`'s `sourceId`: re-running after an edit updates the listing in place. People who already installed keep their own copy. Then let the catalog sync (`sync-discover-catalog.yml`) refresh harvous.com/discover.

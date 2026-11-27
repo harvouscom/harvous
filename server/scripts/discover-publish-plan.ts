@@ -14,9 +14,13 @@
  * plan's own stable id. Idempotent on that id, so re-running after an edit
  * republishes in place. People who already installed keep their copy.
  *
+ * `--submit` puts it in the admin review queue instead (`status: 'submitted'`,
+ * no slug yet), so it can be read in the app and approved from admin Discover,
+ * which is what assigns the slug and lists it. Nothing is public until then.
+ *
  * Usage (dry by default):
  *   npx tsx server/scripts/discover-publish-plan.ts docs/advent-2026-study-plan
- *   npx tsx server/scripts/discover-publish-plan.ts docs/advent-2026-study-plan --apply [--production]
+ *   npx tsx server/scripts/discover-publish-plan.ts docs/advent-2026-study-plan --apply [--submit] [--production]
  */
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
@@ -81,6 +85,7 @@ async function main() {
   const folder = argv.find((a) => !a.startsWith('--'));
   if (!folder) throw new Error('Pass the plan folder, e.g. docs/advent-2026-study-plan');
   const apply = argv.includes('--apply');
+  const submitOnly = argv.includes('--submit');
   requireDbTarget({ scriptName: 'discover:publish-plan', writes: apply, argv, env: process.env });
 
   const dir = resolve(process.cwd(), folder);
@@ -107,8 +112,27 @@ async function main() {
         .where(eq(DiscoverListings.id, existing.id));
     }
   } else {
-    console.log(`  ${apply ? 'CREATE' : 'would create'}  ${plan.slug} — ${plan.title} (${plan.steps.length} steps)`);
-    if (apply) {
+    console.log(
+      `  ${apply ? 'CREATE' : 'would create'}  ${submitOnly ? '(review queue)' : plan.slug} — ${plan.title} (${plan.steps.length} steps)`,
+    );
+    if (apply && submitOnly) {
+      await db.insert(DiscoverListings).values({
+        id: `dsc_${crypto.randomUUID()}`,
+        kind: 'pack',
+        sourceId: plan.sourceId,
+        submittedByUserId: authorId,
+        authorDisplayName: null,
+        title: plan.title,
+        description: plan.description,
+        category: plan.category,
+        payload,
+        preview,
+        status: 'submitted',
+        installCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } else if (apply) {
       await db.insert(DiscoverListings).values({
         id: `dsc_${crypto.randomUUID()}`,
         kind: 'pack',
