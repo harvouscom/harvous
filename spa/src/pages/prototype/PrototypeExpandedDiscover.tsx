@@ -40,7 +40,7 @@ import {
   discoverCategoryColor,
   discoverCategoryLabel,
 } from '@/data/discover-categories';
-import { useDiscoverListings, type DiscoverListing } from '../../hooks/queries/useDiscoverListings';
+import { discoverListingStepCount, useDiscoverListings, type DiscoverListing } from '../../hooks/queries/useDiscoverListings';
 import { useInstallDiscoverListing } from '../../hooks/mutations/useDiscoverMutations';
 import { consumePendingDiscoverKind } from '../../lib/pending-discover-kind';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -101,7 +101,8 @@ function listingIcon(listing: DiscoverListing): IconName {
     case 'template':
       return NOTE_TEMPLATE_ICON_NAME;
     case 'pack':
-      return 'arrow-right-arrow-left';
+      /* A study plan is read in order, so it wears the numbered list every step order does. */
+      return discoverListingStepCount(listing) ? 'list-ol' : 'arrow-right-arrow-left';
     case 'resource':
       /* The type's own glyph where harvous.com gives one — a play button, a lexicon's lens —
          and the newspaper every other link wears. */
@@ -161,6 +162,7 @@ function listingKindLabel(listing: DiscoverListing): string {
   if (listing.kind === 'resource' && listing.preview?.resourceType) {
     return DISCOVER_RESOURCE_TYPE_NOUN[listing.preview.resourceType] ?? KIND_NOUN.resource;
   }
+  if (discoverListingStepCount(listing)) return 'Study plan';
   return KIND_NOUN[listing.kind] ?? 'Item';
 }
 
@@ -170,8 +172,11 @@ function listingMeta(listing: DiscoverListing): string[] {
   if (listing.authorDisplayName) meta.push(`by ${listing.authorDisplayName}`);
   if (listing.category) meta.push(discoverCategoryLabel(listing.category));
   if (listing.kind === 'pack') {
+    /* A plan counts its steps: its note count includes the Scripture a step carries along. */
+    const steps = discoverListingStepCount(listing);
     const count = listing.preview?.noteCount;
-    if (count) meta.push(`${count} notes`);
+    if (steps) meta.push(steps === 1 ? '1 step' : `${steps} steps`);
+    else if (count) meta.push(`${count} notes`);
   }
   if (listing.installCount > 0) meta.push(`saved by ${listing.installCount}`);
   return meta;

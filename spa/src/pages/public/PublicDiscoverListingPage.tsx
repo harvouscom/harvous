@@ -19,7 +19,7 @@ import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
 import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pending-auth-redirect';
 import { useInstallDiscoverListing } from '../../hooks/mutations/useDiscoverMutations';
-import type { DiscoverListing } from '../../hooks/queries/useDiscoverListings';
+import { discoverListingStepCount, type DiscoverListing } from '../../hooks/queries/useDiscoverListings';
 import { PublicTopBar, PublicErrorState } from './public-shared';
 import { noteUrlForCurrentSurface } from '@/utils/url-helpers';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
@@ -201,9 +201,12 @@ export default function PublicDiscoverListingPage() {
   const panelArt = isResource ? discoverDocumentArt(listing?.slug) : null;
   const panelArtPosition = isResource ? discoverArtPosition(listing?.slug) : null;
 
+  const stepCount = listing ? discoverListingStepCount(listing) : null;
   const kindNoun =
     listing?.kind === 'pack'
-      ? 'Thread'
+      ? stepCount
+        ? `${stepCount}-step study plan`
+        : 'Thread'
       : listing?.kind === 'note'
         ? 'note'
         : listing?.kind === 'resource'

@@ -10,9 +10,11 @@ import {
   CALLOUT_SHELF_MS,
   compareVersions,
   lastSeenAt,
+  needsDiscoverCatalog,
   pickCallout,
   pickCalloutWithSuperseded,
   releaseHasCallout,
+  withListedDiscoverCallouts,
   type Callout,
   type CalloutContext,
 } from '../callout-registry';
@@ -194,5 +196,44 @@ describe('compareVersions', () => {
     expect(compareVersions('3.9.0', '3.10.0')).toBe(-1);
     expect(compareVersions('3.18.5', '3.18.5')).toBe(0);
     expect(compareVersions('4', '3.99.99')).toBe(1);
+  });
+});
+
+describe('Discover callouts', () => {
+  const advent = CALLOUTS.find((entry) => entry.id === 'advent-plan-2026-11')!;
+  const listing = (over: Record<string, unknown> = {}) =>
+    ({
+      slug: 'advent-hope-peace-joy-love',
+      kind: 'pack',
+      title: 'Advent: Hope, Peace, Joy, Love',
+      preview: { noteCount: 7, stepCount: 5 },
+      ...over,
+    }) as never;
+
+  it('waits for the Advent plan to be listed, and never guesses before the catalog loads', () => {
+    expect(withListedDiscoverCallouts([advent], undefined)).toEqual([]);
+    expect(withListedDiscoverCallouts([advent], [])).toEqual([]);
+    expect(withListedDiscoverCallouts([advent], [listing()])).toEqual([advent]);
+  });
+
+  it('matches a study plan, not a Thread or another title', () => {
+    expect(withListedDiscoverCallouts([advent], [listing({ preview: { noteCount: 7 } })])).toEqual([]);
+    expect(withListedDiscoverCallouts([advent], [listing({ title: 'Lent' })])).toEqual([]);
+  });
+
+  it('leaves every other callout alone', () => {
+    const plain = callout('plain');
+    expect(withListedDiscoverCallouts([plain, advent], undefined)).toEqual([plain]);
+  });
+
+  it('loads the catalog only while the card could be due', () => {
+    expect(needsDiscoverCatalog(CALLOUTS, {}, Date.parse('2026-11-27T12:00:00Z'))).toBe(false);
+    expect(needsDiscoverCatalog(CALLOUTS, {}, Date.parse('2026-12-01T12:00:00Z'))).toBe(true);
+    expect(needsDiscoverCatalog(CALLOUTS, { [advent.id]: '2026-12-01T00:00:00Z' }, Date.parse('2026-12-02T12:00:00Z'))).toBe(false);
+    expect(needsDiscoverCatalog(CALLOUTS, {}, Date.parse('2026-12-27T12:00:00Z'))).toBe(false);
+  });
+
+  it('does not hold back the release What\u2019s new card', () => {
+    expect(releaseHasCallout([advent], ctx({ now: Date.parse('2026-12-01T12:00:00Z') }))).toBe(false);
   });
 });

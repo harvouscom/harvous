@@ -40,6 +40,7 @@
  * "seen" flag can express.
  */
 import type { CalloutIllustrationKey } from './CalloutIllustration';
+import { discoverListingStepCount, type DiscoverListing } from '../../../hooks/queries/useDiscoverListings';
 
 export interface CalloutContext {
   isGuest: boolean;
@@ -63,6 +64,8 @@ export interface CalloutActionContext {
   openBibleMap: () => void;
   /** Open the Harvous Plus page (`/upgrade`), in this tab. */
   openUpgrade: () => void;
+  /** Open the Discover catalog in the expanded panel. */
+  openDiscover: () => void;
 }
 
 export type CalloutAction =
@@ -93,6 +96,13 @@ export interface Callout {
   audience?: 'all' | 'members' | 'plus' | 'free';
   /** Higher first. Legal outranks features. */
   priority?: number;
+  /**
+   * Announces something in Discover: due only once the catalog lists a match. A listing is
+   * reviewed and approved on its own clock, so a card pointing at one must not show before
+   * it is there to find. Checked by the mount site, which loads the catalog only while a
+   * callout like this could otherwise be due.
+   */
+  discoverListing?: (listing: DiscoverListing) => boolean;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -181,7 +191,50 @@ export const CALLOUTS: readonly Callout[] = [
     shippedAt: '2026-11-20',
     audience: 'free',
   },
+  {
+    /* The Advent plan in Discover (#357). Advent begins Sunday Nov 29; the plan starts any day,
+       so it stays up until Christmas. Waits for the listing itself, which is approved in admin
+       and not by this merge: matched by what it is rather than a slug that approval assigns. */
+    id: 'advent-plan-2026-11',
+    title: 'Walk through Advent',
+    body: 'A four-week study plan for Hope, Peace, Joy and Love, with a step for Christmas Day. Start any day.',
+    illustration: 'study-plan',
+    action: { label: 'Find it in Discover', run: (ctx) => ctx.openDiscover() },
+    shippedAt: '2026-11-28',
+    until: '2026-12-26',
+    audience: 'members',
+    discoverListing: (listing) =>
+      discoverListingStepCount(listing) !== null &&
+      /^advent\b/i.test(listing.title),
+  },
 ];
+
+/**
+ * Drops callouts whose Discover listing is not in the catalog yet. `listings` is undefined
+ * while the catalog has not loaded (or failed): those callouts wait rather than guess.
+ */
+export function withListedDiscoverCallouts(
+  registry: readonly Callout[],
+  listings: readonly DiscoverListing[] | undefined,
+): Callout[] {
+  return registry.filter(
+    (callout) => !callout.discoverListing || Boolean(listings?.some((listing) => callout.discoverListing!(listing))),
+  );
+}
+
+/** Whether any Discover-gated callout is still unseen and inside its dates, so the catalog is worth loading. */
+export function needsDiscoverCatalog(
+  registry: readonly Callout[],
+  seen: Record<string, string> | undefined,
+  now: number,
+): boolean {
+  return registry.some((callout) => {
+    if (!callout.discoverListing || seen?.[callout.id]) return false;
+    if (callout.shippedAt && now < Date.parse(callout.shippedAt)) return false;
+    const expires = expiresAt(callout);
+    return expires === null || now < expires;
+  });
+}
 
 /** -1, 0 or 1, comparing dotted numeric versions ("3.18.5"). Missing parts count as 0. */
 export function compareVersions(a: string, b: string): number {
@@ -309,6 +362,8 @@ export function pickCallout(
 export function releaseHasCallout(registry: readonly Callout[], ctx: CalloutContext): boolean {
   return registry.some(
     (callout) =>
+      /* A Discover callout announces a listing, not a release. */
+      !callout.discoverListing &&
       callout.shippedAt !== undefined &&
       ctx.now - Date.parse(callout.shippedAt) < CALLOUT_FOLD_MS &&
       forThisAccount(callout, ctx),
