@@ -271,8 +271,8 @@
 .proto-callout-art--my-bible { background-image: url("/images/callouts/my-bible.webp"); }
 /* The letter wears harvous.com's homepage hero sky (ai_bg_053, cropped from the site's copy). */
 .proto-callout-art--letter { background-image: url("/images/callouts/letter.webp"); }
-/* The Advent plan shares the letter's sky: a season, not a feature of the app. */
-.proto-callout-art--study-plan { background-image: url("/images/callouts/letter.webp"); }
+/* The Advent plan wears a Christmas red: ai_bg_045's silk, toned crimson to cream. */
+.proto-callout-art--study-plan { background-image: url("/images/callouts/advent.webp"); }
 
 /* The images are painted for a light canvas; dim them a little under a dark sheet. */
 :root[data-color-scheme="dark"] .proto-callout-art:not(.proto-callout-art--whats-new) {
