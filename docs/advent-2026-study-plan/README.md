@@ -12,6 +12,7 @@ Themes follow a common Protestant Advent pattern (hope, peace, joy, love) and sa
 ## Review
 
 - Theological review (theologian-agent, 2026-11-26): pass with revisions, all applied. Must-fix: none. Should-fix applied: ESV attribution; Mary "engaged but not yet married" instead of "young, unmarried"; Isaiah 7:14 framed as first given to Ahaz, with Matthew's reading of it; the shepherds as the first the angels tell, not the first to know.
+- Second review (2026-11-27): a read-through with Derek plus an independent theologian-agent pass. Pass with revisions, no must-fix, all 15 to 20 ESV quotations checked. Applied: Isaiah 9:1-7 so Galilee is in the passage; Isaiah 7:10-16; the stump as judgment still ahead; Joseph's betrothal as binding ("divorce her quietly"); Mary's song as praise for what God did for her, widening to his people; Ephesians 2 read as Jew and Gentile, with a safer peace question; Luke 2:14 in ESV wording; Simeon and Anna as Luke gives them; Gaudete Sunday; Romans 15:12; Working Preacher for Week 4; the full Crossway ESV notice; a note on the short fourth week in 2026.
 - Approval: Derek, before publishing.
 
 ## Publish
