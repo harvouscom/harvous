@@ -88,6 +88,22 @@ describe("today’s passage visibility", () => {
     expect(container.querySelector(`#${TODAYS_PASSAGE_ANCHOR_ID}`)).toBeTruthy();
   });
 
+  /* An app left open, or resumed, overnight: last night's "Not today" is not this morning's. */
+  it('comes back the next day in a tab that stayed open', () => {
+    renderRow();
+    act(() => {
+      screen.getByRole('button', { name: /dismiss/i }).click();
+    });
+    expect(screen.queryByText('Romans 8:28')).toBeNull();
+
+    act(() => {
+      vi.setSystemTime(new Date('2026-06-27T07:00:00-05:00'));
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    expect(screen.getByText('Romans 8:28')).toBeTruthy();
+  });
+
   /* One browser, two accounts. The dismissal is the reader's, not the device's. */
   it('is not hidden by another account’s dismissal', () => {
     setVotdDismissedToday('user_someone_else');

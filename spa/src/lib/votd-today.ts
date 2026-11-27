@@ -2,6 +2,7 @@ import type { SpaceNoteRow } from '../hooks/queries/useSpace';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY } from '@/utils/user-cache-keys';
 import type { Tradition } from '@/utils/tradition';
+import { apiUrl, getClerkBearerToken } from './api';
 
 export { VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY };
 
@@ -203,9 +204,19 @@ export async function fetchVotdToday(
    * `day` is for caches, not the server (which works the date out from `tz`): with only the time
    * zone in the URL, yesterday's response was a valid HTTP cache hit for today.
    */
-  const res = await fetch(`/api/votd/today?tz=${encodeURIComponent(tz)}&day=${day}${traditionParam}`, {
+  /*
+   * The session JWT as a Bearer, like every other call through `lib/api`. This used to lean on
+   * the `__session` cookie alone, and that cookie lives a minute: on a cold start or a resume it
+   * has often expired before Clerk refreshes it, so the server took a member for a guest and
+   * answered without the words — and the card only shows with words. The day's passage then sat
+   * as a row at the back of Suggestions for the hour the query held it.
+   */
+  const headers: Record<string, string> = { 'X-Votd-Timezone': tz };
+  const token = await getClerkBearerToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(apiUrl(`/api/votd/today?tz=${encodeURIComponent(tz)}&day=${day}${traditionParam}`), {
     credentials: 'include',
-    headers: { 'X-Votd-Timezone': tz },
+    headers,
   });
   if (!res.ok) throw new Error(`votd/today ${res.status}`);
   const data = (await res.json()) as {
