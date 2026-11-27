@@ -14,6 +14,7 @@ import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { votdTodayQueryKey } from '../../hooks/queries/useVotdToday';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useLocalDay } from '../../hooks/useLocalDay';
 import {
   clearForcedTodaysPassage,
   findPersistedDailyPassageNote,
@@ -22,6 +23,7 @@ import {
   setVotdDismissedToday,
   shouldForceShowTodaysPassage,
   subscribeForcedTodaysPassage,
+  todayCalendarDayKey,
   type VotdToday,
 } from '../../lib/votd-today';
 import { buildScripturePillWithQuoteHtml } from '../../lib/votd-scripture-pill-html';
@@ -44,7 +46,16 @@ export function useDailyPassageActions({
   const queryClient = useQueryClient();
   const { userId } = useAuth();
   const { isMobileSidebar, closeDrawer, beginPrototypeComposeSession } = useProtoShell();
-  const [dismissedToday, setDismissedToday] = useState(() => isVotdPassageCardDismissedToday(userId));
+  /*
+   * "Not today" is about a day, so it is asked about today, every render — not frozen at mount.
+   * Held as a boolean in `useState`, a passage dismissed at 10pm stayed hidden the next morning
+   * in an app that was simply left open (or resumed) overnight, and a dismissal read before
+   * Clerk had named the reader was never re-read for them. `useLocalDay` re-renders at midnight
+   * and on resume; the stored day answers for any reader, and the local day for this tab's click.
+   */
+  const day = useLocalDay();
+  const [dismissedOn, setDismissedOn] = useState<string | null>(null);
+  const dismissedToday = dismissedOn === day || isVotdPassageCardDismissedToday(userId);
   /*
    * Subscribed, not read during render. A reminder tap sets this at the end of a promise chain
    * that can land well after this has already mounted and decided to render nothing — and with
@@ -139,7 +150,7 @@ export function useDailyPassageActions({
   const dismiss = useCallback(() => {
     clearForcedTodaysPassage();
     setVotdDismissedToday(userId);
-    setDismissedToday(true);
+    setDismissedOn(todayCalendarDayKey());
     recordVotdEngagement('dismiss');
   }, [userId]);
 

@@ -10,8 +10,10 @@ let state: OnboardingState = emptyOnboardingState();
 const updates: ((s: OnboardingState) => OnboardingState)[] = [];
 const navigate = vi.fn();
 
+/* `ready` is true from the device's cache alone; `hydrated` only once the account has answered. */
+let hydrated = true;
 vi.mock('../../useOnboardingState', () => ({
-  useOnboardingState: () => ({ state, ready: true }),
+  useOnboardingState: () => ({ state, ready: true, hydrated }),
 }));
 vi.mock('../../../../lib/proto-onboarding-sync', () => ({
   updateOnboardingState: (fn: (s: OnboardingState) => OnboardingState) => {
@@ -20,7 +22,8 @@ vi.mock('../../../../lib/proto-onboarding-sync', () => ({
   },
 }));
 vi.mock('../../../../hooks/useHarvousIdentity', () => ({ useHarvousIdentity: () => ({ isGuest: false }) }));
-vi.mock('../../../../hooks/useHasFeature', () => ({ useHasFeature: () => ({ has: false, ready: true }) }));
+let plus = { has: false, ready: true };
+vi.mock('../../../../hooks/useHasFeature', () => ({ useHasFeature: () => plus }));
 vi.mock('../../../../layouts/proto-shell-context', () => ({
   useProtoShell: () => ({ isMobileSidebar: true, inspectorOpen: false }),
 }));
@@ -70,6 +73,8 @@ beforeEach(() => {
   localStorage.clear();
   accountCreatedAt = Date.parse('2026-01-01T00:00:00Z');
   state = emptyOnboardingState();
+  hydrated = true;
+  plus = { has: false, ready: true };
   updates.length = 0;
   navigate.mockClear();
   legalDue = [];
@@ -173,6 +178,25 @@ describe('feature callout', () => {
     localStorage.setItem('harvous-callout-stack-shown', JSON.stringify(['founder-letter']));
     renderOpen();
     expect(screen.getByRole('dialog', { name: 'Notice founder-letter' })).toBeTruthy();
+  });
+
+  it('waits for the account, not this device’s cached copy, so a card put away elsewhere does not flash', () => {
+    hydrated = false;
+    const { container, rerender } = render(<PrototypeFeatureCalloutDock />);
+    expect(container.textContent).toBe('');
+    /* Nothing was on screen, so nothing was remembered as shown while the account was unknown. */
+    expect(localStorage.getItem('harvous-callout-stack-shown')).toBeNull();
+    /* The account answers: put away on the phone. */
+    state = { ...emptyOnboardingState(), calloutsSeen: { 'today-tabs-2026-10': '2026-10-01T00:00:00Z' } };
+    hydrated = true;
+    rerender(<PrototypeFeatureCalloutDock />);
+    expect(screen.queryByText('Today, tidied')).toBeNull();
+  });
+
+  it('waits for the subscription, so a Plus member is not shown the free card first', () => {
+    plus = { has: false, ready: false };
+    const { container } = render(<PrototypeFeatureCalloutDock />);
+    expect(container.textContent).toBe('');
   });
 
   it('does not announce a change to an account created after it shipped', () => {

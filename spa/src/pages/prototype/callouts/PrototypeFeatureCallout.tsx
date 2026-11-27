@@ -93,8 +93,15 @@ function scrollToTodayTabs(): void {
 /**
  * The callout to show, if any, and the two ways to answer it.
  *
- * Renders nothing until the account's onboarding record has answered (`ready`), so a card put
+ * Renders nothing until the account's onboarding record has answered (`hydrated`), so a card put
  * away on another device does not flash here before the record arrives.
+ *
+ * `hydrated`, not `ready`. `ready` is also true from this device's cached copy, which is right for
+ * the checklist (paint what you last knew) and wrong for a card: the cache predates whatever was
+ * put away since on the phone, so the card showed for a second and then vanished when the account
+ * answered — and, having been on screen, it was remembered as shown and kept its place in the
+ * stack. Plus is waited for for the same reason: until the subscription answers everyone reads as
+ * free, so a Plus member was shown the "get Plus" card before the one meant for them.
  */
 export function useActiveCallouts(): {
   /** The one to show, then its companion if it has one — at most two. */
@@ -102,9 +109,11 @@ export function useActiveCallouts(): {
   dismiss: (callout: Callout) => void;
   act: (callout: Callout) => void;
 } {
-  const { state, ready } = useOnboardingState();
+  const { state, hydrated } = useOnboardingState();
   const { isGuest } = useHarvousIdentity();
   const plus = useHasFeature('review');
+  /* A guest has no subscription to wait for — its query never runs, so `ready` never comes. */
+  const plusSettled = isGuest || plus.ready;
   const account = useAccountCreatedAt();
   const navigate = useNavigate();
   const { openExpandedSidebar } = useProtoShell();
@@ -117,7 +126,7 @@ export function useActiveCallouts(): {
   /* Waits for both answers — the account's seen record and its legal standing — so neither a
      put-away card nor a feature card the notice should outrank flashes up first. */
   const { callout, companion, superseded } =
-    ready && account.ready && (isGuest || legal.isFetched)
+    hydrated && plusSettled && account.ready && (isGuest || legal.isFetched)
       ? pickCalloutWithSuperseded(
           CALLOUTS,
           state.calloutsSeen,
