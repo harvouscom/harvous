@@ -123,7 +123,7 @@ export function useActiveCallouts(): {
   const { openExpandedSidebar } = useProtoShell();
 
   /* The catalog loads only while a Discover callout could be due, never on every Home. */
-  const wantsCatalog = !isGuest && ready && needsDiscoverCatalog(CALLOUTS, state.calloutsSeen, Date.now());
+  const wantsCatalog = !isGuest && hydrated && needsDiscoverCatalog(CALLOUTS, state.calloutsSeen, Date.now());
   const catalog = useDiscoverListings({ enabled: wantsCatalog });
   const registry = withListedDiscoverCallouts(CALLOUTS, catalog.data?.listings);
 
