@@ -47,13 +47,14 @@ import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSec
 import PrototypeChurchEngagementSection from './PrototypeChurchEngagementSection';
 import PrototypeChurchJoinLinkSection from './PrototypeChurchJoinLinkSection';
 import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
-import PrototypeChurchSetupCard from './PrototypeChurchSetupCard';
+import PrototypeChurchSetupCard, { useChurchSetupDismissed } from './PrototypeChurchSetupCard';
 import { churchSetupSteps, type ChurchSetupStepId } from '../../lib/church-setup-steps';
 import { useChurchSettings } from '../../hooks/queries/useChurchSettings';
 import { useChurchJoinLink } from '../../hooks/queries/useChurchJoin';
 import { useNoteTemplates } from '../../hooks/queries/useNoteTemplates';
 import { useChurchTeachingPlan } from '../../hooks/queries/useChurchTeachingPlan';
 import PrototypeChurchSettingsSection from './PrototypeChurchSettingsSection';
+import { SegmentedControl } from './settings/SettingsShell';
 import { useProtoHomeViewClassName, useProtoSpaceLoaderState } from './useProtoHomeViewEnter';
 import PrototypeChannelPairingSection from './PrototypeChannelPairingSection';
 import { useChurchContent } from '../../hooks/queries/useChurchContent';
@@ -320,6 +321,7 @@ export default function PrototypeChurchHub() {
     | 'settings'
     | 'engagement'
     | 'join-link'
+    | 'setup'
   >('catalog');
   const pendingFollowId = followChannel.isPending
     ? followChannel.variables?.spaceId ?? null
@@ -515,6 +517,53 @@ export default function PrototypeChurchHub() {
       setupJoinLinkQuery.data?.link?.useCount,
     ],
   );
+  /*
+    Groups or Tools (Derek, Nov 27 2026: the hub "could get really long and lots of
+    scrolling just to get to things"). Two tabs keep each list short however many
+    ministries and tools a church grows. Only staff have tools, so a congregant sees
+    no switch at all. The last tab is remembered on this device, per church.
+  */
+  const hasTools =
+    canCreateChurchContent || canViewTeachingPlan || canManageChurchTemplates || canManageChurchSettings;
+  const hubTabKey = `harvous.churchHub.tab:${orgId ?? 'none'}`;
+  const [hubTabByKey, setHubTabByKey] = useState<Record<string, 'groups' | 'tools'>>({});
+  const hubTab: 'groups' | 'tools' =
+    hubTabByKey[hubTabKey] ??
+    (() => {
+      try {
+        return window.localStorage.getItem(hubTabKey) === 'tools' ? 'tools' : 'groups';
+      } catch {
+        return 'groups';
+      }
+    })();
+  const setHubTab = (tab: 'groups' | 'tools') => {
+    setHubTabByKey((prev) => ({ ...prev, [hubTabKey]: tab }));
+    try {
+      window.localStorage.setItem(hubTabKey, tab);
+    } catch {
+      /* Private mode: the tab just isn't remembered. */
+    }
+  };
+
+  /* Put away, but not finished: the steps stay one tap away at the top of Tools. */
+  const setupDismissed = useChurchSetupDismissed();
+  const setupLeft = setupSteps.filter((step) => !step.done).length;
+  const toolRows = useMemo<ProtoToolRow[]>(
+    () =>
+      setupDismissed && setupLeft > 0
+        ? [
+            {
+              key: 'setup',
+              icon: 'list-check',
+              title: 'Get set up',
+              meta: `${setupSteps.length - setupLeft} of ${setupSteps.length} done`,
+              onSelect: () => setToolsView('setup'),
+            },
+            ...churchToolRows,
+          ]
+        : churchToolRows,
+    [setupDismissed, setupLeft, setupSteps.length, churchToolRows],
+  );
   const openSetupStep = (id: ChurchSetupStepId) => {
     if (id === 'times') setToolsView('settings');
     else if (id === 'channel') openCreateSheet('ministry');
@@ -576,7 +625,7 @@ export default function PrototypeChurchHub() {
     !staffStatusLoading &&
     (!billingEnabled || isQuerySettled(billingQuery.isPending, billingQuery.data != null));
   // Each tools pane is its own destination, so it replays on the way in and back.
-  const homeViewClassName = useProtoHomeViewClassName(contentReady, `${orgId ?? 'none'}:${toolsView}`);
+  const homeViewClassName = useProtoHomeViewClassName(contentReady, `${orgId ?? 'none'}:${toolsView}:${hubTab}`);
   const { showLoader, loaderLeaving } = useProtoSpaceLoaderState(contentReady);
 
   /** What the header reads — the pane's own name once you drill into one. */
@@ -593,7 +642,9 @@ export default function PrototypeChurchHub() {
               ? 'Engagement'
               : toolsView === 'join-link'
                 ? 'Invite link'
-                : churchName;
+                : toolsView === 'setup'
+                  ? 'Get set up'
+                  : churchName;
 
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
@@ -605,7 +656,7 @@ export default function PrototypeChurchHub() {
   };
 
   const header = (
-        <div className="proto-shared-space-header__row">
+        <div className="proto-shared-space-header__row proto-church-hub__head-row">
           {toolsView === 'catalog' ? (
             <span className="proto-shared-space-header__church-icon" aria-hidden>
               <Icon name="church" size={18} />
@@ -638,6 +689,10 @@ export default function PrototypeChurchHub() {
               <p className="proto-caption proto-shared-space-header__location">{churchName}</p>
             ) : null}
           </div>
+          {/* Pilot or lapsed plan, beside the church's name; silent while paid and healthy. */}
+          {toolsView === 'catalog' ? (
+            <PrototypeChurchPlanRow orgId={orgId} canManageBilling={billingEnabled} variant="callout" />
+          ) : null}
           {/*
             Opt-in, not automatic: the compact list is still the right answer for
             "what am I preaching Sunday", and the board is for the afternoon you
@@ -735,6 +790,8 @@ export default function PrototypeChurchHub() {
               canView={canCreateChurchContent}
               lapsed={churchPlanLapsed}
             />
+          ) : toolsView === 'setup' ? (
+            <PrototypeChurchSetupCard steps={setupSteps} onSelect={openSetupStep} mode="pane" />
           ) : toolsView === 'settings' ? (
             <PrototypeChurchSettingsSection
               orgId={orgId}
@@ -744,7 +801,20 @@ export default function PrototypeChurchHub() {
           ) : (
           <>
             <PrototypeChurchSetupCard steps={setupSteps} onSelect={openSetupStep} />
-            {isEmpty ? (
+            {hasTools ? (
+              <div className="proto-home-section proto-church-hub__tabs">
+                <SegmentedControl
+                  ariaLabel="Show"
+                  options={[
+                    { value: 'groups', label: 'Groups' },
+                    { value: 'tools', label: 'Tools' },
+                  ]}
+                  value={hubTab}
+                  onChange={setHubTab}
+                />
+              </div>
+            ) : null}
+            {hasTools && hubTab === 'tools' ? null : isEmpty ? (
               <div className="proto-home-section">
                 <PrototypeListEmptyState
                   iconName="church"
@@ -920,21 +990,12 @@ export default function PrototypeChurchHub() {
             )}
 
             {/*
-              Church tools — one group, at the bottom, visually separate from
-              the congregation-facing catalog above. Previously the teaching
-              plan, the team and the plan banner were interleaved with the
-              catalog as bare text links and a slab.
+              Church tools — their own tab, so the congregation-facing catalog
+              and the staff tools never push each other down the page.
             */}
-            {canCreateChurchContent ||
-            canViewTeachingPlan ||
-            canManageChurchTemplates ||
-            canManageChurchSettings ? (
+            {hasTools && hubTab === 'tools' ? (
               <div className="proto-home-section">
-                <p className="proto-caption proto-home-section__eyebrow">Tools</p>
-                <ProtoToolsRowList rows={churchToolRows} cascade>
-                  {/* Silent while the church is paid and healthy. */}
-                  <PrototypeChurchPlanRow orgId={orgId} canManageBilling={billingEnabled} />
-                </ProtoToolsRowList>
+                <ProtoToolsRowList rows={toolRows} cascade />
               </div>
             ) : null}
           </>

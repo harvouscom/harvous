@@ -6,7 +6,7 @@
  * reliably accept. Drawn at a fixed large size so a projected or printed code stays
  * crisp; the QR's own white quiet zone is already in the SVG.
  */
-export async function svgToPngBlob(svg: string, size = 2048): Promise<Blob> {
+export async function svgToPngBlob(svg: string, size = 2048, height = size): Promise<Blob> {
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   try {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -17,14 +17,14 @@ export async function svgToPngBlob(svg: string, size = 2048): Promise<Blob> {
     });
     const canvas = document.createElement('canvas');
     canvas.width = size;
-    canvas.height = size;
+    canvas.height = height;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas is not available');
     // Crisp module edges: smoothing would blur the squares a scanner reads.
     context.imageSmoothingEnabled = false;
     context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, size, size);
-    context.drawImage(image, 0, 0, size, size);
+    context.fillRect(0, 0, size, height);
+    context.drawImage(image, 0, 0, size, height);
     return await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Could not make the PNG'))), 'image/png');
     });

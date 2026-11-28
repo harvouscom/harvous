@@ -309,7 +309,7 @@ async function findExistingCopy(userId: string, sourceThreadId: string) {
 }
 
 /** The caller's metadata row, created the way the shared-thread import does. */
-async function ensureUserMetadata(userId: string): Promise<void> {
+export async function ensureUserMetadata(userId: string): Promise<void> {
   const existing = first(
     await db.select({ id: UserMetadata.id }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1),
   );

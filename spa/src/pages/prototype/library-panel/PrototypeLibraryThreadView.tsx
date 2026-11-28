@@ -32,6 +32,7 @@ import {
 } from '../ProtoThreadTrailSortable';
 import { PrototypeSidebarNoteRow } from '../sidebar-rows';
 import PrototypeThreadPlanProgress from '../PrototypeThreadPlanProgress';
+import PrototypeStudyPlanPublishAction from '../PrototypeStudyPlanPublishAction';
 import { usePrototypeStudyThread } from '../../../hooks/queries/usePrototypeStudyThread';
 import { useThreadNotes } from '../../../hooks/queries/useThreadNotes';
 import { useStudyThreadMemberDragReorder } from '../../../hooks/useStudyThreadMemberDragReorder';
@@ -419,13 +420,21 @@ function SharedThreadMembers({ threadId, data }: { threadId: string; data: Libra
         finished could never leave Home, which drops completed plans.
       */
       header={
-        <PrototypeThreadPlanProgress
-          threadId={threadId}
-          isSequence={firstPage?.mode === 'sequence'}
-          total={firstPage?.sequence?.total ?? 0}
-          viewerOpenedNoteIds={firstPage?.viewerOpenedNoteIds ?? []}
-          viewerCompletedAt={firstPage?.viewerCompletedAt ?? null}
-        />
+        <>
+          <PrototypeThreadPlanProgress
+            threadId={threadId}
+            isSequence={firstPage?.mode === 'sequence'}
+            total={firstPage?.sequence?.total ?? 0}
+            viewerOpenedNoteIds={firstPage?.viewerOpenedNoteIds ?? []}
+            viewerCompletedAt={firstPage?.viewerCompletedAt ?? null}
+          />
+          {/* Church staff hand a plan from their own study to a channel they lead. Home only:
+              the server refuses a plan that already lives in a shared space or channel. */}
+          <PrototypeStudyPlanPublishAction
+            threadId={threadId}
+            enabled={firstPage?.mode === 'sequence' && data.viewingHome}
+          />
+        </>
       }
     >
       <ProtoThreadTrailSortableList

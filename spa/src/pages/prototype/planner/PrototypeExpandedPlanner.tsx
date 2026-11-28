@@ -469,12 +469,14 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
               <span className="proto-glass-action__label">{vocab.addLabel}</span>
             </button>
             {vocab.secondaryAddLabel ? (
+              /* A header control, so it wears the header's pill. It used to borrow the
+                 sheet's full-width quiet action, which wrapped and ran off the panel edge. */
               <button
                 type="button"
-                className="proto-sheet-quiet-action"
+                className="proto-glass-surface proto-glass-surface--control proto-glass-action proto-planner__secondary-add"
                 onClick={() => setSelection({ mode: 'create', date: nextPlanDate })}
               >
-                {vocab.secondaryAddLabel}
+                <span className="proto-glass-action__label">{vocab.secondaryAddLabel}</span>
               </button>
             ) : null}
           </>

@@ -28,10 +28,17 @@ function pilotCopy(daysLeft: number | null): string {
 export default function PrototypeChurchPlanRow({
   orgId,
   canManageBilling,
+  variant = 'row',
 }: {
   orgId: string | null;
   /** `manage_billing` — church admins only; the server refuses everyone else. */
   canManageBilling: boolean;
+  /**
+   * `callout`: a compact chip at the right of the hub header, beside the church's name
+   * (Derek, Nov 28 2026). It wraps under the name when the header is narrow. `row`: the
+   * Tools-list row this used to be.
+   */
+  variant?: 'row' | 'callout';
 }) {
   const { data } = useChurchBilling(orgId, { enabled: canManageBilling });
   const [starting, setStarting] = useState(false);
@@ -63,6 +70,41 @@ export default function PrototypeChurchPlanRow({
       setStarting(false);
     }
   };
+
+  const actionLabel = starting ? 'Opening…' : lapsed ? 'Renew' : 'Continue';
+  const contactHref = `mailto:${FOUNDER_EMAIL}?subject=${encodeURIComponent('Continuing Harvous for our church')}`;
+
+  if (variant === 'callout') {
+    const headline = lapsed ? 'Plan ended' : pilotCopy(sponsorship.pilotDaysLeft);
+    const detail = error
+      ? error
+      : lapsed
+        ? 'Posts on hold. Study stays readable.'
+        : endingSoon
+          ? 'Posting pauses when it ends.'
+          : !monthly
+            ? 'Contact Harvous to continue.'
+            : 'Everything is on.';
+    return (
+      <div
+        className={`proto-church-plan-callout${lapsed || endingSoon ? ' proto-church-plan-callout--warn' : ''}`}
+        role="status"
+        title={detail}
+      >
+        <Icon name={lapsed || endingSoon ? 'circle-exclamation' : 'clock'} size={12} aria-hidden />
+        <span className="proto-church-plan-callout__text">{headline}</span>
+        {monthly ? (
+          <button type="button" className="proto-church-plan-callout__action" disabled={starting} onClick={startCheckout}>
+            {actionLabel}
+          </button>
+        ) : (
+          <a className="proto-church-plan-callout__action" href={contactHref}>
+            Contact
+          </a>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="proto-church-tools__row proto-church-tools__row--status">

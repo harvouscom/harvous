@@ -4325,6 +4325,8 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
 
 .proto-inspector-input:focus {
   border-color: var(--pds-accent-focus-border);
+  /* Same click-focus ring as the canonical field above. */
+  box-shadow: inset 0 0 0 1.5px var(--pds-accent-focus-ring);
   background: var(--pds-bg-page);
   outline: 2px solid var(--pds-accent-focus-ring);
   /* Inset for the same reason as the canonical field above: the inspector is a
@@ -5192,6 +5194,11 @@ html.harvous-prototype-route [data-side='bottom'][data-vaul-drawer].drawer-conte
 .proto-create-folder-sheet__name-input:focus,
 .proto-settings-field__input:focus {
   border-color: var(--pds-accent-focus-border);
+  /* A click-focus has its outline stripped inline (field-focus-modality.js), which left
+     only the 0.5px border: too thin to read as focus (Derek, Nov 28 2026). The inset
+     ring survives that and lines up with the keyboard outline, so both read as one
+     2px band. */
+  box-shadow: inset 0 0 0 1.5px var(--pds-accent-focus-ring);
   outline: 2px solid var(--pds-accent-focus-ring);
   /* Inset, matching the global field ring — see the note there. At `0` the ring
      sat wholly outside the border box, so any scrolling ancestor cropped its
@@ -12765,26 +12772,58 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   line-height: 1.45;
 }
 
-/* The church join link — the QR on a white tile whatever the theme (a code only
-   scans dark-on-light), the link under it, and the actions in a row. */
-.proto-church-join__lede {
-  margin: 0 2px 12px;
-  line-height: 1.45;
-}
+/* The church join link (Nov 27 2026 redesign).
 
-.proto-church-join__card {
+   Borrows the child notebook's calm page shape: one preview of the real thing,
+   one primary action, then labelled groups of quiet rows. The preview is a sheet
+   of paper with the church's name in display type above the code, so staff see
+   what a bulletin or slide will carry. The QR stays on white whatever the theme
+   (a code only scans dark-on-light). Replace and Turn off are rows at the end,
+   not buttons as loud as Copy link. */
+.proto-church-join__poster {
+  margin: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 16px;
+  gap: var(--pds-space-4);
+  padding: var(--pds-space-6) var(--pds-space-5) var(--pds-space-5);
+  border-radius: var(--pds-radius-card);
+  border: 1px solid var(--pds-border-soft);
+  background: var(--pds-bg-main);
+  box-shadow: var(--pds-shadow-paper-panel);
+  text-align: center;
+}
+
+.proto-church-join__poster-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-1);
+  max-width: 100%;
+}
+
+.proto-church-join__eyebrow {
+  color: var(--pds-text-secondary);
+}
+
+.proto-church-join__church {
+  font-family: var(--pds-font-display);
+  font-variation-settings: var(--pds-font-display-variation);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.25;
+  color: var(--pds-text-primary);
+  text-wrap: balance;
 }
 
 .proto-church-join__qr {
   display: block;
-  width: 176px;
-  height: 176px;
-  border-radius: 12px;
+  width: 184px;
+  height: 184px;
+  padding: 10px;
+  box-sizing: content-box;
+  border-radius: var(--pds-radius-input);
+  border: 1px solid var(--pds-border-soft);
   background: #fff;
 }
 
@@ -12793,17 +12832,36 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--pds-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
-.proto-church-join__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-}
-
-.proto-church-join__actions .proto-settings-btn {
+.proto-church-join__copy {
   gap: 6px;
+  margin-top: var(--pds-space-4);
+}
+
+.proto-church-join__lede {
+  margin: var(--pds-space-3) 2px 0;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+  text-wrap: pretty;
+}
+
+.proto-church-join__label {
+  margin: var(--pds-space-6) 2px var(--pds-space-2);
+}
+
+/* Red on the words only, on approach: turning the link off is reversible (make a
+   new one), so it gets the quiet-action weight, not the red slab. */
+@media (hover: hover) and (pointer: fine) {
+  .proto-church-join__danger:not(:disabled):hover .proto-church-tools__row-title {
+    color: var(--pds-destructive);
+  }
+}
+
+.proto-church-join__danger:focus-visible .proto-church-tools__row-title {
+  color: var(--pds-destructive);
 }
 
 .proto-church-join__count {
@@ -12812,17 +12870,69 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   line-height: 1.45;
 }
 
-.proto-church-join__manage {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
+/* The church's plan status, as a compact chip at the right of the hub header
+   (Nov 28 2026). The name keeps at least 180px; below that the chip wraps onto
+   its own line under the name instead of squeezing it. */
+.proto-church-hub__head-row {
+  flex-wrap: wrap;
+  row-gap: var(--pds-space-2);
 }
 
-/* The app reset sets `flex-shrink: 0` everywhere and these buttons are full-width,
-   so without this the second one is pushed off the pane. */
-.proto-church-join__manage .proto-settings-btn {
-  flex: 1 1 0;
+.proto-church-hub__head-row > .proto-shared-space-header__meta {
+  flex: 1 1 180px;
+}
+
+.proto-church-plan-callout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 3px 3px 3px 10px;
+  border-radius: var(--pds-radius-pill);
+  border: 0.5px solid var(--pds-border-soft);
+  background: var(--pds-bg-subtle);
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.proto-church-plan-callout--warn {
+  color: var(--pds-destructive);
+}
+
+.proto-church-plan-callout__text {
+  color: var(--pds-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
   min-width: 0;
+  flex-shrink: 1;
+}
+
+.proto-church-plan-callout__action {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-paper-shadow-subtle);
+  font: inherit;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-church-plan-callout__action:hover:not(:disabled) {
+    background: var(--pds-bg-row-hover);
+  }
+}
+
+.proto-church-plan-callout__action:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
 }
 
 /* ── Church review questions (hub pane + editor) ──────────────────────────── */
@@ -17166,7 +17276,7 @@ html.harvous-prototype-route
      Long channel names ellipsise, and the menu carries the full list anyway.
      It shrinks before the header's gutter does — a narrow panel should cost
      the channel name a few characters, not collide two chip groups. */
-  flex: 0 1 196px;
+  flex: 0 1 164px;
   min-width: 108px;
 }
 
@@ -17190,6 +17300,12 @@ html.harvous-prototype-route
   flex: 1 1 0;
   min-width: 0;
 }
+/* The one-off add beside the primary: a quieter pill, never wrapped. */
+.proto-planner__secondary-add {
+  white-space: nowrap;
+  color: var(--pds-text-secondary);
+}
+
 .proto-planner__readonly {
   padding: 14px;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
@@ -18125,8 +18241,14 @@ html.harvous-prototype-route
   flex-direction: column;
   min-height: 0;
   margin: 8px;
-  border: 0.5px solid var(--pds-border-control);
+  /* The app's panel treatment (Derek, Nov 28 2026): paper, the subtle paper shadow and
+     the glass rim, the same as the inspector and the glass panels, instead of a hairline
+     that all but vanished on the pane behind it. Planner, Library, Review, Content and
+     the resource viewer all share this rail, so they change together. */
+  border: 0.5px solid var(--pds-border-soft);
   border-radius: 14px;
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-paper-shadow-subtle), var(--pds-glass-rim);
   overflow: hidden;
 }
 
