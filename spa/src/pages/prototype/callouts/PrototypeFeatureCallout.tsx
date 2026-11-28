@@ -42,12 +42,16 @@ import {
   CALLOUTS,
   CALLOUT_RETIRED_AT,
   lastSeenAt,
+  needsDiscoverCatalog,
   pickCalloutWithSuperseded,
+  withListedDiscoverCallouts,
   type Callout,
   type CalloutActionContext,
 } from './callout-registry';
 import { admitStackItems, readShownIds, rememberShownIds } from './callout-stack-admission';
 import { useAccountCreatedAt } from './use-account-created-at';
+import { useDiscoverListings } from '../../../hooks/queries/useDiscoverListings';
+import { markPendingDiscoverKind } from '../../../lib/pending-discover-kind';
 
 /** The id the legal notice wears — not in the registry; it is due by the server's version check. */
 export const LEGAL_NOTICE_ID = 'legal-notice';
@@ -118,6 +122,11 @@ export function useActiveCallouts(): {
   const navigate = useNavigate();
   const { openExpandedSidebar } = useProtoShell();
 
+  /* The catalog loads only while a Discover callout could be due, never on every Home. */
+  const wantsCatalog = !isGuest && hydrated && needsDiscoverCatalog(CALLOUTS, state.calloutsSeen, Date.now());
+  const catalog = useDiscoverListings({ enabled: wantsCatalog });
+  const registry = withListedDiscoverCallouts(CALLOUTS, catalog.data?.listings);
+
   const legal = useLegalStatus();
   const acknowledge = useAcknowledgeLegal();
   const legalDue = legal.data?.due ?? [];
@@ -128,7 +137,7 @@ export function useActiveCallouts(): {
   const { callout, companion, superseded } =
     hydrated && plusSettled && account.ready && (isGuest || legal.isFetched)
       ? pickCalloutWithSuperseded(
-          CALLOUTS,
+          registry,
           state.calloutsSeen,
           {
             isGuest,
@@ -178,6 +187,11 @@ export function useActiveCallouts(): {
         openSettings: (path) => void navigate({ to: prototypeHref(path) as never }),
         openBibleMap: () => openExpandedSidebar('bible-map'),
         openUpgrade: () => void navigate({ to: '/upgrade' }),
+        /* On the Threads chip, where a study plan is listed, so the card's plan is in view. */
+        openDiscover: () => {
+          markPendingDiscoverKind('pack');
+          openExpandedSidebar('discover');
+        },
       };
       if ('href' in callout.action) {
         window.open(callout.action.href, '_blank', 'noopener,noreferrer');

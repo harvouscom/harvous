@@ -38,6 +38,7 @@ import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { resolveNoteTemplateIconColor } from '@/utils/note-template-icon';
 import { findPersonalLibrary } from './ensure-personal-library';
 import { resolvePersonalStudyThread } from './study-thread-share';
+import { isSequenceMode, resolveSequenceState } from './thread-sequence';
 
 /**
  * How many notes one pack may carry.
@@ -119,6 +120,18 @@ export interface PackPayload {
   notes: SnapshotNote[];
   /** Rebuilt at install by mapping source ids to the new ones. */
   references: Array<{ from: string; to: string }>;
+  /**
+   * Present only when the source Thread is a study plan (`mode='sequence'`): its
+   * steps, as source note ids, in the authored order. Install rebuilds the plan
+   * from this — the steps, in this order, and nothing else as a step. Notes in
+   * the pack but not listed here (scripture a step references, carried along so
+   * the pill resolves) install into Home without joining the plan, because a
+   * Thread member missing from the order would be appended as an extra step.
+   *
+   * Absent on every pack submitted before plans could travel, and on any
+   * collection Thread, which install treats exactly as it always has.
+   */
+  sequence?: { stepSourceIds: string[] };
 }
 
 export interface Snapshot {
@@ -465,6 +478,8 @@ async function snapshotThreadRowPack(threadId: string, userId: string): Promise<
         userId: Threads.userId,
         spaceId: Threads.spaceId,
         isPublic: Threads.isPublic,
+        mode: Threads.mode,
+        sequenceNoteIds: Threads.sequenceNoteIds,
       })
       .from(Threads)
       .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)))
@@ -521,10 +536,24 @@ async function snapshotThreadRowPack(threadId: string, userId: string): Promise<
       asc(Notes.id),
     );
 
+  /* A study plan travels as one: its steps in the authored order, the order the
+     reader walks them. `resolveSequenceState` is the same reconciliation every
+     plan reader uses, so a member missing from the stored order is a step at the
+     end here too, rather than a note that silently stops being part of the plan. */
+  const stepSourceIds = isSequenceMode(thread.mode)
+    ? resolveSequenceState(thread, junctionNotes.map((n) => n.id)).orderedNoteIds
+    : null;
+  const orderedJunction = stepSourceIds
+    ? stepSourceIds
+        .map((id) => junctionNotes.find((n) => n.id === id))
+        .filter((n): n is (typeof junctionNotes)[number] => Boolean(n))
+    : junctionNotes;
+
   return buildPackSnapshot(
     { title: thread.title, subtitle: thread.subtitle ?? null, color: thread.color || 'paper' },
-    junctionNotes,
+    orderedJunction,
     thread.userId,
+    stepSourceIds,
   );
 }
 
@@ -545,6 +574,8 @@ async function buildPackSnapshot(
   thread: PackPayload['thread'],
   junctionNotes: PackSourceNote[],
   ownerUserId: string,
+  /** The plan's steps, in order, when the Thread is a study plan. */
+  stepSourceIds: string[] | null = null,
 ): Promise<SnapshotResult> {
   const junctionIds = junctionNotes.map((n) => n.id).filter(Boolean);
   let referencedScripture: typeof junctionNotes = [];
@@ -643,6 +674,7 @@ async function buildPackSnapshot(
     references: referenceRows
       .filter((r) => present.has(r.noteId) && present.has(r.scriptureNoteId))
       .map((r) => ({ from: r.noteId, to: r.scriptureNoteId })),
+    ...(stepSourceIds && stepSourceIds.length > 0 ? { sequence: { stepSourceIds } } : {}),
   };
   const encoded = JSON.stringify(payload);
   if (tooBig(encoded)) return TOO_BIG;
@@ -656,6 +688,9 @@ async function buildPackSnapshot(
       payload: encoded,
       preview: JSON.stringify({
         noteCount: sourceNotes.length,
+        /* A plan says how many steps it has, so a listing can read "4-step study
+           plan" rather than "6 notes" (the count includes carried scripture). */
+        ...(stepSourceIds && stepSourceIds.length > 0 ? { stepCount: stepSourceIds.length } : {}),
         titles: sourceNotes
           .map((n) => n.title?.trim())
           .filter((t): t is string => Boolean(t))

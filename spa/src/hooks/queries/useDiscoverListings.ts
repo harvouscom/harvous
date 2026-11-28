@@ -12,6 +12,16 @@ import type { CuratedResourceType, CuratedVideo } from '@/data/curated-resources
  * no review state, and no `payload`. Installing is what hands over the content;
  * the catalog only shows you enough to decide.
  */
+/**
+ * A pack made from a study plan, which travels as a plan (its steps, in order) rather than
+ * as a loose collection. Its listing reads "Study plan · 5 steps", never "Thread · 7 notes".
+ */
+export function discoverListingStepCount(listing: Pick<DiscoverListing, 'kind' | 'preview'>): number | null {
+  if (listing.kind !== 'pack') return null;
+  const count = listing.preview?.stepCount;
+  return typeof count === 'number' && count > 0 ? count : null;
+}
+
 export type DiscoverListing = {
   slug: string;
   kind: 'template' | 'note' | 'pack' | 'resource';
@@ -38,6 +48,11 @@ export type DiscoverTemplatePreview = {
   headings?: string[];
   titles?: string[];
   noteCount?: number;
+  /**
+   * Present only on a pack made from a study plan: how many steps it has. `noteCount`
+   * also counts the Scripture notes a step carries along, so a plan reads by this.
+   */
+  stepCount?: number;
   /** So a scripture note is not drawn as a plain one. */
   noteType?: string | null;
   sourceImage?: string | null;

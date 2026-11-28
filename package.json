@@ -101,6 +101,8 @@
     "channel-links:schema": "tsx server/scripts/add-space-channel-links-schema.ts",
     "channel-links:schema:apply": "tsx server/scripts/add-space-channel-links-schema.ts --apply",
     "discover:schema": "tsx server/scripts/add-discover-listings-schema.ts",
+    "discover:publish-plan": "tsx server/scripts/discover-publish-plan.ts",
+    "discover:preview-plan": "tsx server/scripts/discover-preview-plan.ts",
     "discover:schema:apply": "tsx server/scripts/add-discover-listings-schema.ts --apply",
     "push:schema": "tsx server/scripts/add-push-reminders-schema.ts",
     "push:schema:apply": "tsx server/scripts/add-push-reminders-schema.ts --apply",

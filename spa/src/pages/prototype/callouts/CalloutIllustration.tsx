@@ -19,7 +19,7 @@ import Icon from '@/components/react/Icon';
 import Harvous3Numeral from '../Harvous3Numeral';
 import ImportSourceFan from '../import/ImportSourceFan';
 
-export type CalloutIllustrationKey = 'today-tabs' | 'legal' | 'whats-new' | 'import' | 'letter' | 'family' | 'family-notebooks' | 'my-bible';
+export type CalloutIllustrationKey = 'today-tabs' | 'legal' | 'whats-new' | 'import' | 'letter' | 'family' | 'family-notebooks' | 'my-bible' | 'study-plan';
 
 /** A line of body copy: a rounded bar. */
 function Bar({ w, strong = false }: { w: number; strong?: boolean }) {
@@ -224,6 +224,35 @@ function MyBible() {
   );
 }
 
+/**
+ * A study plan from Discover: the plan's card, its steps in order with the first one under way.
+ * The Advent plan's own step titles, since that is the plan this card announces.
+ */
+const PLAN_STEPS = ['Week 1: Hope', 'Week 2: Peace', 'Week 3: Joy'];
+
+function StudyPlan() {
+  return (
+    <div className="proto-callout-art__sheet">
+      <div className="proto-callout-art__head">
+        <b>Advent</b>
+        <span>Study plan · 5 steps</span>
+      </div>
+      <div className="proto-callout-art__deck proto-callout-art__front">
+        {PLAN_STEPS.map((title, i) => (
+          <div key={title} className="proto-callout-art__row">
+            <span className="proto-callout-art__glyph">
+              {i === 0 ? <Icon name="check" size={9} aria-hidden /> : <span>{i + 1}</span>}
+            </span>
+            <span className="proto-callout-art__row-text">
+              <b>{title}</b>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function CalloutIllustration({ name }: { name: CalloutIllustrationKey }) {
   return (
     <div className={`proto-callout-art proto-callout-art--${name}`} aria-hidden="true">
@@ -241,6 +270,8 @@ export default function CalloutIllustration({ name }: { name: CalloutIllustratio
         <FamilyNotebooks />
       ) : name === 'my-bible' ? (
         <MyBible />
+      ) : name === 'study-plan' ? (
+        <StudyPlan />
       ) : (
         <TodayTabs />
       )}

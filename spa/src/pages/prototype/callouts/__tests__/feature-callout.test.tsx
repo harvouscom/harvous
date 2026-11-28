@@ -43,6 +43,10 @@ let notices: Notice[] = [];
 vi.mock('../use-notice-items', () => ({
   useNoticeItems: () => ({ items: notices, founderLetterOpen: false, closeFounderLetter: () => {} }),
 }));
+vi.mock('../../../../hooks/queries/useDiscoverListings', async (importActual) => ({
+  ...(await importActual<typeof import('../../../../hooks/queries/useDiscoverListings')>()),
+  useDiscoverListings: () => ({ data: undefined }),
+}));
 vi.mock('../../PrototypeFounderLetterSheet', () => ({ default: () => null }));
 let accountCreatedAt: number | undefined = Date.parse('2026-01-01T00:00:00Z');
 vi.mock('../use-account-created-at', () => ({
