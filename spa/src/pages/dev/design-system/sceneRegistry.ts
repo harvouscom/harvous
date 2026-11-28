@@ -364,6 +364,13 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     // The Home card under each of the day's four skies, and a long Gospel folding.
   },
   {
+    id: 'ds-29b-passage-concepts',
+    title: "Today's passage concepts",
+    phase: 'Patterns',
+    editFiles: ['spa/src/pages/dev/design-system/PassageConceptsScene.tsx'],
+    screenshotSlug: 'ds-29b-passage-concepts',
+  },
+  {
     id: 'ds-30-reader-stickers',
     title: 'Verse stickers (reader margin)',
     phase: 'Patterns',
