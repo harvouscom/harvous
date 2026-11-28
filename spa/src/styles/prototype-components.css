@@ -12870,6 +12870,71 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   line-height: 1.45;
 }
 
+/* The church's plan status, as a compact chip at the right of the hub header
+   (Nov 28 2026). The name keeps at least 180px; below that the chip wraps onto
+   its own line under the name instead of squeezing it. */
+.proto-church-hub__head-row {
+  flex-wrap: wrap;
+  row-gap: var(--pds-space-2);
+}
+
+.proto-church-hub__head-row > .proto-shared-space-header__meta {
+  flex: 1 1 180px;
+}
+
+.proto-church-plan-callout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 3px 3px 3px 10px;
+  border-radius: var(--pds-radius-pill);
+  border: 0.5px solid var(--pds-border-soft);
+  background: var(--pds-bg-subtle);
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.proto-church-plan-callout--warn {
+  color: var(--pds-destructive);
+}
+
+.proto-church-plan-callout__text {
+  color: var(--pds-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.proto-church-plan-callout__action {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-paper-shadow-subtle);
+  font: inherit;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-church-plan-callout__action:hover:not(:disabled) {
+    background: var(--pds-bg-row-hover);
+  }
+}
+
+.proto-church-plan-callout__action:focus-visible {
+  outline: 2px solid var(--pds-accent-focus-ring);
+  outline-offset: 2px;
+}
+
 /* ── Church review questions (hub pane + editor) ──────────────────────────── */
 .proto-church-review__eyebrow {
   margin-top: 14px;

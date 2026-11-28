@@ -656,7 +656,7 @@ export default function PrototypeChurchHub() {
   };
 
   const header = (
-        <div className="proto-shared-space-header__row">
+        <div className="proto-shared-space-header__row proto-church-hub__head-row">
           {toolsView === 'catalog' ? (
             <span className="proto-shared-space-header__church-icon" aria-hidden>
               <Icon name="church" size={18} />
@@ -689,6 +689,10 @@ export default function PrototypeChurchHub() {
               <p className="proto-caption proto-shared-space-header__location">{churchName}</p>
             ) : null}
           </div>
+          {/* Pilot or lapsed plan, beside the church's name; silent while paid and healthy. */}
+          {toolsView === 'catalog' ? (
+            <PrototypeChurchPlanRow orgId={orgId} canManageBilling={billingEnabled} variant="callout" />
+          ) : null}
           {/*
             Opt-in, not automatic: the compact list is still the right answer for
             "what am I preaching Sunday", and the board is for the afternoon you
@@ -991,10 +995,7 @@ export default function PrototypeChurchHub() {
             */}
             {hasTools && hubTab === 'tools' ? (
               <div className="proto-home-section">
-                <ProtoToolsRowList rows={toolRows} cascade>
-                  {/* Silent while the church is paid and healthy. */}
-                  <PrototypeChurchPlanRow orgId={orgId} canManageBilling={billingEnabled} />
-                </ProtoToolsRowList>
+                <ProtoToolsRowList rows={toolRows} cascade />
               </div>
             ) : null}
           </>
