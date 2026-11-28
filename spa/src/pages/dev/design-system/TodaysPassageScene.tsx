@@ -1,5 +1,5 @@
 /**
- * Today's passage at phone width, as the epigraph, each on its own day
+ * Today's passage at phone width, as the signed epigraph, each on its own day
  * sheet so it sits on the paper it sits on at home. A short Psalm, and a long Gospel so the
  * fold shows too. KJV text, which is public domain.
  */

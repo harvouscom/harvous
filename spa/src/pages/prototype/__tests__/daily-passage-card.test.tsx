@@ -79,12 +79,13 @@ describe('the card', () => {
 
   it('shows the words, the reference and the translation', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    /* No kicker on screen; what it is stays the region's name. */
-    expect(document.querySelector('.proto-daily-passage__kicker')).toBeNull();
+    /* The head names the card; the region carries the same name for anyone who cannot see it. */
+    expect(document.querySelector('.proto-daily-passage__label')?.textContent).toBe('Today’s passage');
     expect(screen.getByRole('region', { name: 'Today’s passage' })).toBeTruthy();
-    expect(document.querySelector('.proto-daily-passage__title')?.textContent).toBe('Psalm 18:1-2');
-    /* The translation as the dock's chip on the reference row, full name as its label. */
-    const chip = document.querySelector('.proto-daily-passage__trans-chip');
+    /* The signature sets a range with an en dash. */
+    expect(document.querySelector('.proto-daily-passage__title')?.textContent).toBe('Psalm 18:1\u20132');
+    /* The translation signs the reference, full name as its label. */
+    const chip = document.querySelector('.proto-daily-passage__trans');
     expect(chip?.textContent).toBe('NET');
     expect(chip?.getAttribute('title')).toBe('NET Bible');
     expect(screen.getByText(/I love you, LORD, my strength\./)).toBeTruthy();
@@ -108,16 +109,16 @@ describe('the card', () => {
     };
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={gospelVotd as never} />);
     expect(screen.getByRole('region', { name: 'Today’s Gospel' })).toBeTruthy();
-    expect(document.querySelector('.proto-daily-passage__title')?.textContent).toBe('Luke 11:47-54');
+    expect(document.querySelector('.proto-daily-passage__title')?.textContent).toBe('Luke 11:47\u201354');
     // No reading chips: the other readings are not on the card.
     expect(screen.queryByText('Ephesians 1:1-10')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Open in Bible' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Create note' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Read chapter' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Write a note' })).toBeTruthy();
   });
 
   it('opening it in the reader folds it and tells the server', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Open in Bible' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Read chapter' }));
     expect(actedAfterUpdate()).toBe(true);
     expect(lastEngagement()).toBe('open_reader');
     expect(navigate).toHaveBeenCalled();
@@ -125,7 +126,7 @@ describe('the card', () => {
 
   it('taking a note composes on the passage, folds it, and records the note', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Create note' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Write a note' }));
     expect(beginPrototypeComposeSession).toHaveBeenCalled();
     expect(actedAfterUpdate()).toBe(true);
     expect(lastEngagement()).toBe('add_note');
@@ -135,7 +136,7 @@ describe('the card', () => {
     render(
       <PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={{ ...votd, translation: 'ESV' }} />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Create note' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Write a note' }));
     const html = beginPrototypeComposeSession.mock.calls[0]?.[0]?.seed?.contentHtml as string;
     expect(html).toContain('data-scripture-reference="Psalm 18:1-2"');
     expect(html).toContain('data-scripture-translation="ESV"');
@@ -155,7 +156,7 @@ describe('the card', () => {
   it('"Not today" hides it without counting as acting on it', () => {
     render(<PrototypeDailyPassageCard homeSpaceId="space_1" notes={[]} votd={votd} />);
     fireEvent.click(screen.getByLabelText("Dismiss today's passage"));
-    expect(screen.queryByRole('button', { name: 'Open in Bible' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Read chapter' })).toBeNull();
     expect(setQueriesData).not.toHaveBeenCalled();
     expect(lastEngagement()).toBe('dismiss');
   });
