@@ -4325,6 +4325,8 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
 
 .proto-inspector-input:focus {
   border-color: var(--pds-accent-focus-border);
+  /* Same click-focus ring as the canonical field above. */
+  box-shadow: inset 0 0 0 1.5px var(--pds-accent-focus-ring);
   background: var(--pds-bg-page);
   outline: 2px solid var(--pds-accent-focus-ring);
   /* Inset for the same reason as the canonical field above: the inspector is a
@@ -5192,6 +5194,11 @@ html.harvous-prototype-route [data-side='bottom'][data-vaul-drawer].drawer-conte
 .proto-create-folder-sheet__name-input:focus,
 .proto-settings-field__input:focus {
   border-color: var(--pds-accent-focus-border);
+  /* A click-focus has its outline stripped inline (field-focus-modality.js), which left
+     only the 0.5px border: too thin to read as focus (Derek, Nov 28 2026). The inset
+     ring survives that and lines up with the keyboard outline, so both read as one
+     2px band. */
+  box-shadow: inset 0 0 0 1.5px var(--pds-accent-focus-ring);
   outline: 2px solid var(--pds-accent-focus-ring);
   /* Inset, matching the global field ring — see the note there. At `0` the ring
      sat wholly outside the border box, so any scrolling ancestor cropped its
@@ -18169,8 +18176,14 @@ html.harvous-prototype-route
   flex-direction: column;
   min-height: 0;
   margin: 8px;
-  border: 0.5px solid var(--pds-border-control);
+  /* The app's panel treatment (Derek, Nov 28 2026): paper, the subtle paper shadow and
+     the glass rim, the same as the inspector and the glass panels, instead of a hairline
+     that all but vanished on the pane behind it. Planner, Library, Review, Content and
+     the resource viewer all share this rail, so they change together. */
+  border: 0.5px solid var(--pds-border-soft);
   border-radius: 14px;
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-paper-shadow-subtle), var(--pds-glass-rim);
   overflow: hidden;
 }
 
